@@ -1,5 +1,8 @@
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
+import java.util.ArrayList;
 
 /**
  * NESrev - A disassembler for 16K NES PRG-ROMs
@@ -162,7 +165,7 @@ public class NESrev {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
-            System.out.println("Syntax: java CodeConverter [ROMfile] <-html>");
+            System.out.println("Syntax: java CodeConverter [ROMfile] <-html> <-codepointers FILE>");
             System.exit(0);
         }
         File f = new File(args[0]);
@@ -175,39 +178,82 @@ public class NESrev {
             System.exit(0);
         }
         name = f.getName();
-        // check if HTML output is wanted
+
+        ArrayList<Integer> codePointersStart = new ArrayList<Integer>();
+        ArrayList<Integer> codePointersCount = new ArrayList<Integer>();
+        // parse rest of arguments
         for (int i=1; i<args.length; i++) {
             if (args[i].equals("-html")) {
                 toHtml = true;
+            }
+            else if (args[i].equals("-codepointers")) {
+                File configFile = new File(args[i+1]);
+                if (!configFile.canRead()) {
+                     System.out.println("Error: Couldn't read "+args[i+1]+".");
+                }
+                FileReader fr = new FileReader(configFile);
+                BufferedReader br = new BufferedReader(fr);
+                String line;
+                boolean first = true;
+                while ((line = br.readLine()) != null) {
+                    if (first) {
+                        first = false;
+                        continue;
+                    }
+                    String[] parts = line.split("\\|");
+                    int offset = Integer.decode(parts[0]);
+                    int count = Integer.decode(parts[1]);
+                    if (offset < 0 || (offset + count*2) > 0x4000) {
+                        System.out.println("Error: Code pointer addresses are out of range.");
+                        System.exit(0);
+                    }
+                    codePointersStart.add(offset);
+                    codePointersCount.add(count);
+                }
+                ++i;
             }
             else {
                 System.out.println("Bad argument: "+args[i]);
                 System.exit(0);
             }
         }
-        // read file
+
+	// read file
         ROM = new int[(int)f.length()];
         FileInputStream fis = new FileInputStream(f);
         for (int i=0; i<ROM.length; i++) {
             ROM[i] = fis.read();
         }
         fis.close();
+
         // init map
         map = new int[ROM.length];
         for (int i=0; i<map.length; i++) {
             map[i] = DATA;
         }
-        // mark the code vectors
-        map[0x3FFA] = CODE | PTR;
-        map[0x3FFB] = CODE | PTR;
-        map[0x3FFC] = CODE | PTR;
-        map[0x3FFD] = CODE | PTR;
-        map[0x3FFE] = CODE | PTR;
-        map[0x3FFF] = CODE | PTR;
-        // process code vectors recursively
-        processCode(getAddress(0x3FFA));
-        processCode(getAddress(0x3FFC));
-        processCode(getAddress(0x3FFE));
+
+        // add the fixed vectors
+	codePointersStart.add(0x3FFA);
+        codePointersCount.add(3);
+
+        // mark the code pointers
+	for (int i = 0; i < codePointersStart.size(); ++i) {
+            int offset = (int)codePointersStart.get(i);
+            int count = (int)codePointersCount.get(i);
+            for (int j = 0; j < count; ++j) {
+                map[offset+j*2+0] = CODE | PTR;
+                map[offset+j*2+1] = CODE | PTR;
+            }
+	}
+
+	// process code pointers recursively
+        for (int i = 0; i < codePointersStart.size(); ++i) {
+            int offset = (int)codePointersStart.get(i);
+            int count = (int)codePointersCount.get(i);
+            for (int j = 0; j < count; ++j) {
+                processCode(getAddress(offset+j*2));
+            }
+	}
         //
         verifyDataLabels();
         disassemble();
@@ -489,7 +535,7 @@ public class NESrev {
                 break;
 
                 case 0x6C:  // JMP Ind
-                if (ROM[ofs+2] >= 0x80) {
+                if (isROMAddress(ofs+1)) {
                     processCode(getAddress(getAddress(ofs+1)));
                 }
                 done = true;
@@ -869,12 +915,7 @@ public class NESrev {
             System.out.println("<BODY>");
             System.out.println("<FONT FACE=\"Courier\">");
         }
-        // X816-specific...
-        System.out.print(".MEM 8");
-        newLine();
-        System.out.print(".INDEX 8");
-        newLine();
-        System.out.print(".BASE $C000");
+        System.out.print(".ORG $C000");
         newLine();
         newLine();
         //
@@ -933,29 +974,29 @@ public class NESrev {
                         System.out.println(" $"+hexLookup[ROM[ofs+1]]+",Y");
                     }
                     else if (amode == ABSL) {
-                        printAddress(ofs+1);
+                        printAddress(ofs+1, op);
                         newLine();
                     }
                     else if (amode == ABSX) {
-                        printAddress(ofs+1);
+                        printAddress(ofs+1, op);
                         System.out.print(",X");
                         newLine();
                     }
                     else if (amode == ABSY) {
-                        printAddress(ofs+1);
+                        printAddress(ofs+1, op);
                         System.out.print(",Y");
                         newLine();
                     }
                     else if (amode == INDR) {
-                        System.out.print(" ($"+hexLookup[ROM[ofs+2]]+hexLookup[ROM[ofs+1]]+")");
+                        System.out.print(" [$"+hexLookup[ROM[ofs+2]]+hexLookup[ROM[ofs+1]]+"]");
                         newLine();
                     }
                     else if (amode == INDX) {
-                        System.out.print(" ($"+hexLookup[ROM[ofs+1]]+",X)");
+                        System.out.print(" [$"+hexLookup[ROM[ofs+1]]+",X]");
                         newLine();
                     }
                     else if (amode == INDY) {
-                        System.out.print(" ($"+hexLookup[ROM[ofs+1]]+"),Y");
+                        System.out.print(" [$"+hexLookup[ROM[ofs+1]]+"],Y");
                         newLine();
                     }
                     else if (amode == RELV) {
@@ -1022,8 +1063,12 @@ public class NESrev {
 *
 **/
 
+    public static boolean isROMAddress(int ofs) {
+        return ROM[ofs+1] >= 0x80;
+    }
+
     public static void checkDataLabel(int ofs) {
-        if (ROM[ofs+1] >= 0x80) {
+        if (isROMAddress(ofs)) {
             int addr = getAddress(ofs);
             if (!isCode(addr)) {
                 for (int i=1; i<4; i++) {
@@ -1055,10 +1100,53 @@ public class NESrev {
 *
 **/
 
-    public static void printAddress(int ofs) {
+    public static boolean needsWideningSuffixForZeroPageAddresses(int op) {
+        switch (op) {
+            case 0x6D:  return true;    /* ADC oper */
+            case 0x7D:  return true;    /* ADC oper,X */
+            case 0x2D:  return true;    /* AND oper */
+            case 0x3D:  return true;    /* AND oper,X */
+            case 0x0E:  return true;    /* ASL oper */
+            case 0x1E:  return true;    /* ASL oper,X */
+            case 0x2C:  return true;    /* BIT oper */
+            case 0xCD:  return true;    /* CMP oper */
+            case 0xDD:  return true;    /* CMP oper,X */
+            case 0xEC:  return true;    /* CPX oper */
+            case 0xCC:  return true;    /* CPY oper */
+            case 0xCE:  return true;    /* DEC oper */
+            case 0xDE:  return true;    /* DEC oper,X */
+            case 0x4D:  return true;    /* EOR oper */
+            case 0x5D:  return true;    /* EOR oper,X */
+            case 0xEE:  return true;    /* INC oper */
+            case 0xFE:  return true;    /* INC oper,X */
+            case 0xAD:  return true;    /* LDA oper */
+            case 0xBD:  return true;    /* LDA oper,X */
+            case 0xAE:  return true;    /* LDX oper */
+            case 0xBE:  return true;    /* LDX oper,Y */
+            case 0xAC:  return true;    /* LDY oper */
+            case 0xBC:  return true;    /* LDY oper,X */
+            case 0x4E:  return true;    /* LSR oper */
+            case 0x5E:  return true;    /* LSR oper,X */
+            case 0x0D:  return true;    /* ORA oper */
+            case 0x1D:  return true;    /* ORA oper,X */
+            case 0x2E:  return true;    /* ROL oper */
+            case 0x3E:  return true;    /* ROL oper,X */
+            case 0x6E:  return true;    /* ROR oper */
+            case 0x7E:  return true;    /* ROR oper,X */
+            case 0xED:  return true;    /* SBC oper */
+            case 0xFD:  return true;    /* SBC oper,X */
+            case 0x8D:  return true;    /* STA oper */
+            case 0x9D:  return true;    /* STA oper,X */
+            case 0x8E:  return true;    /* STX oper */
+            case 0x8C:  return true;    /* STY oper */
+        }
+        return false;
+    }
+
+    public static void printAddress(int ofs, int op) {
         String label=null;
-        System.out.print(" ");
-        if (ROM[ofs+1] >= 0x80) {   // address is in ROM space (0xC000-0xFFFF)
+        if (isROMAddress(ofs)) {   // address is in ROM space (0xC000-0xFFFF)
+            System.out.print(" ");
             int a = getAddress(ofs);
             if (!isLabel(a)) {  // no label exists for this address!
                 for (int i=1; i<16; i++) {
@@ -1083,6 +1171,9 @@ public class NESrev {
             }
         }
         else {  // print address as direct memory offset ($XXXX)
+	    if ((ROM[ofs+1] == 0) && needsWideningSuffixForZeroPageAddresses(op))
+                System.out.print(".W");
+            System.out.print(" ");
             System.out.print("$"+hexLookup[ROM[ofs+1]]+hexLookup[ROM[ofs]]);
         }
     }
