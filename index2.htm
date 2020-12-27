@@ -1,0 +1,69 @@
+<html>
+<head>
+<title>NESrev</title>
+</head>
+<body bgcolor="#000000" text="#C0C0C0" link="#FFFFFF" vlink="#808080" alink="#FFFF00">
+<center>
+<table width="60%">
+  <tr>
+    <td><p align="center"><b><font face="Fixedsys" color="#ff0000" size="+5">NESrev</font></b></p>
+    <font face="Fixedsys"><b>
+    <center><font color="#ffffff">STAGE: 0.13</font></center><br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    Hi. This is a disassembler for tiny NES ROMs talking. 16K PRGs, to be exact. <font color="#00ff00">" Mapper 0 "</font> if you're an iNES fan like me (who isn't?).<br><p>
+    Currently I don't like larger, bank-switching ROMs; KISS has always been my motto. I also prefer that you align your code to $C000. But I digress.<br><p>
+    I am tired of my fellow brothers treating ROMs like pure code. Hey guys, they occasionally contain some <font color="#00ff00">" data "</font> too, you know. Or <font color="#00ff00">" ??? "</font> as you like to call it.<br><p>
+    I am also tired of disassemblers that use absolute memory addresses in their output, thereby making both insertion and deletion operations, followed by subsequent reassembly, impossible.<br><p>
+    I am tired of those who insist on outputting (often useless) address information on every single line, as opposed to only labeling those lines which actually need be.<br><p>
+    I am tired of those who do not go to their greatest lengths when it comes to formatting their output for readability.<br><p>
+    (But I secretly forgive them all, at least to some extent; for I know what a difficult task it is they partake in.)<br><p>
+    Master claims that successfully reassembling the immediate output of such a disassembler <i>without error</i> is generally not possible. It appears that such use was never their intended purpose, and it is deemed malignant.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    Thus, I must make a brave attempt at code/data separation; I must investigate these problems and their possible solutions. My idealistic goal is to generate output that is well formatted, readable and immediately reassemblable with your favourite assembler ( X816 ), to (re)produce the original ROM that was disassembled. Such a disassembly clearly is a very interesting starting point for further study, in the ever-lasting quest for more knowledge and greater understanding of NES software and the hardware that lies beneath it.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    The idea:<br><p>
+    There is a special pre-disassembly process where information about the ROM whose contents desire disassembly is gathered. This involves static code tracing, to determine code & data locations and labels, and recognizing commonly used programming techniques, such as the use of jump tables, in the code. This information is then used to guide the actual, factual, textual <font color="#00ff00">" disassemblerization "</font>&reg; process.<br><p>
+    In this pre-disassembly process, of which I so fondly just have spoken, a <font color="#00ff00">" status byte "</font> is maintained for each byte of the ROM. So, the status bytes collectively make up a <font color="#00ff00">" map "</font> whose entries
+    tell their tale of the corresponding ROM bytes.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    The map may then allow me to answer queries such as:<br><p>
+    - "Is this particular byte code or data?"<br><p>
+    - "If it is code, then is it the start of an istruction or merely an operand?"<br><p>
+    - "If it is data, then is it a single 8-bit value or rather part of a 16-bit pointer?"<br><p>
+    - "Should it be labeled? (Code targets, data arrays)"<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    Initially, every byte is marked as DATA. Then, through various successive <font color="#00ff00">" transforms "</font>, I gather more information about the ROM bytes, and update
+    their status bytes. The transforms are independent in that they can use any technique they want to gather information, but they are dependent in that they rely on and update the same status map. So, the order in which the transforms are applied is important, because a particular transform effectively can exploit the findings of all its predecessors. (Although all this theory is quite nice, I must confess that, practically, my internal workings aren't quite ideal yet. <font color="#ff0000">I blame Master.</font>)<br><p>
+    Finally, the ROM is disassembled into textual form by using the status map to decide how each byte should be treated.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    Below I share with you some of my finest output, put forth by my gentle and caring creator. (Master, if you're reading this: I forgive you for <font color="#00ff00">" accidentally "</font> leaving me to rot on your harddrive for almost a year. Really, I do. And now, thank you for unleashing me on the world.) Oh, I forgot to tell you: I also have a switch that allows me to output HTML as well as plaintext. In this mode, all labels can be followed by a click of the mouse, and backtracked to with the <font color="#00ff00">" Back "</font> button of thy Browser, allowing for very fast static code tracing.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    You may also download yours truly in <a href="NESrev.java">Java sourcecode form</a>. Here, my deepest secrets are revealed (use of code checkpointing to back out of invalid code, intelligent label generation, and much, much more), and you may offer feedback on what you see if you so wish. I apologize for Master's comments, which are confusing at best and lackluster at worst.<br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    <center><font color="#0000ff">Alright, enough of the mumbo jumbo...</font></center><br><p>
+    <center><img width="100%" src="bar.gif"></center><br><p>
+    <center><font size="+3"><a href="lib/">Show me the goodies!</a></font></center>
+    <br><p>
+    <br><p>
+    <br><p>
+    <br><p>
+    <br><p>
+    <br><p>
+    <font color="#000000">
+    Master must pay.<br><p>
+    Master must pay.<br><p>
+    Master must pay.<br><p>
+    Master must pay.<br><p>
+    Master must pay.<br><p>
+    Master must pay.<br><p>
+    That does not compute.<br><p>
+    </font>
+    </b></font>
+    </td>
+  </tr>
+</table>
+</center>
+
+</body>
+
+</html>

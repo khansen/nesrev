@@ -1,0 +1,188 @@
+<html>
+
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+<meta name="GENERATOR" content="Microsoft FrontPage 4.0">
+<meta name="ProgId" content="FrontPage.Editor.Document">
+<title>NESrev</title>
+<style type="text/css">
+      a:hover { color: #ff0000 }
+<!--
+a {  text-decoration: none}
+-->
+</style>
+</head>
+
+<body bgcolor="#000000" text="#c0c0c0" link="#ffff00" vlink="#808000">
+
+<center>
+
+<img src="logo2.gif"><br><p>
+
+<font face="Courier">
+
+<table bgcolor="#282828" width="80%" border="4" bordercolor="#800000" cellspacing="0" cellpadding="10">
+	<tr>
+		<td width="20%">
+			<center><b><a href="index.htm">Home</a></b></center>
+		</td>
+		<td width="20%">
+			<center><b><a href="about.htm">About</a></b></center>
+		</td>
+		<td width="20%">
+			<center><b><a href="download.htm">Download</a></b></center>
+		</td>
+		<td width="20%">
+			<center><b><a href="projects.htm">Projects</a></b></center>
+		</td>
+		<td width="20%">
+			<center><b><a href="forum.php">Forum</a></b></center>
+		</td>
+	</tr>
+</table>
+
+<br><p>
+
+<table bgcolor="#282828" width="80%" border="4" bordercolor="#800000" cellspacing="0" cellpadding="10">
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<center><b><font color="#ffffff">What it is</font></b></center>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<b>
+						NESrev is a disassembler for the 8-bit Nintendo system, written in Java.
+						It is meant to aid Information Enthusiasts such as myself in the quest for 
+						learning more about the NES's hardware and software. Specifically, by disassembling 
+						the binaries (ROM) of a game, thereby obtaining a corresponding assembly source listing, 
+						it is possible to reverse-engineer said game. The outcome of this process is a 
+						(hopefully well documented) understanding of how a game achieves its functionality, 
+						through the manipulation of bits and bytes.
+						</b>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+
+<br><p>
+
+<table bgcolor="#282828" width="80%" border="4" bordercolor="#800000" cellspacing="0" cellpadding="10">
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<center><b><font color="#ffffff">Problem</font></b></center>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<b>
+						One of the main things that make reverse-engineering a ROM so hard is that the disassembly cannot recover semantics.
+						Meta-data such as variable names, code comments and other forms of high-level documentation aren't contained in the binaries --
+						these types of information are not needed to actually run the game, thus they are not included in the game's final executable form. 
+						The only place where you could possibly obtain such information is through the original source code (which you obviously
+						don't have access to, otherwise you wouldn't bother reverse-engineering the ROM). When a piece of code is assembled, all
+						references to labels and variable names are translated into memory addresses, which is how they are stored in the resulting
+						object code. The ultimate goal of the reverse-engineering process is to reconstruct the information lost during assembly, 
+						mainly by doing the opposite of what an assembler does: Replace memory addresses with descriptive names, and add comments 
+						so that the code becomes readable, meaningful and perhaps even modifyable.
+						</b>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+
+<br><p>
+
+<table bgcolor="#282828" width="80%" border="4" bordercolor="#800000" cellspacing="0" cellpadding="10">
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<center><b><font color="#ffffff">Solution</font></b></center>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<b>
+						Automating the entire reverse-engineering process itself is not possible. A disassembler has no
+						way of knowing <i>what</i> a piece of machine code does -- it can only tell you <i>how</i> it accomplishes its task,
+						whatever that may be. That is for you to decide. However, what a disassembler <i>can</i> do is give an excellent
+						starting point for reverse-engineering, mainly by providing a well-formatted source listing of a ROM's binaries.
+						</b>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+
+<br><p>
+
+<table bgcolor="#282828" width="80%" border="4" bordercolor="#800000" cellspacing="0" cellpadding="10">
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<center><b><font color="#ffffff">Motivation</font></b></center>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<table width="100%" border="0" bordercolor="#000000" cellspacing="0" cellpadding="0">
+				<tr>
+					<td>
+						<b>
+						The disassemblers I've encountered seem to share a number of issues, which is why I started researching the possibilities 
+						for improvement. These are the main problems:
+						</b>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+</table>
+
+<img src="oldman.gif"><br>
+
+&copy;&nbsp;Kent Hansen 2002.
+
+</center>
+
+</font>
+
+</body>
+
+</html>
