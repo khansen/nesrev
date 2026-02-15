@@ -245,7 +245,7 @@ public class NESrev {
                         if (line.length() == 0 || line.startsWith("#")) {
                             continue;
                         }
-                        if (lineNo == 1 && line.equalsIgnoreCase("start|count")) {
+                        if (line.equalsIgnoreCase("start|count")) {
                             continue;
                         }
                         String[] parts = line.split("\\|", -1);
@@ -332,7 +332,8 @@ public class NESrev {
     }
 
 /**
-* Recursive function that maps out the code in the ROM.
+* Iteratively maps code reachable from an entry offset using a worklist.
+* Returns true if any new code bytes were mapped.
 **/
 
     public static boolean processCode(int ofs) {
@@ -357,7 +358,8 @@ public class NESrev {
     }
 
     private static void queueCodeTarget(int ofs) {
-        codeWorklist.addLast(ofs);
+        // Normalize to 14-bit PRG-ROM address space to avoid out-of-range map access.
+        codeWorklist.addLast(ofs & 0x3FFF);
     }
 
     private static void queueRelativeBranchTarget(int ofs) {

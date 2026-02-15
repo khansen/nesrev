@@ -13,6 +13,8 @@ public class NESrevTest {
         testVerifyDataLabelsMarksCodeToDataBoundary();
         testProcessCodeFollowsJsrTarget();
         testProcessCodeQueuesRelativeBranchTarget();
+        testProcessCodeWrapsBackwardRelativeBranchAtRomStart();
+        testProcessCodeWrapsForwardRelativeBranchAtRomEnd();
         testPrintAddressAddsWideningSuffixForZeroPageAbsoluteOps();
         testOpcodeTablesHave256Entries();
         testProcessableOpcodesMapAsInstructions();
@@ -94,6 +96,48 @@ public class NESrevTest {
         NESrev.processCode(0x0000);
         assertTrue("fallthrough after branch should be code", NESrev.isCode(0x0002));
         assertTrue("relative branch target should be code", NESrev.isCode(0x0004));
+    }
+
+    private static void testProcessCodeWrapsBackwardRelativeBranchAtRomStart() throws Exception {
+        resetState();
+        int data = getIntField("DATA");
+        int[] rom = new int[0x4000];
+        int[] map = new int[0x4000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // $C000: BNE -128 -> wraps to $3F82 in 14-bit space.
+        rom[0x0000] = 0xD0;
+        rom[0x0001] = 0x80;
+        rom[0x0002] = 0x60;      // fallthrough stop
+        rom[0x3F82] = 0x60;      // wrapped target stop
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x0000);
+        assertTrue("backward branch from start should wrap to 14-bit target", NESrev.isCode(0x3F82));
+    }
+
+    private static void testProcessCodeWrapsForwardRelativeBranchAtRomEnd() throws Exception {
+        resetState();
+        int data = getIntField("DATA");
+        int[] rom = new int[0x4000];
+        int[] map = new int[0x4000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // Start at $FFF0 (ofs 0x3FF0): BNE +127 from $FFF0+2 wraps to $0071 -> ofs 0x0071.
+        rom[0x3FF0] = 0xD0;
+        rom[0x3FF1] = 0x7F;
+        rom[0x3FF2] = 0x60;      // fallthrough stop
+        rom[0x0071] = 0x60;      // wrapped target stop
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x3FF0);
+        assertTrue("forward branch near end should wrap to 14-bit target", NESrev.isCode(0x0071));
     }
 
     private static void testPrintAddressAddsWideningSuffixForZeroPageAbsoluteOps() throws Exception {
