@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 
 /**
@@ -26,6 +27,48 @@ public class NESrev {
     private static String name;
     // is set to true if HTML output is desired
     private static boolean toHtml=false;
+    // iterative code target worklist used by processCode()
+    private static ArrayDeque<Integer> codeWorklist = new ArrayDeque<Integer>();
+    private static boolean processCodeActive = false;
+    // table-driven opcode classifications used by processCodeSingle()
+    private static final boolean[] RELATIVE_BRANCH_OPCODE = createOpcodeFlagTable(
+        0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0
+    );
+    private static final boolean[] CHECK_DATA_LABEL_OPCODE = createOpcodeFlagTable(
+        0x0D, 0x0E, 0x19, 0x1D, 0x1E,
+        0x2C, 0x2D, 0x2E, 0x39, 0x3D, 0x3E,
+        0x4D, 0x4E, 0x59, 0x5D, 0x5E,
+        0x6D, 0x6E, 0x79, 0x7D, 0x7E,
+        0xAC, 0xAD, 0xAE, 0xB9, 0xBC, 0xBD, 0xBE,
+        0xCC, 0xCD, 0xD9, 0xDD, 0xEC, 0xED, 0xF9, 0xFD
+    );
+
+    private static void printUsage() {
+        System.out.println("Syntax: java NESrev [ROMfile] <-html> <-codepointers FILE>");
+    }
+
+    private static void exitWithError(String message) {
+        System.err.println(message);
+        System.exit(1);
+    }
+
+    private static boolean[] createOpcodeFlagTable(int... opcodes) {
+        boolean[] flags = new boolean[256];
+        for (int op : opcodes) {
+            flags[op & 0xFF] = true;
+        }
+        return flags;
+    }
+
+    private static boolean[] createProcessableOpcodeTable() {
+        boolean[] flags = new boolean[256];
+        for (int op = 0; op < 256; op++) {
+            if ((op != 0x00) && !mnemonicLookup[op].equals("???")) {
+                flags[op] = true;
+            }
+        }
+        return flags;
+    }
 
     // instruction mnemonics
     private static String[] mnemonicLookup = {
@@ -46,6 +89,7 @@ public class NESrev {
         "CPX","SBC","???","???","CPX","SBC","INC","???","INX","SBC","NOP","???","CPX","SBC","INC","???",
         "BEQ","SBC","???","???","???","SBC","INC","???","SED","SBC","???","???","???","SBC","INC","???"
     };
+    private static final boolean[] PROCESSABLE_OPCODE = createProcessableOpcodeTable();
 
     // timing info... not used
     private static int[] opcycleLookup = {
@@ -165,17 +209,15 @@ public class NESrev {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
-            System.out.println("Syntax: java CodeConverter [ROMfile] <-html> <-codepointers FILE>");
-            System.exit(0);
+            printUsage();
+            System.exit(1);
         }
         File f = new File(args[0]);
         if (f==null || !f.canRead()) {
-            System.out.println("Error: Couldn't read "+args[0]+".");
-            System.exit(0);
+            exitWithError("Error: Couldn't read " + args[0] + ".");
         }
         if (f.length() != 0x4000) {
-            System.out.println("Error: ROM must be 16,384 bytes in size.");
-            System.exit(0);
+            exitWithError("Error: ROM must be 16,384 bytes in size.");
         }
         name = f.getName();
 
@@ -187,44 +229,64 @@ public class NESrev {
                 toHtml = true;
             }
             else if (args[i].equals("-codepointers")) {
+                if (i + 1 >= args.length) {
+                    exitWithError("Error: Missing filename after -codepointers.");
+                }
                 File configFile = new File(args[i+1]);
                 if (!configFile.canRead()) {
-                     System.out.println("Error: Couldn't read "+args[i+1]+".");
+                    exitWithError("Error: Couldn't read " + args[i+1] + ".");
                 }
-                FileReader fr = new FileReader(configFile);
-                BufferedReader br = new BufferedReader(fr);
-                String line;
-                boolean first = true;
-                while ((line = br.readLine()) != null) {
-                    if (first) {
-                        first = false;
-                        continue;
+                try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
+                    String line;
+                    int lineNo = 0;
+                    while ((line = br.readLine()) != null) {
+                        lineNo++;
+                        line = line.trim();
+                        if (line.length() == 0 || line.startsWith("#")) {
+                            continue;
+                        }
+                        if (line.equalsIgnoreCase("start|count")) {
+                            continue;
+                        }
+                        String[] parts = line.split("\\|", -1);
+                        if (parts.length != 2) {
+                            exitWithError("Error: Bad code pointer config format at line " + lineNo + ": " + line);
+                        }
+                        int offset;
+                        int count;
+                        try {
+                            offset = Integer.decode(parts[0].trim());
+                            count = Integer.decode(parts[1].trim());
+                        } catch (NumberFormatException ex) {
+                            exitWithError("Error: Bad numeric value at line " + lineNo + ": " + line);
+                            return;
+                        }
+                        long pointerTableEnd = (long) offset + ((long) count * 2L);
+                        if (offset < 0 || count < 0 || pointerTableEnd > 0x4000L) {
+                            exitWithError("Error: Code pointer addresses are out of range at line " + lineNo + ".");
+                        }
+                        codePointersStart.add(offset);
+                        codePointersCount.add(count);
                     }
-                    String[] parts = line.split("\\|");
-                    int offset = Integer.decode(parts[0]);
-                    int count = Integer.decode(parts[1]);
-                    if (offset < 0 || (offset + count*2) > 0x4000) {
-                        System.out.println("Error: Code pointer addresses are out of range.");
-                        System.exit(0);
-                    }
-                    codePointersStart.add(offset);
-                    codePointersCount.add(count);
                 }
                 ++i;
             }
             else {
-                System.out.println("Bad argument: "+args[i]);
-                System.exit(0);
+                exitWithError("Bad argument: " + args[i]);
             }
         }
 
 	// read file
         ROM = new int[(int)f.length()];
-        FileInputStream fis = new FileInputStream(f);
-        for (int i=0; i<ROM.length; i++) {
-            ROM[i] = fis.read();
+        try (FileInputStream fis = new FileInputStream(f)) {
+            for (int i=0; i<ROM.length; i++) {
+                int value = fis.read();
+                if (value < 0) {
+                    exitWithError("Error: Unexpected EOF while reading ROM.");
+                }
+                ROM[i] = value;
+            }
         }
-        fis.close();
 
         // init map
         map = new int[ROM.length];
@@ -258,7 +320,7 @@ public class NESrev {
         verifyDataLabels();
         disassemble();
         //
-        System.exit(1);
+        System.exit(0);
     }
 
 /**
@@ -270,15 +332,53 @@ public class NESrev {
     }
 
 /**
-* Recursive function that maps out the code in the ROM.
+* Iteratively maps code reachable from an entry offset using a worklist.
+* Returns true if any new code bytes were mapped.
 **/
 
     public static boolean processCode(int ofs) {
+        queueCodeTarget(ofs);
+        if (processCodeActive) {
+            return false;
+        }
+        boolean mappedAny = false;
+        processCodeActive = true;
+        try {
+            while (!codeWorklist.isEmpty()) {
+                int target = (int)codeWorklist.removeFirst();
+                if (processCodeSingle(target)) {
+                    mappedAny = true;
+                }
+            }
+        } finally {
+            processCodeActive = false;
+            codeWorklist.clear();
+        }
+        return mappedAny;
+    }
+
+    private static void queueCodeTarget(int ofs) {
+        // Normalize to 14-bit PRG-ROM address space to avoid out-of-range map access.
+        codeWorklist.addLast(ofs & 0x3FFF);
+    }
+
+    private static void queueRelativeBranchTarget(int ofs) {
+        int dist = ROM[ofs+1];
+        if (dist < 0x80) {  // branch forward
+            queueCodeTarget(ofs+2+dist);
+        }
+        else {  // branch backward
+            dist = (dist ^ 0xFF) + 1;
+            queueCodeTarget(ofs+2-dist);
+        }
+    }
+
+    private static boolean processCodeSingle(int ofs) {
         if (isCode(ofs) && !isInstr(ofs)) {
             return false;
         }
         boolean done=false, jsrchk=false;
-        int dist, op, len;
+        int op, len;
         int chkpt=ofs;  // initialize checkpoint to current offset
         int startofs=ofs;
         while (!done && isData(ofs)) {
@@ -286,6 +386,9 @@ public class NESrev {
             op = ROM[ofs];
             len = oplengthLookup[op];
             if (len > 0) {
+                if ((ofs + len) > map.length) {
+                    return false;
+                }
                 map[ofs] &= NOT_DATA;
                 map[ofs] |= INSTR | CODE;   // 1st byte of instruction
                 // mark the operand bytes as code too
@@ -296,591 +399,7 @@ public class NESrev {
                     map[ofs+i] |= CODE;
                 }
             }
-            switch (op) {
-//              case 0x00:  // BRK
-//              done = true;
-//              break;
-
-                case 0x01:  // ORA (Ind,X)
-                break;
-
-                case 0x05:  // ORA ZP
-                break;
-
-                case 0x06:  // ASL ZP
-                break;
-
-                case 0x08:  // PHP
-                break;
-
-                case 0x09:  // ORA Imm
-                break;
-
-                case 0x0A:  // ASL Acc
-                break;
-
-                case 0x0D:  // ORA Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x0E:  // ASL Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x10:  // BPL
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0x11:  // ORA (Ind),Y
-                break;
-
-                case 0x15:  // ORA ZP,X
-                break;
-
-                case 0x16:  // ASL ZP,X
-                break;
-
-                case 0x18:  // CLC
-                break;
-
-                case 0x19:  // ORA Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x1D:  // ORA Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x1E:  // ASL Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x20:  // JSR
-                processCode(getAddress(ofs+1));
-                chkpt = ofs+3;
-                jsrchk = true;
-                break;
-
-                case 0x21:  // And (Ind,X)
-                break;
-
-                case 0x24:  // BIT ZP
-                break;
-
-                case 0x25:  // AND ZP
-                break;
-
-                case 0x26:  // ROL ZP
-                break;
-
-                case 0x28:  // PLP
-                break;
-
-                case 0x29:  // AND Imm
-                break;
-
-                case 0x2A:  // ROL Acc
-                break;
-
-                case 0x2C:  // BIT Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x2D:  // AND Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x2E:  // ROL Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x30:  // BMI
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0x31:  // AND (Ind),Y
-                break;
-
-                case 0x35:  // AND ZP,X
-                break;
-
-                case 0x36:  // ROL ZP,X
-                break;
-
-                case 0x38:  // SEC
-                break;
-
-                case 0x39:  // AND Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x3D:  // AND Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x3E:  // ROL Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x40:  // RTI
-                done = true;
-                break;
-
-                case 0x41:  // EOR (Ind,X)
-                break;
-
-                case 0x45:  // EOR ZP
-                break;
-
-                case 0x46:  // LSR ZP
-                break;
-
-                case 0x48:  // PHA
-                break;
-
-                case 0x49:  // EOR Imm
-                break;
-
-                case 0x4A:  // LSR Acc
-                break;
-
-                case 0x4C:  // JMP Abs
-                processCode(getAddress(ofs+1));
-                done = true;
-                break;
-
-                case 0x4D:  // EOR Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x4E:  // LSR Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x50:  // BVC
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0x51:  // EOR (Ind),Y
-                break;
-
-                case 0x55:  // EOR ZP,X
-                break;
-
-                case 0x56:  // LSR ZP,X
-                break;
-
-                case 0x58:  // CLI
-                break;
-
-                case 0x59:  // EOR Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x5D:  // EOR Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x5E:  // LSR Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x60:  // RTS
-                done = true;
-                break;
-
-                case 0x61:  // ADC (Ind,X)
-                break;
-
-                case 0x65:  // ADC ZP
-                break;
-
-                case 0x66:  // ROR ZP
-                break;
-
-                case 0x68:  // PLA
-                break;
-
-                case 0x69:  // ADC Imm
-                break;
-
-                case 0x6A:  // ROR Acc
-                break;
-
-                case 0x6C:  // JMP Ind
-                if (isROMAddress(ofs+1)) {
-                    processCode(getAddress(getAddress(ofs+1)));
-                }
-                done = true;
-                break;
-
-                case 0x6D:  // ADC Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x6E:  // ROR Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x70:  // BVS
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0x71:  // ADC (Ind),Y
-                break;
-
-                case 0x75:  // ADC ZP,X
-                break;
-
-                case 0x76:  // ROR ZP,X
-                break;
-
-                case 0x78:  // SEI
-                break;
-
-                case 0x79:  // ADC Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x7D:  // ADC Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x7E:  // ROR Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0x81:  // STA (Ind,X)
-                break;
-
-                case 0x84:  // STY ZP
-                break;
-
-                case 0x85:  // STA ZP
-                break;
-
-                case 0x86:  // STX ZP
-                break;
-
-                case 0x88:  // DEY
-                break;
-
-                case 0x8A:  // TXA
-                break;
-
-                case 0x8C:  // STY Abs
-                break;
-
-                case 0x8D:  // STA Abs
-                break;
-
-                case 0x8E:  // STX Abs
-                break;
-
-                case 0x90:  // BCC
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0x91:  // STA (Ind),Y
-                break;
-
-                case 0x94:  // STY ZP,X
-                break;
-
-                case 0x95:  // STA ZP,X
-                break;
-
-                case 0x96:  // STX ZP,Y
-                break;
-
-                case 0x98:  // TYA
-                break;
-
-                case 0x99:  // STA Abs,Y
-                break;
-
-                case 0x9A:  // TXS
-                break;
-
-                case 0x9D:  // STA Abs,X
-                break;
-
-                case 0xA0:  // LDY Imm
-                break;
-
-                case 0xA1:  // LDA (Ind,X)
-                break;
-
-                case 0xA2:  // LDX Imm
-                break;
-
-                case 0xA4:  // LDY ZP
-                break;
-
-                case 0xA5:  // LDA ZP
-                break;
-
-                case 0xA6:  // LDX ZP
-                break;
-
-                case 0xA8:  // TAY
-                break;
-
-                case 0xA9:  // LDA Imm
-                break;
-
-                case 0xAA:  // TAX
-                break;
-
-                case 0xAC:  // LDY Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xAD:  // LDA Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xAE:  // LDX Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xB0:  // BCS
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0xB1:  // LDA (Ind),Y
-                break;
-
-                case 0xB4:  // LDY ZP,X
-                break;
-
-                case 0xB5:  // LDA ZP,X
-                break;
-
-                case 0xB6:  // LDX ZP,Y
-                break;
-
-                case 0xB8:  // CLV
-                break;
-
-                case 0xB9:  // LDA Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xBA:  // TSX
-                break;
-
-                case 0xBC:  // LDY Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xBD:  // LDA Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xBE:  // LDX Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xC0:  // CPY Imm
-                break;
-
-                case 0xC1:  // CMP (Ind,X)
-                break;
-
-                case 0xC4:  // CPY ZP
-                break;
-
-                case 0xC5:  // CMP ZP
-                break;
-
-                case 0xC6:  // DEC ZP
-                break;
-
-                case 0xC8:  // INY
-                break;
-
-                case 0xC9:  // CMP Imm
-                break;
-
-                case 0xCA:  // DEX
-                break;
-
-                case 0xCC:  // CPY Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xCD:  // CMP Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xCE:  // DEC Abs
-                break;
-
-                case 0xD0:  // BNE
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0xD1:  // CMP (Ind),Y
-                break;
-
-                case 0xD5:  // CMP ZP,X
-                break;
-
-                case 0xD6:  // DEC ZP,X
-                break;
-
-                case 0xD8:  // CLD
-                break;
-
-                case 0xD9:  // CMP Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xDD:  // CMP Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xDE:  // DEC Abs,X
-                break;
-
-                case 0xE0:  // CPX Imm
-                break;
-
-                case 0xE1:  // SBC (Ind,X)
-                break;
-
-                case 0xE4:  // CPX ZP
-                break;
-
-                case 0xE5:  // SBC ZP
-                break;
-
-                case 0xE6:  // INC ZP
-                break;
-
-                case 0xE8:  // INX
-                break;
-
-                case 0xE9:  // SBC Imm
-                break;
-
-                case 0xEA:  // NOP
-                break;
-
-                case 0xEC:  // CPX Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xED:  // SBC Abs
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xEE:  // INC Abs
-                break;
-
-                case 0xF0:  // BEQ
-                dist = ROM[ofs+1];
-                if (dist < 0x80) {  // branch forward
-                    processCode(ofs+2+dist);
-                }
-                else {  // branch backward
-                    dist = (dist ^ 0xFF) + 1;
-                    processCode(ofs+2-dist);
-                }
-                chkpt = ofs+2;
-                jsrchk = false;
-                break;
-
-                case 0xF1:  // SBC (Ind),Y
-                break;
-
-                case 0xF5:  // SBC ZP,X
-                break;
-
-                case 0xF6:  // INC ZP,X
-                break;
-
-                case 0xF8:  // SED
-                break;
-
-                case 0xF9:  // SBC Abs,Y
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xFD:  // SBC Abs,X
-                checkDataLabel(ofs+1);
-                break;
-
-                case 0xFE:  // INC Abs,X
-                break;
-
-                default:    // Bad opcode
-                if (len > 0)
-                    ofs += len-1;
+            if (!PROCESSABLE_OPCODE[op]) {   // Bad opcode
                 while (ofs >= chkpt) {
                     map[ofs] &= NOT_CODE;
                     map[ofs] &= NOT_INSTR;
@@ -888,14 +407,53 @@ public class NESrev {
                 }
                 ofs++;
                 if (jsrchk) {   // process jump table
-                    while ((map[ofs] == DATA) && (ROM[ofs+1] >= 0xC0)) {
-                        processCode(getAddress(ofs));
+                    while ((ofs + 1 < map.length) && (map[ofs] == DATA) && (ROM[ofs+1] >= 0xC0)) {
+                        queueCodeTarget(getAddress(ofs));
                         map[ofs++] = CODE | PTR;
                         map[ofs++] = CODE | PTR;
                     }
                 }
                 done = true;
-                break;
+            }
+
+            if (!done && CHECK_DATA_LABEL_OPCODE[op]) {
+                checkDataLabel(ofs+1);
+            }
+
+            if (!done && RELATIVE_BRANCH_OPCODE[op]) {
+                queueRelativeBranchTarget(ofs);
+                chkpt = ofs+2;
+                jsrchk = false;
+                ofs += len;
+                continue;
+            }
+
+            switch (op) {
+                case 0x20:  // JSR
+                    queueCodeTarget(getAddress(ofs+1));
+                    chkpt = ofs+3;
+                    jsrchk = true;
+                    break;
+
+                case 0x40:  // RTI
+                case 0x60:  // RTS
+                    done = true;
+                    break;
+
+                case 0x4C:  // JMP Abs
+                    queueCodeTarget(getAddress(ofs+1));
+                    done = true;
+                    break;
+
+                case 0x6C:  // JMP Ind
+                    if (isROMAddress(ofs+1)) {
+                        queueCodeTarget(getAddress(getAddress(ofs+1)));
+                    }
+                    done = true;
+                    break;
+
+                default:
+                    break;
             }   // switch
             ofs += len;
         }   // while
