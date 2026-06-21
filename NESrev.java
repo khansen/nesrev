@@ -2,8 +2,16 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * NESrev - A disassembler for 16K NES PRG-ROMs
@@ -30,6 +38,38 @@ public class NESrev {
     // iterative code target worklist used by processCode()
     private static ArrayDeque<Integer> codeWorklist = new ArrayDeque<Integer>();
     private static boolean processCodeActive = false;
+    // Per-byte hard "do not decode as code" mask. Distinct from the existing
+    // DATA bit, which also means "unclassified and eligible for tracing." Set
+    // for: configured data-range bytes and resolved inline-record bytes.
+    // processCodeSingle must stop before decoding a byte where this is true.
+    private static boolean[] blockedFromCode = new boolean[0x4000];
+    // Parsed configuration. Defaulted to EMPTY until main() loads them or a
+    // test sets them via reflection.
+    private static InlineCallsConfig inlineCalls = InlineCallsConfig.EMPTY;
+    private static DataRangesConfig dataRanges = DataRangesConfig.EMPTY;
+    // Lifted from main() local scope so runAnalysisPass() can re-apply seeds
+    // on each restart pass.
+    private static ArrayList<Integer> codePointersStart = new ArrayList<Integer>();
+    private static ArrayList<Integer> codePointersCount = new ArrayList<Integer>();
+    private static ArrayList<Integer> dataPointersStart = new ArrayList<Integer>();
+    private static ArrayList<Integer> dataPointersCount = new ArrayList<Integer>();
+    private static ArrayList<Integer> codeEntries = new ArrayList<Integer>();
+    private static int userCodePointersCount = 0;
+    // Resolved inline records known so far, keyed by callsite PRG offset.
+    // TreeMap so iteration is in callsite order each pass — keeps trace
+    // results independent of the order callsites were discovered.
+    private static TreeMap<Integer, ResolvedRecord> knownCallsites = new TreeMap<Integer, ResolvedRecord>();
+    // Callsites discovered during the current pass that aren't yet in
+    // knownCallsites. The restart loop promotes them at end-of-pass.
+    private static LinkedHashSet<Integer> newlyDiscoveredCallsites = new LinkedHashSet<Integer>();
+    // Safety cap for the fixed-point inline-call analysis. Tests lower this
+    // through reflection to verify the failure path without building a huge ROM.
+    private static int analysisPassLimit = 0x4000;
+    // Output-time indices built at the start of disassemble() from
+    // knownCallsites and dataRanges. recordsByStart dispatches inline-record
+    // emission; dataBoundaries breaks .DB runs at record/range edges.
+    private static HashMap<Integer, ResolvedRecord> recordsByStart = new HashMap<Integer, ResolvedRecord>();
+    private static TreeSet<Integer> dataBoundaries = new TreeSet<Integer>();
     // table-driven opcode classifications used by processCodeSingle()
     private static final boolean[] RELATIVE_BRANCH_OPCODE = createOpcodeFlagTable(
         0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0
@@ -44,12 +84,54 @@ public class NESrev {
     );
 
     private static void printUsage() {
-        System.out.println("Syntax: java NESrev [ROMfile] <-html> <-codepointers FILE>");
+        System.out.println("Syntax: java NESrev [ROMfile] <-html> <-codepointers FILE> <-datapointers FILE> <-codeentries FILE> <-inlinecalls FILE> <-dataranges FILE>");
     }
 
     private static void exitWithError(String message) {
         System.err.println(message);
         System.exit(1);
+    }
+
+    private static void parsePointerTableConfig(String path, String kindLabel,
+                                                ArrayList<Integer> startsOut,
+                                                ArrayList<Integer> countsOut) throws Exception {
+        File configFile = new File(path);
+        if (!configFile.canRead()) {
+            exitWithError("Error: Couldn't read " + path + ".");
+        }
+        try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
+            String line;
+            int lineNo = 0;
+            while ((line = br.readLine()) != null) {
+                lineNo++;
+                line = stripConfigComments(line).trim();
+                if (line.length() == 0) {
+                    continue;
+                }
+                if (line.equalsIgnoreCase("start|count")) {
+                    continue;
+                }
+                String[] parts = line.split("\\|", -1);
+                if (parts.length != 2) {
+                    exitWithError("Error: Bad " + kindLabel + " config format at line " + lineNo + ": " + line);
+                }
+                int offset;
+                int count;
+                try {
+                    offset = Integer.decode(parts[0].trim());
+                    count = Integer.decode(parts[1].trim());
+                } catch (NumberFormatException ex) {
+                    exitWithError("Error: Bad numeric value at line " + lineNo + ": " + line);
+                    return;
+                }
+                long pointerTableEnd = (long) offset + ((long) count * 2L);
+                if (offset < 0 || count < 0 || pointerTableEnd > 0x4000L) {
+                    exitWithError("Error: " + kindLabel + " addresses are out of range at line " + lineNo + ".");
+                }
+                startsOut.add(offset);
+                countsOut.add(count);
+            }
+        }
     }
 
     private static boolean[] createOpcodeFlagTable(int... opcodes) {
@@ -221,16 +303,23 @@ public class NESrev {
         }
         name = f.getName();
 
-        ArrayList<Integer> codePointersStart = new ArrayList<Integer>();
-        ArrayList<Integer> codePointersCount = new ArrayList<Integer>();
+        // Reset lifted state in case a prior invocation populated it.
+        codePointersStart = new ArrayList<Integer>();
+        codePointersCount = new ArrayList<Integer>();
+        dataPointersStart = new ArrayList<Integer>();
+        dataPointersCount = new ArrayList<Integer>();
+        codeEntries = new ArrayList<Integer>();
+        knownCallsites = new TreeMap<Integer, ResolvedRecord>();
+        inlineCalls = InlineCallsConfig.EMPTY;
+        dataRanges = DataRangesConfig.EMPTY;
         // parse rest of arguments
         for (int i=1; i<args.length; i++) {
             if (args[i].equals("-html")) {
                 toHtml = true;
             }
-            else if (args[i].equals("-codepointers")) {
+            else if (args[i].equals("-codeentries")) {
                 if (i + 1 >= args.length) {
-                    exitWithError("Error: Missing filename after -codepointers.");
+                    exitWithError("Error: Missing filename after -codeentries.");
                 }
                 File configFile = new File(args[i+1]);
                 if (!configFile.canRead()) {
@@ -241,33 +330,55 @@ public class NESrev {
                     int lineNo = 0;
                     while ((line = br.readLine()) != null) {
                         lineNo++;
-                        line = line.trim();
-                        if (line.length() == 0 || line.startsWith("#")) {
+                        line = stripConfigComments(line).trim();
+                        if (line.length() == 0) {
                             continue;
                         }
-                        if (line.equalsIgnoreCase("start|count")) {
-                            continue;
-                        }
-                        String[] parts = line.split("\\|", -1);
-                        if (parts.length != 2) {
-                            exitWithError("Error: Bad code pointer config format at line " + lineNo + ": " + line);
-                        }
-                        int offset;
-                        int count;
+                        int cpuAddr;
                         try {
-                            offset = Integer.decode(parts[0].trim());
-                            count = Integer.decode(parts[1].trim());
-                        } catch (NumberFormatException ex) {
-                            exitWithError("Error: Bad numeric value at line " + lineNo + ": " + line);
+                            cpuAddr = parseCpuAddress("codeentries", line, lineNo);
+                        } catch (ConfigException ex) {
+                            exitWithError("Error: " + ex.getMessage());
                             return;
                         }
-                        long pointerTableEnd = (long) offset + ((long) count * 2L);
-                        if (offset < 0 || count < 0 || pointerTableEnd > 0x4000L) {
-                            exitWithError("Error: Code pointer addresses are out of range at line " + lineNo + ".");
-                        }
-                        codePointersStart.add(offset);
-                        codePointersCount.add(count);
+                        codeEntries.add(cpuAddr & 0x3FFF);
                     }
+                }
+                ++i;
+            }
+            else if (args[i].equals("-codepointers")) {
+                if (i + 1 >= args.length) {
+                    exitWithError("Error: Missing filename after -codepointers.");
+                }
+                parsePointerTableConfig(args[i+1], "code pointer", codePointersStart, codePointersCount);
+                ++i;
+            }
+            else if (args[i].equals("-datapointers")) {
+                if (i + 1 >= args.length) {
+                    exitWithError("Error: Missing filename after -datapointers.");
+                }
+                parsePointerTableConfig(args[i+1], "data pointer", dataPointersStart, dataPointersCount);
+                ++i;
+            }
+            else if (args[i].equals("-inlinecalls")) {
+                if (i + 1 >= args.length) {
+                    exitWithError("Error: Missing filename after -inlinecalls.");
+                }
+                try {
+                    inlineCalls = InlineCallsConfig.parse(args[i+1]);
+                } catch (ConfigException ex) {
+                    exitWithError("Error: " + ex.getMessage());
+                }
+                ++i;
+            }
+            else if (args[i].equals("-dataranges")) {
+                if (i + 1 >= args.length) {
+                    exitWithError("Error: Missing filename after -dataranges.");
+                }
+                try {
+                    dataRanges = DataRangesConfig.parse(args[i+1]);
+                } catch (ConfigException ex) {
+                    exitWithError("Error: " + ex.getMessage());
                 }
                 ++i;
             }
@@ -288,39 +399,364 @@ public class NESrev {
             }
         }
 
-        // init map
+        // Allocate the code/data map once; runAnalysisPass clears it on every
+        // restart pass.
         map = new int[ROM.length];
-        for (int i=0; i<map.length; i++) {
-            map[i] = DATA;
-        }
 
-        // add the fixed vectors
-	codePointersStart.add(0x3FFA);
+        // User-provided code-pointer table count, captured before appending the
+        // 6502 fixed-vector table at $3FFA. Only user-provided tables get a
+        // label at their start; vector targets are still labelled like any other
+        // code-pointer target so the fixed-vector .DW entries stay symbolic.
+        userCodePointersCount = codePointersStart.size();
+        codePointersStart.add(0x3FFA);
         codePointersCount.add(3);
 
-        // mark the code pointers
-	for (int i = 0; i < codePointersStart.size(); ++i) {
-            int offset = (int)codePointersStart.get(i);
-            int count = (int)codePointersCount.get(i);
-            for (int j = 0; j < count; ++j) {
-                map[offset+j*2+0] = CODE | PTR;
-                map[offset+j*2+1] = CODE | PTR;
-            }
-	}
-
-	// process code pointers recursively
-        for (int i = 0; i < codePointersStart.size(); ++i) {
-            int offset = (int)codePointersStart.get(i);
-            int count = (int)codePointersCount.get(i);
-            for (int j = 0; j < count; ++j) {
-                processCode(getAddress(offset+j*2));
-            }
-	}
-        //
+        try {
+            runAnalysisToFixedPoint();
+        } catch (ConfigException ex) {
+            exitWithError("Error: " + ex.getMessage());
+        }
         verifyDataLabels();
         disassemble();
         //
         System.exit(0);
+    }
+
+/**
+* Runs analysis passes until no new inline callsites are discovered. Each
+* restart promotes the pass's discoveries into knownCallsites so the next
+* pass can block their record bytes and seed their continuations.
+* Termination is guaranteed because each restart adds at least one
+* previously unknown callsite and the ROM is finite. A safety cap converts
+* a runaway loop into a catchable configuration failure.
+**/
+
+    public static void runAnalysisToFixedPoint() {
+        int passNo = 0;
+        while (true) {
+            runAnalysisPass();
+            passNo++;
+            if (newlyDiscoveredCallsites.isEmpty()) {
+                return;
+            }
+            for (Integer callsite : newlyDiscoveredCallsites) {
+                int jsrTarget = getAddress(callsite + 1);
+                InlineCallEntry entry = inlineCalls.findByCallee(jsrTarget);
+                knownCallsites.put(callsite, resolveRecord(callsite, entry));
+            }
+            if (passNo > analysisPassLimit) {
+                throw new ConfigException("inline-call discovery did not converge after "
+                    + passNo + " passes.");
+            }
+        }
+    }
+
+/**
+* One full analysis pass per §7.2 of the inline-call recovery spec: rebuild
+* the role map and the blocked-from-code mask, apply data ranges and
+* resolved inline records, then apply user-provided pointer tables, data
+* pointer tables, and code entries. processCode runs as a side effect of
+* each seed, so by return the map reflects everything reachable under the
+* current set of known callsites.
+**/
+
+    public static void runAnalysisPass() {
+        newlyDiscoveredCallsites = new LinkedHashSet<Integer>();
+        for (int i = 0; i < map.length; i++) {
+            map[i] = DATA;
+        }
+        blockedFromCode = new boolean[ROM.length];
+
+        // Phase 1: build the complete blocked-from-code mask BEFORE any seed
+        // is queued. Interleaving block-and-seed (per range / per record)
+        // would let an earlier continuation trace into a later barrier whose
+        // bytes haven't yet been blocked, decoding them as instructions on
+        // this pass and producing nondeterministic per-pass artifacts.
+        blockDataRanges();
+        blockKnownInlineRecords();
+
+        // Phase 2: labels and seeds. Every barrier is now in place, so
+        // processCode calls below cannot accidentally walk into a not-yet-
+        // blocked range or record.
+        labelAndSeedDataRanges();
+        labelAndSeedKnownInlineRecords();
+
+        // mark the code pointer table bytes
+        for (int i = 0; i < codePointersStart.size(); ++i) {
+            int offset = codePointersStart.get(i);
+            int count = codePointersCount.get(i);
+            String source = (i >= userCodePointersCount)
+                ? "fixed vector table at $" + cpuLabel(offset)
+                : "code-pointer table at $" + cpuLabel(offset);
+            markPointerTableBytes(offset, count, source);
+        }
+
+        // process code pointers recursively
+        for (int i = 0; i < codePointersStart.size(); ++i) {
+            int offset = codePointersStart.get(i);
+            int count = codePointersCount.get(i);
+            // Label the start of the explicit pointer table so the .DW run is
+            // anchored at its own LXXXX: label instead of trailing the previous
+            // routine anonymously. Skip the auto-added fixed-vector table.
+            if (count > 0 && i < userCodePointersCount) {
+                map[offset] |= LABEL;
+            }
+            boolean isVectorTable = (i >= userCodePointersCount);
+            for (int j = 0; j < count; ++j) {
+                int pointerOffset = offset + j*2;
+                if (!isROMAddress(pointerOffset)) {
+                    continue;
+                }
+                // Every ROM-window code-pointer target gets a label, even if
+                // processCode can't decode the bytes there.
+                int target = getAddress(pointerOffset);
+                if (blockedFromCode[target]) {
+                    String source = isVectorTable
+                        ? "fixed vector at $" + cpuLabel(pointerOffset)
+                        : "code-pointer table at $" + cpuLabel(offset) + " entry [" + j + "]";
+                    failBlockedConflict(target, source);
+                }
+                map[target] |= LABEL;
+                processCode(target);
+            }
+        }
+
+        // mark data pointer table bytes; targets get labels but are NOT traced as code
+        for (int i = 0; i < dataPointersStart.size(); ++i) {
+            int offset = dataPointersStart.get(i);
+            int count = dataPointersCount.get(i);
+            markPointerTableBytes(offset, count, "data-pointer table at $" + cpuLabel(offset));
+            for (int j = 0; j < count; ++j) {
+                int pointerOffset = offset + j*2;
+                if (!isROMAddress(pointerOffset)) {
+                    continue;
+                }
+                int target = getAddress(pointerOffset);
+                map[target] |= LABEL;
+            }
+            // Label the table start AFTER the byte-marking loop, since the j=0 store
+            // above would otherwise clobber any earlier LABEL bit on map[offset].
+            if (count > 0) {
+                map[offset] |= LABEL;
+            }
+        }
+
+        // process direct code entries (CPU addresses already converted to PRG offsets)
+        for (int i = 0; i < codeEntries.size(); ++i) {
+            int target = codeEntries.get(i);
+            if (blockedFromCode[target]) {
+                failBlockedConflict(target, "codeentries entry [" + i + "] -> $" + cpuLabel(target));
+            }
+            map[target] |= LABEL;
+            processCode(target);
+        }
+    }
+
+    private static void markPointerTableBytes(int offset, int count, String source) {
+        for (int j = 0; j < count; ++j) {
+            for (int b = 0; b < 2; ++b) {
+                int byteOffset = offset + j*2 + b;
+                if (blockedFromCode[byteOffset]) {
+                    failBlockedConflict(byteOffset, source + " entry [" + j + "] byte [" + b + "]");
+                }
+                map[byteOffset] = CODE | PTR;
+            }
+        }
+    }
+
+/**
+* Phase-1 mask construction for resolved inline records. Marks every record
+* byte as blocked-from-code and detects record-vs-record / record-vs-range
+* overlaps. Does NOT label anything or seed continuations — that is phase
+* 2's job, after every record AND every data range has been added to the
+* mask.
+**/
+
+    public static void blockKnownInlineRecords() {
+        for (ResolvedRecord r : knownCallsites.values()) {
+            for (int i = r.recordStart; i < r.recordEnd; i++) {
+                if (i < blockedFromCode.length && blockedFromCode[i]) {
+                    String blocking = findBlockingSource(i);
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(r.callsite)
+                        + " -> $" + hex4(r.entry.calleeCpu)
+                        + " overlaps already-blocked byte $" + cpuLabel(i)
+                        + " (" + blocking + ")");
+                }
+                blockedFromCode[i] = true;
+            }
+        }
+    }
+
+/**
+* Phase-2 label + seed for resolved inline records. Labels record_start,
+* labels and seeds adjusted code-pointer targets, labels adjusted data-
+* pointer targets without seeding them, and labels + seeds record_end as a
+* code continuation. Must run only after blockKnownInlineRecords and
+* blockDataRanges have populated the complete barrier mask.
+**/
+
+    public static void labelAndSeedKnownInlineRecords() {
+        for (ResolvedRecord r : knownCallsites.values()) {
+            if (r.recordStart < 0x4000) {
+                map[r.recordStart] |= LABEL;
+            }
+            InlineField[] fields = r.entry.layout.fields;
+            for (int k = 0; k < fields.length; k++) {
+                InlineField field = fields[k];
+                if (field.kind != InlineField.PTR16) {
+                    continue;
+                }
+                int target = r.pointerTargets[k];
+                if (target < 0 || target >= 0x4000) {
+                    continue;
+                }
+                if (field.pointerKind == PointerKind.CODE && blockedFromCode[target]) {
+                    failBlockedConflict(target, "inline ptr16(code) at callsite $"
+                        + cpuLabel(r.callsite) + " field " + k);
+                }
+                map[target] |= LABEL;
+                if (field.pointerKind == PointerKind.CODE) {
+                    processCode(target);
+                }
+            }
+            if (r.recordEnd < 0x4000) {
+                if (blockedFromCode[r.recordEnd]) {
+                    failBlockedConflict(r.recordEnd, "inline record continuation at callsite $"
+                        + cpuLabel(r.callsite));
+                }
+                map[r.recordEnd] |= LABEL;
+                processCode(r.recordEnd);
+            }
+        }
+    }
+
+/**
+* Convenience composite used by single-record / single-range tests. Runs
+* block + label/seed back-to-back; runAnalysisPass uses the split phase
+* methods directly so all barriers are constructed before any seed traces.
+**/
+
+    public static void applyKnownInlineRecords() {
+        blockKnownInlineRecords();
+        labelAndSeedKnownInlineRecords();
+    }
+
+/**
+* Describes which configured data range or resolved inline record blocks a
+* given PRG offset. Used to format the "blocked by" line in conflict
+* diagnostics. Returns a generic stub when no source can be identified —
+* that should never happen if the mask was built consistently.
+**/
+
+    static String findBlockingSource(int target) {
+        for (int k = 0; k < dataRanges.entries.length; k++) {
+            DataRangeEntry r = dataRanges.entries[k];
+            if (target >= r.start && target < r.end) {
+                return "data range $" + hex4(r.startCpu) + "-$"
+                    + hex4(r.startCpu + r.length - 1)
+                    + " (dataranges config line " + r.sourceLine + ")";
+            }
+        }
+        for (ResolvedRecord r : knownCallsites.values()) {
+            if (target >= r.recordStart && target < r.recordEnd) {
+                return "inline record at callsite $" + cpuLabel(r.callsite)
+                    + " -> $" + hex4(r.entry.calleeCpu)
+                    + " (inlinecalls config line " + r.entry.sourceLine + ")"
+                    + " (record $" + cpuLabel(r.recordStart) + "-$"
+                    + cpuLabel(r.recordEnd - 1) + ")";
+            }
+        }
+        return "blocked byte (source unknown)";
+    }
+
+    static void failBlockedConflict(int target, String source) {
+        String blocking = findBlockingSource(target);
+        throw new ConfigException("inline-data conflict at $" + cpuLabel(target)
+            + "; blocked by " + blocking + "; conflicting target: " + source);
+    }
+
+/**
+* Resolves a single inline record at the given callsite against its
+* configured layout. Validates the JSR encoding, walks each field, evaluates
+* counted8 payload size from ROM, and computes adjusted pointer targets.
+* Throws ConfigException on any out-of-ROM or pointer-out-of-range condition.
+**/
+
+    public static ResolvedRecord resolveRecord(int callsite, InlineCallEntry entry) {
+        if (callsite + 3 > 0x4000) {
+            throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                + " (callee $" + hex4(entry.calleeCpu) + "): JSR extends past end of ROM");
+        }
+        if (ROM[callsite] != 0x20) {
+            throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                + ": expected JSR ($20), got $" + hex2(ROM[callsite]));
+        }
+        int actualTarget = getAddress(callsite + 1);
+        if (actualTarget != entry.callee) {
+            throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                + ": JSR target $" + cpuLabel(actualTarget) + " does not match configured callee $"
+                + hex4(entry.calleeCpu));
+        }
+        InlineField[] fields = entry.layout.fields;
+        int[] fieldStarts = new int[fields.length];
+        int[] fieldEnds = new int[fields.length];
+        int[] pointerTargets = new int[fields.length];
+        for (int k = 0; k < pointerTargets.length; k++) {
+            pointerTargets[k] = -1;
+        }
+        int recordStart = callsite + 3;
+        int ofs = recordStart;
+        for (int k = 0; k < fields.length; k++) {
+            InlineField field = fields[k];
+            fieldStarts[k] = ofs;
+            int fieldSize;
+            if (field.kind == InlineField.COUNTED8) {
+                if (ofs >= 0x4000) {
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                        + " (callee $" + hex4(entry.calleeCpu) + "): counted8 count byte past end of ROM");
+                }
+                int count = ROM[ofs];
+                fieldSize = 1 + count;
+                if (ofs + fieldSize > 0x4000) {
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                        + " (callee $" + hex4(entry.calleeCpu) + "): counted8 payload of " + count
+                        + " bytes exceeds ROM");
+                }
+            } else if (field.kind == InlineField.PTR16) {
+                if (ofs + 2 > 0x4000) {
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                        + " (callee $" + hex4(entry.calleeCpu) + "): ptr16 extends past end of ROM");
+                }
+                int encoded = ((ROM[ofs+1] & 0xFF) << 8) | (ROM[ofs] & 0xFF);
+                int adjustedTarget = (encoded + field.pointerAdjustment) & 0xFFFF;
+                if (adjustedTarget < 0xC000) {
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                        + " (callee $" + hex4(entry.calleeCpu) + "): adjusted pointer target $"
+                        + hex4(adjustedTarget) + " is outside canonical ROM space $C000-$FFFF");
+                }
+                pointerTargets[k] = adjustedTarget & 0x3FFF;
+                fieldSize = 2;
+            } else {
+                fieldSize = field.byteCount;
+                if (ofs + fieldSize > 0x4000) {
+                    throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
+                        + " (callee $" + hex4(entry.calleeCpu) + "): field " + k + " extends past end of ROM");
+                }
+            }
+            ofs += fieldSize;
+            fieldEnds[k] = ofs;
+        }
+        int recordEnd = ofs;
+        return new ResolvedRecord(callsite, entry, recordStart, recordEnd, fieldStarts, fieldEnds, pointerTargets);
+    }
+
+    private static String cpuLabel(int prgOffset) {
+        return hex4((prgOffset & 0x3FFF) | 0xC000);
+    }
+
+    private static String hex2(int b) {
+        String s = Integer.toHexString(b & 0xFF).toUpperCase();
+        return s.length() == 1 ? "0" + s : s;
     }
 
 /**
@@ -364,13 +800,19 @@ public class NESrev {
 
     private static void queueRelativeBranchTarget(int ofs) {
         int dist = ROM[ofs+1];
+        int rawTarget;
         if (dist < 0x80) {  // branch forward
-            queueCodeTarget(ofs+2+dist);
+            rawTarget = ofs+2+dist;
         }
         else {  // branch backward
             dist = (dist ^ 0xFF) + 1;
-            queueCodeTarget(ofs+2-dist);
+            rawTarget = ofs+2-dist;
         }
+        int target = rawTarget & 0x3FFF;
+        if (blockedFromCode[target]) {
+            failBlockedConflict(target, "relative branch at $" + cpuLabel(ofs));
+        }
+        queueCodeTarget(target);
     }
 
     private static boolean processCodeSingle(int ofs) {
@@ -381,13 +823,27 @@ public class NESrev {
         int op, len;
         int chkpt=ofs;  // initialize checkpoint to current offset
         int startofs=ofs;
-        while (!done && isData(ofs)) {
+        // Stop linearly at any byte explicitly blocked from code (configured
+        // data range or resolved inline-record byte). Fallthrough into the
+        // first byte of a blocked range ends the linear path without decoding
+        // the blocked byte itself.
+        while (!done && isData(ofs) && !blockedFromCode[ofs]) {
             // process one opcode
             op = ROM[ofs];
             len = oplengthLookup[op];
             if (len > 0) {
                 if ((ofs + len) > map.length) {
                     return false;
+                }
+                // The opcode byte was unblocked (loop guard above), but the
+                // instruction's operand bytes might still cross into a barrier.
+                // Marking them as code would silently override the explicit
+                // data claim — spec §8 requires this to be a conflict.
+                for (int i = 1; i < len; i++) {
+                    if (blockedFromCode[ofs + i]) {
+                        failBlockedConflict(ofs + i,
+                            "operand of instruction at $" + cpuLabel(ofs));
+                    }
                 }
                 map[ofs] &= NOT_DATA;
                 map[ofs] |= INSTR | CODE;   // 1st byte of instruction
@@ -429,28 +885,56 @@ public class NESrev {
             }
 
             switch (op) {
-                case 0x20:  // JSR
-                    queueCodeTarget(getAddress(ofs+1));
+                case 0x20: {  // JSR
+                    int jsrTarget = getAddress(ofs+1);
+                    if (blockedFromCode[jsrTarget]) {
+                        failBlockedConflict(jsrTarget, "JSR at $" + cpuLabel(ofs));
+                    }
+                    queueCodeTarget(jsrTarget);
+                    InlineCallEntry inlineEntry = inlineCalls.findByCallee(jsrTarget);
+                    if (inlineEntry != null) {
+                        // Configured inline call: record the callsite if new
+                        // and terminate the linear path. The record bytes are
+                        // (or will be) blocked, and record_end is (or will be)
+                        // a separate code seed, so falling through here would
+                        // either decode garbage or violate the barrier.
+                        if (!knownCallsites.containsKey(ofs)) {
+                            newlyDiscoveredCallsites.add(ofs);
+                        }
+                        done = true;
+                        break;
+                    }
                     chkpt = ofs+3;
                     jsrchk = true;
                     break;
+                }
 
                 case 0x40:  // RTI
                 case 0x60:  // RTS
                     done = true;
                     break;
 
-                case 0x4C:  // JMP Abs
-                    queueCodeTarget(getAddress(ofs+1));
+                case 0x4C: {  // JMP Abs
+                    int jmpTarget = getAddress(ofs+1);
+                    if (blockedFromCode[jmpTarget]) {
+                        failBlockedConflict(jmpTarget, "JMP at $" + cpuLabel(ofs));
+                    }
+                    queueCodeTarget(jmpTarget);
                     done = true;
                     break;
+                }
 
-                case 0x6C:  // JMP Ind
+                case 0x6C: {  // JMP Ind
                     if (isROMAddress(ofs+1)) {
-                        queueCodeTarget(getAddress(getAddress(ofs+1)));
+                        int indTarget = getAddress(getAddress(ofs+1));
+                        if (blockedFromCode[indTarget]) {
+                            failBlockedConflict(indTarget, "JMP indirect via $" + cpuLabel(ofs));
+                        }
+                        queueCodeTarget(indTarget);
                     }
                     done = true;
                     break;
+                }
 
                 default:
                     break;
@@ -476,15 +960,42 @@ public class NESrev {
         System.out.print(".ORG $C000");
         newLine();
         newLine();
+        // Precompute output-time indices from the resolved analysis state.
+        // recordsByStart maps a record_start PRG offset to its resolved record;
+        // dataBoundaries holds every start/end offset of a record or a data
+        // range so the .DB walker can break runs at those boundaries (spec §9.2).
+        recordsByStart = new HashMap<Integer, ResolvedRecord>();
+        dataBoundaries = new TreeSet<Integer>();
+        for (ResolvedRecord r : knownCallsites.values()) {
+            recordsByStart.put(r.recordStart, r);
+            dataBoundaries.add(r.recordStart);
+            dataBoundaries.add(r.recordEnd);
+        }
+        for (int k = 0; k < dataRanges.entries.length; k++) {
+            DataRangeEntry e = dataRanges.entries[k];
+            dataBoundaries.add(e.start);
+            dataBoundaries.add(e.end);
+        }
         //
         int ofs = 0, op, amode;
         while (ofs < 0x4000) {
             if (isCode(ofs)) {
                 if (isPtr(ofs)) {   // print jump table
                     newLine();
+                    if (isLabel(ofs)) {
+                        String tableLabel = "L"+hexLookup[(ofs>>8)+0xC0]+hexLookup[ofs&0xFF];
+                        if (toHtml)
+                            System.out.print("<A NAME="+tableLabel+">");
+                        System.out.print(tableLabel+":");
+                        newLine();
+                    }
                     while ((ofs < 0x4000) && isPtr(ofs)) {
                         System.out.print(".DW ");
-                        if (isLabel(getAddress(ofs))) {
+                        // Only emit a label form when the pointer bytes are in the canonical
+                        // $C000-$FFFF range. Mirror-range bytes ($8000-$BFFF) would generate
+                        // an undefined label like L8000, breaking re-assembly.
+                        // Match the canonical-output guard used in printAddress().
+                        if (isCanonicalROMAddress(ofs) && isLabel(getAddress(ofs))) {
                             printLabel("L"+hexLookup[ROM[ofs+1]]+hexLookup[ROM[ofs]]);
                         }
                         else {
@@ -585,6 +1096,16 @@ public class NESrev {
                 }
             }   // isCode(ofs)
             else if (isData(ofs)) { // print data table
+                // If an inline record starts here, emit it field-by-field
+                // instead of running a normal .DB block. The label is printed
+                // inside emitInlineRecord.
+                ResolvedRecord record = recordsByStart.get(ofs);
+                if (record != null) {
+                    emitInlineRecord(record);
+                    ofs = record.recordEnd;
+                    newLine();
+                    continue;
+                }
                 if (isLabel(ofs)) {
                     String label = "L"+hexLookup[(ofs>>8)+0xC0]+hexLookup[ofs&0xFF];
                     if (toHtml)
@@ -594,7 +1115,10 @@ public class NESrev {
                 }
                 System.out.print(".DB $"+hexLookup[ROM[ofs++]]);
                 int i=1;
-                while ((ofs < 0x4000) && (map[ofs] == DATA)) {
+                // Stop the .DB run at the next data-block boundary so that
+                // configured data ranges and resolved inline records remain
+                // distinct from adjacent generic data (spec §9.2).
+                while ((ofs < 0x4000) && (map[ofs] == DATA) && !dataBoundaries.contains(ofs)) {
                     if ((i++ & 15) == 0) {
                         newLine();
                         System.out.print(".DB ");
@@ -622,7 +1146,16 @@ public class NESrev {
 **/
 
     public static boolean isROMAddress(int ofs) {
+        // Analysis treats both CPU ROM windows as ROM. NROM-128 mirrors
+        // $8000-$BFFF onto the same 16 KB PRG bytes as $C000-$FFFF, and valid
+        // binaries may use the mirror window in operands such as JMP ($8000).
         return ROM[ofs+1] >= 0x80;
+    }
+
+    private static boolean isCanonicalROMAddress(int ofs) {
+        // Output only labels canonical $C000-$FFFF operands. Emitting a label
+        // for a mirror operand would rewrite the high byte and break parity.
+        return ROM[ofs+1] >= 0xC0;
     }
 
     public static void checkDataLabel(int ofs) {
@@ -652,6 +1185,141 @@ public class NESrev {
                 map[i] |= LABEL;
             }
         }
+    }
+
+/**
+* Emits one resolved inline record in spec §9.1 form. Adjacent u8 and
+* bytes(N) fields share a .DB line, each pointer field emits a single .DW
+* expression that reproduces the original encoded word, and counted8 emits
+* its count and payload as one logical .DB record (wrap may split it across
+* multiple .DB lines but the count never gets a dedicated line). Records
+* from separate callsites are never merged because the outer loop dispatches
+* per record_start.
+**/
+
+    public static void emitInlineRecord(ResolvedRecord r) {
+        // Label the record start.
+        String startLabel = "L" + hexLookup[(r.recordStart>>8)+0xC0] + hexLookup[r.recordStart & 0xFF];
+        if (toHtml) {
+            System.out.println("<A NAME=" + startLabel + "><BR>");
+        }
+        System.out.print(startLabel + ":");
+        newLine();
+        InlineField[] fields = r.layout.fields;
+        int k = 0;
+        while (k < fields.length) {
+            InlineField f = fields[k];
+            if (f.kind == InlineField.PTR16) {
+                emitPointerField(r, k);
+                k++;
+            } else if (f.kind == InlineField.COUNTED8) {
+                emitCountedField(r, k);
+                k++;
+            } else {
+                // U8 or BYTES — collect adjacent run for one .DB sequence.
+                int runEnd = k;
+                while (runEnd < fields.length
+                       && (fields[runEnd].kind == InlineField.U8
+                           || fields[runEnd].kind == InlineField.BYTES)) {
+                    runEnd++;
+                }
+                emitDataRunFields(r, k, runEnd);
+                k = runEnd;
+            }
+        }
+    }
+
+    private static void emitDataRunFields(ResolvedRecord r, int kStart, int kEnd) {
+        int start = r.fieldStarts[kStart];
+        int end = r.fieldEnds[kEnd - 1];
+        emitDbRun(start, end);
+    }
+
+    private static void emitCountedField(ResolvedRecord r, int k) {
+        int start = r.fieldStarts[k];
+        int end = r.fieldEnds[k];
+        emitDbRun(start, end);
+    }
+
+    private static void emitDbRun(int start, int end) {
+        System.out.print(".DB $" + hexLookup[ROM[start]]);
+        int wrapCount = 1;
+        for (int i = start + 1; i < end; i++) {
+            if ((wrapCount++ & 15) == 0) {
+                newLine();
+                System.out.print(".DB ");
+            } else {
+                System.out.print(",");
+            }
+            System.out.print("$" + hexLookup[ROM[i]]);
+        }
+        newLine();
+    }
+
+    private static void emitPointerField(ResolvedRecord r, int k) {
+        InlineField f = r.layout.fields[k];
+        int target = r.pointerTargets[k];
+        int adj = f.pointerAdjustment;
+        String labelStr = "L" + hexLookup[(target>>8)+0xC0] + hexLookup[target & 0xFF];
+        System.out.print(".DW ");
+        printLabel(labelStr);
+        if (adj > 0) {
+            // adjusted target = encoded + adj ⇒ encoded = target - adj
+            System.out.print("-" + adj);
+        } else if (adj < 0) {
+            System.out.print("+" + (-adj));
+        }
+        newLine();
+    }
+
+/**
+* Phase-1 mask construction for configured data ranges. Blocks every byte
+* in each range from being decoded as code. The parser already guarantees
+* ranges don't overlap or touch each other, so no overlap check is needed
+* here. Record-vs-range overlaps are caught by blockKnownInlineRecords
+* when it runs after this method.
+**/
+
+    public static void blockDataRanges() {
+        for (int k = 0; k < dataRanges.entries.length; k++) {
+            DataRangeEntry r = dataRanges.entries[k];
+            for (int i = r.start; i < r.end; i++) {
+                blockedFromCode[i] = true;
+            }
+        }
+    }
+
+/**
+* Phase-2 label + seed for configured data ranges. Labels each range start
+* and labels + seeds the exclusive end as a code continuation when the end
+* is still inside ROM. Must run only after blockDataRanges and
+* blockKnownInlineRecords have populated the complete barrier mask.
+**/
+
+    public static void labelAndSeedDataRanges() {
+        for (int k = 0; k < dataRanges.entries.length; k++) {
+            DataRangeEntry r = dataRanges.entries[k];
+            map[r.start] |= LABEL;
+            if (r.end < 0x4000) {
+                if (blockedFromCode[r.end]) {
+                    failBlockedConflict(r.end, "data range continuation after $"
+                        + hex4(r.startCpu) + "+" + r.length);
+                }
+                map[r.end] |= LABEL;
+                processCode(r.end);
+            }
+        }
+    }
+
+/**
+* Convenience composite used by single-range tests. Runs block + label/seed
+* back-to-back; runAnalysisPass uses the split phase methods directly so all
+* barriers are constructed before any seed traces.
+**/
+
+    public static void applyDataRangeBarriers() {
+        blockDataRanges();
+        labelAndSeedDataRanges();
     }
 
 /**
@@ -703,7 +1371,7 @@ public class NESrev {
 
     public static void printAddress(int ofs, int op) {
         String label=null;
-        if (isROMAddress(ofs)) {   // address is in ROM space (0xC000-0xFFFF)
+        if (isCanonicalROMAddress(ofs)) {   // safe canonical ROM operand
             System.out.print(" ");
             int a = getAddress(ofs);
             if (!isLabel(a)) {  // no label exists for this address!
@@ -812,6 +1480,548 @@ public class NESrev {
             System.out.println("<BR>");
         else
             System.out.println("");
+    }
+
+/**
+* A configured inline record after a JSR callsite has been validated against
+* the ROM. Carries per-field start/end offsets and adjusted pointer targets
+* so the analysis and output passes don't have to re-walk the layout against
+* raw bytes.
+**/
+
+    public static final class ResolvedRecord {
+        public final int callsite;          // PRG offset of the JSR opcode
+        public final InlineCallEntry entry; // schema this record was resolved against
+        public final int recordStart;       // callsite + 3
+        public final int recordEnd;         // exclusive PRG offset
+        public final int[] fieldStarts;     // per-field start offset, parallel to entry.layout.fields
+        public final int[] fieldEnds;       // per-field exclusive end offset
+        public final int[] pointerTargets;  // adjusted target as PRG offset; -1 for non-pointer fields
+
+        public final InlineLayout layout;   // alias of entry.layout for convenience
+
+        ResolvedRecord(int callsite, InlineCallEntry entry, int recordStart, int recordEnd,
+                       int[] fieldStarts, int[] fieldEnds, int[] pointerTargets) {
+            this.callsite = callsite;
+            this.entry = entry;
+            this.layout = entry.layout;
+            this.recordStart = recordStart;
+            this.recordEnd = recordEnd;
+            this.fieldStarts = fieldStarts;
+            this.fieldEnds = fieldEnds;
+            this.pointerTargets = pointerTargets;
+        }
+    }
+
+/**
+* Thrown by configuration parsers for malformed input. Main translates these
+* to a one-line error via exitWithError; tests can catch and inspect.
+**/
+
+    public static class ConfigException extends RuntimeException {
+        public ConfigException(String message) {
+            super(message);
+        }
+    }
+
+/**
+* Pointer-kind enum for ptr16 fields. Code targets are seeded to the code
+* worklist; data targets are labeled at the unclassified DATA state and may
+* still become code if reached independently through valid control flow.
+**/
+
+    public static final class PointerKind {
+        public static final int CODE = 0;
+        public static final int DATA = 1;
+        private PointerKind() {}
+    }
+
+/**
+* One field of an inline-record layout. Immutable; constructed only by the
+* parser via the static factory methods.
+**/
+
+    public static final class InlineField {
+        public static final int U8       = 0;
+        public static final int BYTES    = 1;
+        public static final int COUNTED8 = 2;
+        public static final int PTR16    = 3;
+
+        public final int kind;
+        // Fixed byte count for this field; for COUNTED8 this is just the count
+        // byte (1) — the variable payload size is resolved at apply time from
+        // the value of that byte.
+        public final int byteCount;
+        // PointerKind.CODE or PointerKind.DATA when kind == PTR16; -1 otherwise.
+        public final int pointerKind;
+        // Signed adjustment for PTR16; 0 for non-pointer fields.
+        public final int pointerAdjustment;
+
+        private InlineField(int kind, int byteCount, int pointerKind, int pointerAdjustment) {
+            this.kind = kind;
+            this.byteCount = byteCount;
+            this.pointerKind = pointerKind;
+            this.pointerAdjustment = pointerAdjustment;
+        }
+
+        public static InlineField u8() {
+            return new InlineField(U8, 1, -1, 0);
+        }
+        public static InlineField bytes(int n) {
+            return new InlineField(BYTES, n, -1, 0);
+        }
+        public static InlineField counted8() {
+            return new InlineField(COUNTED8, 1, -1, 0);
+        }
+        public static InlineField ptr16(int pointerKind, int adjustment) {
+            return new InlineField(PTR16, 2, pointerKind, adjustment);
+        }
+
+        public boolean isPointer() {
+            return kind == PTR16;
+        }
+        public boolean isVariable() {
+            return kind == COUNTED8;
+        }
+    }
+
+/**
+* Layout for one configured callee. Immutable; field array is shared by
+* reference but never mutated after construction.
+**/
+
+    public static final class InlineLayout {
+        public final InlineField[] fields;
+        // Sum of byteCount over all fields. For variable layouts this is the
+        // fixed prefix; the COUNTED8 count byte contributes 1 here and its
+        // payload size is added at apply time.
+        public final int fixedSize;
+        public final boolean hasCounted8;
+
+        InlineLayout(InlineField[] fields) {
+            this.fields = fields;
+            int sum = 0;
+            boolean variable = false;
+            for (int i = 0; i < fields.length; i++) {
+                sum += fields[i].byteCount;
+                if (fields[i].kind == InlineField.COUNTED8) {
+                    variable = true;
+                }
+            }
+            this.fixedSize = sum;
+            this.hasCounted8 = variable;
+        }
+    }
+
+/**
+* One row from inlinecalls.csv.
+**/
+
+    public static final class InlineCallEntry {
+        // PRG offset (callee & 0x3FFF), used for callsite lookups against
+        // getAddress() results from the JSR operand.
+        public final int callee;
+        // Canonical $C000-$FFFF CPU address, kept for diagnostics.
+        public final int calleeCpu;
+        public final InlineLayout layout;
+        public final int sourceLine;
+
+        InlineCallEntry(int callee, int calleeCpu, InlineLayout layout, int sourceLine) {
+            this.callee = callee;
+            this.calleeCpu = calleeCpu;
+            this.layout = layout;
+            this.sourceLine = sourceLine;
+        }
+    }
+
+/**
+* Parsed inlinecalls.csv. Lookup is by PRG-offset callee; CPU addresses are
+* preserved on each entry for diagnostics.
+**/
+
+    public static final class InlineCallsConfig {
+        public static final InlineCallsConfig EMPTY = new InlineCallsConfig(new InlineCallEntry[0]);
+
+        public final InlineCallEntry[] entries;
+        private final HashMap<Integer, InlineCallEntry> byCallee;
+
+        InlineCallsConfig(InlineCallEntry[] entries) {
+            this.entries = entries;
+            this.byCallee = new HashMap<Integer, InlineCallEntry>();
+            for (int i = 0; i < entries.length; i++) {
+                byCallee.put(entries[i].callee, entries[i]);
+            }
+        }
+
+        public InlineCallEntry findByCallee(int prgOffset) {
+            return byCallee.get(prgOffset);
+        }
+
+        public boolean isEmpty() {
+            return entries.length == 0;
+        }
+
+        public static InlineCallsConfig parse(String path) {
+            File f = new File(path);
+            if (!f.canRead()) {
+                throw new ConfigException("inlinecalls: couldn't read " + path);
+            }
+            ArrayList<InlineCallEntry> rows = new ArrayList<InlineCallEntry>();
+            HashSet<Integer> seen = new HashSet<Integer>();
+            boolean headerSeen = false;
+            int lineNo = 0;
+            try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+                String raw;
+                while ((raw = br.readLine()) != null) {
+                    lineNo++;
+                    String line = stripConfigComments(raw).trim();
+                    if (line.length() == 0) {
+                        continue;
+                    }
+                    if (!headerSeen) {
+                        if (!line.equals("callee|layout")) {
+                            throw new ConfigException("inlinecalls: expected header 'callee|layout' at line "
+                                + lineNo + ", got '" + line + "'");
+                        }
+                        headerSeen = true;
+                        continue;
+                    }
+                    int bar = line.indexOf('|');
+                    if (bar < 0) {
+                        throw new ConfigException("inlinecalls: missing '|' at line " + lineNo + ": " + line);
+                    }
+                    String calleeStr = line.substring(0, bar).trim();
+                    String layoutStr = line.substring(bar + 1).trim();
+                    if (calleeStr.length() == 0) {
+                        throw new ConfigException("inlinecalls: empty callee at line " + lineNo);
+                    }
+                    if (layoutStr.length() == 0) {
+                        throw new ConfigException("inlinecalls: empty layout at line " + lineNo);
+                    }
+                    int calleeCpu = parseCpuAddress("inlinecalls", calleeStr, lineNo);
+                    int callee = calleeCpu & 0x3FFF;
+                    if (!seen.add(callee)) {
+                        throw new ConfigException("inlinecalls: duplicate callee $" + hex4(calleeCpu)
+                            + " at line " + lineNo);
+                    }
+                    InlineLayout layout = parseInlineLayout(layoutStr, lineNo);
+                    rows.add(new InlineCallEntry(callee, calleeCpu, layout, lineNo));
+                }
+            } catch (IOException ex) {
+                throw new ConfigException("inlinecalls: I/O error reading " + path + ": " + ex.getMessage());
+            }
+            if (!headerSeen) {
+                throw new ConfigException("inlinecalls: missing header in " + path);
+            }
+            return new InlineCallsConfig(rows.toArray(new InlineCallEntry[0]));
+        }
+    }
+
+/**
+* One row from dataranges.csv. `end` is exclusive (start + length).
+**/
+
+    public static final class DataRangeEntry {
+        public final int start;        // PRG offset
+        public final int startCpu;     // CPU $C000-$FFFF
+        public final int length;
+        public final int end;          // exclusive PRG offset
+        public final int sourceLine;
+
+        DataRangeEntry(int start, int startCpu, int length, int sourceLine) {
+            this.start = start;
+            this.startCpu = startCpu;
+            this.length = length;
+            this.end = start + length;
+            this.sourceLine = sourceLine;
+        }
+    }
+
+/**
+* Parsed dataranges.csv. Entries are sorted by start; adjacent or overlapping
+* ranges are rejected at parse time.
+**/
+
+    public static final class DataRangesConfig {
+        public static final DataRangesConfig EMPTY = new DataRangesConfig(new DataRangeEntry[0]);
+
+        public final DataRangeEntry[] entries;
+
+        DataRangesConfig(DataRangeEntry[] entries) {
+            this.entries = entries;
+        }
+
+        public boolean isEmpty() {
+            return entries.length == 0;
+        }
+
+        public static DataRangesConfig parse(String path) {
+            File f = new File(path);
+            if (!f.canRead()) {
+                throw new ConfigException("dataranges: couldn't read " + path);
+            }
+            ArrayList<DataRangeEntry> rows = new ArrayList<DataRangeEntry>();
+            boolean headerSeen = false;
+            int lineNo = 0;
+            try (BufferedReader br = new BufferedReader(new FileReader(f))) {
+                String raw;
+                while ((raw = br.readLine()) != null) {
+                    lineNo++;
+                    String line = stripConfigComments(raw).trim();
+                    if (line.length() == 0) {
+                        continue;
+                    }
+                    if (!headerSeen) {
+                        if (!line.equals("start|length")) {
+                            throw new ConfigException("dataranges: expected header 'start|length' at line "
+                                + lineNo + ", got '" + line + "'");
+                        }
+                        headerSeen = true;
+                        continue;
+                    }
+                    int bar = line.indexOf('|');
+                    if (bar < 0) {
+                        throw new ConfigException("dataranges: missing '|' at line " + lineNo + ": " + line);
+                    }
+                    String startStr = line.substring(0, bar).trim();
+                    String lenStr = line.substring(bar + 1).trim();
+                    if (startStr.length() == 0) {
+                        throw new ConfigException("dataranges: empty start at line " + lineNo);
+                    }
+                    if (lenStr.length() == 0) {
+                        throw new ConfigException("dataranges: empty length at line " + lineNo);
+                    }
+                    int startCpu = parseCpuAddress("dataranges", startStr, lineNo);
+                    int length;
+                    try {
+                        length = Integer.parseInt(lenStr);
+                    } catch (NumberFormatException ex) {
+                        throw new ConfigException("dataranges: length must be a positive decimal integer at line "
+                            + lineNo + ": " + lenStr);
+                    }
+                    if (length <= 0) {
+                        throw new ConfigException("dataranges: length must be > 0 at line " + lineNo + ": " + lenStr);
+                    }
+                    int start = startCpu & 0x3FFF;
+                    long endLong = (long) start + (long) length;
+                    if (endLong > 0x4000L) {
+                        throw new ConfigException("dataranges: range $" + hex4(startCpu) + "+" + length
+                            + " exceeds ROM at line " + lineNo);
+                    }
+                    rows.add(new DataRangeEntry(start, startCpu, length, lineNo));
+                }
+            } catch (IOException ex) {
+                throw new ConfigException("dataranges: I/O error reading " + path + ": " + ex.getMessage());
+            }
+            if (!headerSeen) {
+                throw new ConfigException("dataranges: missing header in " + path);
+            }
+            DataRangeEntry[] arr = rows.toArray(new DataRangeEntry[0]);
+            Arrays.sort(arr, new Comparator<DataRangeEntry>() {
+                public int compare(DataRangeEntry a, DataRangeEntry b) {
+                    return Integer.compare(a.start, b.start);
+                }
+            });
+            for (int i = 1; i < arr.length; i++) {
+                DataRangeEntry prev = arr[i-1];
+                DataRangeEntry cur = arr[i];
+                if (cur.start < prev.end) {
+                    throw new ConfigException("dataranges: ranges $" + hex4(prev.startCpu) + "+" + prev.length
+                        + " (line " + prev.sourceLine + ") and $" + hex4(cur.startCpu) + "+" + cur.length
+                        + " (line " + cur.sourceLine + ") overlap");
+                }
+                if (cur.start == prev.end) {
+                    throw new ConfigException("dataranges: ranges $" + hex4(prev.startCpu) + "+" + prev.length
+                        + " (line " + prev.sourceLine + ") and $" + hex4(cur.startCpu) + "+" + cur.length
+                        + " (line " + cur.sourceLine + ") touch; merge them");
+                }
+            }
+            return new DataRangesConfig(arr);
+        }
+    }
+
+/**
+* Shared parser helpers.
+**/
+
+    private static String stripConfigComments(String line) {
+        int hashAt = line.indexOf('#');
+        if (hashAt >= 0) {
+            line = line.substring(0, hashAt);
+        }
+        int semiAt = line.indexOf(';');
+        if (semiAt >= 0) {
+            line = line.substring(0, semiAt);
+        }
+        return line;
+    }
+
+    private static int parseCpuAddress(String fileLabel, String token, int lineNo) {
+        String t = token.trim();
+        if (t.startsWith("$")) {
+            t = t.substring(1);
+        } else if (t.startsWith("0x") || t.startsWith("0X")) {
+            t = t.substring(2);
+        }
+        if (t.length() == 0) {
+            throw new ConfigException(fileLabel + ": empty address at line " + lineNo + ": " + token);
+        }
+        int v;
+        try {
+            v = Integer.parseInt(t, 16);
+        } catch (NumberFormatException ex) {
+            throw new ConfigException(fileLabel + ": bad CPU address at line " + lineNo + ": " + token);
+        }
+        if (v < 0xC000 || v > 0xFFFF) {
+            throw new ConfigException(fileLabel + ": CPU address out of $C000-$FFFF range at line " + lineNo
+                + ": $" + hex4(v));
+        }
+        return v;
+    }
+
+    private static String hex4(int v) {
+        String s = Integer.toHexString(v & 0xFFFF).toUpperCase();
+        while (s.length() < 4) {
+            s = "0" + s;
+        }
+        return s;
+    }
+
+/**
+* Layout grammar:
+*   layout       := field ("," field)*
+*   field        := "u8"
+*                 | "bytes(" positive_integer ")"
+*                 | "counted8"
+*                 | "ptr16(" pointer_kind ["," signed_integer] ")"
+*   pointer_kind := "code" | "data"
+* counted8 must be the final field. Whitespace around fields and inside
+* parenthesised arguments is ignored.
+**/
+
+    static InlineLayout parseInlineLayout(String spec, int lineNo) {
+        ArrayList<InlineField> fields = new ArrayList<InlineField>();
+        int i = 0;
+        int n = spec.length();
+        while (i < n) {
+            while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                i++;
+            }
+            if (i >= n) {
+                throw new ConfigException("inlinecalls: trailing ',' in layout at line " + lineNo + ": " + spec);
+            }
+            int tokStart = i;
+            while (i < n && (Character.isLetterOrDigit(spec.charAt(i)) || spec.charAt(i) == '_')) {
+                i++;
+            }
+            String tok = spec.substring(tokStart, i);
+            if (tok.length() == 0) {
+                throw new ConfigException("inlinecalls: unexpected character '" + spec.charAt(i)
+                    + "' in layout at line " + lineNo + ": " + spec);
+            }
+            if (tok.equals("u8")) {
+                fields.add(InlineField.u8());
+            } else if (tok.equals("counted8")) {
+                fields.add(InlineField.counted8());
+            } else if (tok.equals("bytes")) {
+                while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                    i++;
+                }
+                if (i >= n || spec.charAt(i) != '(') {
+                    throw new ConfigException("inlinecalls: 'bytes' must be followed by '(' at line " + lineNo);
+                }
+                int close = spec.indexOf(')', i);
+                if (close < 0) {
+                    throw new ConfigException("inlinecalls: 'bytes(...)' missing ')' at line " + lineNo);
+                }
+                String inner = spec.substring(i + 1, close).trim();
+                int count;
+                try {
+                    count = Integer.parseInt(inner);
+                } catch (NumberFormatException ex) {
+                    throw new ConfigException("inlinecalls: 'bytes(N)' expects a positive integer at line "
+                        + lineNo + ": '" + inner + "'");
+                }
+                if (count <= 0) {
+                    throw new ConfigException("inlinecalls: 'bytes(N)' requires N > 0 at line " + lineNo
+                        + ": " + count);
+                }
+                fields.add(InlineField.bytes(count));
+                i = close + 1;
+            } else if (tok.equals("ptr16")) {
+                while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                    i++;
+                }
+                if (i >= n || spec.charAt(i) != '(') {
+                    throw new ConfigException("inlinecalls: 'ptr16' must be followed by '(' at line " + lineNo);
+                }
+                int close = spec.indexOf(')', i);
+                if (close < 0) {
+                    throw new ConfigException("inlinecalls: 'ptr16(...)' missing ')' at line " + lineNo);
+                }
+                String inner = spec.substring(i + 1, close);
+                String[] parts = inner.split(",", -1);
+                if (parts.length < 1 || parts.length > 2) {
+                    throw new ConfigException("inlinecalls: 'ptr16' expects 1 or 2 arguments at line " + lineNo
+                        + ": '" + inner + "'");
+                }
+                String kindStr = parts[0].trim();
+                int pointerKind;
+                if (kindStr.equals("code")) {
+                    pointerKind = PointerKind.CODE;
+                } else if (kindStr.equals("data")) {
+                    pointerKind = PointerKind.DATA;
+                } else {
+                    throw new ConfigException("inlinecalls: 'ptr16' kind must be 'code' or 'data' at line "
+                        + lineNo + ": '" + kindStr + "'");
+                }
+                int adj = 0;
+                if (parts.length == 2) {
+                    String adjStr = parts[1].trim();
+                    if (adjStr.length() == 0) {
+                        throw new ConfigException("inlinecalls: 'ptr16' adjustment is empty at line " + lineNo);
+                    }
+                    try {
+                        adj = Integer.parseInt(adjStr);
+                    } catch (NumberFormatException ex) {
+                        throw new ConfigException("inlinecalls: 'ptr16' adjustment must be a signed integer at line "
+                            + lineNo + ": '" + adjStr + "'");
+                    }
+                }
+                fields.add(InlineField.ptr16(pointerKind, adj));
+                i = close + 1;
+            } else {
+                throw new ConfigException("inlinecalls: unknown field '" + tok + "' at line " + lineNo);
+            }
+            while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                i++;
+            }
+            if (i < n) {
+                if (spec.charAt(i) != ',') {
+                    throw new ConfigException("inlinecalls: expected ',' between fields at line " + lineNo
+                        + " near offset " + i + ": " + spec);
+                }
+                i++;
+                // A comma must be followed by another field; trailing ',' is an error.
+                int j = i;
+                while (j < n && Character.isWhitespace(spec.charAt(j))) {
+                    j++;
+                }
+                if (j >= n) {
+                    throw new ConfigException("inlinecalls: trailing ',' in layout at line " + lineNo + ": " + spec);
+                }
+            }
+        }
+        if (fields.size() == 0) {
+            throw new ConfigException("inlinecalls: empty layout at line " + lineNo);
+        }
+        InlineField[] arr = fields.toArray(new InlineField[0]);
+        for (int k = 0; k < arr.length; k++) {
+            if (arr[k].kind == InlineField.COUNTED8 && k != arr.length - 1) {
+                throw new ConfigException("inlinecalls: 'counted8' must be the final field at line " + lineNo);
+            }
+        }
+        return new InlineLayout(arr);
     }
 
 }   // bye.
