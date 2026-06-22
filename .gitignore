@@ -1,7 +1,27 @@
-asm
-gfx
-prg
-html
-map
+/asm
+/gfx
+/prg
+/html
+/map
 *.class
+*.o
+*.lst
+*.lst.json
+/tmp/
+scripts/__pycache__/
+.env
+projects/*/docs/reverse_engineering/inventory/pass/
 
+# Large auto-regenerated intake artifacts (rewritten by `make project-intake`)
+projects/*/docs/reverse_engineering/inventory/intake_listing.json
+projects/*/docs/reverse_engineering/inventory/intake_xref.json
+projects/*/docs/reverse_engineering/inventory/raw_address_audit.json
+
+# Project-specific binaries and build artifacts
+projects/*/reference/*
+projects/*/build/
+projects/*/mods/*/build/
+
+# Exclude all third-party/external reference material. Authored terminology
+# extraction and crosswalk analysis belong in tracked docs/crosswalk/.
+projects/*/docs/game_reference/
