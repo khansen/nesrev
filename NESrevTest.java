@@ -93,6 +93,7 @@ public class NESrevTest {
         testRestartLoopNonConvergenceThrowsConfigException();
         testNoOptionOutputIsUnchanged();
         testNoOptionUnlabeledBackwardBranchOutputMatchesMaster();
+        testDisassembleUndefinedCodeByteAdvances();
         testSyntheticIntegrationReassembles();
         System.out.println("OK: " + testsRun + " tests passed.");
     }
@@ -1798,6 +1799,29 @@ public class NESrevTest {
 
         String asm = captureDisassemble();
         assertContainsLine(asm, "BNE $-0");
+    }
+
+    private static void testDisassembleUndefinedCodeByteAdvances() throws Exception {
+        resetState();
+        int[] rom = makeRom();
+        int[] map = new int[0x4000];
+        int data = getIntField("DATA");
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        int code = getIntField("CODE");
+        int instr = getIntField("INSTR");
+        rom[0x0100] = 0x02; // undefined opcode
+        rom[0x0101] = 0x60;
+        map[0x0100] = code | instr;
+        map[0x0101] = code | instr;
+        setField("ROM", rom);
+        setField("map", map);
+
+        String asm = captureDisassemble();
+        assertContainsLine(asm, ".DB $02");
+        assertContainsLine(asm, "RTS");
+        assertContainsLine(asm, ".END");
     }
 
     private static void testSyntheticIntegrationReassembles() throws Exception {

@@ -1019,6 +1019,12 @@ public class NESrev {
                         System.out.print("&nbsp;&nbsp;&nbsp;&nbsp;");
                     else
                         System.out.print("    ");
+                    if ((oplengthLookup[op] <= 0) || (opaddrmodeLookup[op] == UNDF)) {
+                        System.out.print(".DB $"+hexLookup[op]);
+                        newLine();
+                        ofs++;
+                        continue;
+                    }
                     System.out.print(mnemonicLookup[op]);
                     amode = opaddrmodeLookup[op];
                     if (amode == IMPL) {
