@@ -64,10 +64,9 @@ Apply this admission test before authoring any comment:
    6502/NES knowledge covered by [#audience-contract](#audience-contract).
 5. Write only the shortest form that preserves that fact.
 
-If any answer fails, do not write or generate the comment, even as temporary
-scaffolding. Do not produce broad commentary and plan to prune it during
-closeout. Improve names, symbolize literals/addresses, and clarify structure
-before deciding whether any comment remains necessary.
+If any answer fails, do not write or generate the comment, even temporarily.
+Improve names, symbolize literals/addresses, clarify structure before
+deciding whether any comment remains necessary.
 
 Useful comments preserve a non-obvious invariant, reason, interface contract,
 side effect, hardware/timing constraint, parity oddity, alias ambiguity, or
@@ -145,6 +144,7 @@ A semantic rename does not automatically permit or require a comment. Apply
 Procedure/global-label documentation KPIs measure header coverage, not quality.
 Never add a tautological header to lower them. Prefer a nonzero count while
 improving names, localization, or evidence.
+
 
 ### Caller-verified interface rule
 

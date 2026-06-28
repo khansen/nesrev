@@ -62,3 +62,7 @@ bash "${SCRIPT_DIR}/project_comment_audit.sh" \
 bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" \
   "${ASM_FILE}" \
   "${DATA_LABEL_DOC_KPI_FILE}"
+
+bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" \
+  "${ASM_FILE}" \
+  "${DATA_EXTENT_ASSERTIONS_FILE}"

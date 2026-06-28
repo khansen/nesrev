@@ -14,8 +14,19 @@ if [[ ! -f "${ASM_FILE}" ]]; then
   exit 65
 fi
 
+# If KPI_DETAIL_FILE is set, write the per-label undocumented detail list
+# there and leave it for the caller to read. Otherwise use a temp file
+# scoped to this invocation so failure output can still name offenders.
+if [[ -n "${KPI_DETAIL_FILE:-}" ]]; then
+  tmp_details="${KPI_DETAIL_FILE}"
+  : > "${tmp_details}"
+else
+  tmp_details="$(mktemp)"
+  trap 'rm -f "${tmp_details}"' EXIT
+fi
+
 report="$(
-  awk '
+  awk -v details_file="${tmp_details}" '
     function is_blank(s) { return s ~ /^[[:space:]]*$/ }
     function is_comment(s) { return s ~ /^[[:space:]]*;/ }
     function is_global_label(s,   t) {
@@ -64,6 +75,7 @@ report="$(
       if (is_global_label($0)) {
         lbl=extract_label($0)
         label_line[lbl]=NR
+        label_order[++label_count]=lbl
       }
 
       op=toupper($1)
@@ -76,11 +88,16 @@ report="$(
       total=0
       documented=0
       undocumented=0
-      for (lbl in called) {
+      for (k=1; k<=label_count; k++) {
+        lbl=label_order[k]
+        if (!(lbl in called)) continue
         if (!(lbl in label_line)) continue
         total++
         if (has_doc_header(lbl)) documented++
-        else undocumented++
+        else {
+          undocumented++
+          print label_line[lbl] ":" lbl >> details_file
+        }
       }
       coverage = (total > 0) ? int((documented * 100) / total) : 100
       print "strict_callable_procedures_total=" total
@@ -125,6 +142,10 @@ STRICT_ACTIVE_UNDOCUMENTED_PROCEDURES="$(
 
 if (( STRICT_ACTIVE_UNDOCUMENTED_PROCEDURES > MAX_UNDOCUMENTED_PROCEDURES )); then
   echo "FAIL: strict_callable_procedures_undocumented (${STRICT_ACTIVE_UNDOCUMENTED_PROCEDURES}) exceeds KPI max (${MAX_UNDOCUMENTED_PROCEDURES})" >&2
+  if [[ -s "${tmp_details}" ]]; then
+    echo "Undocumented callable procedures:" >&2
+    sed 's/^/  /' "${tmp_details}" >&2
+  fi
   exit 68
 fi
 

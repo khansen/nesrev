@@ -43,7 +43,7 @@ cat > "$root/README.md" <<DOC
 > Makefile). They will fail with "No rule to make target" or
 > "no Makefile found" if invoked from inside \`projects/${slug}/\`.
 
-1. Place the ROM at \`reference/${slug}.nes\` (iNES, 16 KB PRG).
+1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM, 16 KB PRG).
 2. \`make project-regenerate-asm PROJECT=${slug}\` — produces \`asm/${slug}.asm\` with LXXXX placeholders.
 3. Audit hidden-code and indirect-dispatch candidates. Record either
    \`NESREV_RECOVERY_STATUS="none"\` or \`"configured"\` in
@@ -92,6 +92,12 @@ XASM_COMPARE_CPU_BASE="\\\$C000"
 # omit this flag and the check is advisory.
 SEMANTIC_CLAIMS_REQUIRED="1"
 
+# New clean-room projects also opt into the gold-closeout procedure-contract
+# tripwire. This is not a comment-coverage KPI: it only blocks maturity when a
+# nontrivial codebase has no documented callable/global code-label contracts at
+# all, which indicates the positive contract audit was skipped.
+PROCEDURE_CONTRACTS_REQUIRED="1"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required
@@ -119,8 +125,7 @@ cat > "$root/docs/reverse_engineering/ONBOARDING.md" <<DOC
 > (the directory that contains the top-level Makefile), not from
 > inside this project directory.
 
-1. Place the reference ROM at \`reference/${slug}.nes\`. It must be a
-   strict iNES 1.0 file matching the
+1. Place the reference ROM at \`reference/${slug}.nes\`. It must match the
    [support matrix](../../../../agent_playbook/NEW_PROJECT.md#rom-support-matrix).
 
 2. Generate the assembly. This step also validates the ROM against the

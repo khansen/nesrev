@@ -3,6 +3,7 @@
 
 PASS_START="${REPO_ROOT}/scripts/project_pass_start.sh"
 PASS_CLOSEOUT="${REPO_ROOT}/scripts/project_pass_closeout.sh"
+PASS_FINISH="${REPO_ROOT}/scripts/project_pass_finish.sh"
 NEXT_PASS="${REPO_ROOT}/scripts/project_next_pass.sh"
 PROCESS_CHECK="${REPO_ROOT}/scripts/project_process_check.sh"
 MATURITY_SUMMARY="${REPO_ROOT}/scripts/project_maturity_summary.sh"
@@ -36,6 +37,7 @@ Reset:
   RTS
 ASM
   : > "${root}/reference/${slug}.nes"
+  : > "${root}/docs/reverse_engineering/WARNING_BASELINE.txt"
   cat > "${root}/docs/crosswalk/TERMINOLOGY_CROSSWALK.md" <<'EOF'
 | Reference term / aliases | Asm symbol(s) | Mapping confidence | Evidence |
 |---|---|---|---|
@@ -46,6 +48,15 @@ EOF
     > "${root}/docs/reverse_engineering/inventory/renames.csv"
   cat > "${root}/docs/reverse_engineering/inventory/kpis.conf" <<'EOF'
 MAX_ACTIVE_MAGIC_IMMEDIATES=999999
+EOF
+}
+
+_write_pass_zero_scorecard() {
+  local slug="$1"
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
 EOF
 }
 
@@ -305,6 +316,297 @@ if plan.get("anchor_kind") != "notes_plan":
     raise SystemExit(f"notes_plan anchor_kind not preserved: {plan.get('anchor_kind')!r}")
 if "corridor_objective" not in plan:
     raise SystemExit("corridor_objective key must exist even for notes_plan")
+PY
+}
+
+test_project_next_pass_refreshes_missing_or_stale_pass_cache() {
+  local slug; slug="$(unique_slug next_pass_autoprep)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+
+  local prep_stub="projects/${slug}/prep_stub.sh"
+  cat > "${prep_stub}" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+slug="$1"
+root="projects/${slug}/docs/reverse_engineering"
+pass_dir="${root}/inventory/pass"
+mkdir -p "${pass_dir}"
+printf 'prep %s\n' "${slug}" > "${pass_dir}/prep_stub.log"
+cat > "${pass_dir}/baseline_status.json" <<'JSON'
+{"checks":{"docs_check":{"status":"pass"},"process_check":{"status":"pass"},"parity":{"status":"pass"}},"metrics":{"lxxxx_definitions":0,"lxxxx_occurrences":0,"strict_active_raw_lowaddr":0}}
+JSON
+cat > "${pass_dir}/xref_summary_all.json" <<'JSON'
+{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
+JSON
+cat > "${pass_dir}/xref_summary_generic.json" <<'JSON'
+{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
+JSON
+cat > "${pass_dir}/xref_with_data.json" <<'JSON'
+{"symbols":[],"references":[],"data_reads":[],"data_writes":[]}
+JSON
+cat > "${pass_dir}/data_consumers.json" <<'JSON'
+[]
+JSON
+cat > "${pass_dir}/data_coverage.json" <<'JSON'
+[]
+JSON
+cat > "${pass_dir}/index_patterns.json" <<'JSON'
+[]
+JSON
+SH
+
+  local out err
+  err="projects/${slug}/next_pass.err"
+  out="$(PROJECT_NEXT_PASS_PREP_SCRIPT="${prep_stub}" bash "${NEXT_PASS}" "${slug}" json 2>"${err}")"
+
+  rg -q "refreshing missing, partial, or stale pass cache" "${err}" \
+    || fail "project-next-pass must report automatic pass-cache refresh on stderr"
+  rg -q "prep ${slug}" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
+    || fail "project-next-pass must invoke the prep wrapper when cache files are missing"
+  python3 - "${out}" "${slug}" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+slug = sys.argv[2]
+if payload.get("project") != slug:
+    raise SystemExit(f"project-next-pass did not emit clean JSON for {slug}: {payload!r}")
+if payload.get("baseline", {}).get("parity") != "pass":
+    raise SystemExit(f"auto-refreshed baseline cache was not consumed: {payload!r}")
+PY
+
+  rm "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_summary_generic.json"
+  rm "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log"
+  out="$(PROJECT_NEXT_PASS_PREP_SCRIPT="${prep_stub}" bash "${NEXT_PASS}" "${slug}" json 2>"${err}")"
+
+  rg -q "refreshing missing, partial, or stale pass cache" "${err}" \
+    || fail "project-next-pass must report automatic refresh for a partial pass cache"
+  rg -q "prep ${slug}" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
+    || fail "project-next-pass must invoke prep when a required cache input is missing"
+}
+
+test_project_pass_finish_creates_row_runs_gates_and_marks_scorecard() {
+  local slug; slug="$(unique_slug pass_finish)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+
+  local stubdir="projects/${slug}/finish_stubs"
+  local log="projects/${slug}/finish.log"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'closeout %s %s\n' "$1" "$2" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_docs_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'docs %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'process %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${EXPECT_RELAXED:-0}" == "1" && "${ALLOW_UNRESOLVED_LXXXX:-}" != "1" ]]; then
+  echo "expected relaxed verify environment" >&2
+  exit 99
+fi
+printf 'verify %s %s\n' "$1" "${ALLOW_UNRESOLVED_LXXXX:-}" >> "${STUB_LOG}"
+SH
+
+  STUB_LOG="${log}" EXPECT_RELAXED=1 PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
+    FOCUS="Finish wrapper corridor" \
+    NOTES="Closed the finish wrapper corridor." \
+    bash "${PASS_FINISH}" "${slug}" 1 relaxed >/dev/null
+
+  cat > "projects/${slug}/expected_finish.log" <<EOF
+closeout ${slug} 1
+docs ${slug}
+process ${slug}
+verify ${slug} 1
+docs ${slug}
+EOF
+  cmp -s "projects/${slug}/expected_finish.log" "${log}" \
+    || fail "project-pass-finish must run closeout, docs, process, verify, final docs in order"
+
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+rows = []
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if cells and cells[0].isdigit():
+        rows.append(cells)
+row = next((r for r in rows if r[0] == "1"), None)
+if row is None:
+    raise SystemExit("project-pass-finish did not create pass 1 scorecard row")
+if row[1] != "Finish wrapper corridor":
+    raise SystemExit(f"unexpected focus: {row[1]!r}")
+if row[8] != "pass (LXXXX allowed)" or row[9] != "pass":
+    raise SystemExit(f"gate cells not marked after successful finish: {row!r}")
+if row[11] != "Closed the finish wrapper corridor.":
+    raise SystemExit(f"notes were not preserved: {row[11]!r}")
+PY
+}
+
+test_project_pass_finish_marks_scorecard_by_header_name() {
+  local slug; slug="$(unique_slug pass_finish_header)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | review_state | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---:|---|
+| 0 | Existing setup row | 0 / 0 | 0 | not measured | 0 | 0 | 0 | keep-zero | pass | pass | 0 | pass_id |
+| 1 | Existing finish row | 0 / 0 | 0 | not measured | 0 | 0 | 0 | keep-me | pending | pending | pending | Existing row should be marked in place. |
+EOF
+
+  local stubdir="projects/${slug}/finish_stubs"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_docs_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+
+  PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
+    bash "${PASS_FINISH}" "${slug}" 1 strict >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = None
+row = None
+header_cols = None
+required = {"pass_id", "notes", "verify", "docs_check", "rework_items"}
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if required.issubset(set(cells)):
+        header = cells
+        header_cols = {name: i for i, name in enumerate(header)}
+    elif header and len(cells) == len(header) and cells[header_cols["pass_id"]] == "1":
+        row = cells
+        break
+if header is None or row is None:
+    raise SystemExit("header-driven scorecard fixture was not preserved")
+cols = {name: i for i, name in enumerate(header)}
+if row[cols["review_state"]] != "keep-me":
+    raise SystemExit(f"extra column was overwritten: {row!r}")
+if row[cols["verify"]] != "pass":
+    raise SystemExit(f"verify column was not marked by name: {row!r}")
+if row[cols["docs_check"]] != "pass":
+    raise SystemExit(f"docs_check column was not marked by name: {row!r}")
+if row[cols["rework_items"]] != "0":
+    raise SystemExit(f"rework_items column was not normalized by name: {row!r}")
+PY
+}
+
+test_project_pass_finish_materializes_missing_row_from_existing_header() {
+  local slug; slug="$(unique_slug pass_finish_materialize)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| focus | pass_id | review_state | notes | verify | docs_check | rework_items | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta |
+|---|---|---|---|---|---|---:|---|---|---|---|---|---|
+| Existing setup row | 0 | keep-zero | pass_id | pass | pass | 0 | 0 / 0 | 0 | not measured | 0 | 0 | 0 |
+EOF
+
+  local stubdir="projects/${slug}/finish_stubs"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_docs_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+
+  PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
+    FOCUS="Materialized finish row" \
+    NOTES="Created from a reordered scorecard header." \
+    bash "${PASS_FINISH}" "${slug}" 1 strict >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = None
+row = None
+header_cols = None
+required = {"pass_id", "notes", "verify", "docs_check", "rework_items"}
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if required.issubset(set(cells)):
+        header = cells
+        header_cols = {name: i for i, name in enumerate(header)}
+    elif (
+        header
+        and len(cells) == len(header)
+        and not all(cell.startswith("---") for cell in cells)
+        and cells[header_cols["pass_id"]] == "1"
+    ):
+        row = cells
+        break
+if header is None or row is None:
+    raise SystemExit("missing pass row was not materialized")
+if len(row) != len(header):
+    raise SystemExit(f"materialized row/header mismatch: {row!r} vs {header!r}")
+cols = {name: i for i, name in enumerate(header)}
+expected = {
+    "pass_id": "1",
+    "focus": "Materialized finish row",
+    "review_state": "",
+    "notes": "Created from a reordered scorecard header.",
+    "verify": "pass",
+    "docs_check": "pass",
+    "rework_items": "0",
+    "labels_remaining": "0 / 0",
+}
+for name, value in expected.items():
+    if row[cols[name]] != value:
+        raise SystemExit(f"{name} = {row[cols[name]]!r}, expected {value!r}; row={row!r}")
 PY
 }
 
@@ -990,7 +1292,7 @@ ASM
 }
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -1068,7 +1370,7 @@ ASM
 }
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -1159,7 +1461,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0013,deferred,,already reviewed; wait for wider owner proof,7,yes,2,1,1,1,DenseReviewed:1,DenseReviewed:1
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
 import json
@@ -1232,7 +1534,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0041,deferred,,mixed role,7,yes,1,1,0,1,,BroadMixedAnchor:1
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
 import json
@@ -1286,7 +1588,7 @@ OwnerTwo:
 ASM
   _write_raw_ram_mode_baseline "${slug}" 8
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
 import json
@@ -1338,7 +1640,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0041,deferred,,mixed role,7,yes,1,1,0,1,,BroadMixedAnchor:1
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
 import json
@@ -1385,7 +1687,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 EOF
 
   local err
-  err="$(bash "${NEXT_PASS}" "${slug}" json 2>&1 >/dev/null)"
+  err="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1 >/dev/null)"
 
   assert_match "broad mixed anchor" "${err}" \
     "next-pass must warn when the top candidate is a broad mixed anchor"
