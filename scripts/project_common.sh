@@ -21,6 +21,16 @@ load_project_conf() {
   # Semantic-claims maturity opt-in (legacy projects default off). New scaffolds
   # set SEMANTIC_CLAIMS_REQUIRED="1" in project.conf to make the check strict.
   SEMANTIC_CLAIMS_REQUIRED="0"
+  # Procedure-contract maturity opt-in (legacy projects default off). New
+  # scaffolds set PROCEDURE_CONTRACTS_REQUIRED="1" so gold closeout cannot
+  # silently accept a zero-contract codebase after labels are mature.
+  PROCEDURE_CONTRACTS_REQUIRED="0"
+  # Legacy retrofit marker opt-in (legacy projects default off). Projects that
+  # have been re-audited against current gold policy set this to require a
+  # machine-validated scorecard marker during maturity checks.
+  LEGACY_RETROFIT_REQUIRED="0"
+  MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
+  MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   NESREV_CODEPOINTERS_FILE=""
   NESREV_CODEENTRIES_FILE=""
   NESREV_DATAPOINTERS_FILE=""
@@ -76,6 +86,10 @@ load_project_conf() {
     SEMANTIC_CLAIMS_FILE="${DOC_ROOT}/SEMANTIC_CLAIMS.md"
   fi
   : "${SEMANTIC_CLAIMS_REQUIRED:=0}"
+  : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
+  : "${LEGACY_RETROFIT_REQUIRED:=0}"
+  : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
+  : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
 
   # Optional, tracked NESrev recovery controls. New projects declare these
   # in project.conf; older projects may omit them.
@@ -100,6 +114,7 @@ load_project_conf() {
   : "${INFERRED_KPI_FILE:=${KPI_FILE}}"
   : "${COMMENT_KPI_FILE:=${KPI_FILE}}"
   : "${DATA_LABEL_DOC_KPI_FILE:=${KPI_FILE}}"
+  : "${DATA_EXTENT_ASSERTIONS_FILE:=${DOC_ROOT}/inventory/data_extent_assertions.csv}"
   if [[ -z "${BRANCH_SITES_FILE:-}" ]]; then
     BRANCH_SITES_FILE="${DOC_ROOT}/inventory/branch_literal_sites.csv"
   fi

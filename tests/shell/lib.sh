@@ -13,7 +13,7 @@
 #   --prg N        PRG units (default 1)
 #   --chr N        CHR units (default 1)
 #   --mapper N     mapper number (default 0)
-#   --header-fmt N FLAGS7 bits[2:3]: 0=iNES1.0, 2=NES2.0, 1/3=reserved (default 0)
+#   --header-fmt N FLAGS7 bits[2:3]: 0=iNES1.0, 2=compatible NES2.0, 1/3=reserved (default 0)
 #   --trainer 0|1  set bit 2 of FLAGS6 and prepend 512 trainer bytes (default 0)
 #   --trailing N   append N synthetic trailing bytes (default 0)
 #   --magic HEX    override iNES magic (4 hex bytes, default 4e45531a)

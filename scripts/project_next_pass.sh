@@ -18,6 +18,30 @@ if [[ "${FORMAT}" != "text" && "${FORMAT}" != "json" ]]; then
   exit 2
 fi
 
+if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
+  PASS_CACHE_DIR="${DOC_ROOT}/inventory/pass"
+  PREP_SCRIPT="${PROJECT_NEXT_PASS_PREP_SCRIPT:-${SCRIPT_DIR}/project_pass_prep.sh}"
+  NEEDS_PREP=0
+  PASS_CACHE_INPUTS=(
+    "baseline_status.json"
+    "xref_summary_all.json"
+    "xref_summary_generic.json"
+    "xref_with_data.json"
+    "data_consumers.json"
+  )
+  for cache_name in "${PASS_CACHE_INPUTS[@]}"; do
+    cache_path="${PASS_CACHE_DIR}/${cache_name}"
+    if [[ ! -e "${cache_path}" || ! -s "${cache_path}" || "${ASM_FILE}" -nt "${cache_path}" ]]; then
+      NEEDS_PREP=1
+      break
+    fi
+  done
+  if [[ "${NEEDS_PREP}" == "1" ]]; then
+    echo "project-next-pass: refreshing missing, partial, or stale pass cache via project-pass-prep" >&2
+    bash "${PREP_SCRIPT}" "$1" >&2
+  fi
+fi
+
 python3 - "$1" "${FORMAT}" "${ASM_FILE}" "${WARN_BASELINE_FILE}" "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/unknowns.md" "${DOC_ROOT}/inventory/pass" "${DOC_ROOT}/inventory/raw_ram_review.csv" <<'PY'
 import csv
 import json

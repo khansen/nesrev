@@ -89,7 +89,13 @@ reviewer must inspect the touched regions and ledgers.
    internal labels, improve weak names, and add a header only when it
    preserves a useful non-obvious contract or public-entry role. A
    self-documenting retained public label may remain headerless; the count is
-   an inventory, not a quality score.
+   an inventory, not a quality score. **Near gold, zero documented code
+   contracts is a process failure unless the scorecard records the audit.**
+   New projects opt into `PROCEDURE_CONTRACTS_REQUIRED=1` for this tripwire.
+   Legacy gold predating these tripwires is stale until a scorecard row records
+   the marker in
+   [PASS_WORKFLOW.md#legacy-retrofit-scorecard-artifact](PASS_WORKFLOW.md#legacy-retrofit-scorecard-artifact);
+   zero-undocumented retrofit is not required.
 5. **Comment quality beats coverage.** No line-by-line narration, literal
    translations, raw-address prose, or tautological headers were added to make
    a KPI green. Review the changed comments manually against
@@ -102,8 +108,13 @@ reviewer must inspect the touched regions and ledgers.
    Comments are not required when semantic names and callers already make the
    contract clear. Any retained header must add non-obvious purpose, side
    effects, inputs/outputs, ordering, or public-entry semantics; walkthroughs
-   and KPI filler fail this item.
+   and KPI filler fail this item. Review high-fanout callables and public
+   jump/dispatch targets from `xref_summary_all.json`; localize,
+   rename/structure, add a concise header, or record why none is needed.
 8. **Major data regions include format and index comments.**
+   When a review proves a bounded indexed-table span that ordinary coverage
+   cannot infer, record it in `data_extent_assertions.csv` so
+   `project-verify` and `project-maturity-check` can catch later drift.
 9. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    and promoted subsystem `*_DX_Systems.md`). A not-yet-promoted systems
@@ -167,6 +178,12 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
 
     Treat findings as cleanup candidates, not automatic
     replacements.
+
+20. Before any gold claim, run the positive procedure-contract audit: use
+    `project-pass-prep`, inspect `xref_summary_all.json` high-fanout callables
+    and jump targets, and compare with the procedure/global-label KPI reports.
+    If no mature-project headers result, the scorecard must name what was
+    reviewed and why names/callers were sufficient.
 <a id="semantic-claims"></a>
 ## Semantic Claims Ledger
 

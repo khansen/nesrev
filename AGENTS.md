@@ -386,6 +386,8 @@ Files in the authored set: `renames.csv` (rename ledger),
 `pointer_targets.csv` (pointer producer/consumer map),
 `branch_literal_sites.csv` (parity-sensitive relative branch
 literals), `constants_catalog.csv` (domain-separated constants),
+`data_extent_assertions.csv` (reviewed table-span assertions checked by
+`project-verify` and `project-maturity-check` when present),
 `raw_ram_review.csv` (raw-RAM review queue — operation at
 [#raw-ram-queue](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue)),
 `unknowns.md` (small clustered list of unresolved semantics).

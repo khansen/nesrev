@@ -22,10 +22,27 @@ data_doc_report="$(bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" "${ASM_FILE}" 2>/d
 data_noncompliant="$(printf '%s\n' "${data_doc_report}" | awk -F= '/strict_data_labels_noncompliant=/{print $2}')"
 data_noncompliant="${data_noncompliant:-unknown}"
 
+proc_doc_report="$(bash "${SCRIPT_DIR}/procedure_doc_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
+proc_total="$(printf '%s\n' "${proc_doc_report}" | awk -F= '/strict_callable_procedures_total=/{print $2}')"
+proc_documented="$(printf '%s\n' "${proc_doc_report}" | awk -F= '/strict_callable_procedures_documented=/{print $2}')"
+proc_total="${proc_total:-unknown}"
+proc_documented="${proc_documented:-unknown}"
+
+global_doc_report="$(bash "${SCRIPT_DIR}/global_code_label_doc_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
+global_total="$(printf '%s\n' "${global_doc_report}" | awk -F= '/strict_global_code_labels_total=/{print $2}')"
+global_documented="$(printf '%s\n' "${global_doc_report}" | awk -F= '/strict_global_code_labels_documented=/{print $2}')"
+global_total="${global_total:-unknown}"
+global_documented="${global_documented:-unknown}"
+
 scorecard_tbd_count="$({ rg -o 'TBD' "${PROGRESS_SCORECARD_FILE}" 2>/dev/null || true; } | wc -l | tr -d ' ')"
 scorecard_tbd_count="${scorecard_tbd_count:-0}"
 
 fail=0
+if ! data_extent_report="$(bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" "${ASM_FILE}" "${DATA_EXTENT_ASSERTIONS_FILE}" 2>&1)"; then
+  printf '%s\n' "${data_extent_report}" >&2
+  echo "maturity gate failed: data extent assertions failed" >&2
+  fail=1
+fi
 if [[ "${raw_lowaddr}" != "0" || "${raw_absrom}" != "0" ]]; then
   echo "maturity gate failed: raw-address debt is not zero (${raw_lowaddr}/${raw_absrom})" >&2
   fail=1
@@ -33,6 +50,22 @@ fi
 if [[ "${data_noncompliant}" != "0" ]]; then
   echo "maturity gate failed: noncompliant data labels remain (${data_noncompliant})" >&2
   fail=1
+fi
+if [[ "${PROCEDURE_CONTRACTS_REQUIRED}" == "1" ]]; then
+  if [[ "${proc_total}" == "unknown" || "${proc_documented}" == "unknown" ]]; then
+    echo "maturity gate failed: procedure-contract audit could not read callable procedure counts" >&2
+    fail=1
+  elif (( proc_total > 0 && proc_documented < MIN_MATURITY_DOCUMENTED_PROCEDURES )); then
+    echo "maturity gate failed: procedure-contract audit skipped (${proc_documented}/${proc_total} documented callables; minimum ${MIN_MATURITY_DOCUMENTED_PROCEDURES})" >&2
+    fail=1
+  fi
+  if [[ "${global_total}" == "unknown" || "${global_documented}" == "unknown" ]]; then
+    echo "maturity gate failed: procedure-contract audit could not read global code-label counts" >&2
+    fail=1
+  elif (( global_total > 0 && global_documented < MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS )); then
+    echo "maturity gate failed: procedure-contract audit skipped (${global_documented}/${global_total} documented global code labels; minimum ${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS})" >&2
+    fail=1
+  fi
 fi
 
 # Semantic-claims gold-closeout gate. Opted-in projects (SEMANTIC_CLAIMS_REQUIRED=1,
@@ -48,6 +81,13 @@ if ! python3 "${SCRIPT_DIR}/project_semantic_claims_check.py" \
     "${ASM_FILE}" "${SEMANTIC_CLAIMS_FILE}" --mode "${sc_mode}"; then
   echo "maturity gate failed: semantic-claims check failed" >&2
   fail=1
+fi
+
+if [[ "${LEGACY_RETROFIT_REQUIRED}" == "1" ]]; then
+  if ! bash "${SCRIPT_DIR}/project_legacy_retrofit_check.sh" "$1" --require; then
+    echo "maturity gate failed: legacy retrofit audit check failed" >&2
+    fail=1
+  fi
 fi
 
 if [[ ${fail} -ne 0 ]]; then

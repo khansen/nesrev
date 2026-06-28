@@ -40,7 +40,7 @@ _run_regen_from_dir() {
   echo "${rc}"
 }
 
-test_rejects_nes2_header() {
+test_accepts_compatible_nes2_header() {
   local slug; slug="$(unique_slug nes2)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
@@ -48,10 +48,47 @@ test_rejects_nes2_header() {
   scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
 
   local rc; rc=$(_run_regen "${slug}")
-  assert_eq "${rc}" "1" "regenerator should reject NES 2.0"
-  local stderr; stderr="$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
-  assert_match "FLAGS7 bits\[2:3\]=2" "${stderr}" "stderr should name FLAGS7 bits"
-  assert_match "strict iNES 1.0" "${stderr}" "stderr should mention iNES 1.0"
+  assert_eq "${rc}" "0" "compatible NES 2.0 NROM ROM must be accepted"
+  [[ -s "projects/${slug}/asm/${slug}.asm" ]] \
+    || fail "compatible NES 2.0 ROM must produce a non-empty asm file"
+}
+
+test_rejects_nes2_extended_mapper() {
+  local slug; slug="$(unique_slug nes2_mapper)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --header-fmt 2
+  python3 -c '
+import sys
+p = sys.argv[1]
+data = bytearray(open(p, "rb").read())
+data[8] = 1
+open(p, "wb").write(data)
+' "${NESREV_TEST_TMPDIR}/rom.nes"
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject NES 2.0 mapper high bits"
+  assert_match "mapper 256" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
+}
+
+test_rejects_nes2_extended_prg_size() {
+  local slug; slug="$(unique_slug nes2_prg)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --header-fmt 2
+  python3 -c '
+import sys
+p = sys.argv[1]
+data = bytearray(open(p, "rb").read())
+data[9] = 1
+open(p, "wb").write(data)
+' "${NESREV_TEST_TMPDIR}/rom.nes"
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject NES 2.0 PRG upper size bits"
+  assert_match "PRG units=257" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
 }
 
 test_rejects_reserved_header_bits() {

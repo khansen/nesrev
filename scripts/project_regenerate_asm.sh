@@ -72,21 +72,26 @@ CHR_UNITS="$(od -An -tu1 -j5 -N1 "${REF_NES}" | tr -d ' ')"
 FLAGS6="$(od -An -tu1 -j6 -N1 "${REF_NES}" | tr -d ' ')"
 FLAGS7="$(od -An -tu1 -j7 -N1 "${REF_NES}" | tr -d ' ')"
 
-# Require strict iNES 1.0: bits 2-3 of FLAGS7 must be 0b00. NES 2.0
-# (0b10) extends mapper/size fields beyond the iNES 1.0 layout; bits
-# 0b01 and 0b11 are reserved/legacy variants whose flag interpretation
-# this regenerator does not implement.
-if (( (FLAGS7 & 0x0C) != 0x00 )); then
-  HEADER_BITS=$(( (FLAGS7 & 0x0C) >> 2 ))
-  echo "error: ${REF_NES} has FLAGS7 bits[2:3]=${HEADER_BITS}; nesrev currently supports strict iNES 1.0 (bits[2:3]=0) only." >&2
+HEADER_BITS=$(( (FLAGS7 & 0x0C) >> 2 ))
+MAPPER_NUMBER=$(( (FLAGS6 >> 4) | (FLAGS7 & 0xF0) ))
+
+if (( HEADER_BITS == 2 )); then
+  NES2_BYTE8="$(od -An -tu1 -j8 -N1 "${REF_NES}" | tr -d ' ')"
+  NES2_BYTE9="$(od -An -tu1 -j9 -N1 "${REF_NES}" | tr -d ' ')"
+  NES2_MAPPER_HIGH=$(( NES2_BYTE8 & 0x0F ))
+  NES2_PRG_UNITS_HIGH=$(( NES2_BYTE9 & 0x0F ))
+  NES2_CHR_UNITS_HIGH=$(( (NES2_BYTE9 >> 4) & 0x0F ))
+  MAPPER_NUMBER=$(( MAPPER_NUMBER | (NES2_MAPPER_HIGH << 8) ))
+  PRG_UNITS=$(( PRG_UNITS | (NES2_PRG_UNITS_HIGH << 8) ))
+  CHR_UNITS=$(( CHR_UNITS | (NES2_CHR_UNITS_HIGH << 8) ))
+elif (( HEADER_BITS != 0 )); then
+  echo "error: ${REF_NES} has FLAGS7 bits[2:3]=${HEADER_BITS}; nesrev supports iNES 1.0 (bits[2:3]=0) and compatible NES 2.0 (bits[2:3]=2) headers only." >&2
   echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
   exit 1
 fi
 
-MAPPER_NUMBER=$(( (FLAGS6 >> 4) | (FLAGS7 & 0xF0) ))
-
 # Supported ROM matrix (must match agent_playbook/NEW_PROJECT.md#rom-support-matrix):
-#   iNES 1.0 header (NES 2.0 rejected above)
+#   iNES 1.0 or NES 2.0 headers whose decoded fields stay in this matrix
 #   mapper 0 (NROM)
 #   PRG = 16 KB (1 unit)
 #   CHR = 0 or 8 KB (0 or 1 unit)

@@ -92,10 +92,10 @@ ROM is supported when **all** of these hold against its iNES header:
 | Field | Header byte(s) | Supported value | Notes |
 |---|---|---|---|
 | Magic | $00-$03 | `4E 45 53 1A` | iNES header marker |
-| Header format | bits 2-3 of $07 | `0b00` (strict iNES 1.0) | NES 2.0 (`0b10`) and reserved/legacy variants (`0b01`, `0b11`) are rejected |
-| Mapper | high nibble of $06 \| high nibble of $07 | `0` (NROM) | Other mappers are rejected; see error message |
-| PRG size | $04 | `1` unit = 16 KB | NROM-128; PRG mirrors at `$C000` |
-| CHR size | $05 | `0` or `1` unit (0 or 8 KB) | CHR-RAM or 8 KB CHR-ROM |
+| Header format | bits 2-3 of $07 | `0b00` (iNES 1.0) or `0b10` (NES 2.0) | Reserved/legacy variants (`0b01`, `0b11`) are rejected. NES 2.0 is accepted only when the decoded mapper and ROM sizes still match the matrix below |
+| Mapper | high nibble of $06 \| high nibble of $07 \| NES 2.0 byte $08 low nibble | `0` (NROM) | Other mappers are rejected; see error message |
+| PRG size | $04 plus NES 2.0 byte $09 low nibble | `1` unit = 16 KB | NROM-128; PRG mirrors at `$C000` |
+| CHR size | $05 plus NES 2.0 byte $09 high nibble | `0` or `1` unit (0 or 8 KB) | CHR-RAM or 8 KB CHR-ROM |
 | Trainer flag | bit 2 of $06 | `0` or `1` | Optional 512-byte trainer is skipped on disassembly |
 | Container length | total file size | exactly `16 + trainer + PRG + CHR` | Truncated containers fail; trailing bytes also fail unless `ALLOW_TRAILING_BYTES=1` is set after manual audit |
 

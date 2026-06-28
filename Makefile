@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-ci project-inventory project-audit project-comment-audit project-compare project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-finish project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -35,6 +35,10 @@ project-docs-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-docs-check PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_docs_check.sh $(PROJECT)
 
+project-docs-provenance-lint:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-docs-provenance-lint PROJECT=<slug>"; exit 2; fi
+	bash scripts/project_docs_provenance_lint.sh $(PROJECT)
+
 project-ci:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-ci PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_ci.sh $(PROJECT)
@@ -58,6 +62,14 @@ project-maturity-summary:
 project-semantic-claims-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-semantic-claims-check PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_semantic_claims_check.sh $(PROJECT)
+
+project-legacy-retrofit-check:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-legacy-retrofit-check PROJECT=<slug> [REQUIRE=1]"; exit 2; fi
+	bash scripts/project_legacy_retrofit_check.sh $(PROJECT) $(if $(filter 1 true yes,$(REQUIRE)),--require,)
+
+project-data-extent-check:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-data-extent-check PROJECT=<slug>"; exit 2; fi
+	@bash -c 'source scripts/project_common.sh; load_project_conf "$(PROJECT)"; bash scripts/data_extent_assertions_check.sh "$$ASM_FILE" "$$DATA_EXTENT_ASSERTIONS_FILE"'
 
 project-pass-prep:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-prep PROJECT=<slug>"; exit 2; fi
@@ -85,6 +97,12 @@ project-pass-start:
 project-pass-closeout:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>]"; exit 2; fi
 	@bash scripts/project_pass_closeout.sh $(PROJECT) $(PASS)
+
+project-pass-finish: export FOCUS := $(FOCUS)
+project-pass-finish: export NOTES := $(NOTES)
+project-pass-finish:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-finish PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>]"; exit 2; fi
+	@bash scripts/project_pass_finish.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
 
 project-raw-ram-review:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(ADDR)" ] || [ -z "$(STATUS)" ]; then echo "usage: make project-raw-ram-review PROJECT=<slug> ADDR=<0x00bf|\\$$00BF> STATUS=<candidate|unreviewed|deferred|revisit|not_semantic_yet|symbolized> [SYMBOL=<name>] [NOTES=<text>] [PASS=<id>]"; exit 2; fi

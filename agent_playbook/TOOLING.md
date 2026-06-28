@@ -54,6 +54,7 @@ make project-pass-prep PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 make project-pass-closeout PROJECT=<slug>
+make project-pass-finish PROJECT=<slug>
 ```
 
 Optional `KEY=value` arguments (append to the same line):
@@ -61,7 +62,11 @@ Optional `KEY=value` arguments (append to the same line):
 [#nesrev-controls](#nesrev-controls) plus `ALLOW_TRAILING_BYTES=1`
 (audited trailer override); `project-pass-start` accepts `PASS=<id>`
 and `TARGET=<corridor_anchor_or_notes_plan>`; `project-pass-closeout`
-accepts `PASS=<id>`.
+accepts `PASS=<id>`; `project-pass-finish` accepts `PASS=<id>`,
+`VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`, and `NOTES=<text>`.
+`project-next-pass` refreshes a missing, partial, zero-byte, or stale
+candidate-input cache before ranking candidates; prep output is routed to
+stderr so `FORMAT=json` remains machine-readable.
 
 ### Evidence Order (Mandatory)
 
@@ -266,7 +271,8 @@ For *when* to refresh the inventory during a pass, see
 [PASS_WORKFLOW.md#pass-closeout](PASS_WORKFLOW.md#pass-closeout). The
 canonical authored-artifact catalog (`renames.csv`,
 `pointer_targets.csv`, `branch_literal_sites.csv`,
-`constants_catalog.csv`, `unknowns.md`, etc.) lives at
+`constants_catalog.csv`, `data_extent_assertions.csv`,
+`unknowns.md`, etc.) lives at
 [AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
 the generated cache under
 `docs/reverse_engineering/inventory/pass/` is documented at
@@ -279,17 +285,19 @@ the generated cache under
 # project's configured ROM range and writes machine-readable findings.
 make project-audit PROJECT=<slug> FORMAT=json
 ```
-### KPI scripts
+### KPI and assertion scripts
 
-Each KPI script reads the asm + an inventory config and prints a metric
-(definition count, doc coverage, etc.) plus a per-line breakdown. They
-are read-only; failures should drive an edit and re-run rather than
-config tweaks.
+Each KPI script reads the asm plus an inventory config and prints a metric
+(definition count, doc coverage, etc.) plus a per-line breakdown. Assertion
+scripts read reviewed inventory ledgers, such as table-span assertions. They
+are read-only; failures should drive an edit and re-run rather than config
+tweaks.
 ```sh
 bash scripts/branch_literal_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/comment_quality_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/constant_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/data_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
+bash scripts/data_extent_assertions_check.sh Game.asm docs/reverse_engineering/inventory/data_extent_assertions.csv
 bash scripts/global_code_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/inferred_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/procedure_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf

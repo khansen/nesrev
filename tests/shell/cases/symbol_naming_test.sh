@@ -11,10 +11,10 @@ test_accepts_upper_camel_ram_and_zp_names() {
   python3 scripts/check_symbol_naming.py "${asm}"
 }
 
-test_tracked_primary_allows_no_tracked_project_asm() {
+test_tracked_primary_checks_current_tracked_project_asm() {
   local output
   output="$(python3 scripts/check_symbol_naming.py --tracked-primary)"
-  assert_match "OK: canonical symbol naming in 0 asm file" "${output}"
+  assert_match "OK: canonical symbol naming in [0-9]+ asm file" "${output}"
 }
 
 test_rejects_additional_underscores() {

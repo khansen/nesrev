@@ -64,6 +64,33 @@ No claims recorded yet.
 MD
 }
 
+_write_contract_test_asm() {
+  local slug="$1" documented="$2"
+  if [[ "${documented}" == "1" ]]; then
+    cat > "$(_asm_file "${slug}")" <<'ASM'
+.ORG $C000
+; Boot entry that jumps through the shared helper in this fixture.
+Reset:
+  JSR Helper
+  RTS
+
+; Shared helper called by Reset; tiny but intentionally documented for the gate.
+Helper:
+  RTS
+ASM
+  else
+    cat > "$(_asm_file "${slug}")" <<'ASM'
+.ORG $C000
+Reset:
+  JSR Helper
+  RTS
+
+Helper:
+  RTS
+ASM
+  fi
+}
+
 _check_rc() {
   local slug="$1" mode="$2" rc
   set +e
@@ -312,6 +339,28 @@ test_maturity_check_fails_optin_project_missing_claims_file() {
   assert_match "semantic-claims check failed" "${out}"
 }
 
+test_maturity_check_reports_data_extent_and_semantic_claim_failures() {
+  local slug; slug="$(unique_slug sc_mat_multi_fail)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "1"
+  _write_sparse_claim "${slug}"
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/data_extent_assertions.csv" <<'CSV'
+label,expected_size,reason
+MissingTable,1,fixture missing label should fail
+CSV
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must fail when data extents and semantic claims both fail"
+  fi
+  assert_match "maturity gate failed: data extent assertions failed" "${out}"
+  assert_match "maturity gate failed: semantic-claims check failed" "${out}"
+}
+
 test_maturity_check_passes_optin_project_with_valid_claim() {
   local slug; slug="$(unique_slug sc_mat_ok)"
   trap "cleanup_project ${slug}" EXIT
@@ -331,6 +380,47 @@ test_maturity_check_legacy_project_not_failed_by_semantic_claims() {
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_fails_optin_project_with_zero_procedure_contracts() {
+  local slug; slug="$(unique_slug sc_contract_fail)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+PROCEDURE_CONTRACTS_REQUIRED="1"
+EOF
+  _write_contract_test_asm "${slug}" "0"
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must fail an opted-in project with zero procedure contracts"
+  fi
+  assert_match "procedure-contract audit skipped" "${out}"
+}
+
+test_maturity_check_passes_optin_project_with_procedure_contracts() {
+  local slug; slug="$(unique_slug sc_contract_ok)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+PROCEDURE_CONTRACTS_REQUIRED="1"
+EOF
+  _write_contract_test_asm "${slug}" "1"
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
+test_maturity_check_legacy_project_not_failed_by_zero_procedure_contracts() {
+  local slug; slug="$(unique_slug sc_contract_legacy)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  _write_contract_test_asm "${slug}" "0"
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
 test_new_project_scaffolds_semantic_claims_and_passes_checker() {
   local slug; slug="$(unique_slug sc_scaffold)"
   trap "cleanup_project ${slug}" EXIT
@@ -340,6 +430,8 @@ test_new_project_scaffolds_semantic_claims_and_passes_checker() {
   [[ -f "${sc}" ]] || fail "new project must scaffold SEMANTIC_CLAIMS.md"
   grep -q 'SEMANTIC_CLAIMS_REQUIRED="1"' "projects/${slug}/project.conf" \
     || fail "new project must opt into strict semantic-claims maturity"
+  grep -q 'PROCEDURE_CONTRACTS_REQUIRED="1"' "projects/${slug}/project.conf" \
+    || fail "new project must opt into procedure-contract maturity"
   # Scaffold references MEMORY_MAP.md, which must exist in the scaffold.
   [[ -f "projects/${slug}/docs/reverse_engineering/MEMORY_MAP.md" ]] \
     || fail "scaffold links MEMORY_MAP.md, which must be generated"

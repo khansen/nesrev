@@ -176,41 +176,47 @@ is generated cache.
 ## Scorecard Synchronization
 
 `PROGRESS_SCORECARD.md` tracks per-pass throughput and quality
-signals. Most KPI cells in the latest pass row are auto-synced by
-`project-pass-closeout` — see [#pass-closeout](#pass-closeout) for
-the wrapper rule. The metrics tracked:
+signals. `project-pass-closeout` auto-syncs most KPI cells in the
+latest pass row — see [#pass-closeout](#pass-closeout). Metrics:
 
 1. **Pass count.** Mature project target: `<= 12` major passes to
-   the Review Quality Bar. Fresh projects set their expectation
-   after intake. Count only meaningful edit/verify passes.
+   the quality bar. Count meaningful edit/verify passes.
 2. **Rework rate.** Target `< 15%` late fixes per pass. If exceeded,
    add preventive checklist items.
 3. **Verification cadence.** `100%` of edit batches run parity
-   verification before merge — mechanics live at
+   verification — mechanics live at
    [AGENTS.md#safety-rules](../AGENTS.md#safety-rules).
 4. **Interaction efficiency.** Front-load mandatory sweeps to
    reduce repeated reviewer prompts.
-5. **Context efficiency.** Use lightweight machine-readable
-   inventories under `docs/reverse_engineering/inventory/`
-   (`renames.csv`, `pointer_targets.csv`, `branch_literal_sites.csv`,
-   `constants_catalog.csv`, `unknowns.md`) instead of repeated
+5. **Context efficiency.** Use inventories under
+   `docs/reverse_engineering/inventory/` instead of repeated
    whole-file rescans.
 6. **Constantization burn-down.** Track via
    `MAX_ACTIVE_MAGIC_IMMEDIATES` in `inventory/kpis.conf`. Trend to
    `0`.
 7. **Confidence burn-down.** Track via `MAX_INFERRED_ANNOTATIONS`
-   and `MAX_PLACEHOLDER_COMMENTS` in `inventory/kpis.conf`. Inferred
-   tags trend down; placeholder comments stay at `0`.
+   and `MAX_PLACEHOLDER_COMMENTS`. Inferred tags trend down;
+   placeholder comments stay at `0`.
 8. **Data-label doc coverage.** Track via
    `MAX_UNDOCUMENTED_DATA_LABELS` in `inventory/kpis.conf`. Target
    `0` noncompliant data labels.
 9. **KPI calibration timing (mandatory).** Never set `MAX_*` values
-   while known undecoded `.DB` blobs exist. Complete codepointers
-   recovery and blob decode first. Normalize hex widths before
-   calibrating. Mark provisional baselines explicitly.
+   while known undecoded `.DB` blobs exist. Complete pointer/blob
+   recovery first; mark provisional baselines explicitly.
 10. **KPI anti-gaming (mandatory).** KPI reduction is a measurement
-    outcome, not a pass objective. Every scorecard row must state a
-    readability or semantic gain, not only metric deltas.
+    outcome, not an objective. Every scorecard row must state a
+    readability or semantic gain.
+
+<a id="legacy-retrofit-scorecard-artifact"></a>
+### Legacy Retrofit
+
+Legacy refresh uses a scorecard `notes` marker
+`legacy-retrofit-audit:` with fields `semantic_claims`, `procedures`,
+`global_code_labels`, `retained_headerless`, and `action`. Denominators are
+live detail-line counts; `0/0` is complete; zero undocumented headers are not
+required. Validate with
+`make project-legacy-retrofit-check PROJECT=<slug> REQUIRE=1`.
+
 <a id="raw-ram-prioritization"></a>
 ## Raw-RAM Symbolization Prioritization
 
@@ -312,6 +318,16 @@ the authoritative closeout command. Run it after the edit batch and
 before the final docs check; see the End-of-Batch Protocol at
 [#batching-and-commit-boundaries](#batching-and-commit-boundaries)
 for its position in the overall closeout sequence.
+
+`make project-pass-finish PROJECT=<slug>` is the preferred end-of-pass wrapper
+when the full closeout sequence is wanted in one command. It materializes a
+missing scorecard row from `FOCUS=<text>` / `NOTES=<text>` or the persisted
+pass objective, runs `project-pass-closeout`, `project-docs-check`,
+`project-process-check`, and verification (`VERIFY_MODE=strict|relaxed`), then
+marks the current pass row's `verify` and `docs_check` cells and reruns
+`project-docs-check` after that scorecard edit. The closeout helper remains
+the authoritative residue gate; `project-pass-finish` only sequences it with
+the surrounding process gates.
 
 `project-pass-closeout` is also the pass-materialization gate: do not claim a pass is complete unless it confirms that authored project files actually changed and that the requested/new scorecard pass row exists.
 The scorecard row for the pass must summarize the completed corridor against
@@ -603,9 +619,10 @@ Every batch must conclude with:
      [#project-maturity-dimensions](#project-maturity-dimensions)
      closed) additionally runs
      `make project-maturity-check PROJECT=<slug>`. The script is a
-     hard-gate subset: it enforces zero raw-address debt
-     (`strict_active_raw_lowaddr`, `strict_active_raw_absrom`) and zero
-     noncompliant data labels. It reports no comment-quality conclusion;
+    hard-gate subset: it enforces zero raw-address debt
+    (`strict_active_raw_lowaddr`, `strict_active_raw_absrom`), zero
+    noncompliant data labels, and any reviewed table-span assertions in
+    `data_extent_assertions.csv`. It reports no comment-quality conclusion;
      procedure/global-label coverage remains a human review inventory because
      a zero target rewards filler. It does not check `LXXXX`, parity, warning
      baseline, reviewer simulation, or confidence closure — those remain owned
@@ -617,6 +634,11 @@ Every batch must conclude with:
      `make project-ci PROJECT=<slug>` — use it before merging or
      when a project-maturity exit + docs/process sequence is needed
      in one invocation.
+
+For ordinary semantic passes, steps 7 and 8 may be replaced by
+`make project-pass-finish PROJECT=<slug> PASS=<id> VERIFY_MODE=relaxed
+FOCUS=<text> NOTES=<text>` while unresolved `LXXXX` labels remain. Use
+`VERIFY_MODE=strict` once the project is ready for strict verification.
 ### Mass symbolization decision tree
 
 **Corridor prerequisite.** Mass replacement is allowed only when the
