@@ -80,14 +80,12 @@ Reset:
 NMI:
   RTI
 
-DataTarget:
-  .DB $00
+  DataTarget: .db $00
 
-TerminalData:
-  .DW DataTarget
-  .DW NMI
-  .DW Reset
-  .DW Reset
+  TerminalData: .dw DataTarget
+  @@Vectors: .dw NMI
+  .dw Reset
+  .dw Reset
   .END
 ASM
 

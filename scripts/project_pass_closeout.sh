@@ -160,8 +160,8 @@ def scoped_overlay_raw_symbols(rename_rows):
 def local_label_owner_index(asm_file: Path):
     owners = {}
     current_global = ""
-    global_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$")
-    local_re = re.compile(r"^(@@[A-Za-z_][A-Za-z0-9_]*):\s*$")
+    global_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
+    local_re = re.compile(r"^(@@[A-Za-z_][A-Za-z0-9_]*):")
     for raw in asm_file.read_text(encoding="utf-8").splitlines():
         stripped = raw.strip()
         m = global_re.match(stripped)

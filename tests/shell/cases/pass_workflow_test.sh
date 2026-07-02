@@ -1172,11 +1172,10 @@ test_pass_closeout_rewrites_raw_ram_review_owner_columns_for_renamed_routines() 
 
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
-NewOwner:
-@@renamedLoop:
-  LDA $10
+NewOwner: ; declaration comment
+@@renamedLoop: LDA $10
   STA $11
-@@_renamedLoop:
+@@_renamedLoop: ; local declaration comment
   LDA $12
   RTS
 ASM

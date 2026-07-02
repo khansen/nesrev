@@ -26,18 +26,29 @@ function trim(s) {
   gsub(/^[ \t]+|[ \t]+$/, "", s)
   return s
 }
+function line_label(line,    l) {
+  l = line
+  sub(/^[ \t]+/, "", l)
+  if (match(l, /^(@@)?[A-Za-z_][A-Za-z0-9_]*:/)) {
+    return substr(l, RSTART, RLENGTH - 1)
+  }
+  return ""
+}
 function strip_label(line,    l) {
   l = line
-  if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
+  sub(/^[ \t]+/, "", l)
+  if (match(l, /^(@@)?[A-Za-z_][A-Za-z0-9_]*:[ \t]*/)) {
     l = substr(l, RLENGTH + 1)
   }
   return l
 }
-function dw_payload(line,    l) {
+function dw_payload(line,    l, head) {
   l = strip_label(line)
   sub(/;.*$/, "", l)
-  if (l !~ /^[ \t]*\.DW[ \t]+/) return ""
-  sub(/^[ \t]*\.DW[ \t]+/, "", l)
+  head = l
+  sub(/^[ \t]+/, "", head)
+  if (toupper(head) !~ /^\.DW[ \t]+/) return ""
+  sub(/^[ \t]*\.[Dd][Ww][ \t]+/, "", l)
   return trim(l)
 }
 function dw_entry_count(line,    payload, a) {
@@ -86,7 +97,7 @@ function token_kind(line,    l, tok) {
   split(l, f, /[ \t]+/)
   tok = f[1]
   if (toupper(tok) ~ /^[A-Z]{3}(\.[A-Z])?$/) return "code"
-  if (tok ~ /^[A-Za-z_][A-Za-z0-9_]*:$/) return ""
+  if (tok ~ /^(@@)?[A-Za-z_][A-Za-z0-9_]*:$/) return ""
   return "unknown"
 }
 function base_label(expr,    e, p) {
@@ -112,18 +123,20 @@ FNR==NR {
   lines[FNR] = $0
   max_fnr = FNR
   line = $0
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]/)) {
+  if (match(line, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]+\.[Ee][Qq][Uu][ \t]/)) {
     lbl = line
-    sub(/[ \t]+\.EQU.*/, "", lbl)
+    sub(/^[ \t]+/, "", lbl)
+    sub(/[ \t]+\.[Ee][Qq][Uu].*/, "", lbl)
     label_kind[lbl] = "data"
     next
   }
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
-    lbl = substr(line, RSTART, RLENGTH)
-    sub(/:.*/, "", lbl)
-    pending[++pending_n] = lbl
-    cur = lbl
-    line = substr(line, RLENGTH + 1)
+  lbl = line_label(line)
+  if (lbl != "") {
+    if (lbl !~ /^@@/) {
+      pending[++pending_n] = lbl
+      cur = lbl
+    }
+    line = strip_label(line)
     if (line ~ /^[ \t]*$/) next
   }
   k = token_kind(line)
@@ -138,17 +151,17 @@ FNR==1 && NR!=1 {
 }
 {
   line = $0
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
-    lbl = substr(line, RSTART, RLENGTH)
-    sub(/:.*/, "", lbl)
-    cur = lbl
-    cur_entry = 0
-    line = substr(line, RLENGTH + 1)
+  lbl = line_label(line)
+  if (lbl != "") {
+    if (lbl !~ /^@@/) {
+      cur = lbl
+      cur_entry = 0
+    }
+    line = strip_label(line)
   }
-  if (line ~ /^[ \t]*\.DW[ \t]+/) {
-    dw = line
-    sub(/^[ \t]*\.DW[ \t]+/, "", dw)
-    sub(/;.*$/, "", dw)
+  payload = dw_payload(line)
+  if (payload != "") {
+    dw = payload
     gsub(/[ \t]/, "", dw)
     n = split(dw, a, ",")
     for (i=1; i<=n; i++) {
