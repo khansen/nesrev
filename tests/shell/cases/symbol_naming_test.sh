@@ -123,6 +123,10 @@ test_accepts_canonical_hardware_register_aliases() {
   printf '%s\n' \
     'PPUCTRL .EQU $2000' \
     'APU_PULSE1_CTRL .EQU $4000' \
+    'APU_DMC_CTRL .EQU $4010' \
+    'APU_DMC_DA .EQU $4011' \
+    'APU_DMC_ADDR .EQU $4012' \
+    'APU_DMC_LEN .EQU $4013' \
     'APU_NOISE_LENGTH .EQU $400F' \
     'JOY1_STROBE .EQU $4016' >"${asm}"
 
@@ -134,6 +138,9 @@ test_rejects_legacy_hardware_register_aliases() {
   printf '%s\n' \
     'SQ1_VOL .EQU $4000' \
     'NOISE_LEN .EQU $400F' \
+    'DMC_FREQ .EQU $4010' \
+    'DMC_START .EQU $4012' \
+    'DMC_LENGTH .EQU $4013' \
     'JOY1 .EQU $4016' >"${asm}"
 
   set +e
@@ -145,5 +152,8 @@ test_rejects_legacy_hardware_register_aliases() {
   assert_eq "${rc}" "1" "legacy hardware register aliases must fail"
   assert_match "use canonical APU_PULSE1_CTRL" "${output}"
   assert_match "use canonical APU_NOISE_LENGTH" "${output}"
+  assert_match "use canonical APU_DMC_CTRL" "${output}"
+  assert_match "use canonical APU_DMC_ADDR" "${output}"
+  assert_match "use canonical APU_DMC_LEN" "${output}"
   assert_match "use canonical JOY1_STROBE" "${output}"
 }
