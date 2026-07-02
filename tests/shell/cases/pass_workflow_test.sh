@@ -1186,9 +1186,9 @@ OldLocal,@@renamedLoop,localized branch target,mechanical,1
 EOF
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
 addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
-0x0010,unreviewed,,,,yes,1,1,1,0,"OldOwner:1,OldLocal:1",
-0x0011,unreviewed,,,,yes,1,1,0,1,,OldLocal:1
-0x0012,unreviewed,,,,yes,1,1,1,0,@@_oldLoop:1,
+0x0010,unreviewed,,,,yes,1,1,1,0,"OldOwner:1, OldLocal:1",
+0x0011,unreviewed,,,,yes,1,1,0,1,," OldLocal : 1 "
+0x0012,unreviewed,,,,yes,1,1,1,0," @@_oldLoop: 1 ",
 EOF
 
   bash "${PASS_CLOSEOUT}" "${slug}" 1 >/dev/null

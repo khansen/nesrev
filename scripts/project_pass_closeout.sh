@@ -185,7 +185,9 @@ def rewrite_top_owner_field(text: str, replacements: dict[str, str]):
     counts = {}
     passthrough = []
     for item in text.split(","):
-        name, sep, count = item.partition(":")
+        raw_name, sep, raw_count = item.partition(":")
+        name = raw_name.strip()
+        count = raw_count.strip()
         replacement = replacements.get(name, name)
         if replacement != name:
             changed = True
