@@ -31,7 +31,10 @@ DIRECT_EQU_RE = re.compile(
     r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\s+\$([0-9A-Fa-f]{4})\b",
     re.MULTILINE,
 )
-DATA_BYTE_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|BYTE)\b(?P<payload>.*)", re.IGNORECASE)
+DATA_BYTE_DIRECTIVE_RE = re.compile(
+    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*:\s*)?\.(?:DB|BYTE)\b(?P<payload>.*)",
+    re.IGNORECASE,
+)
 LOWADDR_SYMBOL_RE = re.compile(r"\b(?:ZP|RAM)_[A-Za-z0-9_]+\b")
 CANONICAL_HARDWARE_REGISTERS = {
     0x2000: "PPUCTRL",
