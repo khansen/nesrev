@@ -713,6 +713,7 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
   printf 'local scratch\n' > "projects/${slug}/PROCESS_FRICTION.md"
   mkdir -p "projects/${slug}/mods/local_probe"
   printf 'local mod\n' > "projects/${slug}/mods/local_probe/README.md"
+  printf '# Runtime Evidence\n' > "projects/${slug}/docs/reverse_engineering/RUNTIME_EVIDENCE.md"
 
   local out rc
   set +e
@@ -725,6 +726,8 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
     "closeout summary must report the persisted objective status"
   assert_match "Reset corridor" "${out}" \
     "closeout summary must surface the persisted corridor objective"
+  assert_match "docs/reverse_engineering/RUNTIME_EVIDENCE.md" "${out}" \
+    "closeout authored_diff_paths must include untracked authored project docs"
   if [[ "${out}" == *"corridor objective was incomplete"* ]]; then
     fail "complete objective must not trigger the incomplete warning"
   fi

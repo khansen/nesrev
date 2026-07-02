@@ -469,6 +469,8 @@ def git_authored_diff_paths(root: Path):
     )
     authored: list[str] = []
     seen: set[str] = set()
+    repo_root = Path.cwd()
+    root_abs = root if root.is_absolute() else repo_root / root
     # Porcelain `-z` emits each record as "XY <path>\0". For renames/copies
     # (status code starts with R or C), a second NUL-terminated record
     # carries the original path; consume it without emitting.
@@ -488,7 +490,8 @@ def git_authored_diff_paths(root: Path):
         if not entry or entry in seen:
             continue
         seen.add(entry)
-        if status_code == "??" and not is_untracked_authored_project_path(path, root):
+        check_path = path if path.is_absolute() else repo_root / path
+        if status_code == "??" and not is_untracked_authored_project_path(check_path, root_abs):
             continue
         if "docs/reverse_engineering/inventory/pass" in str(path):
             continue
