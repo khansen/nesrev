@@ -19,6 +19,7 @@ test_accepts_lowaddr_pointer_byte_expressions_in_db_payloads() {
     'PointerLoTable:' \
     '.DB <ZP_PpuPacketPtr, <(RAM_PpuPacketBuffer + 8)' \
     'PointerHiTable: .DB >ZP_PpuPacketPtr, >(RAM_PpuPacketBuffer + 8)' \
+    '@@_PointerLoTable: .DB <ZP_PpuPacketPtr' \
     'PointerByteTable: .BYTE <ZP_PpuPacketPtr, >(RAM_PpuPacketBuffer + 8)' >"${asm}"
 
   python3 scripts/check_symbol_naming.py "${asm}"
@@ -28,9 +29,11 @@ test_rejects_bare_lowaddr_symbols_in_db_payloads() {
   local asm="${NESREV_TEST_TMPDIR}/bad_db_symbol.asm"
   printf '%s\n' \
     'ZP_PpuCtrlShadow .EQU $08' \
+    'ZP_LocalScratch .EQU $09' \
     'RAM_OamShadowBase .EQU $0200' \
     'ByteTable:' \
     '.DB $01,ZP_PpuCtrlShadow,$02' \
+    '@@_InlineByteTable: .DB ZP_LocalScratch' \
     'InlineByteTable: .BYTE RAM_OamShadowBase' >"${asm}"
 
   set +e
@@ -41,6 +44,7 @@ test_rejects_bare_lowaddr_symbols_in_db_payloads() {
 
   assert_eq "${rc}" "1" "bare RAM/ZP symbols in .DB payloads must fail"
   assert_match "bare ZP_PpuCtrlShadow in .DB/.BYTE payload" "${output}"
+  assert_match "bare ZP_LocalScratch in .DB/.BYTE payload" "${output}"
   assert_match "bare RAM_OamShadowBase in .DB/.BYTE payload" "${output}"
   assert_match "use raw byte data or an explicit pointer-byte expression such as <Symbol, >Symbol" "${output}"
 }

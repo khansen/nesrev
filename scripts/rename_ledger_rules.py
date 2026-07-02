@@ -13,7 +13,7 @@ def valid_old_name_shape(name: str) -> bool:
         return True
     if re.fullmatch(r"raw_[a-z0-9]+(?:_[a-z0-9]+)+", name or ""):
         return True
-    if re.fullmatch(r"@@[A-Za-z][A-Za-z0-9_]*", name or ""):
+    if re.fullmatch(r"@@[A-Za-z_][A-Za-z0-9_]*", name or ""):
         return True
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name or "") and re.search(r"[A-Z]", name or ""):
         return True

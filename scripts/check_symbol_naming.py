@@ -32,7 +32,7 @@ DIRECT_EQU_RE = re.compile(
     re.MULTILINE,
 )
 DATA_BYTE_DIRECTIVE_RE = re.compile(
-    r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*:\s*)?\.(?:DB|BYTE)\b(?P<payload>.*)",
+    r"^\s*(?:(?:@@)?[A-Za-z_][A-Za-z0-9_]*:\s*)?\.(?:DB|BYTE)\b(?P<payload>.*)",
     re.IGNORECASE,
 )
 LOWADDR_SYMBOL_RE = re.compile(r"\b(?:ZP|RAM)_[A-Za-z0-9_]+\b")

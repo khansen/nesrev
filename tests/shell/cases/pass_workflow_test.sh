@@ -1176,16 +1176,20 @@ NewOwner:
 @@renamedLoop:
   LDA $10
   STA $11
+@@_renamedLoop:
+  LDA $12
   RTS
 ASM
   cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
 OldOwner,NewOwner,owner routine renamed,high,1
 OldLocal,@@renamedLoop,localized branch target,mechanical,1
+@@_oldLoop,@@_renamedLoop,localized underscore branch target,mechanical,1
 EOF
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
 addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
 0x0010,unreviewed,,,,yes,1,1,1,0,"OldOwner:1,OldLocal:1",
 0x0011,unreviewed,,,,yes,1,1,0,1,,OldLocal:1
+0x0012,unreviewed,,,,yes,1,1,1,0,@@_oldLoop:1,
 EOF
 
   bash "${PASS_CLOSEOUT}" "${slug}" 1 >/dev/null
@@ -1197,7 +1201,7 @@ import sys
 with open(sys.argv[1], encoding="utf-8", newline="") as handle:
     text = handle.read()
 
-if "OldOwner" in text or "OldLocal" in text:
+if "OldOwner" in text or "OldLocal" in text or "@@_oldLoop" in text:
     raise SystemExit(f"raw_ram_review.csv still contains stale owner labels:\n{text}")
 
 rows = {}
@@ -1209,6 +1213,8 @@ if rows["0x0010"]["top_readers"] != "NewOwner:2":
     raise SystemExit(f"expected local owner to collapse to NewOwner, got {rows['0x0010']['top_readers']!r}")
 if rows["0x0011"]["top_writers"] != "NewOwner:1":
     raise SystemExit(f"expected local writer owner NewOwner, got {rows['0x0011']['top_writers']!r}")
+if rows["0x0012"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"expected underscore local reader owner NewOwner, got {rows['0x0012']['top_readers']!r}")
 PY
 }
 
