@@ -42,6 +42,7 @@ test_rejects_bare_lowaddr_symbols_in_db_payloads() {
   assert_eq "${rc}" "1" "bare RAM/ZP symbols in .DB payloads must fail"
   assert_match "bare ZP_PpuCtrlShadow in .DB/.BYTE payload" "${output}"
   assert_match "bare RAM_OamShadowBase in .DB/.BYTE payload" "${output}"
+  assert_match "use raw byte data or an explicit pointer-byte expression such as <Symbol, >Symbol" "${output}"
 }
 
 test_tracked_primary_checks_current_tracked_project_asm() {

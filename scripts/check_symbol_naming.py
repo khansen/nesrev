@@ -153,8 +153,9 @@ def validate(path: Path) -> list[str]:
                 continue
             errors.append(
                 f"{display_path}:{line_number}: bare {match.group(0)} in .DB/.BYTE "
-                "payload is suspicious; use a raw byte or an explicit "
-                "<Symbol/>Symbol pointer-byte expression"
+                "payload is suspicious; use raw byte data or an explicit "
+                "pointer-byte expression such as <Symbol, >Symbol, "
+                "<(Symbol + offset), or >(Symbol + offset)"
             )
     return errors
 
