@@ -22,6 +22,61 @@ function flush_pending(kind,    i) {
   }
   pending_n = 0
 }
+function trim(s) {
+  gsub(/^[ \t]+|[ \t]+$/, "", s)
+  return s
+}
+function strip_label(line,    l) {
+  l = line
+  if (match(l, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
+    l = substr(l, RLENGTH + 1)
+  }
+  return l
+}
+function dw_payload(line,    l) {
+  l = strip_label(line)
+  sub(/;.*$/, "", l)
+  if (l !~ /^[ \t]*\.DW[ \t]+/) return ""
+  sub(/^[ \t]*\.DW[ \t]+/, "", l)
+  return trim(l)
+}
+function dw_entry_count(line,    payload, a) {
+  payload = dw_payload(line)
+  if (payload == "") return 0
+  gsub(/[ \t]/, "", payload)
+  if (payload == "") return 0
+  return split(payload, a, ",")
+}
+function mark_terminal_vector_dw(    end, i, j, n, remaining, total) {
+  end = max_fnr
+  while (end > 0 && trim(lines[end]) ~ /^($|;)/) end--
+  if (trim(lines[end]) ~ /^\.END([ \t]|$)/) {
+    end--
+    while (end > 0 && trim(lines[end]) ~ /^($|;)/) end--
+  }
+  i = end
+  total = 0
+  while (i > 0 && dw_entry_count(lines[i]) > 0) {
+    total += dw_entry_count(lines[i])
+    i--
+  }
+  if (total < 3) return
+  remaining = 3
+  for (i=end; i > 0 && remaining > 0 && dw_entry_count(lines[i]) > 0; i--) {
+    n = dw_entry_count(lines[i])
+    if (n <= remaining) {
+      for (j=1; j<=n; j++) {
+        skip_dw_entry[i, j] = 1
+      }
+      remaining -= n
+    } else {
+      for (j=n-remaining+1; j<=n; j++) {
+        skip_dw_entry[i, j] = 1
+      }
+      remaining = 0
+    }
+  }
+}
 function token_kind(line,    l, tok) {
   l = line
   sub(/^[ \t]+/, "", l)
@@ -51,8 +106,11 @@ BEGIN {
   cur=""
   cur_entry=0
   pending_n=0
+  max_fnr=0
 }
 FNR==NR {
+  lines[FNR] = $0
+  max_fnr = FNR
   line = $0
   if (match(line, /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]/)) {
     lbl = line
@@ -75,6 +133,7 @@ FNR==NR {
   next
 }
 FNR==1 && NR!=1 {
+  mark_terminal_vector_dw()
   if (pending_n > 0) flush_pending("unknown")
 }
 {
@@ -93,6 +152,7 @@ FNR==1 && NR!=1 {
     gsub(/[ \t]/, "", dw)
     n = split(dw, a, ",")
     for (i=1; i<=n; i++) {
+      if (skip_dw_entry[FNR, i]) continue
       t=a[i]
       if (t ~ /^\$/) continue
       if (t ~ /^[0-9]+$/) continue

@@ -64,9 +64,10 @@ Optional `KEY=value` arguments (append to the same line):
 and `TARGET=<corridor_anchor_or_notes_plan>`; `project-pass-closeout`
 accepts `PASS=<id>`; `project-pass-finish` accepts `PASS=<id>`,
 `VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`, and `NOTES=<text>`.
-`project-next-pass` refreshes a missing, partial, zero-byte, or stale
-candidate-input cache before ranking candidates; prep output is routed to
-stderr so `FORMAT=json` remains machine-readable.
+`project-next-pass` refreshes stale cache before emitting evidence buckets;
+prep output goes to stderr so `FORMAT=json` stays clean. The
+top bucket is not a pass decision; `project-pass-start` records the operator's
+selected corridor objective.
 
 ### Evidence Order (Mandatory)
 
@@ -86,9 +87,8 @@ Do not use broad `rg` sweeps or ad-hoc KPI scripts when pass artifacts already p
 
 `make project-pass-prep` runs three xasm structured-analysis outputs into
 `docs/reverse_engineering/inventory/pass/`. Only `data_consumers.json` is
-loaded by `make project-next-pass` (consumer rollups for corridor
-selection); `index_patterns.json` and `data_coverage.json` are manual
-evidence artifacts inspected on demand.
+loaded by `make project-next-pass` (consumer rollups for generated evidence);
+`index_patterns.json` and `data_coverage.json` are manual evidence artifacts.
 
 ### Index-pattern analysis
 
@@ -277,6 +277,11 @@ canonical authored-artifact catalog (`renames.csv`,
 the generated cache under
 `docs/reverse_engineering/inventory/pass/` is documented at
 [PASS_WORKFLOW.md#generated-vs-authored-artifacts](PASS_WORKFLOW.md#generated-vs-authored-artifacts).
+
+`pointer_targets.csv` reports source owners for actual `.DW` pointer tables.
+Inline return-table payloads are attributed to their dispatching callsite, not
+to a synthetic table label, and the terminal three NES CPU vector words are
+excluded so they are not misattributed to the preceding data label.
 
 ### Raw-address audit
 
@@ -493,14 +498,90 @@ audit confirms only backward branches within the same global
 procedure reference the label; place `-` on the same line as the
 first instruction (`- LDA $00`, not on a standalone line); use Perl
 (not sed) for multi-line transformations.
-### Trace tooling minimum
-Each project needs a capture runner (`scripts/run_trace_*.sh`), generic
-trace analyzer, and domain-specific analyzers as needed. Add all trace
-commands to `QUICK_REFERENCE.md`. Validate analyzers with synthetic logs
-first.
+
+<a id="runtime-trace-tooling"></a>
+### Runtime trace tooling
+
+Runtime tracing is a standard evidence lane, not an ad-hoc last resort. Use it
+when static analysis cannot prove a behavior because the answer depends on live
+input, timing, RNG, scenario state, or emulator-visible external state.
+
+Commit durable trace infrastructure when it is repeatable and project-local:
+
+- capture runners under `scripts/run_trace_*.sh`
+- emulator Lua scripts under `tools/trace/`
+- analyzers under `scripts/analyze_*_trace.sh` or equivalent
+- synthetic fixtures under `tools/trace/fixtures/`
+- reduced evidence summaries under `docs/reverse_engineering/`
+- command references in `docs/reverse_engineering/QUICK_REFERENCE.md`
+
+Do not commit raw capture logs, savestates, emulator movies, screenshots, GUI
+probe scripts, or one-off crash/debug experiments unless the user explicitly
+asks for a curated fixture. Put volatile output under a project `tmp/` path and
+ignore it.
+
+Trace scripts must install the watches themselves. The operator may drive the
+scenario by playing live input or replaying a movie, but they should not have to
+open a debugger UI, set manual breakpoints, or copy watch lists by hand.
+
+<a id="trace-helper-roms"></a>
+### Trace helper ROMs
+
+Using a small local mod to set up a runtime scenario is an approved trace
+strategy. Prefer a helper ROM when the static question is blocked by long setup
+time, late-game phase access, RNG, repeated deaths, or awkward player
+positioning. The point is to make the evidence capture short and repeatable,
+not to change the behavior under test.
+
+Rules for trace helpers:
+
+- Keep the patch minimal and scenario-oriented: phase select, direct phase
+  entry, fixed spawn script, player/enemy positioning, or input-release gates
+  are appropriate setup changes.
+- Treat helper asm as relocatable source, not as a byte-for-byte patch budget.
+  It is fine to expand or shrink setup procedures, insert wrapper routines,
+  remove or shorten irrelevant setup/data/music/title-stream content, and let
+  labels/vectors move, as long as the helper ROM still assembles to the
+  project's configured PRG size (for the NROM-128 projects this is 16 KB) and
+  the CPU vectors remain the final vector words. Do not waste time scavenging
+  exact padding bytes unless the build actually needs it.
+- Preserve the code path being measured. Do not patch the routine, RAM field,
+  state transition, collision path, or data consumer whose semantics the trace
+  is meant to prove.
+- If size pressure forces trimming, trim only content outside the evidence
+  path (for example title-screen PPU bytes, music data, unused helpers, or
+  unrelated late-game data) and document why that content cannot affect the
+  measured path. If the trimmed content might affect the behavior under test,
+  lower the confidence or pick a different helper strategy.
+- Document the setup in the trace plan and reduced evidence summary: helper ROM
+  name, changed setup conditions, and why the behavior under test is still the
+  stock path.
+- Treat `projects/*/mods/` as local experiment space. Do not commit helper
+  mods unless the user explicitly asks for that specific mod to become a
+  curated fixture or reusable tool.
+- If the helper ROM changes more than setup, lower the confidence or use the
+  capture only as a harness/debug signal until a stock-path capture corroborates
+  it.
+
+Use the templates in `agent_playbook/templates/trace/` when a project needs a
+new harness. The default split is:
+
+- **FCEUX frame-poll backend**: stable baseline for transition graphs,
+  milestones, and per-frame context. Avoid FCEUX write callbacks unless the
+  exact local build has been proven stable; they may enter debugger execution
+  paths and crash some builds.
+- **Mesen precision backend**: optional writer-PC backend when per-transition
+  ownership matters. Prefer script-installed memory callbacks/watchpoints over
+  manual debugger breakpoints.
+
+Every analyzer must be validated on a committed synthetic fixture before real
+capture evidence is used for naming. Reduced summaries should include the
+scenario gate/milestones, verdict, transition table, and interpretation notes
+that tie the captured signal back to the specific static uncertainty.
 
 ### Headless/GUI constraints
 
-If runtime tracing requires a GUI: do not block progress. Implement
-local-user runnable scripts. Validate with synthetic logs. Mark gap as
-"capture pending."
+If runtime tracing requires a GUI, do not block progress. Implement a
+local-user runnable script that launches the emulator with the trace script
+already loaded. Validate the analyzer with synthetic logs and mark the evidence
+gap as "capture pending" until a real capture lands.

@@ -93,14 +93,15 @@ command.
 <a id="next-pass"></a>
 ## Next Pass Selection
 
-`make project-next-pass PROJECT=<slug>` produces candidate evidence
-for the next pass. It ranks what is visible, not what is strategically
-best, so its output is advisory, not an authoritative pass choice — the
-operator selects the corridor objective ([#corridor-objective](#corridor-objective)).
+`make project-next-pass PROJECT=<slug>` emits evidence buckets. It ranks
+hotspots, not strategy; the operator selects the corridor objective
+([#corridor-objective](#corridor-objective)).
 Its persisted output (`next_pass.json`) may include:
 
-- `recommended_pass` — the default candidate (key kept for
-  compatibility; read it as the top candidate, not a decision)
+- `recommended_pass` — compatibility key for the top evidence bucket;
+  accept, broaden, or reject it
+- `operator_guidance` and `operator_signals` — process reminders plus recent
+  scorecard / notes signals
 - `selection_strategy` describing the current pass-selection workflow
 - `cluster_candidates` grouped by owner corridor or subsystem
 - `data_anchor_hints` for `kind=data` targets
@@ -110,15 +111,13 @@ Its persisted output (`next_pass.json`) may include:
 <a id="pass-start"></a>
 ## Pass Start
 
-`make project-pass-start PROJECT=<slug>` records the selected corridor
-objective and persists the pass plan before substantial edits. Pass
-`TARGET=<corridor_anchor_or_notes_plan>` (optional `PASS=<id>`) to record
-the operator's choice ([#corridor-objective](#corridor-objective)); without
-`TARGET` the wrapper warns and defaults to the first candidate. It accepts
-both generated candidates and manual overrides, so a notes-driven corridor
-can be persisted without editing `next_pass.json`. Treat the generated plan
-(`current_pass_plan.json` / `current_pass_plan.md`) as the authoritative
-resume point if context compacts mid-pass.
+`make project-pass-start PROJECT=<slug>` records the selected objective.
+Pass `TARGET=<corridor_anchor_or_notes_plan>` (optional
+`PASS=<id>`) to record the operator's choice
+([#corridor-objective](#corridor-objective)); without `TARGET` the wrapper
+warns and uses the first evidence bucket only as a mechanical fallback.
+Generated and notes-driven corridors are accepted. Treat
+`current_pass_plan.json` / `.md` as the compaction resume point.
 
 <a id="corridor-objective"></a>
 ## Corridor Objective (Mandatory)
@@ -155,7 +154,7 @@ or repeated dead-end raw-RAM triage — stop before continuing. Reassess:
 name a broader corridor, switch to a readability-positive mechanical sweep
 (the [#raw-ram-queue](#raw-ram-queue) strategy-switch rule), or record the
 better plan in `WORKING_NOTES.md`. Do not keep accepting the first
-generated candidate pass after pass.
+generated evidence bucket pass after pass.
 <a id="current-pass-plan"></a>
 ## Current Pass Plan
 
@@ -254,7 +253,7 @@ them.
 Use `docs/reverse_engineering/inventory/raw_ram_review.csv` as the
 persistent review queue for unnamed raw RAM bytes and windows. It is
 a working ledger (not cache); `project-next-pass` refreshes factual
-columns while preserving review state.
+owner/count fields while preserving review fields.
 **Status values:** `candidate`, `unreviewed`, `deferred`, `revisit`,
 `not_semantic_yet`, `symbolized`.
 **Immediate flush.** As soon as you inspect a byte and reach a
@@ -313,36 +312,23 @@ this section governs queue review and overlay introduction.
 <a id="pass-closeout"></a>
 ## Pass Closeout and Verification
 
-`make project-pass-closeout PROJECT=<slug>` (optional `PASS=<id>`) is
-the authoritative closeout command. Run it after the edit batch and
-before the final docs check; see the End-of-Batch Protocol at
-[#batching-and-commit-boundaries](#batching-and-commit-boundaries)
-for its position in the overall closeout sequence.
+`make project-pass-closeout PROJECT=<slug>` (optional `PASS=<id>`) is the
+residue/materialization gate: it must confirm project changes and a scorecard
+row. Run it after the edit batch; sequencing lives at
+[#batching-and-commit-boundaries](#batching-and-commit-boundaries).
 
-`make project-pass-finish PROJECT=<slug>` is the preferred end-of-pass wrapper
-when the full closeout sequence is wanted in one command. It materializes a
-missing scorecard row from `FOCUS=<text>` / `NOTES=<text>` or the persisted
-pass objective, runs `project-pass-closeout`, `project-docs-check`,
-`project-process-check`, and verification (`VERIFY_MODE=strict|relaxed`), then
-marks the current pass row's `verify` and `docs_check` cells and reruns
-`project-docs-check` after that scorecard edit. The closeout helper remains
-the authoritative residue gate; `project-pass-finish` only sequences it with
-the surrounding process gates.
+`make project-pass-finish PROJECT=<slug>` is the preferred full-closeout
+wrapper. It materializes the scorecard row, refreshes inventory, runs
+closeout, docs/process checks, verification (`VERIFY_MODE=strict|relaxed`),
+updates `verify` / `docs_check`, and reruns docs check. Closeout remains the
+residue gate.
 
-`project-pass-closeout` is also the pass-materialization gate: do not claim a pass is complete unless it confirms that authored project files actually changed and that the requested/new scorecard pass row exists.
-The scorecard row for the pass must summarize the completed corridor against
-the persisted objective in `current_pass_plan.json` ([#corridor-objective](#corridor-objective)):
-state what the selected corridor closed and note any in-scope work deferred.
-Closeout echoes the persisted `corridor_objective` and warns (advisory, does
-not fail) when it was incomplete, stale, or missing — record the full objective
-at pass start so the closeout summary and scorecard can be checked against it.
-`project-pass-closeout` auto-syncs the supported derived KPI cells in the highest numeric `pass_id` row. Do not assume the last physical row in the file is the latest pass, and do not hand-type those counts.
-For every current-pass `raw_$NNNN` rename, closeout rejects remaining
-executable numeric operands and marks all matching `raw_ram_review.csv` rows
-`symbolized` and inactive. Scoped overlay rows classified as
-`confidence=scoped-overlay` are the exception: closeout reports them but does
-not require unrelated raw uses of the same byte to change or mark the raw-RAM
-row symbolized.
+The scorecard row summarizes closed and remaining work. Closeout
+echoes `current_pass_plan.json` and warns if the objective is
+incomplete, stale, or missing. It auto-syncs derived KPI cells in the highest
+numeric `pass_id` row; do not hand-type them. Current-pass `raw_$NNNN` renames
+must have no remaining executable numeric operands; scoped overlays are reported
+without forcing unrelated uses of the same byte to change.
 Parity verification mechanics (run `make project-verify`
 sequentially after every batch; never run assemble and parity
 compare concurrently; mandatory verification gate after every
@@ -471,12 +457,18 @@ Framing rules:
   that were never tied to a renamed symbol. Check those manually as part of
   corridor closeout.
 ### Runtime evidence workflow
-When static analysis plateaus, create trace plan/runbook/scenario docs in
-`docs/reverse_engineering/`. Track each unresolved item with
-producer/consumer labels, expected signal, and promotion criteria.
-Promote confidence only after evidence is captured. See
+When static analysis plateaus, create trace plan/runbook/scenario docs under
+`docs/reverse_engineering/` with producers/consumers, signal, and promotion
+criteria. If tooling is missing, adapt
+`agent_playbook/templates/trace/` into project-local runner/logger/analyzer
+files. Validate analyzers with a synthetic fixture before naming from captures.
+
+Raw logs stay untracked; commit reduced evidence summaries and any resulting
+semantic pass. Promote only after the analyzer accepts the scenario gate. See
+[TOOLING.md#runtime-trace-tooling](TOOLING.md#runtime-trace-tooling) for the
+trace tooling contract,
 [QUALITY_REVIEW.md#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)
-for promotion criteria and
+for promotion criteria, and
 [QUALITY_REVIEW.md#deep-confidence-passes](QUALITY_REVIEW.md#deep-confidence-passes)
 for the broader deep-confidence-pass framing.
 <a id="completion-checklist"></a>
@@ -585,6 +577,10 @@ Every batch must conclude with:
    into the quick reference. The unused-`.EQU` check
    (`--Werror=unused-equ`) is already invoked by
    `make project-verify`; do not run a separate xasm command.
+   Do not keep or baseline a label whose only role is naming anonymous payload
+   such as an inline return table consumed by `DispatchInlineJumpTable` or
+   terminal CPU vector words. Remove the label and let the real owner be the
+   callsite or fixed ROM address.
 2. **Parity verification** (`make project-verify PROJECT=<slug>`).
 3. **Inventory refresh** (`make project-inventory PROJECT=<slug>`).
 4. **Scorecard update** (`PROGRESS_SCORECARD.md`).

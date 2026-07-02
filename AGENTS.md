@@ -245,7 +245,7 @@ make project-pass-prep PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 ```
-`project-next-pass` emits candidate evidence (hot labels, tables, raw bytes, red gates), not an authoritative pass choice; treat it as advisory. Before substantial edits the operator must select and record an explicit corridor objective — pass `TARGET=<corridor_anchor>` (optional `PASS=<id>`) to `project-pass-start`; without `TARGET` the wrapper warns and defaults to the first candidate. Objective fields live at [PASS_WORKFLOW.md#corridor-objective](agent_playbook/PASS_WORKFLOW.md#corridor-objective). Manual `rg`/`sed` rescans are fallback behavior, not the default pass-selection method.
+`project-next-pass` emits candidate evidence (hot labels, tables, raw bytes, red gates), not an authoritative pass choice; treat it as advisory. Before substantial edits the operator must select and record an explicit corridor objective — pass `TARGET=<corridor_anchor>` (optional `PASS=<id>`) to `project-pass-start`; without `TARGET` the wrapper warns and uses the first evidence bucket as fallback. Objective fields live at [PASS_WORKFLOW.md#corridor-objective](agent_playbook/PASS_WORKFLOW.md#corridor-objective). Manual `rg`/`sed` rescans are fallback behavior, not the default pass-selection method.
 If recent passes are low-yield, run the [strategy checkpoint](agent_playbook/PASS_WORKFLOW.md#low-yield-checkpoint) before continuing.
 
 10. **Mod Commit Rule (Mandatory):** Treat `projects/*/mods/` as local experiment space. Do not commit mods, relocatability probes, or other mod artifacts unless the user explicitly asks for that mod to be committed.

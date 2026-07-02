@@ -1,6 +1,8 @@
 # DATA_RECOVERY Playbook
 
-This playbook is the canonical home for code- and data-recovery mechanics, recovery artifacts, and the readability/boundary rules for data blobs and command streams. Cross-links to [`ASM_STYLE.md`](ASM_STYLE.md) cover label-math syntax and symbol naming; the root `AGENTS.md` keeps only the Mandatory Routing Table entries that name this file.
+This playbook owns code/data recovery mechanics, recovery artifacts, and
+readability rules for data blobs and command streams. `ASM_STYLE.md` owns
+label-math syntax and symbol naming.
 
 ## Ownership
 
@@ -22,10 +24,8 @@ This playbook owns code- and data-recovery mechanics:
 - hardcoded length and counter elimination in data consumers
 
 This file owns the evidence needed to prove a table offset or bound is
-derivable. It links to [ASM_STYLE.md](ASM_STYLE.md#label-math) for the
-normative label-math rule and expression syntax rather than restating it.
-Symbol spelling, literal bases, and label-math syntax also come from
-[ASM_STYLE.md](ASM_STYLE.md).
+derivable; [ASM_STYLE.md](ASM_STYLE.md#label-math) owns expression syntax,
+symbol spelling, and literal bases.
 
 ## Playbook Sections
 
@@ -35,20 +35,15 @@ tracked NESrev controls, data boundaries, and structured data formatting.
 <a id="code-pointer-recovery"></a>
 ## Code-Pointer Recovery
 
-**Do this before any naming or refactor work.** NESrev traces code linearly
-from known entry points. Routines reachable only via indirect dispatch
-appear as raw `.DB` byte blobs. Finding and decoding these blobs manually
-in late passes is expensive. This pass focuses on identifying and decoding
-the most common and dangerous patterns of indirect dispatch early to
-prevent significant rework.
+**Do this before naming/refactor work.** NESrev traces linearly from known
+entry points; routines reached only by indirect dispatch remain raw `.DB`
+blobs. Decode common indirect-dispatch patterns early to avoid late rework.
 
 ### Core concept: inline return-table dispatch
 
-A frequent 6502 pattern is **inline return-table dispatch**. A dispatcher
-routine pops the caller's return address from the stack (via two `PLA`
-instructions), uses that address as a base pointer into a table of
-pointers embedded directly in the caller's own code stream, and then jumps
-to a handler selected by a state variable.
+A frequent 6502 pattern is **inline return-table dispatch**: the dispatcher
+pops the caller's return address, treats it as the base of a pointer table
+embedded in the caller's code stream, then jumps to the state-selected handler.
 
 This pattern is dangerous because:
 
@@ -58,10 +53,9 @@ This pattern is dangerous because:
 
 ### Step 1: Identify dispatcher signatures
 
-Immediately after the initial regeneration, scan for indirect
-control-flow patterns. New-project intake remains blocked until this
-discovery records either no required controls or a tracked control
-configuration.
+After initial regeneration, scan for indirect control flow. New-project intake
+remains blocked until this records either no required controls or a tracked
+control configuration.
 
 **A) General indirect flow:**
 
@@ -99,7 +93,7 @@ For every `JSR` to a suspected dispatcher routine, inspect the following bytes.
 
 **Decoding procedure:**
 
-1. Inspect the bytes immediately following the `JSR` in the assembled/reference binary.
+1. Inspect bytes immediately after the `JSR` in the assembled/reference binary.
 2. **If the first byte is `$60`, do not treat it as an RTS.** It is the low byte of the first table entry.
 3. Read the following byte pairs. If the high byte of each pair falls in the ROM bank range (e.g. `$C0-$FF` for a 16 KB NES game), classify the pair as a little-endian 16-bit code pointer.
 4. Stop when a byte pair clearly falls outside the mapped ROM range, or when the next region begins with a clear instruction boundary.
@@ -108,8 +102,9 @@ For every `JSR` to a suspected dispatcher routine, inspect the following bytes.
 
 For each candidate address recovered from an inline table:
 
-1. Confirm the address is within the ROM's code bank space.
-2. Inspect the bytes at that address for valid 6502 instruction flow (frequent code bytes: `$A5`/`$A9`/`$8D`/`$85`/`$20`/`$60`; plausible operands; flow terminating in `RTS`/`JMP`/`RTI`).
+1. Confirm the address is within ROM code space.
+2. Inspect for coherent 6502 flow (plausible operands; terminates in
+   `RTS`/`JMP`/`RTI`).
 3. If decoding is coherent through a return, classify as a **confirmed code entry point**.
 4. If ambiguous, mark as a **suspected code entry** and track for manual validation.
 
@@ -140,6 +135,18 @@ Whether you re-ran NESrev, the final disassembly must be documented.
 1. Remove any spurious `RTS` that was a misread table entry.
 2. Convert the `.DB $lo,$hi` raw pairs to `.DW TargetLabel` entries.
 3. Disassemble each handler routine that was previously a `.DB` blob.
+4. Keep the inline table anonymous unless code/docs need its address. The owner
+   is the dispatching callsite; do not add a global `...HandlerTable` label just
+   for inventories or warnings.
+5. Name the shared A-indexed return-address helper `DispatchInlineJumpTable`
+   when the implementation pops the caller return address, reads the inline
+   `.DW` table after the `JSR`, and tail-calls the selected handler. Do not
+   invent project-local variants such as `DispatchJumpTableFromReturnAddress`
+   or `DispatchViaReturnInlineTable`.
+
+Terminal NES CPU vector words follow the same rule: ROM layout imposes their
+address, so keep them anonymous unless a symbol has a real source-level use.
+
 ### General code-pointer scan procedure
 
 When indirect dispatch hides code entrypoints from linear disassembly

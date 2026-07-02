@@ -199,7 +199,8 @@ they are not part of the command syntax.
   [agent_playbook/NEW_PROJECT.md#trailing-byte-override](../../../../agent_playbook/NEW_PROJECT.md#trailing-byte-override)).
 - \`project-pass-start\`: \`PASS=<id>\`, \`TARGET=<corridor_anchor>\` —
   set the pass id and record the selected corridor objective; omitting
-  \`TARGET=<corridor_anchor>\` warns and defaults to the first candidate.
+  \`TARGET=<corridor_anchor>\` warns and uses the first generated evidence
+  bucket only as a mechanical fallback.
 - \`project-pass-closeout\`: \`PASS=<id>\` — close out a specific pass
   id rather than the latest.
 - \`project-next-pass\`, \`project-audit\`, \`project-compare\`,

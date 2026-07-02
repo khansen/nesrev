@@ -138,6 +138,8 @@ plan = {
     "intended_pass_id": pass_id,
     "selection_strategy": next_pass.get("selection_strategy"),
     "recommended_pass": next_pass.get("recommended_pass"),
+    "operator_guidance": next_pass.get("operator_guidance") or {},
+    "operator_signals": next_pass.get("operator_signals") or [],
     "selected_cluster": (target or {}).get("cluster"),
     "anchor_target": (target or {}).get("anchor") or (target or {}).get("symbol"),
     "anchor_source": anchor_source,
@@ -153,9 +155,10 @@ plan = {
 
 if not target_arg and cluster_candidates and anchor_source == "cluster_candidate":
     print(
-        "warning: no TARGET given; defaulting to the first candidate corridor "
-        f"({plan['anchor_target']}). project-next-pass output is candidate evidence, "
-        "not a pass decision. Select an explicit corridor objective and pass "
+        "warning: no TARGET given; using the first generated evidence bucket "
+        f"({plan['anchor_target']}) as a mechanical fallback. project-next-pass "
+        "output is candidate evidence, not a pass decision. Select an explicit "
+        "corridor objective and pass "
         "TARGET=<corridor_anchor> (see agent_playbook/PASS_WORKFLOW.md#corridor-objective).",
         file=sys.stderr,
     )
@@ -231,9 +234,17 @@ if pass_id is not None:
 if plan.get("selection_strategy"):
     lines.append(f"- Selection strategy: `{plan['selection_strategy']}`")
 if plan["recommended_pass"]:
-    lines.append(f"- Pass type: `{plan['recommended_pass'].get('type', 'unknown')}`")
+    lines.append(f"- Generated evidence bucket: `{plan['recommended_pass'].get('type', 'unknown')}`")
     if plan["recommended_pass"].get("summary"):
-        lines.append(f"- Summary: {plan['recommended_pass']['summary']}")
+        lines.append(f"- Bucket summary: {plan['recommended_pass']['summary']}")
+    if plan["recommended_pass"].get("operator_action"):
+        lines.append(f"- Operator action: {plan['recommended_pass']['operator_action']}")
+if plan["operator_signals"]:
+    lines.append("- Work-based operator signals:")
+    for signal in plan["operator_signals"][:6]:
+        source = signal.get("source") or "unknown"
+        text = signal.get("text") or ""
+        lines.append(f"  - {text} ({source})")
 if plan.get("selected_cluster"):
     lines.append(f"- Selected corridor: `{plan['selected_cluster']}`")
 if plan["anchor_target"]:

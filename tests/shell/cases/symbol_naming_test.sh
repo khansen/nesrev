@@ -11,6 +11,36 @@ test_accepts_upper_camel_ram_and_zp_names() {
   python3 scripts/check_symbol_naming.py "${asm}"
 }
 
+test_accepts_lowaddr_pointer_byte_expressions_in_db_payloads() {
+  local asm="${NESREV_TEST_TMPDIR}/good_pointer_bytes.asm"
+  printf '%s\n' \
+    'ZP_PpuPacketPtr .EQU $20' \
+    'RAM_PpuPacketBuffer .EQU $0300' \
+    'PointerLoTable:' \
+    '.DB <ZP_PpuPacketPtr, <(RAM_PpuPacketBuffer + 8)' \
+    'PointerHiTable:' \
+    '.DB >ZP_PpuPacketPtr, >(RAM_PpuPacketBuffer + 8)' >"${asm}"
+
+  python3 scripts/check_symbol_naming.py "${asm}"
+}
+
+test_rejects_bare_lowaddr_symbols_in_db_payloads() {
+  local asm="${NESREV_TEST_TMPDIR}/bad_db_symbol.asm"
+  printf '%s\n' \
+    'ZP_PpuCtrlShadow .EQU $08' \
+    'ByteTable:' \
+    '.DB $01,ZP_PpuCtrlShadow,$02' >"${asm}"
+
+  set +e
+  local output
+  output="$(python3 scripts/check_symbol_naming.py "${asm}" 2>&1)"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "bare RAM/ZP symbols in .DB payloads must fail"
+  assert_match "bare ZP_PpuCtrlShadow in .DB/.BYTE payload" "${output}"
+}
+
 test_tracked_primary_checks_current_tracked_project_asm() {
   local output
   output="$(python3 scripts/check_symbol_naming.py --tracked-primary)"

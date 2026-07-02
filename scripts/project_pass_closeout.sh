@@ -15,7 +15,7 @@ PASS_ID="${2:-}"
 
 bash "${SCRIPT_DIR}/project_scorecard_sync.sh" "$1" "${PASS_ID}"
 
-python3 - "${DOC_ROOT}" "${PASS_ID}" "${PROGRESS_SCORECARD_FILE}" "${RENAMES_FILE}" "${ASM_FILE}" <<'PY'
+python3 - "${DOC_ROOT}" "${PASS_ID}" "${PROGRESS_SCORECARD_FILE}" "${RENAMES_FILE}" "${ASM_FILE}" "${SCRIPT_DIR}" <<'PY'
 import csv
 import json
 import re
@@ -28,6 +28,11 @@ pass_id_arg = sys.argv[2]
 scorecard_file = Path(sys.argv[3])
 renames_file = Path(sys.argv[4])
 asm_file = Path(sys.argv[5])
+script_dir = Path(sys.argv[6])
+sys.path.insert(0, str(script_dir))
+
+from rename_ledger_rules import valid_old_name_shape
+
 expected = ["old_name", "new_name", "reason", "confidence", "pass_id"]
 SCOPED_OVERLAY_CONFIDENCE = {"scoped-overlay"}
 RAW_RAM_REVIEW_FIELDS = [
@@ -151,6 +156,112 @@ def scoped_overlay_raw_symbols(rename_rows):
             "reason": (row.get("reason") or "").strip(),
         })
     return overlays
+
+def local_label_owner_index(asm_file: Path):
+    owners = {}
+    current_global = ""
+    global_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):\s*$")
+    local_re = re.compile(r"^(@@[A-Za-z_][A-Za-z0-9_]*):\s*$")
+    for raw in asm_file.read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
+        m = global_re.match(stripped)
+        if m:
+            current_global = m.group(1)
+            continue
+        m = local_re.match(stripped)
+        if m and current_global:
+            owners.setdefault(m.group(1), set()).add(current_global)
+    return {
+        local_name: sorted(owner_set)
+        for local_name, owner_set in owners.items()
+    }
+
+
+def rewrite_top_owner_field(text: str, replacements: dict[str, str]):
+    if not text:
+        return text
+    changed = False
+    order = []
+    counts = {}
+    passthrough = []
+    for item in text.split(","):
+        name, sep, count = item.partition(":")
+        replacement = replacements.get(name, name)
+        if replacement != name:
+            changed = True
+        if sep and count.isdigit():
+            if replacement not in counts:
+                order.append(replacement)
+                counts[replacement] = 0
+            counts[replacement] += int(count)
+        else:
+            passthrough.append(f"{replacement}{sep}{count}" if sep else replacement)
+    if not changed:
+        return text
+    parts = [f"{name}:{counts[name]}" for name in order]
+    parts.extend(passthrough)
+    return ",".join(parts)
+
+
+def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_rows):
+    review_path = doc_root / "inventory" / "raw_ram_review.csv"
+    if not review_path.exists():
+        return None
+
+    local_owners = local_label_owner_index(asm_file)
+    replacements = {}
+    ambiguous_local_replacements = []
+    for row in rename_rows:
+        old_name = (row.get("old_name") or "").strip()
+        new_name = (row.get("new_name") or "").strip()
+        if not old_name or not new_name or raw_addr_from_symbol(old_name):
+            continue
+        if new_name.startswith("@@"):
+            owners = local_owners.get(new_name, [])
+            if len(owners) == 1:
+                replacements[old_name] = owners[0]
+            else:
+                ambiguous_local_replacements.append({
+                    "old_name": old_name,
+                    "new_name": new_name,
+                    "candidate_owners": owners,
+                    "reason": "ambiguous local label owner" if owners else "local label not found",
+                })
+        else:
+            replacements[old_name] = new_name
+
+    if not replacements:
+        return {
+            "updated": False,
+            "replacements": replacements,
+            "ambiguous_local_replacements": ambiguous_local_replacements,
+        }
+
+    rows = []
+    changed = False
+    with review_path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames != RAW_RAM_REVIEW_FIELDS:
+            return None
+        for row in reader:
+            for field in ("top_readers", "top_writers"):
+                updated = rewrite_top_owner_field(row.get(field, ""), replacements)
+                if updated != row.get(field, ""):
+                    row[field] = updated
+                    changed = True
+            rows.append({field: row.get(field, "") for field in RAW_RAM_REVIEW_FIELDS})
+
+    if changed:
+        with review_path.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=RAW_RAM_REVIEW_FIELDS, lineterminator='\n')
+            writer.writeheader()
+            writer.writerows(rows)
+
+    return {
+        "updated": changed,
+        "replacements": replacements,
+        "ambiguous_local_replacements": ambiguous_local_replacements,
+    }
 
 
 def parse_active_raw_sites(path: Path):
@@ -323,12 +434,33 @@ elif objective_status == "incomplete":
 project_root = asm_file.parents[1]
 
 
+def is_untracked_authored_project_path(path: Path, root: Path):
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False
+    parts = rel.parts
+    if not parts:
+        return False
+    if parts[0] in {"asm", "config", "scripts"}:
+        return True
+    if parts[0] == "tools" and len(parts) > 1 and parts[1] == "trace":
+        return True
+    if (
+        parts[0] == "docs"
+        and len(parts) > 1
+        and parts[1] in {"crosswalk", "reverse_engineering"}
+    ):
+        return True
+    return rel.as_posix() == "project.conf"
+
+
 def git_authored_diff_paths(root: Path):
-    # `git diff` alone misses staged and untracked authored files, so a
-    # pass that's already been `git add`ed (or that adds a new file) would
-    # falsely report no changes. Use porcelain status with NUL separators
-    # so paths containing whitespace, quotes, or shell metacharacters
-    # round-trip without manual quoting/escaping.
+    # `git diff` alone misses staged files, so a pass that's already been
+    # `git add`ed would falsely report no changes. We still include untracked
+    # canonical project files for new-file passes, but ignore local scratch,
+    # helper mods, tmp traces, references, and other intentionally untracked
+    # workspace material.
     proc = subprocess.run(
         ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", str(root)],
         capture_output=True,
@@ -356,6 +488,8 @@ def git_authored_diff_paths(root: Path):
         if not entry or entry in seen:
             continue
         seen.add(entry)
+        if status_code == "??" and not is_untracked_authored_project_path(path, root):
+            continue
         if "docs/reverse_engineering/inventory/pass" in str(path):
             continue
         if path.name in {"intake_listing.json", "intake_xref.json", "raw_address_audit.json"}:
@@ -419,6 +553,7 @@ if not re.fullmatch(r"\d+\s*/\s*\d+", labels_remaining):
 old_symbols = []
 rename_rows_for_pass = []
 invalid_raw_old_names = []
+invalid_old_name_shapes = []
 with renames_file.open("r", encoding="utf-8", newline="") as f:
     reader = csv.DictReader(f)
     if reader.fieldnames != expected:
@@ -476,6 +611,15 @@ with renames_file.open("r", encoding="utf-8", newline="") as f:
                     "old_name": old_name,
                     **bare_raw,
                 })
+            if not valid_old_name_shape(old_name):
+                invalid_old_name_shapes.append({
+                    "row": idx,
+                    "old_name": old_name,
+                    "expected": (
+                        "asm symbol-style name, LXXXX label, @@local label, "
+                        "raw_$NN/raw_$NNNN address key, or specific raw_* synthetic key"
+                    ),
+                })
             rename_rows_for_pass.append({
                 key: (row.get(key) or "").strip()
                 for key in expected
@@ -495,6 +639,20 @@ if invalid_raw_old_names:
         ),
         "error": {
             "invalid_rows": invalid_raw_old_names,
+        },
+    }, indent=2))
+    sys.exit(2)
+if invalid_old_name_shapes:
+    print(json.dumps({
+        "pass_id": pass_id,
+        "old_symbols": old_symbols,
+        "residue": [],
+        "summary": (
+            "renames.csv old_name values must be symbol-shaped. "
+            "Plain lowercase prose keys create false stale-symbol matches."
+        ),
+        "error": {
+            "invalid_rows": invalid_old_name_shapes,
         },
     }, indent=2))
     sys.exit(2)
@@ -532,6 +690,12 @@ if latest_row_residue:
         "summary": "Latest scorecard row still mentions old symbols from this pass.",
     }, indent=2))
     sys.exit(4)
+
+raw_ram_review_owner_update = rewrite_raw_ram_review_owner_symbols(
+    doc_root,
+    asm_file,
+    rename_rows_for_pass,
+)
 
 doc_files = []
 for path in doc_root.rglob("*"):
@@ -574,6 +738,11 @@ payload = {
 }
 if objective_missing_fields:
     payload["corridor_objective_missing_fields"] = objective_missing_fields
+if raw_ram_review_owner_update and (
+    raw_ram_review_owner_update.get("updated")
+    or raw_ram_review_owner_update.get("ambiguous_local_replacements")
+):
+    payload["raw_ram_review_owner_update"] = raw_ram_review_owner_update
 scoped_overlay_symbols = scoped_overlay_raw_symbols(rename_rows_for_pass)
 if scoped_overlay_symbols:
     payload["scoped_overlay_raw_symbols"] = scoped_overlay_symbols
