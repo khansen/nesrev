@@ -215,6 +215,7 @@ print(pass_id)
 PY
 )"
 
+bash "${RUN_SCRIPT_DIR}/refresh_inventory.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_pass_closeout.sh" "${SLUG}" "${PASS_ID}"
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"

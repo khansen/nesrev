@@ -22,6 +22,72 @@ function flush_pending(kind,    i) {
   }
   pending_n = 0
 }
+function trim(s) {
+  gsub(/^[ \t]+|[ \t]+$/, "", s)
+  return s
+}
+function line_label(line,    l) {
+  l = line
+  sub(/^[ \t]+/, "", l)
+  if (match(l, /^(@@)?[A-Za-z_][A-Za-z0-9_]*:/)) {
+    return substr(l, RSTART, RLENGTH - 1)
+  }
+  return ""
+}
+function strip_label(line,    l) {
+  l = line
+  sub(/^[ \t]+/, "", l)
+  if (match(l, /^(@@)?[A-Za-z_][A-Za-z0-9_]*:[ \t]*/)) {
+    l = substr(l, RLENGTH + 1)
+  }
+  return l
+}
+function dw_payload(line,    l, head) {
+  l = strip_label(line)
+  sub(/;.*$/, "", l)
+  head = l
+  sub(/^[ \t]+/, "", head)
+  if (toupper(head) !~ /^\.DW[ \t]+/) return ""
+  sub(/^[ \t]*\.[Dd][Ww][ \t]+/, "", l)
+  return trim(l)
+}
+function dw_entry_count(line,    payload, a) {
+  payload = dw_payload(line)
+  if (payload == "") return 0
+  gsub(/[ \t]/, "", payload)
+  if (payload == "") return 0
+  return split(payload, a, ",")
+}
+function mark_terminal_vector_dw(    end, i, j, n, remaining, total) {
+  end = max_fnr
+  while (end > 0 && trim(lines[end]) ~ /^($|;)/) end--
+  if (trim(lines[end]) ~ /^\.END([ \t]|$)/) {
+    end--
+    while (end > 0 && trim(lines[end]) ~ /^($|;)/) end--
+  }
+  i = end
+  total = 0
+  while (i > 0 && dw_entry_count(lines[i]) > 0) {
+    total += dw_entry_count(lines[i])
+    i--
+  }
+  if (total < 3) return
+  remaining = 3
+  for (i=end; i > 0 && remaining > 0 && dw_entry_count(lines[i]) > 0; i--) {
+    n = dw_entry_count(lines[i])
+    if (n <= remaining) {
+      for (j=1; j<=n; j++) {
+        skip_dw_entry[i, j] = 1
+      }
+      remaining -= n
+    } else {
+      for (j=n-remaining+1; j<=n; j++) {
+        skip_dw_entry[i, j] = 1
+      }
+      remaining = 0
+    }
+  }
+}
 function token_kind(line,    l, tok) {
   l = line
   sub(/^[ \t]+/, "", l)
@@ -31,7 +97,7 @@ function token_kind(line,    l, tok) {
   split(l, f, /[ \t]+/)
   tok = f[1]
   if (toupper(tok) ~ /^[A-Z]{3}(\.[A-Z])?$/) return "code"
-  if (tok ~ /^[A-Za-z_][A-Za-z0-9_]*:$/) return ""
+  if (tok ~ /^(@@)?[A-Za-z_][A-Za-z0-9_]*:$/) return ""
   return "unknown"
 }
 function base_label(expr,    e, p) {
@@ -51,21 +117,26 @@ BEGIN {
   cur=""
   cur_entry=0
   pending_n=0
+  max_fnr=0
 }
 FNR==NR {
+  lines[FNR] = $0
+  max_fnr = FNR
   line = $0
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]/)) {
+  if (match(line, /^[ \t]*[A-Za-z_][A-Za-z0-9_]*[ \t]+\.[Ee][Qq][Uu][ \t]/)) {
     lbl = line
-    sub(/[ \t]+\.EQU.*/, "", lbl)
+    sub(/^[ \t]+/, "", lbl)
+    sub(/[ \t]+\.[Ee][Qq][Uu].*/, "", lbl)
     label_kind[lbl] = "data"
     next
   }
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
-    lbl = substr(line, RSTART, RLENGTH)
-    sub(/:.*/, "", lbl)
-    pending[++pending_n] = lbl
-    cur = lbl
-    line = substr(line, RLENGTH + 1)
+  lbl = line_label(line)
+  if (lbl != "") {
+    if (lbl !~ /^@@/) {
+      pending[++pending_n] = lbl
+      cur = lbl
+    }
+    line = strip_label(line)
     if (line ~ /^[ \t]*$/) next
   }
   k = token_kind(line)
@@ -75,24 +146,26 @@ FNR==NR {
   next
 }
 FNR==1 && NR!=1 {
+  mark_terminal_vector_dw()
   if (pending_n > 0) flush_pending("unknown")
 }
 {
   line = $0
-  if (match(line, /^[A-Za-z_][A-Za-z0-9_]*:/)) {
-    lbl = substr(line, RSTART, RLENGTH)
-    sub(/:.*/, "", lbl)
-    cur = lbl
-    cur_entry = 0
-    line = substr(line, RLENGTH + 1)
+  lbl = line_label(line)
+  if (lbl != "") {
+    if (lbl !~ /^@@/) {
+      cur = lbl
+      cur_entry = 0
+    }
+    line = strip_label(line)
   }
-  if (line ~ /^[ \t]*\.DW[ \t]+/) {
-    dw = line
-    sub(/^[ \t]*\.DW[ \t]+/, "", dw)
-    sub(/;.*$/, "", dw)
+  payload = dw_payload(line)
+  if (payload != "") {
+    dw = payload
     gsub(/[ \t]/, "", dw)
     n = split(dw, a, ",")
     for (i=1; i<=n; i++) {
+      if (skip_dw_entry[FNR, i]) continue
       t=a[i]
       if (t ~ /^\$/) continue
       if (t ~ /^[0-9]+$/) continue

@@ -11,6 +11,44 @@ test_accepts_upper_camel_ram_and_zp_names() {
   python3 scripts/check_symbol_naming.py "${asm}"
 }
 
+test_accepts_lowaddr_pointer_byte_expressions_in_db_payloads() {
+  local asm="${NESREV_TEST_TMPDIR}/good_pointer_bytes.asm"
+  printf '%s\n' \
+    'ZP_PpuPacketPtr .EQU $20' \
+    'RAM_PpuPacketBuffer .EQU $0300' \
+    'PointerLoTable:' \
+    '.DB <ZP_PpuPacketPtr, <(RAM_PpuPacketBuffer + 8)' \
+    'PointerHiTable: .DB >ZP_PpuPacketPtr, >(RAM_PpuPacketBuffer + 8)' \
+    '@@_PointerLoTable: .DB <ZP_PpuPacketPtr' \
+    'PointerByteTable: .BYTE <ZP_PpuPacketPtr, >(RAM_PpuPacketBuffer + 8)' >"${asm}"
+
+  python3 scripts/check_symbol_naming.py "${asm}"
+}
+
+test_rejects_bare_lowaddr_symbols_in_db_payloads() {
+  local asm="${NESREV_TEST_TMPDIR}/bad_db_symbol.asm"
+  printf '%s\n' \
+    'ZP_PpuCtrlShadow .EQU $08' \
+    'ZP_LocalScratch .EQU $09' \
+    'RAM_OamShadowBase .EQU $0200' \
+    'ByteTable:' \
+    '.DB $01,ZP_PpuCtrlShadow,$02' \
+    '@@_InlineByteTable: .DB ZP_LocalScratch' \
+    'InlineByteTable: .BYTE RAM_OamShadowBase' >"${asm}"
+
+  set +e
+  local output
+  output="$(python3 scripts/check_symbol_naming.py "${asm}" 2>&1)"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "bare RAM/ZP symbols in .DB payloads must fail"
+  assert_match "bare ZP_PpuCtrlShadow in .DB/.BYTE payload" "${output}"
+  assert_match "bare ZP_LocalScratch in .DB/.BYTE payload" "${output}"
+  assert_match "bare RAM_OamShadowBase in .DB/.BYTE payload" "${output}"
+  assert_match "use raw byte data or an explicit pointer-byte expression such as <Symbol, >Symbol" "${output}"
+}
+
 test_tracked_primary_checks_current_tracked_project_asm() {
   local output
   output="$(python3 scripts/check_symbol_naming.py --tracked-primary)"
@@ -93,6 +131,10 @@ test_accepts_canonical_hardware_register_aliases() {
   printf '%s\n' \
     'PPUCTRL .EQU $2000' \
     'APU_PULSE1_CTRL .EQU $4000' \
+    'APU_DMC_CTRL .EQU $4010' \
+    'APU_DMC_DA .EQU $4011' \
+    'APU_DMC_ADDR .EQU $4012' \
+    'APU_DMC_LEN .EQU $4013' \
     'APU_NOISE_LENGTH .EQU $400F' \
     'JOY1_STROBE .EQU $4016' >"${asm}"
 
@@ -104,6 +146,9 @@ test_rejects_legacy_hardware_register_aliases() {
   printf '%s\n' \
     'SQ1_VOL .EQU $4000' \
     'NOISE_LEN .EQU $400F' \
+    'DMC_FREQ .EQU $4010' \
+    'DMC_START .EQU $4012' \
+    'DMC_LENGTH .EQU $4013' \
     'JOY1 .EQU $4016' >"${asm}"
 
   set +e
@@ -115,5 +160,8 @@ test_rejects_legacy_hardware_register_aliases() {
   assert_eq "${rc}" "1" "legacy hardware register aliases must fail"
   assert_match "use canonical APU_PULSE1_CTRL" "${output}"
   assert_match "use canonical APU_NOISE_LENGTH" "${output}"
+  assert_match "use canonical APU_DMC_CTRL" "${output}"
+  assert_match "use canonical APU_DMC_ADDR" "${output}"
+  assert_match "use canonical APU_DMC_LEN" "${output}"
   assert_match "use canonical JOY1_STROBE" "${output}"
 }

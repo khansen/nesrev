@@ -401,6 +401,11 @@ test_project_pass_finish_creates_row_runs_gates_and_marks_scorecard() {
 set -euo pipefail
 printf 'closeout %s %s\n' "$1" "$2" >> "${STUB_LOG}"
 SH
+  cat > "${stubdir}/refresh_inventory.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'inventory %s\n' "$1" >> "${STUB_LOG}"
+SH
   cat > "${stubdir}/project_docs_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -427,6 +432,7 @@ SH
     bash "${PASS_FINISH}" "${slug}" 1 relaxed >/dev/null
 
   cat > "projects/${slug}/expected_finish.log" <<EOF
+inventory ${slug}
 closeout ${slug} 1
 docs ${slug}
 process ${slug}
@@ -434,7 +440,7 @@ verify ${slug} 1
 docs ${slug}
 EOF
   cmp -s "projects/${slug}/expected_finish.log" "${log}" \
-    || fail "project-pass-finish must run closeout, docs, process, verify, final docs in order"
+    || fail "project-pass-finish must run inventory, closeout, docs, process, verify, final docs in order"
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -476,6 +482,10 @@ EOF
   local stubdir="projects/${slug}/finish_stubs"
   mkdir -p "${stubdir}"
   cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/refresh_inventory.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -543,6 +553,10 @@ EOF
   local stubdir="projects/${slug}/finish_stubs"
   mkdir -p "${stubdir}"
   cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/refresh_inventory.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -696,6 +710,10 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
   _write_pass_one_scorecard "${slug}" "Closed the reset corridor."
   _write_pass_plan_objective "${slug}" 1 \
     "Reset corridor" "boot path unnamed" "Reset..NMI" "cluster Reset" "audio driver"
+  printf 'local scratch\n' > "projects/${slug}/PROCESS_FRICTION.md"
+  mkdir -p "projects/${slug}/mods/local_probe"
+  printf 'local mod\n' > "projects/${slug}/mods/local_probe/README.md"
+  printf '# Runtime Evidence\n' > "projects/${slug}/docs/reverse_engineering/RUNTIME_EVIDENCE.md"
 
   local out rc
   set +e
@@ -708,11 +726,16 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
     "closeout summary must report the persisted objective status"
   assert_match "Reset corridor" "${out}" \
     "closeout summary must surface the persisted corridor objective"
+  assert_match "docs/reverse_engineering/RUNTIME_EVIDENCE.md" "${out}" \
+    "closeout authored_diff_paths must include untracked authored project docs"
   if [[ "${out}" == *"corridor objective was incomplete"* ]]; then
     fail "complete objective must not trigger the incomplete warning"
   fi
   if [[ "${out}" == *"no persisted corridor objective"* ]]; then
     fail "present objective must not trigger the missing warning"
+  fi
+  if [[ "${out}" == *"PROCESS_FRICTION.md"* || "${out}" == *"mods/local_probe"* ]]; then
+    fail "closeout authored_diff_paths must ignore untracked scratch and local mods"
   fi
 }
 
@@ -991,17 +1014,24 @@ test_next_pass_text_frames_output_as_candidate_evidence() {
   local slug; slug="$(unique_slug next_candidate_wording)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
-  _write_pass_one_scorecard "${slug}" "Prepared candidate-evidence wording fixture."
+  _write_pass_one_scorecard "${slug}" "Deferred a wider owner corridor; use operator judgment before selecting generated evidence."
 
   local output
   output="$(bash "${NEXT_PASS}" "${slug}" text)"
 
-  assert_match "Candidate evidence \(advisory" "${output}" \
-    "next-pass text must frame output as advisory candidate evidence"
-  assert_match "Default candidate pass:" "${output}" \
-    "next-pass text must label the default as a candidate, not a recommendation"
+  assert_match "Operator selection required" "${output}" \
+    "next-pass text must make pass selection the operator's responsibility"
+  assert_match "Generated evidence buckets" "${output}" \
+    "next-pass text must frame generated results as evidence buckets"
+  assert_match "Top generated evidence bucket:" "${output}" \
+    "next-pass text must not present the top generated bucket as a default pass"
+  assert_match "Work-based operator signals:" "${output}" \
+    "next-pass text must surface authored pass-outcome signals before generated evidence"
   if [[ "${output}" == *"Recommended next pass:"* ]]; then
     fail "next-pass text must not present its default as an authoritative recommendation"
+  fi
+  if [[ "${output}" == *"Default candidate pass:"* ]]; then
+    fail "next-pass text must not present generated evidence as a default candidate pass"
   fi
 
   # The recommended_pass JSON key must survive for backward compatibility.
@@ -1014,6 +1044,12 @@ if "recommended_pass" not in payload:
     raise SystemExit("recommended_pass key must be preserved for compatibility")
 if "type" not in payload["recommended_pass"]:
     raise SystemExit("recommended_pass.type must be preserved for compatibility")
+if payload["recommended_pass"].get("role") != "generated_evidence_bucket":
+    raise SystemExit("recommended_pass must be explicitly classified as a generated evidence bucket")
+if not payload.get("operator_guidance", {}).get("selection_required"):
+    raise SystemExit("operator_guidance.selection_required must be true")
+if not payload.get("operator_signals"):
+    raise SystemExit("operator_signals must include latest pass outcome evidence")
 PY
 }
 
@@ -1044,7 +1080,9 @@ EOF
 
   assert_eq "${rc}" "0" "pass-start without TARGET must warn, not fail"
   assert_match "warning: no TARGET" "${err}" \
-    "pass-start must warn when it defaults to the first candidate"
+    "pass-start must warn when it falls back to the first generated bucket"
+  assert_match "mechanical fallback" "${err}" \
+    "pass-start must describe no-TARGET behavior as a mechanical fallback"
   assert_match "corridor objective" "${err}" \
     "warning must point at selecting an explicit corridor objective"
   [[ -f "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" ]] \
@@ -1123,6 +1161,114 @@ for addr in ("0x0010", "0x0011"):
         raise SystemExit(
             f"{addr}: expected last_pass_reviewed=1, got {row['last_pass_reviewed']!r}"
         )
+PY
+}
+
+test_pass_closeout_rewrites_raw_ram_review_owner_columns_for_renamed_routines() {
+  local slug; slug="$(unique_slug closeout_raw_owner_rewrite)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Renamed an owner routine and localized a branch."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner: ; declaration comment
+@@renamedLoop: LDA $10
+  STA $11
+@@_renamedLoop: ; local declaration comment
+  LDA $12
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+OldOwner,NewOwner,owner routine renamed,high,1
+OldLocal,@@renamedLoop,localized branch target,mechanical,1
+@@_oldLoop,@@_renamedLoop,localized underscore branch target,mechanical,1
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,"OldOwner:1, OldLocal:1",
+0x0011,unreviewed,,,,yes,1,1,0,1,," OldLocal : 1 "
+0x0012,unreviewed,,,,yes,1,1,1,0," @@_oldLoop: 1 ",
+EOF
+
+  bash "${PASS_CLOSEOUT}" "${slug}" 1 >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    text = handle.read()
+
+if "OldOwner" in text or "OldLocal" in text or "@@_oldLoop" in text:
+    raise SystemExit(f"raw_ram_review.csv still contains stale owner labels:\n{text}")
+
+rows = {}
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    for row in csv.DictReader(handle):
+        rows[row["addr_hex"]] = row
+
+if rows["0x0010"]["top_readers"] != "NewOwner:2":
+    raise SystemExit(f"expected local owner to collapse to NewOwner, got {rows['0x0010']['top_readers']!r}")
+if rows["0x0011"]["top_writers"] != "NewOwner:1":
+    raise SystemExit(f"expected local writer owner NewOwner, got {rows['0x0011']['top_writers']!r}")
+if rows["0x0012"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"expected underscore local reader owner NewOwner, got {rows['0x0012']['top_readers']!r}")
+PY
+}
+
+test_pass_closeout_rejects_duplicate_local_owner_names() {
+  local slug; slug="$(unique_slug closeout_duplicate_local_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Renamed a routine with a duplicated local label name."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+@@done:
+  LDA $10
+  RTS
+
+UnrelatedOwner:
+@@done:
+  LDA $11
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+OldOwner,NewOwner,owner routine renamed,high,1
+OldDone,@@done,localized return branch,mechanical,1
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,OldDone:1,
+EOF
+
+  local out rc
+  set +e
+  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "4" \
+    "duplicate local owner names must fail closeout instead of guessing an owner"
+  assert_match "ambiguous_local_replacements" "${out}" \
+    "closeout should explain that the local owner was ambiguous"
+  assert_match "OldDone" "${out}" \
+    "closeout should report the skipped old owner label"
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+reader = rows["0x0010"]["top_readers"]
+if reader != "OldDone:1":
+    raise SystemExit(f"ambiguous duplicate local owner should stay unreconciled, got {reader!r}")
+if "NewOwner" in reader or "UnrelatedOwner" in reader:
+    raise SystemExit(f"duplicate local owner was guessed incorrectly: {reader!r}")
 PY
 }
 
@@ -1235,6 +1381,27 @@ EOF
   assert_eq "${rc}" "2" "bare raw address old_name must fail closeout"
   assert_match 'must use raw_\$NNNN' "${output}"
   assert_match 'raw_\$0019' "${output}"
+}
+
+test_pass_closeout_rejects_generic_lowercase_rename_old_name() {
+  local slug; slug="$(unique_slug closeout_generic_old)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Named an interrupt vector table owner."
+
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+vectors,InterruptVectorTable,NES hardware interrupt vector table owner for pointer inventory,mechanical,1
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "generic lowercase old_name must fail closeout"
+  assert_match "old_name values must be symbol-shaped" "${output}"
+  assert_match '"old_name": "vectors"' "${output}"
 }
 
 test_next_pass_raw_ram_review_uses_parent_owner_after_local_labels() {
@@ -1384,6 +1551,79 @@ if "DataBlob" in row["top_readers"] or "DataBlob" in row["top_writers"]:
     raise SystemExit(f"data label leaked into raw-RAM owner columns: {row!r}")
 if row["top_readers"] != "Reset:1" or row["top_writers"] != "Reset:1":
     raise SystemExit(f"expected data-labeled raw sites to fall back to Reset owner, got {row!r}")
+PY
+}
+
+test_next_pass_raw_ram_review_refreshes_symbolized_owner_columns() {
+  local slug; slug="$(unique_slug raw_owner_symbolized)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared symbolized raw owner refresh fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_FrameCounter .EQU $10
+
+NewOwner:
+  LDA ZP_FrameCounter
+  STA ZP_FrameCounter
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "symbols": [
+    {
+      "name": "NewOwner",
+      "scope": "global",
+      "definition": {
+        "file": "projects/${slug}/asm/${slug}.asm",
+        "line": 4,
+        "cpu_address": "\$C000"
+      }
+    }
+  ],
+  "references": [],
+  "data_reads": [
+    {
+      "symbol": "ZP_FrameCounter",
+      "owner_routine": "NewOwner",
+      "file": "projects/${slug}/asm/${slug}.asm",
+      "line": 5,
+      "opcode": "LDA"
+    }
+  ],
+  "data_writes": [
+    {
+      "symbol": "ZP_FrameCounter",
+      "owner_routine": "NewOwner",
+      "file": "projects/${slug}/asm/${slug}.asm",
+      "line": 6,
+      "opcode": "STA"
+    }
+  ]
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,symbolized,ZP_FrameCounter,,5,no,2,1,1,1,OldOwner:1,OldOwner:1
+EOF
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+row = rows["0x0010"]
+if row["status"] != "symbolized" or row["active"] != "no":
+    raise SystemExit(f"review state should stay symbolized/inactive, got {row!r}")
+if row["top_readers"] != "NewOwner:1" or row["top_writers"] != "NewOwner:1":
+    raise SystemExit(f"symbolized owner columns were not refreshed: {row!r}")
+if row["operand_count"] != "2" or row["read_count"] != "1" or row["write_count"] != "1":
+    raise SystemExit(f"symbolized factual counts were not refreshed: {row!r}")
 PY
 }
 
@@ -1690,7 +1930,7 @@ EOF
   err="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1 >/dev/null)"
 
   assert_match "broad mixed anchor" "${err}" \
-    "next-pass must warn when the top candidate is a broad mixed anchor"
+    "next-pass must warn when the top generated bucket is a broad mixed anchor"
   assert_match "BroadMixedAnchor" "${err}"
 }
 
@@ -1797,7 +2037,7 @@ ASM
 addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
 0x0018,deferred,ZP_OldDeferred,kept for ordering regression,1,no,0,0,0,0,,
 0x0008,symbolized,ZP_OldSymbolized,kept for ordering regression,1,no,0,0,0,0,,
-0x0010,deferred,ZP_ExistingReview,keep generated details stable,7,yes,99,88,77,66,OldReader:7,OldWriter:6
+0x0010,deferred,ZP_ExistingReview,keep review fields stable,7,yes,99,88,77,66,OldReader:7,OldWriter:6
 EOF
 
   bash "${NEXT_PASS}" "${slug}" json >/dev/null
@@ -1817,19 +2057,19 @@ row = rows["0x0010"]
 expected = {
     "status": "deferred",
     "proposed_symbol": "ZP_ExistingReview",
-    "notes": "keep generated details stable",
+    "notes": "keep review fields stable",
     "last_pass_reviewed": "7",
     "active": "yes",
-    "operand_count": "99",
-    "distinct_owner_count": "88",
-    "read_count": "77",
-    "write_count": "66",
-    "top_readers": "OldReader:7",
-    "top_writers": "OldWriter:6",
+    "operand_count": "1",
+    "distinct_owner_count": "1",
+    "read_count": "0",
+    "write_count": "1",
+    "top_readers": "",
+    "top_writers": "Reset:1",
 }
 for key, value in expected.items():
     if row.get(key) != value:
-        raise SystemExit(f"existing raw-RAM review row field {key} churned: {row.get(key)!r}")
+        raise SystemExit(f"existing raw-RAM review row field {key} mismatch: {row.get(key)!r}")
 PY
 }
 

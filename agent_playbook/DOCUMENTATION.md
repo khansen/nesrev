@@ -246,6 +246,13 @@ Useful only when they add current workflow value:
 - `ACTOR_ENUMS.md` (or equivalent): keep only when it documents a real state, action, or enum family better than declaration comments/systems docs.
 - `PARITY_GAPS.md`: see [#support-documents → Priority file freshness](#support-documents) for retention rules.
 - Trace plans/runbooks/scenarios: keep when unresolved work is genuinely runtime-gated and the docs define capture steps and promotion criteria.
+- Reduced trace evidence docs: keep when a capture has promoted or rejected a
+  semantic claim. Raw logs remain untracked unless curated as analyzer fixtures.
+- Trace tooling docs: retain project-local runner/analyzer commands while they
+  are useful for reproducing evidence or extending captures; prune stale
+  capture-pending plans after their questions are resolved and the result has
+  moved to the canonical state-machine, memory-map, scorecard, or semantic-claims
+  home.
 
 <a id="dx-systems-scope"></a>
 ## DX_Systems Abstraction Scope
@@ -360,6 +367,11 @@ For `renames.csv`, markdown bullets, and scorecard rows:
 - Keep every ledger row to exactly 5 CSV fields:
   `old_name,new_name,reason,confidence,pass_id`
 - If `reason` text contains commas, rewrite the prose or quote it correctly so the CSV shape stays valid.
+- `old_name` must be symbol-shaped: an actual prior symbol, an `LXXXX`
+  label, an `@@local` label, a `raw_$NN` / `raw_$NNNN` address key, or a
+  specific synthetic `raw_*` key such as `raw_interrupt_vector_table`.
+  Do not use plain lowercase prose words such as `vectors`; closeout treats
+  old names as stale-symbol search keys.
 - For partial overlay aliases, use `confidence=scoped-overlay`: unrelated raw
   operands may remain and the `raw_ram_review.csv` row stays active.
 ### Warning registry wording rule
@@ -561,6 +573,17 @@ For optional support docs such as `PARITY_GAPS.md`:
 
 - keep them only if they contain real current workflow value
 - delete them when onboarding, systems docs, and working notes already cover the same ground better
+
+For `CURIOSITIES.md` specifically:
+
+- include only genuinely project-specific oddities such as ROM bugs,
+  easter eggs/signatures, unreachable or apparently dead live-ROM code,
+  unusual overlap/packing traps, or other behavior that would surprise an
+  experienced NES programmer working on this game
+- do not include ordinary platform idioms, common disassembly techniques,
+  normal scoped overlays, inline jump tables, standard Zapper light sensing, or
+  semantic gaps whose only issue is missing runtime/reference evidence
+- if no entries meet that bar, omit the file
 
 ### Stale scaffold-era language
 

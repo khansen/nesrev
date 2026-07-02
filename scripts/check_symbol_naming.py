@@ -31,6 +31,11 @@ DIRECT_EQU_RE = re.compile(
     r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\s+\$([0-9A-Fa-f]{4})\b",
     re.MULTILINE,
 )
+DATA_BYTE_DIRECTIVE_RE = re.compile(
+    r"^\s*(?:(?:@@)?[A-Za-z_][A-Za-z0-9_]*:\s*)?\.(?:DB|BYTE)\b(?P<payload>.*)",
+    re.IGNORECASE,
+)
+LOWADDR_SYMBOL_RE = re.compile(r"\b(?:ZP|RAM)_[A-Za-z0-9_]+\b")
 CANONICAL_HARDWARE_REGISTERS = {
     0x2000: "PPUCTRL",
     0x2001: "PPUMASK",
@@ -54,12 +59,22 @@ CANONICAL_HARDWARE_REGISTERS = {
     0x400C: "APU_NOISE_CTRL",
     0x400E: "APU_NOISE_PERIOD",
     0x400F: "APU_NOISE_LENGTH",
+    0x4010: "APU_DMC_CTRL",
     0x4011: "APU_DMC_DA",
+    0x4012: "APU_DMC_ADDR",
+    0x4013: "APU_DMC_LEN",
     0x4014: "OAMDMA",
     0x4015: "APU_STATUS",
     0x4016: "JOY1_STROBE",
     0x4017: "APU_FRAME_COUNTER",
 }
+
+
+def has_pointer_byte_prefix(payload: str, symbol_start: int) -> bool:
+    prefix = payload[:symbol_start].rstrip()
+    while prefix.endswith("("):
+        prefix = prefix[:-1].rstrip()
+    return prefix.endswith("<") or prefix.endswith(">")
 
 
 def tracked_primary_asm() -> list[Path]:
@@ -127,6 +142,21 @@ def validate(path: Path) -> list[str]:
             f"{display_path}:{line}: {name} aliases NES hardware register "
             f"${value:04X}; use canonical {expected}"
         )
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        code = raw_line.split(";", 1)[0]
+        directive = DATA_BYTE_DIRECTIVE_RE.match(code)
+        if directive is None:
+            continue
+        payload = directive.group("payload")
+        for match in LOWADDR_SYMBOL_RE.finditer(payload):
+            if has_pointer_byte_prefix(payload, match.start()):
+                continue
+            errors.append(
+                f"{display_path}:{line_number}: bare {match.group(0)} in .DB/.BYTE "
+                "payload is suspicious; use raw byte data or an explicit "
+                "pointer-byte expression such as <Symbol, >Symbol, "
+                "<(Symbol + offset), or >(Symbol + offset)"
+            )
     return errors
 
 

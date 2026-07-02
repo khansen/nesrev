@@ -1,0 +1,7 @@
+{"frame":0,"event":"start","max_frames":120}
+{"frame":10,"event":"milestone","name":"scenario_started"}
+{"frame":12,"event":"watch","id":"state0","addr":"0301","old":"00","new":"02","scenario":"01","result":"00"}
+{"frame":20,"event":"watch","id":"state0","addr":"0301","old":"02","new":"03","scenario":"01","result":"00"}
+{"frame":35,"event":"milestone","name":"result_resolved"}
+{"frame":36,"event":"watch","id":"state0","addr":"0301","old":"03","new":"04","scenario":"01","result":"01"}
+{"frame":50,"event":"done","final_frame":50,"reason":"synthetic"}

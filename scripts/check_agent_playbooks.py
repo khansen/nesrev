@@ -101,19 +101,15 @@ ROOT_WORD_CEILING = 6000
 # The word ceilings were recalibrated when the candidate-evidence /
 # corridor-objective governance content was added to AGENTS.md and
 # PASS_WORKFLOW.md (advisory `project-next-pass`, operator-selected corridor
-# objective, pass-versus-commit, low-yield strategy checkpoint). That required
-# content, plus the scoped-overlay alias contract for mixed RAM/ZP bytes and the
-# semantic-claims ledger model (canonical in QUALITY_REVIEW.md with short
-# cross-links in AGENTS.md / DOCUMENTATION.md / PASS_WORKFLOW.md), pressured the
-# root- and DOCUMENTATION/PASS_WORKFLOW-bearing bundles; the ceilings below
-# restore the documented ~100-150 word headroom over measured sizes rather than
-# shaving required governance prose. The latest ceilings also include the
-# placeholder-policy extraction into ASM_STYLE.md and the missing owned-section
-# redirect/backfill content in ASM_STYLE.md / DATA_RECOVERY.md.
+# objective, pass-versus-commit, low-yield strategy checkpoint). Later process
+# improvements added runtime-trace templates, trace-helper ROM policy,
+# relocatable trace-mod guidance, inline dispatch naming, and CPU vector naming.
+# These ceilings preserve the documented modest headroom over measured sizes
+# rather than shaving required governance prose.
 ROUTE_BUDGETS = {
-    "default": (2550, 17780),
-    "data-recovery": (2400, 17930),
-    "new-project": (3490, 25280),
+    "default": (2550, 18100),
+    "data-recovery": (2400, 18250),
+    "new-project": (3550, 25600),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

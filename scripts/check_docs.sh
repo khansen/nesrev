@@ -12,6 +12,7 @@ DOC_ROOT="$2"
 SYSTEMS_DOC="$3"
 WARN_BASELINE_FILE="$4"
 RECOVERY_STATUS="${5:-legacy}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TMPDIR_CHECK_DOCS="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_CHECK_DOCS}"' EXIT
 
@@ -61,12 +62,17 @@ ASM_BASENAME_RE="$(
 LINE_REF_RE="${ASM_BASENAME_RE}:[0-9]+"
 
 echo "[1/8] Checking renames.csv structure"
-python3 - "${RENAMES_FILE}" <<'PY'
+python3 - "${RENAMES_FILE}" "${SCRIPT_DIR}" <<'PY'
 import csv
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+script_dir = Path(sys.argv[2])
+sys.path.insert(0, str(script_dir))
+
+from rename_ledger_rules import valid_old_name_shape
+
 expected = ["old_name", "new_name", "reason", "confidence", "pass_id"]
 
 with path.open("r", encoding="utf-8", newline="") as f:
@@ -84,6 +90,16 @@ with path.open("r", encoding="utf-8", newline="") as f:
         missing = [key for key in expected if row.get(key, "").strip() == ""]
         if missing:
             print(f"FAIL: renames.csv row {idx} has empty required fields: {', '.join(missing)}", file=sys.stderr)
+            print(row, file=sys.stderr)
+            sys.exit(2)
+        old_name = row["old_name"].strip()
+        if not valid_old_name_shape(old_name):
+            print(f"FAIL: renames.csv row {idx} has invalid old_name: {old_name!r}", file=sys.stderr)
+            print(
+                "expected an asm symbol-style name, LXXXX label, @@local label, "
+                "raw_$NN/raw_$NNNN address key, or specific raw_* synthetic key",
+                file=sys.stderr,
+            )
             print(row, file=sys.stderr)
             sys.exit(2)
         try:

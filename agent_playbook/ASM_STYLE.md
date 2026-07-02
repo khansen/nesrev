@@ -81,6 +81,14 @@ canonical wording from `AGENTS.md` for use during in-depth work:
     definitions.
 - Procedures:
   - `InitX`, `UpdateX`, `RenderX`, `RunX`, `HandleX`, `ResolveX`, `QueueX`, `SetX`, `CheckX`
+  - `DispatchInlineJumpTable` for the common A-indexed helper that pops the
+    caller return address, reads the inline `.DW` target table immediately
+    after the `JSR`, and tail-calls the selected handler. Wrappers that seed
+    the index before entering that helper should keep the canonical base name
+    plus a source suffix, for example `DispatchInlineJumpTableByMainMode`.
+  - CPU vector entry labels are exactly `Reset`, `NMI`, and `IRQ` when present.
+    Do not use project-local variants such as `ResetHandler`,
+    `ResetEntryPoint`, `NmiHandler`, `NMI_Handler`, or `IRQ_Handler`.
 - Tables:
   - `...Table` (lookup)
   - `...PtrLoTable` / `...PtrHiTable` (pointer tables)
@@ -256,7 +264,10 @@ counts use decimal.
 | `APU_NOISE_CTRL` | $400C | |
 | `APU_NOISE_PERIOD` | $400E | |
 | `APU_NOISE_LENGTH` | $400F | |
-| `APU_DMC_DA` | $4011 | |
+| `APU_DMC_CTRL` | $4010 | DMC flags/rate |
+| `APU_DMC_DA` | $4011 | DMC direct load (DAC) |
+| `APU_DMC_ADDR` | $4012 | DMC sample base address |
+| `APU_DMC_LEN` | $4013 | DMC sample length |
 | `OAMDMA` | $4014 | |
 | `APU_STATUS` | $4015 | |
 | `JOY1_STROBE` | $4016 | |

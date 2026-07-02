@@ -131,7 +131,71 @@ def parse_scorecard_latest_row(path):
         "pass_id": int(last[0]),
         "focus": last[1],
         "labels_remaining": last[2],
+        "notes": last[11] if len(last) > 11 else "",
     }
+
+def truncate_for_signal(text, limit=220):
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "..."
+
+def extract_next_pass_section(text, limit=6):
+    lines = text.splitlines()
+    out = []
+    in_section = False
+    for raw in lines:
+        line = raw.rstrip()
+        if re.match(r"^##\s+Next Pass Signals\b", line, re.IGNORECASE):
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if not in_section:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith(("-", "*")):
+            stripped = stripped[1:].strip()
+        out.append(truncate_for_signal(stripped))
+        if len(out) >= limit:
+            break
+    return out
+
+def extract_operator_signals(scorecard_file, working_notes_path, last_pass, limit=8):
+    signals = []
+    seen = set()
+
+    def add(kind, text, source):
+        text = truncate_for_signal(text)
+        if not text or text in seen:
+            return
+        seen.add(text)
+        signals.append({
+            "kind": kind,
+            "source": source,
+            "text": text,
+        })
+
+    notes = (last_pass or {}).get("notes") or ""
+    if re.search(r"\b(deferred|out of scope|runtime|trace|remaining|stayed out of scope)\b", notes, re.IGNORECASE):
+        add("latest_pass_note", notes, "PROGRESS_SCORECARD.md")
+
+    working_notes_text = read_text(working_notes_path)
+    for item in extract_next_pass_section(working_notes_text, limit=limit):
+        add("operator_next_pass_signal", item, "WORKING_NOTES.md#Next Pass Signals")
+        if len(signals) >= limit:
+            return signals
+
+    for raw in working_notes_text.splitlines():
+        stripped = raw.strip()
+        if re.match(r"^(Next step|Next static step|To close this|Runtime-gated|Static-resolvable)\b", stripped, re.IGNORECASE):
+            add("working_note_followup", stripped, "WORKING_NOTES.md")
+            if len(signals) >= limit:
+                break
+
+    return signals[:limit]
 
 def status_from_baseline(baseline, key):
     if not baseline:
@@ -577,16 +641,106 @@ def summarize_raw_owner_counts(rows, kind):
         f"{name}:{count}" for name, count in sorted(out.items(), key=lambda kv: (-kv[1], kv[0]))[:4]
     )
 
-def merge_raw_ram_review(candidates, review_rows):
+def parse_lowaddr_ram_equ_symbols(path):
+    out = {}
+    equ_re = re.compile(
+        r"^\s*(?P<symbol>(?:ZP|RAM)_[A-Za-z0-9_]+)\s+\.EQU\s+\$"
+        r"(?P<hex>[0-9A-Fa-f]{1,4})\b"
+    )
+    for text in load_file_lines(path):
+        m = equ_re.match(text)
+        if not m:
+            continue
+        addr = int(m.group("hex"), 16)
+        if addr > 0x0FFF:
+            continue
+        out.setdefault(f"0x{addr:04x}", []).append(m.group("symbol"))
+    return out
+
+def build_symbolized_raw_ram_candidates(xref, addr_symbols):
+    symbol_to_addr = {
+        symbol: addr_hex
+        for addr_hex, symbols in addr_symbols.items()
+        for symbol in symbols
+    }
+    by_addr = {}
+    for access_kind, section in (("read", "data_reads"), ("write", "data_writes")):
+        for row in xref.get(section, []):
+            symbol = row.get("symbol")
+            addr_hex = symbol_to_addr.get(symbol)
+            if not addr_hex:
+                continue
+            site = {
+                "addr_hex": addr_hex,
+                "symbol": symbol,
+                "mnemonic": row.get("opcode") or "",
+                "access_kind": access_kind,
+                "file": row.get("file"),
+                "line": row.get("line"),
+                "owner_routine": row.get("owner_routine") or row.get("routine"),
+            }
+            by_addr.setdefault(addr_hex, []).append(site)
+
+    out = {}
+    for addr_hex, sites in by_addr.items():
+        owners = sorted({r["owner_routine"] for r in sites if r.get("owner_routine")})
+        read_count = sum(1 for row in sites if row["access_kind"] == "read")
+        write_count = sum(1 for row in sites if row["access_kind"] == "write")
+        out[addr_hex] = {
+            "addr_hex": addr_hex,
+            "operand_count": len(sites),
+            "distinct_owner_count": len(owners),
+            "read_count": read_count,
+            "write_count": write_count,
+            "sites": sorted(sites, key=lambda r: (r.get("line") or 0, r.get("symbol") or "")),
+        }
+    return out
+
+def raw_ram_factual_from_candidate(candidate, *, active):
+    return {
+        "active": "yes" if active else "no",
+        "operand_count": str(candidate["operand_count"]),
+        "distinct_owner_count": str(candidate["distinct_owner_count"]),
+        "read_count": str(candidate["read_count"]),
+        "write_count": str(candidate["write_count"]),
+        "top_readers": summarize_raw_owner_counts(candidate["sites"], "read"),
+        "top_writers": summarize_raw_owner_counts(candidate["sites"], "write"),
+    }
+
+def merge_raw_ram_review(candidates, review_rows, symbolized_candidates=None):
+    symbolized_candidates = symbolized_candidates or {}
     active_addrs = {c["addr_hex"] for c in candidates}
     merged_by_addr = {}
     by_addr = {c["addr_hex"]: c for c in candidates}
     for addr_hex, row in review_rows.items():
-        # Preserve existing review rows as authored state. The generated pass
-        # artifacts carry current owner/count details; rewriting those columns
-        # here creates broad churn whenever unrelated owner names change.
+        # Preserve authored review state while refreshing factual owner/count
+        # columns from current analysis. Otherwise renamed owner routines linger
+        # in raw_ram_review.csv and trip closeout as stale old-symbol residue.
+        candidate = by_addr.get(addr_hex)
+        if candidate:
+            factual = raw_ram_factual_from_candidate(candidate, active=True)
+        elif addr_hex in symbolized_candidates:
+            factual = raw_ram_factual_from_candidate(symbolized_candidates[addr_hex], active=False)
+        else:
+            factual = {
+                field: row.get(field, "")
+                for field in (
+                    "active",
+                    "operand_count",
+                    "distinct_owner_count",
+                    "read_count",
+                    "write_count",
+                    "top_readers",
+                    "top_writers",
+                )
+            }
         merged_by_addr[addr_hex] = {
-            field: row.get(field, "") for field in RAW_RAM_REVIEW_FIELDS
+            "addr_hex": row.get("addr_hex", addr_hex),
+            "status": row.get("status", "") or "unreviewed",
+            "proposed_symbol": row.get("proposed_symbol", ""),
+            "notes": row.get("notes", ""),
+            "last_pass_reviewed": row.get("last_pass_reviewed", ""),
+            **factual,
         }
     for addr_hex in active_addrs - set(review_rows):
         candidate = by_addr[addr_hex]
@@ -1266,7 +1420,7 @@ def make_cluster_candidates(recommended_type, generic_summary, all_label_map, co
             "anchor": label,
             "kind": kind,
             "why": why,
-            "summary": f"{label} is the default candidate corridor anchor for this pass type.",
+            "summary": f"{label} is the top generated evidence anchor for this pass type.",
             "top_callers": top,
             "definition": definition or None,
             "caller_sites": top_caller_sites(label, ref_map, symbol_defs, file_symbol_index),
@@ -1357,7 +1511,15 @@ raw_accesses = parse_raw_lowaddr_accesses(asm_file, source_owner_index)
 raw_ram_review = load_raw_ram_review(raw_ram_review_path)
 all_raw_ram_candidates = build_raw_ram_candidates(raw_accesses, raw_ram_review, limit=None)
 raw_ram_candidates = all_raw_ram_candidates[:12]
-merged_raw_ram_review = merge_raw_ram_review(all_raw_ram_candidates, raw_ram_review)
+symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
+    xref,
+    parse_lowaddr_ram_equ_symbols(asm_file),
+)
+merged_raw_ram_review = merge_raw_ram_review(
+    all_raw_ram_candidates,
+    raw_ram_review,
+    symbolized_raw_ram_candidates,
+)
 write_raw_ram_review(raw_ram_review_path, merged_raw_ram_review)
 raw_ram_clusters = build_raw_ram_clusters(
     all_raw_ram_candidates,
@@ -1419,6 +1581,8 @@ CONFIDENCE_CAVEAT = (
 )
 
 recommended = choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters)
+recommended["role"] = "generated_evidence_bucket"
+recommended["operator_action"] = "Select, broaden, or reject this bucket before project-pass-start."
 cluster_candidates = make_cluster_candidates(
     recommended["type"],
     generic_summary,
@@ -1439,8 +1603,9 @@ cluster_candidates = make_cluster_candidates(
     raw_ram_clusters,
 )
 follow_up = make_follow_up(recommended["type"], cluster_candidates)
+operator_signals = extract_operator_signals(scorecard_file, working_notes_path, last_pass)
 
-# Advisory (never fails): warn on stderr when the default/top candidate is a
+# Advisory (never fails): warn on stderr when the top generated evidence bucket is a
 # broad mixed anchor (evidence container). Its actionable bytes should be
 # pursued as focused sub-corridors rather than the whole block as one pass.
 if cluster_candidates and cluster_candidates[0].get("mixed_anchor"):
@@ -1448,7 +1613,7 @@ if cluster_candidates and cluster_candidates[0].get("mixed_anchor"):
     addrs = (top.get("hint") or {}).get("actionable_addrs") or top.get("scoped_overlay_candidates") or []
     addr_hint = f" actionable bytes: {', '.join(addrs[:8])}." if addrs else ""
     print(
-        f"warning: top candidate {top.get('anchor')} is a broad mixed anchor "
+        f"warning: top generated evidence bucket {top.get('anchor')} is a broad mixed anchor "
         "(evidence container, not a pass target); name its actionable bytes as "
         f"focused sub-corridors and leave deferred bytes raw.{addr_hint}",
         file=sys.stderr,
@@ -1486,6 +1651,12 @@ payload = {
         "parity": status_from_baseline(baseline, "parity"),
     },
     "recommended_pass": recommended,
+    "operator_guidance": {
+        "selection_required": True,
+        "generated_candidates_are": "evidence buckets, not pass decisions",
+        "selection_contract": "Run project-pass-start with TARGET plus CORRIDOR, WHY_NOW, BOUNDARIES, EVIDENCE, OUT_OF_SCOPE after choosing a corridor.",
+    },
+    "operator_signals": operator_signals,
     "cluster_candidates": cluster_candidates,
     "alternative_candidates": alternative_candidates,
     "confidence_caveat": CONFIDENCE_CAVEAT,
@@ -1523,11 +1694,17 @@ print(
 )
 print()
 print(f"Selection strategy: {payload['selection_strategy']}")
-print("Candidate evidence (advisory; the operator selects the corridor objective):")
-print(f"Default candidate pass: {payload['recommended_pass']['type']}")
-print(f"Reason: {payload['recommended_pass']['reason']}")
+print("Operator selection required: generated results are evidence buckets, not pass decisions.")
+if payload.get("operator_signals"):
+    print("Work-based operator signals:")
+    for signal in payload["operator_signals"]:
+        print(f"- {signal['text']} ({signal['source']})")
+    print()
+print("Generated evidence buckets (mechanical scan; broaden, select, or reject):")
+print(f"Top generated evidence bucket: {payload['recommended_pass']['type']}")
+print(f"Why this bucket surfaced: {payload['recommended_pass']['reason']}")
 print()
-print("Candidate corridors:")
+print("Generated corridor evidence:")
 for target in payload["cluster_candidates"]:
     callers = ""
     if target.get("top_callers"):
@@ -1671,7 +1848,7 @@ if payload.get("alternative_candidates"):
     for alt in payload["alternative_candidates"]:
         print(f"- {alt['label']} ({alt['kind']}) — {alt['why']}")
 print()
-print(f"Immediate follow-up: {payload['follow_up']}")
+print(f"Generated follow-up hint: {payload['follow_up']}")
 print(f"Caveat: {payload['confidence_caveat']}")
 if notes:
     print()

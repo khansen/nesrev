@@ -655,10 +655,8 @@ covered by [#reviewer-simulation](#reviewer-simulation):
 <a id="static-vs-runtime-gaps"></a>
 ## Static vs. Runtime-Gated Gap Classification
 
-Static analysis eventually plateaus on every project. This section
-turns the residual uncertainty into a tractable backlog: classify
-each open question, schedule the right evidence capture, and
-promote confidence only once the capture lands.
+Static analysis eventually plateaus. Classify each residual uncertainty,
+schedule the right capture, and promote confidence only after evidence lands.
 
 ### Confidence promotion criteria
 - `high confidence (static)` = control/data flow proves correctness.
@@ -672,46 +670,43 @@ defines the `high` / `medium` / `inferred` semantics; the
 
 ### Operational classification procedure
 
-For each unresolved item — a residual `inferred` annotation, an
-open `WORKING_NOTES.md` question, an incomplete symbol-family
-member, or a parity-preserved bug whose root cause is unknown:
-1. **Identify the gap source.** Enumerate from three places: the
-   `inferred` annotations remaining in asm/docs (`rg -n
-   'inferred' "${ASM_FILE}" "${DOC_ROOT}"`), `WORKING_NOTES.md`
-   open-questions blocks, and the parity-bug registry's
-   "root cause unknown" entries.
+For each unresolved item (`inferred`, `WORKING_NOTES.md`, incomplete symbol
+family, or unknown-root parity bug):
+1. **Identify the gap source.** Check remaining `inferred` annotations
+   (`rg -n 'inferred' "${ASM_FILE}" "${DOC_ROOT}"`), `WORKING_NOTES.md`, and
+   parity-bug registry entries whose root cause is unknown.
 2. **Classify the gap as static or runtime.**
-   - **Static-resolvable.** The control-flow and data-flow
-     evidence needed to close the gap exists in the asm — the
-     work is to read it carefully (cross-routine call tracing,
-     pointer-table resolution, structured-field offset proof).
-     Static-resolvable gaps stay in `WORKING_NOTES.md` and go
-     into the next [#reviewer-simulation](#reviewer-simulation)
-     pass.
-   - **Runtime-gated.** Closing the gap requires observing the
-     ROM running — the value depends on user input, RNG, frame
-     timing, scenario state, or external state the disassembly
-     cannot reach by reading. Runtime-gated gaps move out of
-     `WORKING_NOTES.md` into a trace plan.
+   - **Static-resolvable.** Required control/data-flow evidence exists in asm
+     (call tracing, pointer-table resolution, structured-field offset proof).
+     Keep it in `WORKING_NOTES.md` for the next
+     [#reviewer-simulation](#reviewer-simulation) pass.
+   - **Runtime-gated.** The value depends on live input, RNG, timing, scenario
+     state, or external emulator-visible state. Move it from `WORKING_NOTES.md`
+     into a trace plan.
 3. **Schedule the evidence capture.** For runtime-gated gaps,
    author a trace plan under
    `docs/reverse_engineering/` (capture runbook + scenario + the
    producer/consumer label pair under observation) per
    [PASS_WORKFLOW.md#pass-closeout → Runtime evidence workflow](PASS_WORKFLOW.md#pass-closeout).
-   Each trace plan names the expected signal and the
-   confidence-promotion criteria that the captured evidence has
-   to satisfy.
+   Each trace plan names the expected signal and promotion criteria. If no
+   harness exists, create one from
+   [TOOLING.md#runtime-trace-tooling](TOOLING.md#runtime-trace-tooling)
+   and `agent_playbook/templates/trace/`: project-local runner, Lua
+   logger, analyzer, synthetic fixture, and quick-reference command.
+   If reaching the scenario is itself the bottleneck, use a
+   [trace helper ROM](TOOLING.md#trace-helper-roms) to shorten setup while
+   preserving the tested path. Raw captures and local helper mods stay
+   untracked unless curated; commit the reduced transition/result summary.
 4. **Promote confidence on capture.** Once evidence lands, apply
    the [Confidence Protocol](../AGENTS.md#confidence-protocol)
    promotion sweep: revisit prior `inferred` annotations, drop
    the tag where the evidence now proves the role, preserve any
    explanatory comment (drop the uncertainty marker, not the
-   documentation). A single capture only supports the level
-   warranted by the evidence — promote to `medium confidence
-   (runtime)` if one trace agrees; `high confidence (runtime)`
-   requires repeated traces across scenarios per the criteria
-   above. Do not pre-emptively promote — the capture has to
-   actually land first.
+   documentation). The analyzer must explicitly accept the scenario
+   gate/milestones before the capture can justify names. A single
+   capture only supports the level warranted: one agreeing trace can justify
+   `medium confidence (runtime)`; `high confidence (runtime)` requires repeated
+   traces across scenarios. Do not promote before capture.
 5. **Close the loop.** Move the captured item out of
    `WORKING_NOTES.md` and into the canonical home:
    - parity-preserved bugs with root cause now known →
