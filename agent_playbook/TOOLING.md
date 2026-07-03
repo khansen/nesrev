@@ -160,7 +160,7 @@ fails to recover inline-call payloads.
 ### Hint file formats
 
 ```sh
-# codepointers.csv — pipe-delimited; start = raw 16 KB PRG offset (hex),
+# codepointers.csv — pipe-delimited; start = raw PRG offset (hex),
 # count = number of pointers. Use for contiguous CODE-pointer tables: NESrev
 # labels each target AND traces it as code.
 # start|count
@@ -174,7 +174,7 @@ fails to recover inline-call payloads.
 # start|count
 # 0x2813|30
 
-# codeentries.txt — one CPU address ($C000-$FFFF) per line; # and ; start
+# codeentries.txt — one canonical ROM CPU address per line; # and ; start
 # comments. Use for SCATTERED code entry points reached via indirect dispatch
 # where the pointer is loaded from individual `LDA #imm / STA ZP_PTR` pairs
 # rather than a contiguous table.
@@ -230,12 +230,13 @@ reproducible build inputs.
 
 ### Configuration notes
 
-- In this repo, local `NESrev` consumes the raw 16 KB PRG, not the `.nes`
+- In this repo, local `NESrev` consumes the raw PRG, not the `.nes`
   container.
 - `codepointers.csv` / `datapointers.csv` `start` is a raw PRG offset, not a
   `.nes` file offset and not a CPU address.
 - `codeentries.txt`, `inlinecalls.csv` callees, and `dataranges.csv`
-  starts are CPU addresses in the canonical $C000-$FFFF range.
+  starts are CPU addresses in the canonical project ROM range
+  (`$C000-$FFFF` for NROM-128, `$8000-$FFFF` for NROM-256).
 - Pick the right hint:
   - contiguous table → code routines: `codepointers.csv`
   - contiguous table → fixed-size data records: `datapointers.csv`
@@ -320,7 +321,7 @@ which extends the guiding principle at
 When a parity check fails, the listing bridges ROM offsets to source lines:
 
 1. Identify the differing ROM offset (e.g., from `cmp -l` or `make project-compare`).
-2. Convert to CPU address (e.g., for NROM-128: `CPU_ADDR = $C000 + ROM_OFFSET`).
+2. Convert to CPU address (NROM-128: `CPU_ADDR = $C000 + ROM_OFFSET`; NROM-256: `CPU_ADDR = $8000 + ROM_OFFSET`).
 3. Look up that address in the listing (with JSON: `jq` filter on `.addr`; with plaintext: text search).
 4. Troubleshoot: check hex bytes against reference, look for mis-sized instructions (Absolute vs Zero Page), floating labels from size discrepancies upstream, or raw operands that need symbolization.
 <a id="command-reference"></a>
@@ -426,6 +427,8 @@ xasm --pure-binary --Werror=unused-equ Game.asm
 xasm --pure-binary --compare=reference_prg.bin Game.asm
 make project-comment-audit PROJECT=<slug> FORMAT=text
 ```
+
+Use `$8000-$FFFF` as the raw-address audit range for NROM-256 projects.
 
 <a id="script-hygiene"></a>
 ## Auxiliary-Script Hygiene

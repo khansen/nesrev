@@ -14,7 +14,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 /**
- * NESrev - A disassembler for 16K NES PRG-ROMs
+ * NESrev - A disassembler for NROM PRG-ROMs
  *
  * @author Kent Hansen
  **/
@@ -29,6 +29,11 @@ public class NESrev {
     private static int UNDF=0, IMPL=1, IMMD=2, ZERO=3, ZERX=4, ZERY=5, ABSL=6, ABSX=7, ABSY=8, INDR=9, INDX=10, INDY=11, RELV=12;
     // the ROM contents
     private static int[] ROM;
+    // NROM PRG mapping. NROM-128 uses a 16 KB PRG mirrored at $C000;
+    // NROM-256 uses a 32 KB PRG mapped contiguously at $8000.
+    private static int prgSize = 0x4000;
+    private static int prgMask = 0x3FFF;
+    private static int cpuBase = 0xC000;
     // the status map
     private static int[] map;
     // the name of the ROM, extracted from the cmdline arg
@@ -125,7 +130,7 @@ public class NESrev {
                     return;
                 }
                 long pointerTableEnd = (long) offset + ((long) count * 2L);
-                if (offset < 0 || count < 0 || pointerTableEnd > 0x4000L) {
+                if (offset < 0 || count < 0 || pointerTableEnd > (long) prgSize) {
                     exitWithError("Error: " + kindLabel + " addresses are out of range at line " + lineNo + ".");
                 }
                 startsOut.add(offset);
@@ -150,6 +155,64 @@ public class NESrev {
             }
         }
         return flags;
+    }
+
+    private static void configurePrgMapping(long length) {
+        if (length == 0x4000L) {
+            prgSize = 0x4000;
+            prgMask = 0x3FFF;
+            cpuBase = 0xC000;
+        } else if (length == 0x8000L) {
+            prgSize = 0x8000;
+            prgMask = 0x7FFF;
+            cpuBase = 0x8000;
+        } else {
+            exitWithError("Error: ROM must be 16,384 or 32,768 bytes in size.");
+        }
+        analysisPassLimit = prgSize;
+    }
+
+    private static boolean inPrgOffset(int ofs) {
+        return ofs >= 0 && ofs < prgSize;
+    }
+
+    private static int normalizePrgOffset(int ofs) {
+        return ofs & prgMask;
+    }
+
+    private static int offsetToCpu(int ofs) {
+        return cpuBase + ofs;
+    }
+
+    private static int cpuToPrgOffset(int cpu) {
+        if (!isCpuRomAddress(cpu)) {
+            throw new ConfigException("CPU address $" + hex4(cpu)
+                + " is outside CPU ROM space $8000-$FFFF");
+        }
+        if (prgSize == 0x4000) {
+            return cpu & 0x3FFF;
+        }
+        return cpu - cpuBase;
+    }
+
+    private static boolean isCpuRomAddress(int cpu) {
+        return cpu >= 0x8000 && cpu <= 0xFFFF;
+    }
+
+    private static boolean isCanonicalCpuAddress(int cpu) {
+        return cpu >= cpuBase && cpu <= 0xFFFF;
+    }
+
+    private static String cpuRangeLabel() {
+        return "$" + hex4(cpuBase) + "-$FFFF";
+    }
+
+    private static String labelForOffset(int ofs) {
+        return "L" + hex4(offsetToCpu(ofs));
+    }
+
+    private static int readCpuAddress(int ofs) {
+        return ((ROM[ofs+1] & 0xFF) << 8) | (ROM[ofs] & 0xFF);
     }
 
     // instruction mnemonics
@@ -298,9 +361,7 @@ public class NESrev {
         if (f==null || !f.canRead()) {
             exitWithError("Error: Couldn't read " + args[0] + ".");
         }
-        if (f.length() != 0x4000) {
-            exitWithError("Error: ROM must be 16,384 bytes in size.");
-        }
+        configurePrgMapping(f.length());
         name = f.getName();
 
         // Reset lifted state in case a prior invocation populated it.
@@ -341,7 +402,7 @@ public class NESrev {
                             exitWithError("Error: " + ex.getMessage());
                             return;
                         }
-                        codeEntries.add(cpuAddr & 0x3FFF);
+                        codeEntries.add(cpuToPrgOffset(cpuAddr));
                     }
                 }
                 ++i;
@@ -404,12 +465,10 @@ public class NESrev {
         map = new int[ROM.length];
 
         // User-provided code-pointer table count, captured before appending the
-        // 6502 fixed-vector table at $3FFA. Only user-provided tables get a
+        // 6502 fixed-vector table at the PRG tail. Only user-provided tables get a
         // label at their start; vector targets are still labelled like any other
         // code-pointer target so the fixed-vector .DW entries stay symbolic.
-        userCodePointersCount = codePointersStart.size();
-        codePointersStart.add(0x3FFA);
-        codePointersCount.add(3);
+        appendFixedVectorTable();
 
         try {
             runAnalysisToFixedPoint();
@@ -449,6 +508,12 @@ public class NESrev {
                     + passNo + " passes.");
             }
         }
+    }
+
+    private static void appendFixedVectorTable() {
+        userCodePointersCount = codePointersStart.size();
+        codePointersStart.add(prgSize - 6);
+        codePointersCount.add(3);
     }
 
 /**
@@ -597,7 +662,7 @@ public class NESrev {
 
     public static void labelAndSeedKnownInlineRecords() {
         for (ResolvedRecord r : knownCallsites.values()) {
-            if (r.recordStart < 0x4000) {
+            if (inPrgOffset(r.recordStart)) {
                 map[r.recordStart] |= LABEL;
             }
             InlineField[] fields = r.entry.layout.fields;
@@ -607,7 +672,7 @@ public class NESrev {
                     continue;
                 }
                 int target = r.pointerTargets[k];
-                if (target < 0 || target >= 0x4000) {
+                if (!inPrgOffset(target)) {
                     continue;
                 }
                 if (field.pointerKind == PointerKind.CODE && blockedFromCode[target]) {
@@ -619,7 +684,7 @@ public class NESrev {
                     processCode(target);
                 }
             }
-            if (r.recordEnd < 0x4000) {
+            if (inPrgOffset(r.recordEnd)) {
                 if (blockedFromCode[r.recordEnd]) {
                     failBlockedConflict(r.recordEnd, "inline record continuation at callsite $"
                         + cpuLabel(r.callsite));
@@ -683,7 +748,7 @@ public class NESrev {
 **/
 
     public static ResolvedRecord resolveRecord(int callsite, InlineCallEntry entry) {
-        if (callsite + 3 > 0x4000) {
+        if (callsite + 3 > prgSize) {
             throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                 + " (callee $" + hex4(entry.calleeCpu) + "): JSR extends past end of ROM");
         }
@@ -711,34 +776,35 @@ public class NESrev {
             fieldStarts[k] = ofs;
             int fieldSize;
             if (field.kind == InlineField.COUNTED8) {
-                if (ofs >= 0x4000) {
+                if (ofs >= prgSize) {
                     throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                         + " (callee $" + hex4(entry.calleeCpu) + "): counted8 count byte past end of ROM");
                 }
                 int count = ROM[ofs];
                 fieldSize = 1 + count;
-                if (ofs + fieldSize > 0x4000) {
+                if (ofs + fieldSize > prgSize) {
                     throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                         + " (callee $" + hex4(entry.calleeCpu) + "): counted8 payload of " + count
                         + " bytes exceeds ROM");
                 }
             } else if (field.kind == InlineField.PTR16) {
-                if (ofs + 2 > 0x4000) {
+                if (ofs + 2 > prgSize) {
                     throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                         + " (callee $" + hex4(entry.calleeCpu) + "): ptr16 extends past end of ROM");
                 }
-                int encoded = ((ROM[ofs+1] & 0xFF) << 8) | (ROM[ofs] & 0xFF);
+                int encoded = readCpuAddress(ofs);
                 int adjustedTarget = (encoded + field.pointerAdjustment) & 0xFFFF;
-                if (adjustedTarget < 0xC000) {
+                if (!isCanonicalCpuAddress(adjustedTarget)) {
                     throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                         + " (callee $" + hex4(entry.calleeCpu) + "): adjusted pointer target $"
-                        + hex4(adjustedTarget) + " is outside canonical ROM space $C000-$FFFF");
+                        + hex4(adjustedTarget) + " is outside canonical ROM space "
+                        + cpuRangeLabel());
                 }
-                pointerTargets[k] = adjustedTarget & 0x3FFF;
+                pointerTargets[k] = cpuToPrgOffset(adjustedTarget);
                 fieldSize = 2;
             } else {
                 fieldSize = field.byteCount;
-                if (ofs + fieldSize > 0x4000) {
+                if (ofs + fieldSize > prgSize) {
                     throw new ConfigException("inline record at callsite $" + cpuLabel(callsite)
                         + " (callee $" + hex4(entry.calleeCpu) + "): field " + k + " extends past end of ROM");
                 }
@@ -751,7 +817,7 @@ public class NESrev {
     }
 
     private static String cpuLabel(int prgOffset) {
-        return hex4((prgOffset & 0x3FFF) | 0xC000);
+        return hex4(offsetToCpu(normalizePrgOffset(prgOffset)));
     }
 
     private static String hex2(int b) {
@@ -760,11 +826,11 @@ public class NESrev {
     }
 
 /**
-* Returns 14-bit address made up by the two bytes at offset ofs in the ROM.
+* Returns PRG offset made up by the two bytes at offset ofs in the ROM.
 **/
 
     public static int getAddress(int ofs) {
-        return ((ROM[ofs+1]<<8) + ROM[ofs]) & 0x3FFF;
+        return cpuToPrgOffset(readCpuAddress(ofs));
     }
 
 /**
@@ -794,8 +860,8 @@ public class NESrev {
     }
 
     private static void queueCodeTarget(int ofs) {
-        // Normalize to 14-bit PRG-ROM address space to avoid out-of-range map access.
-        codeWorklist.addLast(ofs & 0x3FFF);
+        // Normalize to PRG-ROM address space to avoid out-of-range map access.
+        codeWorklist.addLast(normalizePrgOffset(ofs));
     }
 
     private static void queueRelativeBranchTarget(int ofs) {
@@ -808,7 +874,7 @@ public class NESrev {
             dist = (dist ^ 0xFF) + 1;
             rawTarget = ofs+2-dist;
         }
-        int target = rawTarget & 0x3FFF;
+        int target = normalizePrgOffset(rawTarget);
         if (blockedFromCode[target]) {
             failBlockedConflict(target, "relative branch at $" + cpuLabel(ofs));
         }
@@ -863,7 +929,8 @@ public class NESrev {
                 }
                 ofs++;
                 if (jsrchk) {   // process jump table
-                    while ((ofs + 1 < map.length) && (map[ofs] == DATA) && (ROM[ofs+1] >= 0xC0)) {
+                    while ((ofs + 1 < map.length) && (map[ofs] == DATA)
+                        && isCanonicalROMAddress(ofs)) {
                         queueCodeTarget(getAddress(ofs));
                         map[ofs++] = CODE | PTR;
                         map[ofs++] = CODE | PTR;
@@ -886,26 +953,29 @@ public class NESrev {
 
             switch (op) {
                 case 0x20: {  // JSR
-                    int jsrTarget = getAddress(ofs+1);
-                    if (blockedFromCode[jsrTarget]) {
-                        failBlockedConflict(jsrTarget, "JSR at $" + cpuLabel(ofs));
-                    }
-                    queueCodeTarget(jsrTarget);
-                    InlineCallEntry inlineEntry = inlineCalls.findByCallee(jsrTarget);
-                    if (inlineEntry != null) {
-                        // Configured inline call: record the callsite if new
-                        // and terminate the linear path. The record bytes are
-                        // (or will be) blocked, and record_end is (or will be)
-                        // a separate code seed, so falling through here would
-                        // either decode garbage or violate the barrier.
-                        if (!knownCallsites.containsKey(ofs)) {
-                            newlyDiscoveredCallsites.add(ofs);
+                    boolean romTarget = isROMAddress(ofs+1);
+                    if (romTarget) {
+                        int jsrTarget = getAddress(ofs+1);
+                        if (blockedFromCode[jsrTarget]) {
+                            failBlockedConflict(jsrTarget, "JSR at $" + cpuLabel(ofs));
                         }
-                        done = true;
-                        break;
+                        queueCodeTarget(jsrTarget);
+                        InlineCallEntry inlineEntry = inlineCalls.findByCallee(jsrTarget);
+                        if (inlineEntry != null) {
+                            // Configured inline call: record the callsite if new
+                            // and terminate the linear path. The record bytes are
+                            // (or will be) blocked, and record_end is (or will be)
+                            // a separate code seed, so falling through here would
+                            // either decode garbage or violate the barrier.
+                            if (!knownCallsites.containsKey(ofs)) {
+                                newlyDiscoveredCallsites.add(ofs);
+                            }
+                            done = true;
+                            break;
+                        }
                     }
                     chkpt = ofs+3;
-                    jsrchk = true;
+                    jsrchk = romTarget;
                     break;
                 }
 
@@ -915,22 +985,27 @@ public class NESrev {
                     break;
 
                 case 0x4C: {  // JMP Abs
-                    int jmpTarget = getAddress(ofs+1);
-                    if (blockedFromCode[jmpTarget]) {
-                        failBlockedConflict(jmpTarget, "JMP at $" + cpuLabel(ofs));
+                    if (isROMAddress(ofs+1)) {
+                        int jmpTarget = getAddress(ofs+1);
+                        if (blockedFromCode[jmpTarget]) {
+                            failBlockedConflict(jmpTarget, "JMP at $" + cpuLabel(ofs));
+                        }
+                        queueCodeTarget(jmpTarget);
                     }
-                    queueCodeTarget(jmpTarget);
                     done = true;
                     break;
                 }
 
                 case 0x6C: {  // JMP Ind
                     if (isROMAddress(ofs+1)) {
-                        int indTarget = getAddress(getAddress(ofs+1));
-                        if (blockedFromCode[indTarget]) {
-                            failBlockedConflict(indTarget, "JMP indirect via $" + cpuLabel(ofs));
+                        int vectorOffset = getAddress(ofs+1);
+                        if ((vectorOffset + 1 < map.length) && isROMAddress(vectorOffset)) {
+                            int indTarget = getAddress(vectorOffset);
+                            if (blockedFromCode[indTarget]) {
+                                failBlockedConflict(indTarget, "JMP indirect via $" + cpuLabel(ofs));
+                            }
+                            queueCodeTarget(indTarget);
                         }
-                        queueCodeTarget(indTarget);
                     }
                     done = true;
                     break;
@@ -957,7 +1032,7 @@ public class NESrev {
             System.out.println("<BODY>");
             System.out.println("<FONT FACE=\"Courier\">");
         }
-        System.out.print(".ORG $C000");
+        System.out.print(".ORG $" + hex4(cpuBase));
         newLine();
         newLine();
         // Precompute output-time indices from the resolved analysis state.
@@ -978,25 +1053,25 @@ public class NESrev {
         }
         //
         int ofs = 0, op, amode;
-        while (ofs < 0x4000) {
+        while (ofs < prgSize) {
             if (isCode(ofs)) {
                 if (isPtr(ofs)) {   // print jump table
                     newLine();
                     if (isLabel(ofs)) {
-                        String tableLabel = "L"+hexLookup[(ofs>>8)+0xC0]+hexLookup[ofs&0xFF];
+                        String tableLabel = labelForOffset(ofs);
                         if (toHtml)
                             System.out.print("<A NAME="+tableLabel+">");
                         System.out.print(tableLabel+":");
                         newLine();
                     }
-                    while ((ofs < 0x4000) && isPtr(ofs)) {
+                    while ((ofs < prgSize) && isPtr(ofs)) {
                         System.out.print(".DW ");
                         // Only emit a label form when the pointer bytes are in the canonical
-                        // $C000-$FFFF range. Mirror-range bytes ($8000-$BFFF) would generate
-                        // an undefined label like L8000, breaking re-assembly.
+                        // project ROM range. For NROM-128, mirror-range bytes ($8000-$BFFF)
+                        // would generate an undefined label like L8000, breaking re-assembly.
                         // Match the canonical-output guard used in printAddress().
                         if (isCanonicalROMAddress(ofs) && isLabel(getAddress(ofs))) {
-                            printLabel("L"+hexLookup[ROM[ofs+1]]+hexLookup[ROM[ofs]]);
+                            printLabel(labelForOffset(getAddress(ofs)));
                         }
                         else {
                             System.out.print("$"+hexLookup[ROM[ofs+1]]+hexLookup[ROM[ofs]]);
@@ -1008,7 +1083,7 @@ public class NESrev {
                 }
                 else {
                     if (isLabel(ofs)) {
-                        String label = "L"+hexLookup[(ofs>>8)+0xC0]+hexLookup[ofs&0xFF];
+                        String label = labelForOffset(ofs);
                         if (toHtml)
                             System.out.print("<A NAME="+label+">");
                         System.out.print(label+":");
@@ -1080,7 +1155,7 @@ public class NESrev {
                         if (dist < 0x80) {
                             int addr = ofs+2+dist;
                             if (isLabel(addr)) {
-                                printLabel("L"+hexLookup[(addr>>8)+0xC0]+hexLookup[addr&0xFF]);
+                                printLabel(labelForOffset(addr));
                             }
                             else {
                                 System.out.print("$+"+(addr-ofs));
@@ -1090,7 +1165,7 @@ public class NESrev {
                             dist = (dist ^ 0xFF) + 1;
                             int addr = ofs+2-dist;
                             if (isLabel(addr)) {
-                                printLabel("L"+hexLookup[(addr>>8)+0xC0]+hexLookup[addr&0xFF]);
+                                printLabel(labelForOffset(addr));
                             }
                             else {
                                 System.out.print("$-"+(ofs-2-addr));
@@ -1113,7 +1188,7 @@ public class NESrev {
                     continue;
                 }
                 if (isLabel(ofs)) {
-                    String label = "L"+hexLookup[(ofs>>8)+0xC0]+hexLookup[ofs&0xFF];
+                    String label = labelForOffset(ofs);
                     if (toHtml)
                         System.out.println("<A NAME="+label+"><BR>");
                     System.out.print(label+":");
@@ -1124,7 +1199,7 @@ public class NESrev {
                 // Stop the .DB run at the next data-block boundary so that
                 // configured data ranges and resolved inline records remain
                 // distinct from adjacent generic data (spec §9.2).
-                while ((ofs < 0x4000) && (map[ofs] == DATA) && !dataBoundaries.contains(ofs)) {
+                while ((ofs < prgSize) && (map[ofs] == DATA) && !dataBoundaries.contains(ofs)) {
                     if ((i++ & 15) == 0) {
                         newLine();
                         System.out.print(".DB ");
@@ -1152,16 +1227,14 @@ public class NESrev {
 **/
 
     public static boolean isROMAddress(int ofs) {
-        // Analysis treats both CPU ROM windows as ROM. NROM-128 mirrors
-        // $8000-$BFFF onto the same 16 KB PRG bytes as $C000-$FFFF, and valid
-        // binaries may use the mirror window in operands such as JMP ($8000).
-        return ROM[ofs+1] >= 0x80;
+        return isCpuRomAddress(readCpuAddress(ofs));
     }
 
     private static boolean isCanonicalROMAddress(int ofs) {
-        // Output only labels canonical $C000-$FFFF operands. Emitting a label
-        // for a mirror operand would rewrite the high byte and break parity.
-        return ROM[ofs+1] >= 0xC0;
+        // Output only labels in the project's canonical CPU range. For
+        // NROM-128, emitting a label for a mirror operand would rewrite the
+        // high byte and break parity.
+        return isCanonicalCpuAddress(readCpuAddress(ofs));
     }
 
     public static void checkDataLabel(int ofs) {
@@ -1172,7 +1245,7 @@ public class NESrev {
                     if ((addr-i > 0) && isData(addr-i) && isLabel(addr-i)) {
                         return;
                     }
-                    if ((addr+i < 0x4000) && isData(addr+i) && isLabel(addr+i)) {
+                    if ((addr+i < prgSize) && isData(addr+i) && isLabel(addr+i)) {
                         return;
                     }
                 }
@@ -1186,7 +1259,7 @@ public class NESrev {
 **/
 
     public static void verifyDataLabels() {
-        for (int i=1; i<0x4000; i++) {
+        for (int i=1; i<prgSize; i++) {
             if (isCode(i-1) && isData(i)) {
                 map[i] |= LABEL;
             }
@@ -1205,7 +1278,7 @@ public class NESrev {
 
     public static void emitInlineRecord(ResolvedRecord r) {
         // Label the record start.
-        String startLabel = "L" + hexLookup[(r.recordStart>>8)+0xC0] + hexLookup[r.recordStart & 0xFF];
+        String startLabel = labelForOffset(r.recordStart);
         if (toHtml) {
             System.out.println("<A NAME=" + startLabel + "><BR>");
         }
@@ -1266,7 +1339,7 @@ public class NESrev {
         InlineField f = r.layout.fields[k];
         int target = r.pointerTargets[k];
         int adj = f.pointerAdjustment;
-        String labelStr = "L" + hexLookup[(target>>8)+0xC0] + hexLookup[target & 0xFF];
+        String labelStr = labelForOffset(target);
         System.out.print(".DW ");
         printLabel(labelStr);
         if (adj > 0) {
@@ -1306,7 +1379,7 @@ public class NESrev {
         for (int k = 0; k < dataRanges.entries.length; k++) {
             DataRangeEntry r = dataRanges.entries[k];
             map[r.start] |= LABEL;
-            if (r.end < 0x4000) {
+            if (r.end < prgSize) {
                 if (blockedFromCode[r.end]) {
                     failBlockedConflict(r.end, "data range continuation after $"
                         + hex4(r.startCpu) + "+" + r.length);
@@ -1384,13 +1457,13 @@ public class NESrev {
                 for (int i=1; i<16; i++) {
                     if (isLabel(a-i)) { // no problem, use label of address-i
                         a-=i;
-                        printLabel("L"+hexLookup[(a>>8)+0xC0]+hexLookup[a&0xFF]);
+                        printLabel(labelForOffset(a));
                         System.out.print("+"+i);
                         return;
                     }
                     else if (isLabel(a+i)) {    // no problem, use label of address+i
                         a+=i;
-                        printLabel("L"+hexLookup[(a>>8)+0xC0]+hexLookup[a&0xFF]);
+                        printLabel(labelForOffset(a));
                         System.out.print("-"+i);
                         return;
                     }
@@ -1427,7 +1500,7 @@ public class NESrev {
 **/
 
     public static boolean isCode(int ofs) {
-        if ((ofs < 0) || (ofs >= 0x4000))
+        if (!inPrgOffset(ofs))
             return false;
         else
             return ((map[ofs] & CODE) != 0);
@@ -1438,7 +1511,7 @@ public class NESrev {
 **/
 
     public static boolean isData(int ofs) {
-        if ((ofs < 0) || (ofs >= 0x4000))
+        if (!inPrgOffset(ofs))
             return false;
         else
             return ((map[ofs] & DATA) != 0);
@@ -1449,7 +1522,7 @@ public class NESrev {
 **/
 
     public static boolean isLabel(int ofs) {
-        if ((ofs < 0) || (ofs >= 0x4000))
+        if (!inPrgOffset(ofs))
             return false;
         else
             return ((map[ofs] & LABEL) != 0);
@@ -1460,7 +1533,7 @@ public class NESrev {
 **/
 
     public static boolean isPtr(int ofs) {
-        if ((ofs < 0) || (ofs >= 0x4000))
+        if (!inPrgOffset(ofs))
             return false;
         else
             return ((map[ofs] & PTR) != 0);
@@ -1471,7 +1544,7 @@ public class NESrev {
 **/
 
     public static boolean isInstr(int ofs) {
-        if ((ofs < 0) || (ofs >= 0x4000))
+        if (!inPrgOffset(ofs))
             return false;
         else
             return ((map[ofs] & INSTR) != 0);
@@ -1624,10 +1697,10 @@ public class NESrev {
 **/
 
     public static final class InlineCallEntry {
-        // PRG offset (callee & 0x3FFF), used for callsite lookups against
+        // PRG offset, used for callsite lookups against
         // getAddress() results from the JSR operand.
         public final int callee;
-        // Canonical $C000-$FFFF CPU address, kept for diagnostics.
+        // Canonical project CPU address, kept for diagnostics.
         public final int calleeCpu;
         public final InlineLayout layout;
         public final int sourceLine;
@@ -1705,7 +1778,7 @@ public class NESrev {
                         throw new ConfigException("inlinecalls: empty layout at line " + lineNo);
                     }
                     int calleeCpu = parseCpuAddress("inlinecalls", calleeStr, lineNo);
-                    int callee = calleeCpu & 0x3FFF;
+                    int callee = cpuToPrgOffset(calleeCpu);
                     if (!seen.add(callee)) {
                         throw new ConfigException("inlinecalls: duplicate callee $" + hex4(calleeCpu)
                             + " at line " + lineNo);
@@ -1729,7 +1802,7 @@ public class NESrev {
 
     public static final class DataRangeEntry {
         public final int start;        // PRG offset
-        public final int startCpu;     // CPU $C000-$FFFF
+        public final int startCpu;     // canonical project CPU address
         public final int length;
         public final int end;          // exclusive PRG offset
         public final int sourceLine;
@@ -1808,9 +1881,9 @@ public class NESrev {
                     if (length <= 0) {
                         throw new ConfigException("dataranges: length must be > 0 at line " + lineNo + ": " + lenStr);
                     }
-                    int start = startCpu & 0x3FFF;
+                    int start = cpuToPrgOffset(startCpu);
                     long endLong = (long) start + (long) length;
-                    if (endLong > 0x4000L) {
+                    if (endLong > (long) prgSize) {
                         throw new ConfigException("dataranges: range $" + hex4(startCpu) + "+" + length
                             + " exceeds ROM at line " + lineNo);
                     }
@@ -1878,8 +1951,9 @@ public class NESrev {
         } catch (NumberFormatException ex) {
             throw new ConfigException(fileLabel + ": bad CPU address at line " + lineNo + ": " + token);
         }
-        if (v < 0xC000 || v > 0xFFFF) {
-            throw new ConfigException(fileLabel + ": CPU address out of $C000-$FFFF range at line " + lineNo
+        if (!isCanonicalCpuAddress(v)) {
+            throw new ConfigException(fileLabel + ": CPU address out of "
+                + cpuRangeLabel() + " range at line " + lineNo
                 + ": $" + hex4(v));
         }
         return v;

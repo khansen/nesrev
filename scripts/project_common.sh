@@ -121,10 +121,31 @@ load_project_conf() {
   if [[ -z "${POINTER_TARGETS_FILE:-}" ]]; then
     POINTER_TARGETS_FILE="${DOC_ROOT}/inventory/pointer_targets.csv"
   fi
-  if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" ]]; then
-    XASM_AUDIT_ROM_RANGE='$C000-$FFFF'
-  fi
-  if [[ -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
-    XASM_COMPARE_CPU_BASE=""
+  if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" || -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
+    local rom_cpu_base='$C000'
+    if [[ -n "${REF_NES:-}" && -f "${REF_NES}" ]]; then
+      local magic prg_units flags7 header_bits
+      magic="$(od -An -tx1 -N4 "${REF_NES}" | tr -d ' \n')"
+      if [[ "${magic}" == "4e45531a" ]]; then
+        prg_units="$(od -An -tu1 -j4 -N1 "${REF_NES}" | tr -d ' ')"
+        flags7="$(od -An -tu1 -j7 -N1 "${REF_NES}" | tr -d ' ')"
+        header_bits=$(( (flags7 & 0x0C) >> 2 ))
+        if (( header_bits == 2 )); then
+          local nes2_byte9 nes2_prg_units_high
+          nes2_byte9="$(od -An -tu1 -j9 -N1 "${REF_NES}" | tr -d ' ')"
+          nes2_prg_units_high=$(( nes2_byte9 & 0x0F ))
+          prg_units=$(( prg_units | (nes2_prg_units_high << 8) ))
+        fi
+        if [[ "${prg_units}" == "2" ]]; then
+          rom_cpu_base='$8000'
+        fi
+      fi
+    fi
+    if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" ]]; then
+      XASM_AUDIT_ROM_RANGE="${rom_cpu_base}-\$FFFF"
+    fi
+    if [[ -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
+      XASM_COMPARE_CPU_BASE="${rom_cpu_base}"
+    fi
   fi
 }

@@ -3,6 +3,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.ArrayDeque;
 import java.util.HashSet;
@@ -14,12 +15,21 @@ public class NESrevTest {
 
     public static void main(String[] args) throws Exception {
         testGetAddressMasksTo14Bits();
+        testGetAddressMapsNrom256CpuAddresses();
+        testGetAddressRejectsNonRomCpuAddress();
+        testDisassembleUsesNrom256OrgBase();
+        testFixedVectorTableUsesNrom256PrgTail();
+        testNrom256RelativeBranchUses32KbAddressSpace();
         testVerifyDataLabelsMarksCodeToDataBoundary();
         testProcessCodeFollowsJsrTarget();
+        testProcessCodeSkipsNonRomJsrTarget();
         testProcessCodeQueuesRelativeBranchTarget();
         testProcessCodeWrapsBackwardRelativeBranchAtRomStart();
         testProcessCodeWrapsForwardRelativeBranchAtRomEnd();
+        testNrom256PostJsrJumpTableAccepts8000RangeTarget();
         testProcessCodeFollowsJmpIndirectThroughMirrorWindow();
+        testProcessCodeSkipsNonRomJmpTarget();
+        testProcessCodeSkipsNonRomJmpIndirectTarget();
         testPrintAddressAddsWideningSuffixForZeroPageAbsoluteOps();
         testPrintAddressKeepsMirrorOperandRaw();
         testCheckDataLabelAcceptsMirrorRomOperand();
@@ -109,6 +119,109 @@ public class NESrevTest {
         assertEquals("getAddress should return little-endian 14-bit value", 0x3234, addr);
     }
 
+    private static void testGetAddressMapsNrom256CpuAddresses() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000);
+        int[] rom = new int[0x8000];
+        rom[0] = 0x34;
+        rom[1] = 0x80;
+        rom[2] = 0xFE;
+        rom[3] = 0xFF;
+        setField("ROM", rom);
+
+        assertEquals("NROM-256 $8034 should map to PRG offset $0034",
+            0x0034, NESrev.getAddress(0));
+        assertEquals("NROM-256 $FFFE should map to PRG offset $7FFE",
+            0x7FFE, NESrev.getAddress(2));
+    }
+
+    private static void testGetAddressRejectsNonRomCpuAddress() throws Exception {
+        resetState();
+        int[] rom = new int[0x4000];
+        rom[0] = 0x34;
+        rom[1] = 0x12;
+        setField("ROM", rom);
+
+        try {
+            NESrev.getAddress(0);
+            testsRun++;
+            throw new AssertionError("expected ConfigException for non-ROM CPU address");
+        } catch (NESrev.ConfigException ex) {
+            testsRun++;
+            if (!ex.getMessage().contains("outside CPU ROM space")) {
+                throw new AssertionError("wrong message: " + ex.getMessage());
+            }
+        }
+    }
+
+    private static void testDisassembleUsesNrom256OrgBase() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        setField("ROM", rom);
+        setField("map", map);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(baos));
+        try {
+            NESrev.disassemble();
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        assertTrue("NROM-256 output should start at .ORG $8000",
+            baos.toString().startsWith(".ORG $8000"));
+    }
+
+    private static void testFixedVectorTableUsesNrom256PrgTail() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000);
+        invokePrivateNoArgs("appendFixedVectorTable");
+
+        @SuppressWarnings("unchecked")
+        java.util.ArrayList<Integer> starts =
+            (java.util.ArrayList<Integer>) getField("codePointersStart");
+        @SuppressWarnings("unchecked")
+        java.util.ArrayList<Integer> counts =
+            (java.util.ArrayList<Integer>) getField("codePointersCount");
+
+        assertEquals("NROM-256 vector table should be at PRG offset $7FFA",
+            0x7FFA, starts.get(starts.size() - 1).intValue());
+        assertEquals("fixed vector table should contain 3 pointers",
+            3, counts.get(counts.size() - 1).intValue());
+    }
+
+    private static void testNrom256RelativeBranchUses32KbAddressSpace() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // Start at $BFF0 (ofs 0x3FF0): BNE +127 targets $C071 -> ofs 0x4071.
+        // A stale 16 KB mask would incorrectly wrap this to ofs 0x0071.
+        rom[0x3FF0] = 0xD0;
+        rom[0x3FF1] = 0x7F;
+        rom[0x3FF2] = 0x60;      // fallthrough stop
+        rom[0x4071] = 0x60;      // non-wrapped target stop
+
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0x8000]);
+
+        NESrev.processCode(0x3FF0);
+        assertTrue("NROM-256 branch target should not wrap at 16 KB", NESrev.isCode(0x4071));
+        assertFalse("NROM-256 branch target should not use stale 16 KB mirror", NESrev.isCode(0x0071));
+    }
+
     private static void testVerifyDataLabelsMarksCodeToDataBoundary() throws Exception {
         resetState();
         int code = getIntField("CODE");
@@ -150,6 +263,31 @@ public class NESrevTest {
         assertTrue("JSR target should be code", NESrev.isCode(0x0010));
         assertTrue("JSR target should be instruction start", NESrev.isInstr(0x0010));
         assertTrue("mapped entry should become a label", NESrev.isLabel(0x0000));
+    }
+
+    private static void testProcessCodeSkipsNonRomJsrTarget() throws Exception {
+        resetState();
+        int data = getIntField("DATA");
+        int[] rom = new int[0x4000];
+        int[] map = new int[0x4000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // $C000: JSR $6000 ; RTS. The RAM/PRG-RAM target is not traceable,
+        // but it must not abort analysis or seed masked PRG offset $2000.
+        rom[0x0000] = 0x20;
+        rom[0x0001] = 0x00;
+        rom[0x0002] = 0x60;
+        rom[0x0003] = 0x60;
+        rom[0x2000] = 0x60;
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x0000);
+        assertTrue("JSR opcode should still be code", NESrev.isCode(0x0000));
+        assertTrue("fallthrough after non-ROM JSR should still be code", NESrev.isCode(0x0003));
+        assertFalse("non-ROM JSR target should not seed masked PRG offset", NESrev.isCode(0x2000));
     }
 
     private static void testProcessCodeQueuesRelativeBranchTarget() throws Exception {
@@ -216,6 +354,36 @@ public class NESrevTest {
         assertTrue("forward branch near end should wrap to 14-bit target", NESrev.isCode(0x0071));
     }
 
+    private static void testNrom256PostJsrJumpTableAccepts8000RangeTarget() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // $8000: JSR $8010, followed by an inline jump-table entry to $8022.
+        // The low byte $22 is an undefined opcode, which triggers NESrev's
+        // post-JSR jump-table scan.
+        rom[0x0000] = 0x20;
+        rom[0x0001] = 0x10;
+        rom[0x0002] = 0x80;
+        rom[0x0003] = 0x22;
+        rom[0x0004] = 0x80;
+        rom[0x0010] = 0x60;
+        rom[0x0022] = 0x60;
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x0000);
+        assertTrue("NROM-256 $8000-range jump-table low byte should be pointer", NESrev.isPtr(0x0003));
+        assertTrue("NROM-256 $8000-range jump-table high byte should be pointer", NESrev.isPtr(0x0004));
+        assertTrue("NROM-256 $8000-range jump-table target should be traced", NESrev.isCode(0x0022));
+        assertTrue("NROM-256 $8000-range jump-table target should be labeled", NESrev.isLabel(0x0022));
+    }
+
     private static void testProcessCodeFollowsJmpIndirectThroughMirrorWindow() throws Exception {
         resetState();
         int data = getIntField("DATA");
@@ -238,6 +406,57 @@ public class NESrevTest {
         NESrev.processCode(0x0000);
         assertTrue("JMP indirect mirror operand should trace target", NESrev.isCode(0x0010));
         assertTrue("JMP indirect mirror target should be instruction start", NESrev.isInstr(0x0010));
+    }
+
+    private static void testProcessCodeSkipsNonRomJmpTarget() throws Exception {
+        resetState();
+        int data = getIntField("DATA");
+        int[] rom = new int[0x4000];
+        int[] map = new int[0x4000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // $C000: JMP $0100. The target is outside PRG-ROM, so analysis should
+        // end the path without converting $0100 into PRG offset $0100.
+        rom[0x0000] = 0x4C;
+        rom[0x0001] = 0x00;
+        rom[0x0002] = 0x01;
+        rom[0x0003] = 0x60;
+        rom[0x0100] = 0x60;
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x0000);
+        assertTrue("JMP opcode should still be code", NESrev.isCode(0x0000));
+        assertFalse("non-ROM JMP target should not seed masked PRG offset", NESrev.isCode(0x0100));
+        assertFalse("absolute JMP has no fallthrough", NESrev.isCode(0x0003));
+    }
+
+    private static void testProcessCodeSkipsNonRomJmpIndirectTarget() throws Exception {
+        resetState();
+        int data = getIntField("DATA");
+        int[] rom = new int[0x4000];
+        int[] map = new int[0x4000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // $C000: JMP ($8004), with the vector bytes holding $0100. The vector
+        // location is a valid NROM-128 mirror address, but the target is not
+        // PRG-ROM and should be ignored instead of aborting analysis.
+        rom[0x0000] = 0x6C;
+        rom[0x0001] = 0x04;
+        rom[0x0002] = 0x80;
+        rom[0x0004] = 0x00;
+        rom[0x0005] = 0x01;
+        rom[0x0100] = 0x60;
+
+        setField("ROM", rom);
+        setField("map", map);
+
+        NESrev.processCode(0x0000);
+        assertTrue("JMP indirect opcode should still be code", NESrev.isCode(0x0000));
+        assertFalse("non-ROM indirect JMP target should not seed masked PRG offset", NESrev.isCode(0x0100));
     }
 
     private static void testPrintAddressAddsWideningSuffixForZeroPageAbsoluteOps() throws Exception {
@@ -347,6 +566,11 @@ public class NESrevTest {
             }
             if (len >= 3) {
                 rom[2] = 0x00;
+            }
+            if ((op == 0x20) || (op == 0x4C)) {
+                rom[1] = 0x10;
+                rom[2] = 0xC0;
+                rom[0x0010] = 0x60;
             }
             // Ensure we can stop linearly when needed right after this opcode.
             if (len < rom.length) {
@@ -1961,6 +2185,9 @@ public class NESrevTest {
 
     private static void resetState() throws Exception {
         setField("toHtml", false);
+        setField("prgSize", 0x4000);
+        setField("prgMask", 0x3FFF);
+        setField("cpuBase", 0xC000);
         setField("ROM", new int[0x4000]);
         int data = getIntField("DATA");
         int[] map = new int[0x4000];
@@ -1982,6 +2209,18 @@ public class NESrevTest {
         setField("dataPointersCount", new java.util.ArrayList<Integer>());
         setField("codeEntries", new java.util.ArrayList<Integer>());
         setField("userCodePointersCount", 0);
+    }
+
+    private static void configurePrgMapping(long length) throws Exception {
+        Method m = NESrev.class.getDeclaredMethod("configurePrgMapping", long.class);
+        m.setAccessible(true);
+        m.invoke(null, length);
+    }
+
+    private static void invokePrivateNoArgs(String name) throws Exception {
+        Method m = NESrev.class.getDeclaredMethod(name);
+        m.setAccessible(true);
+        m.invoke(null);
     }
 
     private static void setField(String name, Object value) throws Exception {
