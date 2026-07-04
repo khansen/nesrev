@@ -43,7 +43,7 @@ cat > "$root/README.md" <<DOC
 > Makefile). They will fail with "No rule to make target" or
 > "no Makefile found" if invoked from inside \`projects/${slug}/\`.
 
-1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM, 16 KB PRG).
+1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM, 16 or 32 KB PRG).
 2. \`make project-regenerate-asm PROJECT=${slug}\` — produces \`asm/${slug}.asm\` with LXXXX placeholders.
 3. Audit hidden-code and indirect-dispatch candidates. Record either
    \`NESREV_RECOVERY_STATUS="none"\` or \`"configured"\` in
@@ -83,8 +83,8 @@ OUT_BIN="projects/${slug}/build/${slug}.o"
 DOC_ROOT="projects/${slug}/docs/reverse_engineering"
 SYSTEMS_DOC="projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
 WARN_BASELINE_FILE="projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt"
-XASM_AUDIT_ROM_RANGE="\\\$C000-\\\$FFFF"
-XASM_COMPARE_CPU_BASE="\\\$C000"
+XASM_AUDIT_ROM_RANGE=""
+XASM_COMPARE_CPU_BASE=""
 
 # New clean-room projects opt into strict semantic-claims maturity. The
 # SEMANTIC_CLAIMS.md ledger may stay sparse until gold closeout; the checker

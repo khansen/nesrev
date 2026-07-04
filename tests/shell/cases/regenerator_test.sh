@@ -115,16 +115,49 @@ test_rejects_wrong_mapper() {
   assert_match "mapper 1" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
 }
 
-test_rejects_wrong_prg_size() {
-  local slug; slug="$(unique_slug prg)"
+test_accepts_32kb_prg_rom() {
+  local slug; slug="$(unique_slug prg32)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
   make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --prg 2
   scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
 
   local rc; rc=$(_run_regen "${slug}")
-  assert_eq "${rc}" "1" "regenerator should reject PRG != 16 KB"
-  assert_match "PRG units=2" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
+  assert_eq "${rc}" "0" "regenerator should accept NROM-256 PRG=32 KB"
+  [[ -s "projects/${slug}/asm/${slug}.asm" ]] \
+    || fail "NROM-256 ROM must produce a non-empty asm file"
+  assert_match ".ORG \\\$8000" "$(head -5 "projects/${slug}/asm/${slug}.asm")"
+}
+
+test_project_common_derives_32kb_cpu_base() {
+  local slug; slug="$(unique_slug prg32_base)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --prg 2
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local settings
+  settings="$(bash -c '
+set -euo pipefail
+source scripts/project_common.sh
+load_project_conf "$1"
+printf "%s\n%s\n" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}"
+' _ "${slug}")"
+
+  assert_match '\$8000-\$FFFF' "${settings}"
+  assert_match '\$8000' "${settings}"
+}
+
+test_rejects_unsupported_prg_size() {
+  local slug; slug="$(unique_slug prg_bad)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --prg 3
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject PRG sizes outside 16/32 KB"
+  assert_match "PRG units=3" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
 }
 
 test_rejects_wrong_chr_size() {

@@ -93,15 +93,15 @@ fi
 # Supported ROM matrix (must match agent_playbook/NEW_PROJECT.md#rom-support-matrix):
 #   iNES 1.0 or NES 2.0 headers whose decoded fields stay in this matrix
 #   mapper 0 (NROM)
-#   PRG = 16 KB (1 unit)
+#   PRG = 16 KB (1 unit) or 32 KB (2 units)
 #   CHR = 0 or 8 KB (0 or 1 unit)
 if [[ "${MAPPER_NUMBER}" != "0" ]]; then
   echo "error: ${REF_NES} uses mapper ${MAPPER_NUMBER}; nesrev currently supports mapper 0 (NROM) only." >&2
   echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
   exit 1
 fi
-if [[ "${PRG_UNITS}" != "1" ]]; then
-  echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports PRG=16 KB (1 unit) only." >&2
+if [[ "${PRG_UNITS}" != "1" && "${PRG_UNITS}" != "2" ]]; then
+  echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports PRG=16 KB or 32 KB (1 or 2 units) only." >&2
   echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
   exit 1
 fi
@@ -169,10 +169,10 @@ mv "${OUT_ASM}" "${ASM_FILE}"
 
 echo "asm regenerated: ${ASM_FILE}"
 if [[ -n "${CODEPOINTERS_CSV}" ]]; then
-  echo "code pointer config: ${CODEPOINTERS_CSV} (raw 16 KB PRG offsets)"
+  echo "code pointer config: ${CODEPOINTERS_CSV} (raw PRG offsets)"
 fi
 if [[ -n "${DATAPOINTERS_CSV}" ]]; then
-  echo "data pointer config: ${DATAPOINTERS_CSV} (raw 16 KB PRG offsets)"
+  echo "data pointer config: ${DATAPOINTERS_CSV} (raw PRG offsets)"
 fi
 if [[ -n "${CODEENTRIES_TXT}" ]]; then
   echo "code entries config: ${CODEENTRIES_TXT} (CPU addresses)"
