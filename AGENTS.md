@@ -436,7 +436,7 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - <a id="optional-deep-confidence-passes"></a>**Optional deep-confidence passes** — [agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes](agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes).
 - <a id="command-template"></a>**Command template (general)** — [TOOLING.md#command-reference](agent_playbook/TOOLING.md#command-reference).
 - **Pre-close relocation safety gate** — [PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
-- **Runtime evidence workflow** — [PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
+- **Runtime evidence workflow (purpose: improve the asm's semantic names; feed findings back by renaming the owning symbol, not by comment)** — [PASS_WORKFLOW.md#runtime-evidence-workflow](agent_playbook/PASS_WORKFLOW.md#runtime-evidence-workflow).
 - **Script quality gate** — [TOOLING.md#script-hygiene](agent_playbook/TOOLING.md#script-hygiene).
 - **Per-project trace capture runner** — [TOOLING.md#script-hygiene](agent_playbook/TOOLING.md#script-hygiene).
 - **Headless / GUI constraints for runtime tracing** — [TOOLING.md#script-hygiene](agent_playbook/TOOLING.md#script-hygiene).
