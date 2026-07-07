@@ -1,6 +1,6 @@
 # QUALITY_REVIEW Playbook
 
-This playbook is the canonical home for post-pass and project-level review procedures — readability self-audit, gold-standard assessment, KPI interpretation, the expanded reviewer simulation, stale-placeholder / symbol-family / residual-magic-number / global-label audits, the project-wide pointer-byte consolidation audit, optional deep-confidence passes, and static-versus-runtime gap classification. The root `AGENTS.md` keeps the short Reviewer Simulation Checklist; this file provides the thorough final-tail and project-review procedure.
+This playbook is the canonical home for post-pass and project-level review procedures — readability self-audit, gold-standard assessment, KPI interpretation, the expanded reviewer simulation, stale-placeholder / symbol-family / residual-magic-number / global-label audits, the static readability debt audit, the project-wide pointer-byte consolidation audit, optional deep-confidence passes, and static-versus-runtime gap classification. The root `AGENTS.md` keeps the short Reviewer Simulation Checklist; this file provides the thorough final-tail and project-review procedure.
 
 ## Ownership
 
@@ -13,6 +13,7 @@ This playbook owns post-pass and project-level review procedures:
 - stale placeholder/value/address-name audits
 - incomplete symbol-family audits
 - residual magic-number and hardcoded-offset review
+- static readability debt audit before any static-exhaustion claim
 - project-wide pointer-byte consolidation audit
 - global-label documentation/localization review
 - optional deep-confidence passes
@@ -184,6 +185,38 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
     and jump targets, and compare with the procedure/global-label KPI reports.
     If no mature-project headers result, the scorecard must name what was
     reviewed and why names/callers were sufficient.
+21. Before any claim that static work is "done" or exhausted, run the
+    [#static-readability-debt-audit](#static-readability-debt-audit) and record
+    the disposition in the scorecard. A green gate set without this audit is a
+    mechanical-maturity statement only, not a static-quality conclusion.
+
+<a id="static-readability-debt-audit"></a>
+## Static Readability Debt Audit
+
+Mandatory before static-exhaustion or gold-static claims. Record one
+disposition per candidate class in the scorecard or `WORKING_NOTES.md`:
+**fixed**, **queued static pass**, **deferred** with evidence gap, or
+**runtime-gated** with trace question. Unexamined candidates forbid "static
+done."
+
+Run `project-pass-prep` / `project-next-pass`, then targeted scans:
+
+```sh
+source scripts/project_common.sh && load_project_conf <slug>
+
+rg -n "^\\s*\\.DB\\b([^,]*,){12,}|\\b(Packed|Blob|StreamData|ProgramData|MacroData|MetaspriteRecord|FrameData|RawData)\\b" "${ASM_FILE}" "${DOC_ROOT}"
+rg -n "\\b[A-Za-z_][A-Za-z0-9_]*\\+(\\$[0-9A-Fa-f]+|[0-9]+)\\b|\\.DB\\b.*[<>][A-Za-z_][A-Za-z0-9_]*" "${ASM_FILE}"
+rg -n "(LDX|LDY|CPX|CPY) #(\\$[0-9A-Fa-f]{1,2}|[0-9]+)\\b" "${ASM_FILE}"
+rg -n "\\b[A-Za-z_][A-Za-z0-9_]*(Record|Frame|Entry|Variant)[0-9]+\\b" "${ASM_FILE}" "${DOC_ROOT}"
+```
+
+Read owners before editing. Decisions: reflow proven opaque blobs/long rows per
+[DATA_RECOVERY.md#data-blob-readability](DATA_RECOVERY.md#data-blob-readability);
+replace real `Label+N`, count, and bound sites with labels/fields/label math;
+encode parity off-by-one behavior symbolically with a note; prefer owner-scoped
+record/frame names unless the ordinal is real; compare common subsystem
+vocabulary with prior projects.
+
 <a id="semantic-claims"></a>
 ## Semantic Claims Ledger
 
@@ -353,8 +386,10 @@ work exhausted, run the deeper audits below in this order:
    [DOCUMENTATION.md#dx-systems-scope](DOCUMENTATION.md#dx-systems-scope);
    otherwise revert it and route the facts to the appropriate current-state
    artifact.
+7. **Static readability debt audit** —
+   [#static-readability-debt-audit](#static-readability-debt-audit).
 
-Only after all six turn up nothing actionable should the agent
+Only after all seven turn up nothing actionable should the agent
 conclude that static work is exhausted and runtime evidence
 ([#static-vs-runtime-gaps](#static-vs-runtime-gaps)) is the next
 move.
