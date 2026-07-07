@@ -108,11 +108,9 @@ code review to the user. Fix or explicitly defer each issue found:
   than canonical docs
 
 If generated pass artifacts report only generic `doc_closure` or no strong
-corridor, do not stop there. Run this reviewer simulation against the project:
-remaining `WORKING_NOTES.md`, optional support docs, long data rows,
-global-code-label reports, address/value-coded names, raw-offset searches, and
-obvious prior-project analogue gaps. Only then conclude that static work is
-exhausted.
+corridor, run this project-wide reviewer simulation and the
+[static readability debt audit](agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit)
+before declaring static exhaustion.
 
 
 <a id="prior-project-reuse-gate"></a>
@@ -434,6 +432,7 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - <a id="review-quality-bar"></a>**Review quality bar** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).
 - <a id="success-evaluation-criteria"></a>**Success evaluation criteria** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).
 - <a id="readability-self-audit"></a>**Readability self-audit** — [agent_playbook/QUALITY_REVIEW.md#readability-self-audit](agent_playbook/QUALITY_REVIEW.md#readability-self-audit).
+- <a id="static-readability-debt-audit"></a>**Static debt audit** — [agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit](agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit).
 - <a id="optional-deep-confidence-passes"></a>**Optional deep-confidence passes** — [agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes](agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes).
 - <a id="command-template"></a>**Command template (general)** — [TOOLING.md#command-reference](agent_playbook/TOOLING.md#command-reference).
 - **Pre-close relocation safety gate** — [PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).

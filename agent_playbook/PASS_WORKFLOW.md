@@ -149,12 +149,11 @@ Keep durable rationale in `WORKING_NOTES.md` too, not chat.
 <a id="low-yield-checkpoint"></a>
 ## Low-Yield Strategy Checkpoint
 
-If recent passes are low-yield — single-anchor closes, churny micro-edits,
-or repeated dead-end raw-RAM triage — stop before continuing. Reassess:
-name a broader corridor, switch to a readability-positive mechanical sweep
-(the [#raw-ram-queue](#raw-ram-queue) strategy-switch rule), or record the
-better plan in `WORKING_NOTES.md`. Do not keep accepting the first
-generated evidence bucket pass after pass.
+If recent passes are low-yield, stop. Pick a broader corridor, switch to a
+readability sweep, run the
+[static debt audit](QUALITY_REVIEW.md#static-readability-debt-audit), or record
+the plan in `WORKING_NOTES.md`. Do not accept generated buckets repeatedly; static
+exhaustion requires audit dispositions.
 <a id="current-pass-plan"></a>
 ## Current Pass Plan
 
@@ -625,7 +624,7 @@ Every batch must conclude with:
      by earlier closeout steps and by
      [QUALITY_REVIEW.md](QUALITY_REVIEW.md). Full project maturity is
      the conjunction of all preceding closeout gates, this hard-gate
-     subset, and the QUALITY_REVIEW maturity assessment. The
+     subset, the static debt audit, and the QUALITY_REVIEW maturity assessment. The
      full combined gate (everything CI runs) is
      `make project-ci PROJECT=<slug>` — use it before merging or
      when a project-maturity exit + docs/process sequence is needed
