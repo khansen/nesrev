@@ -208,6 +208,9 @@ rg -n "^\\s*\\.DB\\b([^,]*,){12,}|\\b(Packed|Blob|StreamData|ProgramData|MacroDa
 rg -n "\\b[A-Za-z_][A-Za-z0-9_]*\\+(\\$[0-9A-Fa-f]+|[0-9]+)\\b|\\.DB\\b.*[<>][A-Za-z_][A-Za-z0-9_]*" "${ASM_FILE}"
 rg -n "(LDX|LDY|CPX|CPY) #(\\$[0-9A-Fa-f]{1,2}|[0-9]+)\\b" "${ASM_FILE}"
 rg -n "\\b[A-Za-z_][A-Za-z0-9_]*(Record|Frame|Entry|Variant)[0-9]+\\b" "${ASM_FILE}" "${DOC_ROOT}"
+rg -n "\\bNOP\\b|^\\s*\\.DB\\b.*\\$EA\\b" "${ASM_FILE}"
+rg -n "^\\s*\\.DB\\s+\\$(FF|00)(,\\$(FF|00)){2,}\\b" "${ASM_FILE}"
+rg -n "(AND|ORA|EOR|BIT|CMP) #(\\$[0-9A-Fa-f]{2}|%[01]{8})\\b|\\b[A-Za-z_][A-Za-z0-9_]*(Flags|Flag|Mask|Bits|State)\\b" "${ASM_FILE}"
 ```
 
 Read owners before editing. Decisions: reflow proven opaque blobs/long rows per
@@ -216,6 +219,22 @@ replace real `Label+N`, count, and bound sites with labels/fields/label math;
 encode parity off-by-one behavior symbolically with a note; prefer owner-scoped
 record/frame names unless the ordinal is real; compare common subsystem
 vocabulary with prior projects.
+
+Required dispositions for this audit:
+
+- **NOP and padding representation:** apply
+  [ASM_STYLE.md#nop-and-padding-representation](ASM_STYLE.md#nop-and-padding-representation)
+  to every NOP, executable `$EA` byte, jump-over-padding pattern, and
+  terminal/inter-table fill island surfaced by the scans.
+- **Packed flag families:** when one bit of a packed RAM/ZP/hardware/control
+  byte is symbolized, audit the whole touched family. Use binary literals for
+  bit constants and masks, introduce composite masks for repeated groups, and
+  replace nearby raw bit tests in the same corridor.
+- **Tail calls, forced branches, and redundant sequences:** scan for
+  `JSR`/optional labels/`RTS`, compact unconditional branches, identity ALU
+  ops (`ORA #0`, `EOR #0`, `AND #$FF`), and overlong transfer arithmetic.
+  Annotate parity-preserved cases per
+  [ASM_STYLE.md#tail-call-annotations](ASM_STYLE.md#tail-call-annotations).
 
 <a id="semantic-claims"></a>
 ## Semantic Claims Ledger
