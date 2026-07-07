@@ -224,7 +224,10 @@ Choose numeric base by semantics, not habit.
   flag/state bytes, joypad masks, PPU/APU shadow masks, and hardware status
   bits. When one bit in a packed family is named, audit the whole touched
   family and introduce composite masks for repeated groups rather than
-  leaving nearby raw `#$NN` bit tests.
+  leaving nearby raw `#$NN` bit tests. Clear masks must be derived from the
+  positive bit or mask constant (`~FOO_BIT` or `~FOO_MASK`) instead of
+  restating the inverse literal. For compound clear masks, introduce the
+  positive `*_MASK` first, then define the clear mask from it.
 - When a literal has a stable semantic role and appears more than once, prefer introducing a named constant over relying on either raw decimal or raw hex.
 - Do not churn literals mechanically; only rewrite base when it clearly improves readability.
 <a id="hardware-constants"></a>
@@ -300,21 +303,21 @@ When a pass touches hardware-register logic, symbolize the touched register oper
 | `PAD_STROBE_OFF` | %00000000 | Write to $4016 to release |
 | `PAD_SERIAL_BIT_COUNT` | 8 | Joypad shift register pulses only; leave project-local name if used in broader serial protocol context |
 
-Compound joypad masks (e.g. `PAD_BTN_A_B`, `PAD_DIR_UP_DOWN_MASK`, `PAD_BTN_START_SELECT_MASK`) use `PAD_BTN_` for face-button combos and `PAD_DIR_` for d-pad combos. Clear-masks use suffix `_CLEAR_MASK` (e.g. `PAD_BTN_CLEAR_A_MASK`).
+Compound joypad masks (e.g. `PAD_BTN_A_B`, `PAD_DIR_UP_DOWN_MASK`, `PAD_BTN_START_SELECT_MASK`) use `PAD_BTN_` for face-button combos and `PAD_DIR_` for d-pad combos. Clear-masks use suffix `_CLEAR_MASK` (e.g. `PAD_BTN_CLEAR_A_MASK`) and are defined from the bit/mask they clear, not as inverse literals.
 
 **PPUCTRL ($2000) bits:**
 
 | Constant | Value | Notes |
 |---|---|---|
 | `PPUCTRL_NMI_ENABLE` | %10000000 | |
-| `PPUCTRL_NMI_DISABLE_MASK` | %01111111 | AND clear-mask |
+| `PPUCTRL_NMI_DISABLE_MASK` | `~PPUCTRL_NMI_ENABLE` | AND clear-mask |
 | `PPUCTRL_NAMETABLE_2800` | %00000010 | Base nametable bit for $2800 |
-| `PPUCTRL_NAMETABLE_2800_CLEAR_MASK` | %11111101 | AND clear-mask |
+| `PPUCTRL_NAMETABLE_2800_CLEAR_MASK` | `~PPUCTRL_NAMETABLE_2800` | AND clear-mask |
 | `PPUCTRL_SPRITE_8X16` | %00100000 | 8x16 sprite size (clear = 8x8) |
 | `PPUCTRL_BG_PT_1000` | %00010000 | Background pattern table at $1000 |
 | `PPUCTRL_SPRITE_PT_1000` | %00001000 | Sprite pattern table at $1000 |
 | `PPUCTRL_VRAM_INC_32` | %00000100 | Column-mode increment |
-| `PPUCTRL_VRAM_INC_CLEAR_MASK` | %11111011 | AND clear-mask to revert to increment-1 |
+| `PPUCTRL_VRAM_INC_CLEAR_MASK` | `~PPUCTRL_VRAM_INC_32` | AND clear-mask to revert to increment-1 |
 
 Composite PPUCTRL init values (e.g. `PPUCTRL_NMI_ENABLE|PPUCTRL_BG_PT_1000`) are project-specific and may use project-local names.
 
