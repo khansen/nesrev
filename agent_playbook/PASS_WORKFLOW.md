@@ -455,7 +455,27 @@ Framing rules:
   pass's `renames.csv` rows; it does not detect generic placeholder stubs
   that were never tied to a renamed symbol. Check those manually as part of
   corridor closeout.
+<a id="runtime-evidence-workflow"></a>
 ### Runtime evidence workflow
+
+**Purpose.** Runtime analysis exists to improve the semantic names in the asm —
+not to accumulate traces for their own sake. A capture is not finished when the
+log is analyzed; it is finished when the confirmed finding is written back into
+the disassembly. The trace/identity docs hold the evidence and confidence; the
+asm must carry the conclusion. **Resolved identities or semantic conclusions
+left docs-only are unfinished.**
+
+**Feed the finding back by renaming, not by confidence comments.** Prefer
+renaming the owning symbol to carry the identity (`UpdateWalkThrowActorState` ->
+`UpdateKnifeThrowerState`, plus its `ACTOR_STATE_*` constant) over adding a
+`; trace-confirmed` suffix comment. The rename ledger and trace docs carry
+confidence and evidence; the asm should carry the semantic name.
+Rename the actor's own handler/constant and leave shared machinery
+(`PlayerActionContact*`, mechanism/system helpers) alone. Use a comment only
+where there is no ownable symbol to rename (e.g. a boss name on a shared
+`FLOOR_BOSS_ACTOR_STATE_*` constant). Keep medium-confidence or
+behavior-specific detail in the trace docs.
+
 When static analysis plateaus, create trace plan/runbook/scenario docs under
 `docs/reverse_engineering/` with producers/consumers, signal, and promotion
 criteria. If tooling is missing, adapt

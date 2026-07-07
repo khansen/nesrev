@@ -109,7 +109,7 @@ ROOT_WORD_CEILING = 6000
 ROUTE_BUDGETS = {
     "default": (2550, 18100),
     "data-recovery": (2400, 18250),
-    "new-project": (3550, 25600),
+    "new-project": (3550, 25700),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
