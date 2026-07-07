@@ -11,6 +11,7 @@ This playbook owns assembly-source style and symbolization:
 - placeholder-name policy
 - relocatability rules
 - literal-base readability
+- NOP, padding, and parity-preserved oddity representation
 - hardware, OAM, joypad, PPU, and APU constants
 - structured field offsets and overlays
 - fixed-point naming
@@ -217,7 +218,13 @@ Choose numeric base by semantics, not habit.
   cursors. Do not rewrite when the same byte is clearer as a mask, token,
   sentinel, tile/control value, or range discriminator.
 - Prefer hexadecimal for machine-oriented values such as:
-  bitmasks, hardware control values, tile ids, packed fields, pointer math, sentinel bytes, and encoded stream tokens.
+  hardware control values, tile ids, packed non-bit tokens, pointer math,
+  sentinel bytes, and encoded stream tokens.
+- Prefer binary for bit flags and bit masks, including project-local packed
+  flag/state bytes, joypad masks, PPU/APU shadow masks, and hardware status
+  bits. When one bit in a packed family is named, audit the whole touched
+  family and introduce composite masks for repeated groups rather than
+  leaving nearby raw `#$NN` bit tests.
 - When a literal has a stable semantic role and appears more than once, prefer introducing a named constant over relying on either raw decimal or raw hex.
 - Do not churn literals mechanically; only rewrite base when it clearly improves readability.
 <a id="hardware-constants"></a>
@@ -542,3 +549,34 @@ The bug-comment requirement for parity-preserved oddities lives at
 [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);
 the symbolic-expression encoding for parity-preserved buggy values lives
 at [DATA_RECOVERY.md#hardcoded-length-elimination](DATA_RECOVERY.md#hardcoded-length-elimination).
+
+<a id="nop-and-padding-representation"></a>
+### NOP and Padding Representation
+
+Every `NOP` in an executable region must be classified when the surrounding
+routine is audited or before any static-exhaustion claim:
+
+- **timing pad** — needed or plausibly needed for scanline, split-scroll,
+  controller, audio, or other cycle-sensitive behavior;
+- **path pad** — equalizes or preserves a parity-sensitive control-flow path;
+- **unreachable padding** — intentionally skipped bytes retained for ROM
+  identity;
+- **redundant instruction** — removable only in non-parity work.
+
+Render executable `$EA` bytes as `NOP`, not `.DB $EA`, unless the bytes are
+truly data, an overlapping encoding, or another format consumer reads them as
+bytes. If a `JMP` or branch exists only to skip preserved padding, comment the
+transfer instruction so the reader understands why the apparently redundant
+control flow remains:
+
+```asm
+JMP @@next          ; skips preserved padding bytes.
+    NOP            ; unreachable padding bytes preserved for parity.
+    NOP
+@@next:
+```
+
+Terminal or inter-table fill bytes (`$FF`, `$00`, etc.) should be commented as
+unused padding only when the adjacent stream/table format proves the bytes sit
+outside the consumed extent. Do not label payload bytes as padding merely
+because they repeat a fill-like value.

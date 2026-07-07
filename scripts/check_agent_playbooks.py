@@ -104,12 +104,14 @@ ROOT_WORD_CEILING = 6000
 # objective, pass-versus-commit, low-yield strategy checkpoint). Later process
 # improvements added runtime-trace templates, trace-helper ROM policy,
 # relocatable trace-mod guidance, inline dispatch naming, and CPU vector naming.
+# Static-readability hardening later added mandatory NOP/padding, packed-flag,
+# and redundant-sequence audit dispositions before static-exhaustion claims.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
 ROUTE_BUDGETS = {
-    "default": (2550, 18100),
-    "data-recovery": (2400, 18250),
-    "new-project": (3550, 25700),
+    "default": (2650, 18750),
+    "data-recovery": (2450, 18550),
+    "new-project": (3625, 26100),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
