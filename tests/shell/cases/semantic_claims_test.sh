@@ -466,6 +466,22 @@ MD
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_accepts_leading_zero_working_notes_budget() {
+  local slug; slug="$(unique_slug sc_notes_octal)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="08"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md" <<'MD'
+# Working Notes
+- Evidence gap.
+MD
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
 test_maturity_check_legacy_project_not_failed_by_oversized_working_notes() {
   local slug; slug="$(unique_slug sc_notes_legacy)"
   trap "cleanup_project ${slug}" EXIT

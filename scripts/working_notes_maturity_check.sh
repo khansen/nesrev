@@ -13,6 +13,7 @@ if ! [[ "${max_lines}" =~ ^[0-9]+$ ]]; then
   echo "error: max_lines must be a non-negative integer: ${max_lines}" >&2
   exit 64
 fi
+max_lines=$((10#${max_lines}))
 
 if [[ ! -f "${notes_file}" ]]; then
   echo "OK: no WORKING_NOTES.md maturity debt"
@@ -21,6 +22,7 @@ fi
 
 line_count="$(wc -l < "${notes_file}" | tr -d ' ')"
 line_count="${line_count:-0}"
+line_count=$((10#${line_count}))
 
 if (( line_count > max_lines )); then
   cat >&2 <<EOF
