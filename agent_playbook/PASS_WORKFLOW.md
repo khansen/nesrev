@@ -426,8 +426,8 @@ touches; project-wide assessment runs against all four at maturity.
   inventories, retained comments earn their
   place under the minimality rule, no generic/filler data-label docs, system
   docs, memory map, and crosswalk current, stale prose cleaned up, one-blank-line
-  procedure spacing. Do not define maturity by driving comment-count metrics to
-  zero.
+  procedure spacing, and `WORKING_NOTES.md` pruned/promoted under its maturity
+  budget. Do not define maturity by driving comment-count metrics to zero.
 - **Confidence closure:** inferred KPI at target, uncertain points scoped,
   scorecard refreshed, no half-populated rows, no indefinite `TBD` debt.
 

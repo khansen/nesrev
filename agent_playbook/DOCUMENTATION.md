@@ -546,6 +546,13 @@ override living only in ad-hoc chat context.
 - Remove or rewrite notes when they are no longer useful, have been superseded, or are now captured adequately in canonical docs/symbols.
 - Do not treat `WORKING_NOTES.md` as an append-only history file.
 - Prefer keeping a short current note over preserving stale context.
+- New projects opt into a maturity-time `WORKING_NOTES.md` line budget enforced
+  by `project-maturity-check`. If the gate trips, do not pad the budget first:
+  promote stable facts to source, memory map, systems docs, semantic claims, or
+  dedicated format docs; act on queued findings; then prune the notes to live
+  forward-pass hazards and unresolved evidence gaps. Raise
+  `MAX_MATURITY_WORKING_NOTES_LINES` only when the remaining notes are genuinely
+  active and the scorecard explains why the larger budget is still needed.
 <a id="support-documents"></a>
 ## Optional Support Documents
 

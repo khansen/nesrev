@@ -421,6 +421,132 @@ test_maturity_check_legacy_project_not_failed_by_zero_procedure_contracts() {
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_fails_optin_project_with_oversized_working_notes() {
+  local slug; slug="$(unique_slug sc_notes_fail)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="5"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md" <<'MD'
+# Working Notes
+
+- One
+- Two
+- Three
+- Four
+MD
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must fail an opted-in project with oversized working notes"
+  fi
+  assert_match "working-notes pruning check failed" "${out}"
+  assert_match "WORKING_NOTES.md has" "${out}"
+}
+
+test_maturity_check_passes_optin_project_with_compact_working_notes() {
+  local slug; slug="$(unique_slug sc_notes_ok)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="5"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md" <<'MD'
+# Working Notes
+- Evidence gap.
+MD
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
+test_maturity_check_accepts_leading_zero_working_notes_budget() {
+  local slug; slug="$(unique_slug sc_notes_octal)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="08"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md" <<'MD'
+# Working Notes
+- Evidence gap.
+MD
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
+test_maturity_check_counts_final_line_without_trailing_newline() {
+  local slug; slug="$(unique_slug sc_notes_noeol)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="2"
+EOF
+  printf '# Working Notes\n- One\n- Two' > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md"
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must count the final line even without a trailing newline"
+  fi
+  assert_match "has 3 lines" "${out}"
+}
+
+test_maturity_check_reports_custom_working_notes_path() {
+  local slug; slug="$(unique_slug sc_notes_custom)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<EOF
+WORKING_NOTES_MATURITY_REQUIRED="1"
+WORKING_NOTES_FILE="projects/${slug}/docs/reverse_engineering/CUSTOM_NOTES.md"
+MAX_MATURITY_WORKING_NOTES_LINES="2"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/CUSTOM_NOTES.md" <<'MD'
+# Custom Notes
+
+- One
+MD
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must fail an oversized custom working-notes file"
+  fi
+  assert_match "CUSTOM_NOTES.md has" "${out}"
+}
+
+test_maturity_check_legacy_project_not_failed_by_oversized_working_notes() {
+  local slug; slug="$(unique_slug sc_notes_legacy)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md" <<'MD'
+# Working Notes
+
+- One
+- Two
+- Three
+- Four
+- Five
+- Six
+MD
+
+  bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
 test_new_project_scaffolds_semantic_claims_and_passes_checker() {
   local slug; slug="$(unique_slug sc_scaffold)"
   trap "cleanup_project ${slug}" EXIT
@@ -432,6 +558,8 @@ test_new_project_scaffolds_semantic_claims_and_passes_checker() {
     || fail "new project must opt into strict semantic-claims maturity"
   grep -q 'PROCEDURE_CONTRACTS_REQUIRED="1"' "projects/${slug}/project.conf" \
     || fail "new project must opt into procedure-contract maturity"
+  grep -q 'WORKING_NOTES_MATURITY_REQUIRED="1"' "projects/${slug}/project.conf" \
+    || fail "new project must opt into working-notes maturity"
   # Scaffold references MEMORY_MAP.md, which must exist in the scaffold.
   [[ -f "projects/${slug}/docs/reverse_engineering/MEMORY_MAP.md" ]] \
     || fail "scaffold links MEMORY_MAP.md, which must be generated"

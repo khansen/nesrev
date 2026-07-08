@@ -29,8 +29,13 @@ load_project_conf() {
   # have been re-audited against current gold policy set this to require a
   # machine-validated scorecard marker during maturity checks.
   LEGACY_RETROFIT_REQUIRED="0"
+  # Working-notes maturity opt-in (legacy projects default off). New scaffolds
+  # set WORKING_NOTES_MATURITY_REQUIRED="1" so gold closeout cannot silently
+  # accept a large notes file full of promotable findings or stale pass context.
+  WORKING_NOTES_MATURITY_REQUIRED="0"
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
+  MAX_MATURITY_WORKING_NOTES_LINES="120"
   NESREV_CODEPOINTERS_FILE=""
   NESREV_CODEENTRIES_FILE=""
   NESREV_DATAPOINTERS_FILE=""
@@ -85,11 +90,16 @@ load_project_conf() {
   if [[ -z "${SEMANTIC_CLAIMS_FILE:-}" ]]; then
     SEMANTIC_CLAIMS_FILE="${DOC_ROOT}/SEMANTIC_CLAIMS.md"
   fi
+  if [[ -z "${WORKING_NOTES_FILE:-}" ]]; then
+    WORKING_NOTES_FILE="${DOC_ROOT}/WORKING_NOTES.md"
+  fi
   : "${SEMANTIC_CLAIMS_REQUIRED:=0}"
   : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
+  : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
+  : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"
 
   # Optional, tracked NESrev recovery controls. New projects declare these
   # in project.conf; older projects may omit them.
