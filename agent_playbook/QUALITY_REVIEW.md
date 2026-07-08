@@ -120,7 +120,11 @@ reviewer must inspect the touched regions and ledgers.
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    and promoted subsystem `*_DX_Systems.md`). A not-yet-promoted systems
    scaffold is acceptable while semantic work remains; speculative expansion
-   is not.
+   is not. New projects opt into a maturity budget for `WORKING_NOTES.md`; if
+   the file is over budget, promote stable facts to canonical docs/source, act
+   on queued findings, and prune it before claiming maturity. A larger
+   configured budget is acceptable only with a scorecard rationale that the
+   remaining notes are active forward-pass hazards or unresolved evidence gaps.
 10. **Known parity-preserved bugs are documented both inline and in
     docs.** Inline-comment format at
     [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);

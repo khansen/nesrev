@@ -98,6 +98,13 @@ SEMANTIC_CLAIMS_REQUIRED="1"
 # all, which indicates the positive contract audit was skipped.
 PROCEDURE_CONTRACTS_REQUIRED="1"
 
+# New clean-room projects opt into the WORKING_NOTES.md maturity budget.
+# WORKING_NOTES.md may carry live forward-pass findings during semantic work,
+# but gold closeout should fail if stable facts, pass history, or acted-on
+# findings have accumulated there instead of being promoted/pruned.
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="120"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required
