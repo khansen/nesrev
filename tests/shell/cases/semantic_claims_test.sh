@@ -482,6 +482,27 @@ MD
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_counts_final_line_without_trailing_newline() {
+  local slug; slug="$(unique_slug sc_notes_noeol)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+WORKING_NOTES_MATURITY_REQUIRED="1"
+MAX_MATURITY_WORKING_NOTES_LINES="2"
+EOF
+  printf '# Working Notes\n- One\n- Two' > "projects/${slug}/docs/reverse_engineering/WORKING_NOTES.md"
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must count the final line even without a trailing newline"
+  fi
+  assert_match "has 3 lines" "${out}"
+}
+
 test_maturity_check_reports_custom_working_notes_path() {
   local slug; slug="$(unique_slug sc_notes_custom)"
   trap "cleanup_project ${slug}" EXIT

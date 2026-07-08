@@ -20,7 +20,7 @@ if [[ ! -f "${notes_file}" ]]; then
   exit 0
 fi
 
-line_count="$(wc -l < "${notes_file}" | tr -d ' ')"
+line_count="$(awk 'END { print NR + 0 }' "${notes_file}")"
 line_count="${line_count:-0}"
 line_count=$((10#${line_count}))
 
