@@ -482,6 +482,32 @@ MD
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_reports_custom_working_notes_path() {
+  local slug; slug="$(unique_slug sc_notes_custom)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "0"
+  cat >> "projects/${slug}/project.conf" <<EOF
+WORKING_NOTES_MATURITY_REQUIRED="1"
+WORKING_NOTES_FILE="projects/${slug}/docs/reverse_engineering/CUSTOM_NOTES.md"
+MAX_MATURITY_WORKING_NOTES_LINES="2"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/CUSTOM_NOTES.md" <<'MD'
+# Custom Notes
+
+- One
+MD
+
+  local out rc
+  set +e
+  out="$(bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  if [[ "${rc}" == "0" ]]; then
+    fail "maturity-check must fail an oversized custom working-notes file"
+  fi
+  assert_match "CUSTOM_NOTES.md has" "${out}"
+}
+
 test_maturity_check_legacy_project_not_failed_by_oversized_working_notes() {
   local slug; slug="$(unique_slug sc_notes_legacy)"
   trap "cleanup_project ${slug}" EXIT
