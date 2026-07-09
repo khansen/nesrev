@@ -93,7 +93,7 @@ fi
 # Supported ROM matrix (must match agent_playbook/NEW_PROJECT.md#rom-support-matrix):
 #   iNES 1.0 or NES 2.0 headers whose decoded fields stay in this matrix
 #   mapper 0 (NROM): PRG = 16 KB or 32 KB; CHR = 0 or 8 KB
-#   mapper 1 (MMC1): PRG = 16 KB aligned, up to 256 KB; CHR = 0..128 KB
+#   mapper 1 (MMC1): PRG = 32 KB..256 KB in 16 KB units; CHR = 0..128 KB
 if [[ "${MAPPER_NUMBER}" != "0" && "${MAPPER_NUMBER}" != "1" ]]; then
   echo "error: ${REF_NES} uses mapper ${MAPPER_NUMBER}; nesrev currently supports mapper 0 (NROM) and mapper 1 (MMC1) only." >&2
   echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
@@ -111,8 +111,8 @@ if [[ "${MAPPER_NUMBER}" == "0" ]]; then
     exit 1
   fi
 else
-  if (( PRG_UNITS < 1 || PRG_UNITS > 16 )); then
-    echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports MMC1 PRG=16 KB..256 KB (1..16 units)." >&2
+  if (( PRG_UNITS < 2 || PRG_UNITS > 16 )); then
+    echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports MMC1 PRG=32 KB..256 KB (2..16 units)." >&2
     echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
     exit 1
   fi

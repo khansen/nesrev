@@ -17,6 +17,7 @@ public class NESrevTest {
         testGetAddressMasksTo14Bits();
         testGetAddressMapsNrom256CpuAddresses();
         testMmc1MapsFixedBankCpuAddresses();
+        testMmc1PrgSizePolicyRejectsSingleBank();
         testMmc1RejectsSwitchableCpuAddressWithoutBankContext();
         testMmc1CodeEntriesTraceSwitchableBank();
         testMmc1SwitchableCodeFollowsSameBankJsr();
@@ -167,6 +168,17 @@ public class NESrevTest {
             fixed + 0x0034, NESrev.getAddress(fixed));
         assertEquals("MMC1 $FFFE should map to PRG tail",
             0x0FFFE, NESrev.getAddress(fixed + 2));
+    }
+
+    private static void testMmc1PrgSizePolicyRejectsSingleBank() throws Exception {
+        assertTrue("MMC1 PRG=16 KB should be rejected",
+            !isSupportedMmc1PrgSize(0x4000L));
+        assertTrue("MMC1 PRG=32 KB should be accepted",
+            isSupportedMmc1PrgSize(0x8000L));
+        assertTrue("MMC1 PRG=256 KB should be accepted",
+            isSupportedMmc1PrgSize(0x40000L));
+        assertTrue("MMC1 PRG above 256 KB should be rejected",
+            !isSupportedMmc1PrgSize(0x44000L));
     }
 
     private static void testMmc1RejectsSwitchableCpuAddressWithoutBankContext() throws Exception {
@@ -2625,6 +2637,12 @@ public class NESrevTest {
         Method m = NESrev.class.getDeclaredMethod("configurePrgMapping", long.class, int.class);
         m.setAccessible(true);
         m.invoke(null, length, mapper);
+    }
+
+    private static boolean isSupportedMmc1PrgSize(long length) throws Exception {
+        Method m = NESrev.class.getDeclaredMethod("isSupportedMmc1PrgSize", long.class);
+        m.setAccessible(true);
+        return ((Boolean) m.invoke(null, length)).booleanValue();
     }
 
     private static void invokePrivateNoArgs(String name) throws Exception {

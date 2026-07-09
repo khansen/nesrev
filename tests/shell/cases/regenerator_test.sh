@@ -210,6 +210,18 @@ printf "%s\n%s\n" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}"
   assert_match '\$C000' "${settings}"
 }
 
+test_rejects_mmc1_single_bank_prg_size() {
+  local slug; slug="$(unique_slug mmc1_prg_single)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 1
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject MMC1 PRG=16 KB"
+  assert_match "MMC1 PRG=32 KB..256 KB" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
+}
+
 test_rejects_mmc1_unsupported_prg_size() {
   local slug; slug="$(unique_slug mmc1_prg_bad)"
   cleanup_project "${slug}"

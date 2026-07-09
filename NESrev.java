@@ -254,8 +254,8 @@ public class NESrev {
             cpuBase = 0x8000;
             fixedBankOffset = 0x0000;
         } else if (mapper == MAPPER_MMC1) {
-            if (length < 0x4000L || (length % 0x4000L) != 0 || length > 0x40000L) {
-                exitWithError("Error: MMC1 PRG ROM must be 16 KB aligned and no larger than 256 KB.");
+            if (!isSupportedMmc1PrgSize(length)) {
+                exitWithError("Error: MMC1 PRG ROM must be 32 KB..256 KB in 16 KB units.");
             }
             prgSize = (int) length;
             prgMask = 0x3FFF;
@@ -265,6 +265,12 @@ public class NESrev {
             exitWithError("Error: NROM PRG ROM must be 16,384 or 32,768 bytes in size.");
         }
         analysisPassLimit = prgSize;
+    }
+
+    private static boolean isSupportedMmc1PrgSize(long length) {
+        return length >= 0x8000L
+            && (length % 0x4000L) == 0
+            && length <= 0x40000L;
     }
 
     private static boolean inPrgOffset(int ofs) {
