@@ -89,8 +89,8 @@ if pass_id is None:
 
 asm_text = asm_file.read_text(encoding="utf-8")
 
-labels_defs = len(re.findall(r"^L[0-9A-F]{4}:", asm_text, re.M))
-labels_occ = len(re.findall(r"\bL[0-9A-F]{4}\b|^L[0-9A-F]{4}:", asm_text, re.M))
+labels_defs = len(re.findall(r"^L[0-9A-F]{4,5}:", asm_text, re.M))
+labels_occ = len(re.findall(r"\bL[0-9A-F]{4,5}\b|^L[0-9A-F]{4,5}:", asm_text, re.M))
 
 raw_rom_calls = len(re.findall(r"^\s+(?:JSR|JMP)\s+\$[0-9A-F]{4}\b", asm_text, re.M))
 raw_indirect_re = re.compile(

@@ -55,7 +55,7 @@ LABEL_RE = re.compile(
 )
 LIST_ITEM_RE = re.compile(r"^\s*-\s+(.*)$")
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-LXXXX_RE = re.compile(r"^L[0-9A-F]{4}$")
+LXXXX_RE = re.compile(r"^L[0-9A-F]{4,5}$")
 PLACEHOLDER_RE = re.compile(r"^(State|Mode|Field|Page|Group|Arm)\d{1,4}$|^Addr[0-9A-Fa-f]{4}$")
 BARE_RAW_RE = re.compile(r"^\$[0-9A-Fa-f]{1,4}$")
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
@@ -199,7 +199,7 @@ def validate_subject(where, subject, confidence, fields, symbols) -> list[str]:
         fields.get("Caveats", {})
     )
     if LXXXX_RE.match(subject):
-        out.append(f"{where}: Subject is a raw LXXXX label ({subject}); resolve it first")
+        out.append(f"{where}: Subject is a raw LXXXX/LXXXXX label ({subject}); resolve it first")
         return out
     if PLACEHOLDER_RE.match(subject) or BARE_RAW_RE.match(subject):
         if not mechanical_exempt:

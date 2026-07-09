@@ -63,7 +63,7 @@ xasm --pure-binary -o "${OUT_BIN}" \
   --xref-summary \
   --xref-summary-output="${pass_dir}/xref_summary_generic.json" \
   --xref-summary-format=json \
-  --xref-summary-include='^L[0-9A-F]{4}$' \
+  --xref-summary-include='^L[0-9A-F]{4,5}$' \
   "${ASM_FILE}" >/dev/null
 
 echo "[4/8] Generating xref with data edges"
@@ -130,8 +130,8 @@ warn_file = Path(sys.argv[8])
 unknowns_file = Path(sys.argv[9])
 raw_lowaddr = int(sys.argv[10] or 0)
 
-GENERIC_RE = re.compile(r"\bL[0-9A-F]{4}\b")
-GENERIC_DEF_RE = re.compile(r"(?m)^L[0-9A-F]{4}:")
+GENERIC_RE = re.compile(r"\bL[0-9A-F]{4,5}\b")
+GENERIC_DEF_RE = re.compile(r"(?m)^L[0-9A-F]{4,5}:")
 
 def read_text(path):
     if not path.exists():

@@ -160,11 +160,17 @@ fails to recover inline-call payloads.
 ### Hint file formats
 
 ```sh
-# codepointers.csv — pipe-delimited; start = raw PRG offset (hex),
-# count = number of pointers. Use for contiguous CODE-pointer tables: NESrev
-# labels each target AND traces it as code.
+# codepointers.csv — pipe-delimited. Mapper 0 rows use start = raw PRG
+# offset (hex), count = number of pointers. MMC1 rows may instead use
+# bank|addr|count when banked CPU context is clearer. Use for contiguous
+# CODE-pointer tables: NESrev labels each target AND traces it as code.
+# For MMC1 fixed-bank tables whose entries are $8000-$BFFF addresses, each
+# entry seeds that CPU address in every non-final PRG bank; the table word
+# remains raw because no single label exists.
 # start|count
 # 0x0008|30
+# bank|addr|count
+# 0|$8100|12
 
 # datapointers.csv — same shape as codepointers.csv, but targets are DATA
 # records. NESrev labels each target so the .DW line reads symbolically, but
@@ -174,28 +180,43 @@ fails to recover inline-call payloads.
 # start|count
 # 0x2813|30
 
-# codeentries.txt — one canonical ROM CPU address per line; # and ; start
-# comments. Use for SCATTERED code entry points reached via indirect dispatch
-# where the pointer is loaded from individual `LDA #imm / STA ZP_PTR` pairs
-# rather than a contiguous table.
+# codeentries.txt — one canonical ROM CPU address per line, or bank|addr for
+# MMC1 switched-window entries. # and ; start comments. Use for SCATTERED code
+# entry points reached via indirect dispatch where the pointer is loaded from
+# individual `LDA #imm / STA ZP_PTR` pairs rather than a contiguous table.
 # $C22F   ; channel 0 command handler (reached via JMP [$00EB])
 # $D187
+# bank|addr
+# 0|$8120
+# 7|$C000
 
 # inlinecalls.csv — pipe-delimited; callee CPU address + payload layout
 # descriptor for inline-call patterns (JSR followed by inline bytes the
 # callee consumes from the return address). Layout tokens include `u8`,
-# `bytes(N)`, `counted8`, `ptr16(data)`, `ptr16(code,+1)`, etc.
+# `bytes(N)`, `counted8`, `ptr16(data)`, `ptr16(code,+1)`, and repeat
+# shorthand such as `ptr16(code)*31`. Use callsite rows when one helper
+# has variable record lengths. MMC1 rows
+# may use bank|callee|layout for switched-bank callees, or
+# bank|callsite|callee|layout when the JSR site is in a specific bank.
 # callee|layout
 # $C8BB|u8,ptr16(data)
 # $C963|bytes(6)
 # $EA05|counted8
+# callsite|callee|layout
+# $C120|$C27C|ptr16(code)*3
+# bank|callee|layout
+# 0|$8120|u8
+# bank|callsite|callee|layout
+# 0|$8027|$C27C|ptr16(code)*2
 
 # dataranges.csv — pipe-delimited; explicit data-byte regions NESrev should
-# treat as opaque payload rather than trying to decode as instructions. Use
-# when a known data span gets eagerly disassembled.
+# treat as opaque payload rather than trying to decode as instructions. MMC1
+# rows may use bank|addr|length for switched-bank data.
 # start|length
 # $CD20|14
 # $D5B6|34
+# bank|addr|length
+# 0|$9000|32
 ```
 
 ### Wrapper invocation
@@ -222,8 +243,8 @@ required controls. The scaffold's `pending` value blocks intake so a
 plain linear-trace result cannot be committed accidentally.
 
 `CODEPOINTERS=`, `DATAPOINTERS=`, `CODEENTRIES=`, `INLINECALLS=`, and
-`DATARANGES=` command-line values override the matching configured
-path for one run. Use overrides to experiment, then move accepted
+`DATARANGES=` command-line values override the
+matching configured path for one run. Use overrides to experiment, then move accepted
 inputs into `config/nesrev/` and `project.conf` before intake or
 commit. Controls under the ignored `reference/` tree are not
 reproducible build inputs.
@@ -236,7 +257,11 @@ reproducible build inputs.
   `.nes` file offset and not a CPU address.
 - `codeentries.txt`, `inlinecalls.csv` callees, and `dataranges.csv`
   starts are CPU addresses in the canonical project ROM range
-  (`$C000-$FFFF` for NROM-128, `$8000-$FFFF` for NROM-256).
+  (`$C000-$FFFF` for NROM-128 and MMC1 fixed-bank code,
+  `$8000-$FFFF` for NROM-256). MMC1 `$8000-$BFFF` targets require
+  bank-qualified `codeentries.txt` rows, pointer evidence from within the
+  same switched bank, or an explicitly configured code-pointer table whose
+  ambiguous entries should be probed across all non-final PRG banks.
 - Pick the right hint:
   - contiguous table → code routines: `codepointers.csv`
   - contiguous table → fixed-size data records: `datapointers.csv`
@@ -321,7 +346,7 @@ which extends the guiding principle at
 When a parity check fails, the listing bridges ROM offsets to source lines:
 
 1. Identify the differing ROM offset (e.g., from `cmp -l` or `make project-compare`).
-2. Convert to CPU address (NROM-128: `CPU_ADDR = $C000 + ROM_OFFSET`; NROM-256: `CPU_ADDR = $8000 + ROM_OFFSET`).
+2. Convert to CPU address (NROM-128: `CPU_ADDR = $C000 + ROM_OFFSET`; NROM-256: `CPU_ADDR = $8000 + ROM_OFFSET`; MMC1 fixed bank: use `$C000 + (ROM_OFFSET - fixed_bank_offset)` for offsets in the final 16 KB bank).
 3. Look up that address in the listing (with JSON: `jq` filter on `.addr`; with plaintext: text search).
 4. Troubleshoot: check hex bytes against reference, look for mis-sized instructions (Absolute vs Zero Page), floating labels from size discrepancies upstream, or raw operands that need symbolization.
 <a id="command-reference"></a>
@@ -389,7 +414,7 @@ produce stale/intermediate `Game.o` that triggers false parity failures.
 
 ```sh
 # Unresolved generic labels
-rg -n "\bL[0-9A-F]{4}\b|^L[0-9A-F]{4}:" Game.asm
+rg -n "\bL[0-9A-F]{4,5}\b|^L[0-9A-F]{4,5}:" Game.asm
 
 # Unknown symbols
 rg -n "\bUNK_" Game.asm
@@ -429,6 +454,7 @@ make project-comment-audit PROJECT=<slug> FORMAT=text
 ```
 
 Use `$8000-$FFFF` as the raw-address audit range for NROM-256 projects.
+Use `$C000-$FFFF` for NROM-128 and MMC1 fixed-bank projects.
 
 <a id="script-hygiene"></a>
 ## Auxiliary-Script Hygiene

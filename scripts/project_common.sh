@@ -134,19 +134,24 @@ load_project_conf() {
   if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" || -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
     local rom_cpu_base='$C000'
     if [[ -n "${REF_NES:-}" && -f "${REF_NES}" ]]; then
-      local magic prg_units flags7 header_bits
+      local magic prg_units flags6 flags7 header_bits mapper_number
       magic="$(od -An -tx1 -N4 "${REF_NES}" | tr -d ' \n')"
       if [[ "${magic}" == "4e45531a" ]]; then
         prg_units="$(od -An -tu1 -j4 -N1 "${REF_NES}" | tr -d ' ')"
+        flags6="$(od -An -tu1 -j6 -N1 "${REF_NES}" | tr -d ' ')"
         flags7="$(od -An -tu1 -j7 -N1 "${REF_NES}" | tr -d ' ')"
+        mapper_number=$(( (flags6 >> 4) | (flags7 & 0xF0) ))
         header_bits=$(( (flags7 & 0x0C) >> 2 ))
         if (( header_bits == 2 )); then
-          local nes2_byte9 nes2_prg_units_high
+          local nes2_byte8 nes2_byte9 nes2_mapper_high nes2_prg_units_high
+          nes2_byte8="$(od -An -tu1 -j8 -N1 "${REF_NES}" | tr -d ' ')"
           nes2_byte9="$(od -An -tu1 -j9 -N1 "${REF_NES}" | tr -d ' ')"
+          nes2_mapper_high=$(( nes2_byte8 & 0x0F ))
           nes2_prg_units_high=$(( nes2_byte9 & 0x0F ))
+          mapper_number=$(( mapper_number | (nes2_mapper_high << 8) ))
           prg_units=$(( prg_units | (nes2_prg_units_high << 8) ))
         fi
-        if [[ "${prg_units}" == "2" ]]; then
+        if [[ "${mapper_number}" == "0" && "${prg_units}" == "2" ]]; then
           rom_cpu_base='$8000'
         fi
       fi

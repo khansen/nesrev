@@ -43,7 +43,7 @@ cat > "$root/README.md" <<DOC
 > Makefile). They will fail with "No rule to make target" or
 > "no Makefile found" if invoked from inside \`projects/${slug}/\`.
 
-1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM, 16 or 32 KB PRG).
+1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM or MMC1; see the support matrix).
 2. \`make project-regenerate-asm PROJECT=${slug}\` — produces \`asm/${slug}.asm\` with LXXXX placeholders.
 3. Audit hidden-code and indirect-dispatch candidates. Record either
    \`NESREV_RECOVERY_STATUS="none"\` or \`"configured"\` in

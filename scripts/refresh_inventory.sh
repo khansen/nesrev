@@ -96,8 +96,8 @@ import sys
 from pathlib import Path
 
 text = Path(sys.argv[1]).read_text(encoding="utf-8")
-defs = len(re.findall(r"(?m)^L[0-9A-F]{4}:", text))
-refs = len(re.findall(r"\bL[0-9A-F]{4}\b", text))
+defs = len(re.findall(r"(?m)^L[0-9A-F]{4,5}:", text))
+refs = len(re.findall(r"\bL[0-9A-F]{4,5}\b", text))
 print(defs, refs)
 PY
 )

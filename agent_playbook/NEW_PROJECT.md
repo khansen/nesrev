@@ -93,9 +93,9 @@ ROM is supported when **all** of these hold against its iNES header:
 |---|---|---|---|
 | Magic | $00-$03 | `4E 45 53 1A` | iNES header marker |
 | Header format | bits 2-3 of $07 | `0b00` (iNES 1.0) or `0b10` (NES 2.0) | Reserved/legacy variants (`0b01`, `0b11`) are rejected. NES 2.0 is accepted only when the decoded mapper and ROM sizes still match the matrix below |
-| Mapper | high nibble of $06 \| high nibble of $07 \| NES 2.0 byte $08 low nibble | `0` (NROM) | Other mappers are rejected; see error message |
-| PRG size | $04 plus NES 2.0 byte $09 low nibble | `1` or `2` units = 16 or 32 KB | NROM-128 mirrors at `$C000`; NROM-256 maps at `$8000` |
-| CHR size | $05 plus NES 2.0 byte $09 high nibble | `0` or `1` unit (0 or 8 KB) | CHR-RAM or 8 KB CHR-ROM |
+| Mapper | high nibble of $06 \| high nibble of $07 \| NES 2.0 byte $08 low nibble | `0` (NROM) or `1` (MMC1) | Other mappers are rejected; see error message |
+| PRG size | $04 plus NES 2.0 byte $09 low nibble | NROM: `1` or `2` units = 16 or 32 KB; MMC1: `2..16` units = 32..256 KB | NROM-128 mirrors at `$C000`; NROM-256 maps at `$8000`; MMC1 emits 16 KB banks with bank-qualified labels, mapping non-final banks at `$8000` and the fixed final bank at `$C000` |
+| CHR size | $05 plus NES 2.0 byte $09 high nibble | NROM: `0` or `1` unit (0 or 8 KB); MMC1: `0..16` units (0..128 KB) | CHR-RAM or CHR-ROM; CHR data is skipped during PRG disassembly |
 | Trainer flag | bit 2 of $06 | `0` or `1` | Optional 512-byte trainer is skipped on disassembly |
 | Container length | total file size | exactly `16 + trainer + PRG + CHR` | Truncated containers fail; trailing bytes also fail unless `ALLOW_TRAILING_BYTES=1` is set after manual audit |
 
@@ -107,7 +107,10 @@ scaffolded and the ROM is placed (steps 3-5 of [#starting-a-new-project](#starti
 so a quick eyeball of the iNES header before scaffolding can save a
 round trip on obviously unsupported ROMs. If a ROM falls outside the
 matrix, do not proceed with intake — surface the limitation to the
-user and stop; nesrev cannot disassemble it correctly.
+user and stop; nesrev cannot disassemble it correctly. MMC1 vectors seed
+final `$C000-$FFFF` automatically; switched `$8000-$BFFF` code needs bank
+evidence: bank-qualified `codeentries.txt`, same-bank pointer tables, or
+configured fixed-bank code-pointer tables probed across all non-final banks.
 
 <a id="rom-intake"></a>
 ## ROM and Header Intake

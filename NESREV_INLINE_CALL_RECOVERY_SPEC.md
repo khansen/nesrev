@@ -14,7 +14,8 @@ inside otherwise linear code regions.
 The feature consists of two explicit inputs:
 
 1. `inlinecalls.csv` describes records immediately following direct `JSR`
-   callsites.
+   callsites. Rows may apply to every call to a callee or to one exact
+   callsite.
 2. `dataranges.csv` describes data islands that NESrev must skip while tracing
    and resume after.
 
@@ -27,6 +28,8 @@ control-flow inference engine.
 
 - Parse both optional configuration files.
 - Support one default inline-record layout per callee.
+- Support exact callsite-specific layouts for helpers whose inline record
+  length varies by callsite.
 - Keep configured record/range bytes as data even when they decode as valid
   opcodes.
 - Resume tracing after each inline record or data range.
@@ -110,6 +113,12 @@ $EB0A|u8,ptr16(code,+1)
 $EA17|counted8
 $C963|bytes(6)
 $C8BB|u8,ptr16(data)
+
+callsite|callee|layout
+$C120|$C27C|ptr16(code)*3
+
+bank|callsite|callee|layout
+0|$8027|$C27C|ptr16(code)*2
 ```
 
 Rules:
@@ -120,18 +129,26 @@ Rules:
 - Whitespace around fields and layout tokens is ignored.
 - Addresses accept `$XXXX`, `0xXXXX`, or bare hexadecimal.
 - Addresses are canonical CPU addresses in NESrev's supported ROM range.
-- A callee may occur only once.
-- The layout applies to every reachable direct `JSR` to that callee.
+- In `callee|layout` and `bank|callee|layout` files, a callee may occur
+  only once and the layout applies to every reachable direct `JSR` to that
+  callee.
+- In `callsite|callee|layout` and `bank|callsite|callee|layout` files, the
+  callsite is the CPU address of the `JSR` opcode. A callsite may occur only
+  once and the row applies only to that exact `JSR`. For bank-qualified
+  callsite rows, `bank` qualifies the callsite; a `$8000-$BFFF` callee is
+  resolved in the same bank, while a `$C000-$FFFF` callee resolves to the
+  fixed bank.
 
 ### 5.2 Layout Grammar
 
 ```text
-layout       := field ("," field)*
-field        := "u8"
-              | "bytes(" positive_integer ")"
-              | "counted8"
-              | "ptr16(" pointer_kind ["," signed_integer] ")"
-pointer_kind := "code" | "data"
+layout         := repeated_field ("," repeated_field)*
+repeated_field := field ["*" positive_integer]
+field          := "u8"
+                | "bytes(" positive_integer ")"
+                | "counted8"
+                | "ptr16(" pointer_kind ["," signed_integer] ")"
+pointer_kind   := "code" | "data"
 ```
 
 | Field | Size | Meaning |
@@ -142,8 +159,13 @@ pointer_kind := "code" | "data"
 | `ptr16(data)` | 2 | Little-endian data pointer |
 | `ptr16(code)` | 2 | Little-endian code pointer |
 | `ptr16(K,+N)` | 2 | Pointer of kind K with signed target adjustment |
+| `FIELD*N` | field size × N | Repeat any fixed-size field N times |
 
-`counted8` must be the final field.
+`counted8` must be the final field and cannot use `*N`.
+
+Repeat shorthand is equivalent to spelling the field out repeatedly. For
+example, `ptr16(code)*31` means 31 consecutive little-endian code pointers.
+It can be mixed with other fields, such as `u8,ptr16(code)*4,bytes(2)`.
 
 Pointer decoding:
 
@@ -389,6 +411,7 @@ $EB0A|u8,ptr16(code,+1)
 $EA17|counted8
 $C963|bytes(6)
 $C8BB|u8,ptr16(data)
+$C27C|ptr16(code)*10
 ```
 
 ### 10.2 `dataranges.csv`

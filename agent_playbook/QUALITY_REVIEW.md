@@ -438,7 +438,7 @@ rg -Pni '(state|mode|field|group|page|addr|arm|slot|cmd|phase)_?\d[0-9a-f]{0,3}(
   "${ASM_FILE}" "${DOC_ROOT}"
 
 # Hex-suffixed names where a semantic root is likely available
-rg -n "\\b[A-Z][A-Za-z]+_?[0-9A-F]{2,4}\\b" "${ASM_FILE}" | rg -v "L[0-9A-F]{4}"
+rg -n "\\b[A-Z][A-Za-z]+_?[0-9A-F]{2,4}\\b" "${ASM_FILE}" | rg -v "L[0-9A-F]{4,5}"
 ```
 
 Treat hits as cleanup candidates: rename to the semantic name if

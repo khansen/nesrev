@@ -8,6 +8,7 @@ NEXT_PASS="${REPO_ROOT}/scripts/project_next_pass.sh"
 PROCESS_CHECK="${REPO_ROOT}/scripts/project_process_check.sh"
 MATURITY_SUMMARY="${REPO_ROOT}/scripts/project_maturity_summary.sh"
 DRIFT_CHECK="${REPO_ROOT}/scripts/check_hardware_constant_drift.py"
+RAW_ADDRESS_KPI="${REPO_ROOT}/scripts/raw_address_kpi.sh"
 ASM_STYLE_DOC="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
 
 _make_workflow_project() {
@@ -95,6 +96,25 @@ test_new_project_process_check_rejects_missing_pass_one_analogue() {
 
   assert_eq "${rc}" "1" "missing pass-1 analogue record must fail process-check"
   assert_match "pass 1 notes must record 'Analogue:" "${output}"
+}
+
+test_raw_address_kpi_excludes_mapper_register_stores_from_absrom_count() {
+  local asm="${NESREV_TEST_TMPDIR}/mapper_stores.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reset:
+  STA $E000
+  STX $A000
+  STY $8000
+  LDA $E000
+  JSR $C000
+  RTS
+ASM
+
+  local output
+  output="$(bash "${RAW_ADDRESS_KPI}" "${asm}")"
+  assert_match "strict_active_raw_absrom=2" "${output}" \
+    "mapper register stores should not count as raw absolute-ROM references"
 }
 
 test_project_inventory_counts_lxxxx_definitions_and_references() {
