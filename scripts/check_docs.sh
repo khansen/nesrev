@@ -181,7 +181,7 @@ fi
 
 echo "[4/8] Checking systems-doc maturity hygiene"
 systems_fail=0
-if rg -n 'L[0-9A-F]{4}' "${SYSTEMS_DOC}" >"${TMPDIR_CHECK_DOCS}/systems_lxxxx.out"; then
+if rg -n 'L[0-9A-F]{4,5}' "${SYSTEMS_DOC}" >"${TMPDIR_CHECK_DOCS}/systems_lxxxx.out"; then
   echo "FAIL: systems doc contains unresolved LXXXX labels:" >&2
   cat "${TMPDIR_CHECK_DOCS}/systems_lxxxx.out" >&2
   systems_fail=1

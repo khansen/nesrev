@@ -52,8 +52,8 @@ from bisect import bisect_right
 from pathlib import Path
 
 slug, out_format, asm_file, warn_file, scorecard_file, unknowns_file, pass_dir, raw_ram_review_path = sys.argv[1:]
-GENERIC_RE = re.compile(r"^L[0-9A-F]{4}$")
-GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4}):\s*$")
+GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
+GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4,5}):\s*$")
 DATA_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|DW|BYTE|WORD|DS|INCBIN)\b", re.IGNORECASE)
 MNEMONIC_RE = re.compile(r"^\s*([A-Za-z]{3}(?:\.[A-Za-z])?)\s+([^;]+?)(?:\s*;.*)?$")
 RAW_LOWADDR_OPERAND_RE = re.compile(
@@ -108,8 +108,8 @@ def parse_unknowns(path):
 
 def compute_lxxxx_counts(path):
     text = read_text(path)
-    defs = len(re.findall(r"(?m)^L[0-9A-F]{4}:", text))
-    occs = len(re.findall(r"\bL[0-9A-F]{4}\b", text))
+    defs = len(re.findall(r"(?m)^L[0-9A-F]{4,5}:", text))
+    occs = len(re.findall(r"\bL[0-9A-F]{4,5}\b", text))
     return defs, occs
 
 def parse_scorecard_latest_row(path):

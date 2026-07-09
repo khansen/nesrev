@@ -107,12 +107,12 @@ test_rejects_wrong_mapper() {
   local slug; slug="$(unique_slug mapper)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
-  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 2
   scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
 
   local rc; rc=$(_run_regen "${slug}")
-  assert_eq "${rc}" "1" "regenerator should reject non-NROM mapper"
-  assert_match "mapper 1" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
+  assert_eq "${rc}" "1" "regenerator should reject unsupported mapper"
+  assert_match "mapper 2" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
 }
 
 test_accepts_32kb_prg_rom() {
@@ -146,6 +146,92 @@ printf "%s\n%s\n" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}"
 
   assert_match '\$8000-\$FFFF' "${settings}"
   assert_match '\$8000' "${settings}"
+}
+
+test_accepts_mmc1_128kb_prg_rom() {
+  local slug; slug="$(unique_slug mmc1_prg128)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 8 --chr 16
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "0" "regenerator should accept MMC1 PRG=128 KB / CHR=128 KB"
+  [[ -s "projects/${slug}/asm/${slug}.asm" ]] \
+    || fail "MMC1 ROM must produce a non-empty asm file"
+  assert_match ".ORG \\\$8000" "$(head -5 "projects/${slug}/asm/${slug}.asm")"
+  assert_match ".ORG \\\$C000" "$(grep -m1 '.ORG [$]C000' "projects/${slug}/asm/${slug}.asm")"
+}
+
+test_mmc1_codeentries_config_traces_switchable_bank() {
+  local slug; slug="$(unique_slug mmc1_codeentry)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 8
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local control_dir="projects/${slug}/config/nesrev"
+  local control_file="${control_dir}/codeentries.txt"
+  mkdir -p "${control_dir}"
+  printf 'bank|addr\n0|$8000\n' > "${control_file}"
+  cat >> "projects/${slug}/project.conf" <<EOF
+NESREV_RECOVERY_STATUS="configured"
+NESREV_CODEENTRIES_FILE="${control_file}"
+EOF
+
+  set +e
+  make project-regenerate-asm "PROJECT=${slug}" \
+    >"${NESREV_TEST_TMPDIR}/regen.stdout" 2>"${NESREV_TEST_TMPDIR}/regen.stderr"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "0" "MMC1 codeentries config should trace a switched-bank entry"
+  assert_match "code entries config: ${control_file}" \
+    "$(cat "${NESREV_TEST_TMPDIR}/regen.stdout")"
+  assert_match '^L08000:$' "$(grep -m1 '^L08000:$' "projects/${slug}/asm/${slug}.asm")"
+}
+
+test_project_common_derives_mmc1_fixed_cpu_base() {
+  local slug; slug="$(unique_slug mmc1_base)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 8
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local settings
+  settings="$(bash -c '
+set -euo pipefail
+source scripts/project_common.sh
+load_project_conf "$1"
+printf "%s\n%s\n" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}"
+' _ "${slug}")"
+
+  assert_match '\$C000-\$FFFF' "${settings}"
+  assert_match '\$C000' "${settings}"
+}
+
+test_rejects_mmc1_unsupported_prg_size() {
+  local slug; slug="$(unique_slug mmc1_prg_bad)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 17
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject MMC1 PRG sizes above 256 KB"
+  assert_match "MMC1 PRG" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
+}
+
+test_rejects_mmc1_unsupported_chr_size() {
+  local slug; slug="$(unique_slug mmc1_chr_bad)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes" --mapper 1 --prg 8 --chr 17
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+
+  local rc; rc=$(_run_regen "${slug}")
+  assert_eq "${rc}" "1" "regenerator should reject MMC1 CHR sizes above 128 KB"
+  assert_match "MMC1 CHR" "$(cat "${NESREV_TEST_TMPDIR}/regen.stderr")"
 }
 
 test_rejects_unsupported_prg_size() {

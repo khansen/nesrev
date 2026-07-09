@@ -16,10 +16,19 @@ public class NESrevTest {
     public static void main(String[] args) throws Exception {
         testGetAddressMasksTo14Bits();
         testGetAddressMapsNrom256CpuAddresses();
+        testMmc1MapsFixedBankCpuAddresses();
+        testMmc1RejectsSwitchableCpuAddressWithoutBankContext();
+        testMmc1CodeEntriesTraceSwitchableBank();
+        testMmc1SwitchableCodeFollowsSameBankJsr();
+        testMmc1FixedBankCodePointersSeedAllSwitchableBanks();
         testGetAddressRejectsNonRomCpuAddress();
         testDisassembleUsesNrom256OrgBase();
+        testMmc1DisassembleEmitsBankOrgsAndRoundTrips();
+        testMmc1UsesBankQualifiedDataLabels();
         testFixedVectorTableUsesNrom256PrgTail();
+        testFixedVectorTableUsesMmc1PrgTail();
         testNrom256RelativeBranchUses32KbAddressSpace();
+        testMmc1RelativeBranchDoesNotTraceSwitchableWindow();
         testVerifyDataLabelsMarksCodeToDataBoundary();
         testProcessCodeFollowsJsrTarget();
         testProcessCodeSkipsNonRomJsrTarget();
@@ -39,6 +48,10 @@ public class NESrevTest {
         testInlineCallsParseValid();
         testInlineCallsAcceptsLayoutWhitespaceAroundParens();
         testInlineCallsAcceptsAddressForms();
+        testInlineCallsAcceptsBankQualifiedCallees();
+        testInlineCallsAcceptsCallsiteRows();
+        testInlineCallsAcceptsBankQualifiedCallsiteRows();
+        testInlineCallsCallsiteOverridesCalleeDefault();
         testInlineCallsStripsCommentsAndBlankLines();
         testInlineCallsRejectsMissingHeader();
         testInlineCallsRejectsWrongHeader();
@@ -55,8 +68,10 @@ public class NESrevTest {
         testInlineCallsRejectsTrailingComma();
         testInlineCallsEmptyConstant();
         testPointerTableConfigStripsComments();
+        testPointerTableConfigAcceptsBankQualifiedRows();
         testDataRangesParseValid();
         testDataRangesAcceptsAddressForms();
+        testDataRangesAcceptsBankQualifiedRows();
         testDataRangesStripsCommentsAndBlankLines();
         testDataRangesRejectsMissingHeader();
         testDataRangesRejectsWrongHeader();
@@ -135,6 +150,147 @@ public class NESrevTest {
             0x7FFE, NESrev.getAddress(2));
     }
 
+    private static void testMmc1MapsFixedBankCpuAddresses() throws Exception {
+        resetState();
+        configurePrgMapping(0x10000, 1);
+        int[] rom = new int[0x10000];
+        int fixed = 0x0C000;
+        rom[fixed] = 0x34;
+        rom[fixed + 1] = 0xC0;
+        rom[fixed + 2] = 0xFE;
+        rom[fixed + 3] = 0xFF;
+        setField("ROM", rom);
+
+        assertEquals("MMC1 $C034 should map into the fixed final bank",
+            fixed + 0x0034, NESrev.getAddress(fixed));
+        assertEquals("MMC1 $FFFE should map to PRG tail",
+            0x0FFFE, NESrev.getAddress(fixed + 2));
+    }
+
+    private static void testMmc1RejectsSwitchableCpuAddressWithoutBankContext() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        int[] rom = new int[0x8000];
+        int fixed = 0x4000;
+        rom[fixed] = 0x00;
+        rom[fixed + 1] = 0x80;
+        setField("ROM", rom);
+
+        try {
+            NESrev.getAddress(fixed);
+            testsRun++;
+            throw new AssertionError("expected ConfigException for MMC1 switchable-window address");
+        } catch (NESrev.ConfigException ex) {
+            testsRun++;
+            if (!ex.getMessage().contains("MMC1 switchable PRG window")) {
+                throw new AssertionError("wrong message: " + ex.getMessage());
+            }
+        }
+    }
+
+    private static void testMmc1CodeEntriesTraceSwitchableBank() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // Bank 0, CPU $8120 -> PRG offset $0120.
+        rom[0x0120] = 0x60;
+        // Fixed-bank reset vector also remains valid.
+        rom[0x7FFC] = 0x00;
+        rom[0x7FFD] = 0xC0;
+        rom[0x4000] = 0x60;
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0x8000]);
+        invokePrivateNoArgs("appendFixedVectorTable");
+
+        java.util.ArrayList<Integer> entries = new java.util.ArrayList<Integer>();
+        entries.add(0x0120);
+        setField("codeEntries", entries);
+
+        NESrev.runAnalysisToFixedPoint();
+
+        assertTrue("explicit MMC1 code entry should be traced", NESrev.isCode(0x0120));
+        assertTrue("explicit MMC1 code entry should be labeled", NESrev.isLabel(0x0120));
+        String asm = captureDisassemble();
+        assertContainsLine(asm, "L08120:");
+    }
+
+    private static void testMmc1SwitchableCodeFollowsSameBankJsr() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        // Bank 0 $8000: JSR $8120 ; RTS. The target stays in bank 0.
+        rom[0x0000] = 0x20;
+        rom[0x0001] = 0x20;
+        rom[0x0002] = 0x81;
+        rom[0x0003] = 0x60;
+        rom[0x0120] = 0x60;
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0x8000]);
+
+        NESrev.processCode(0x0000);
+
+        assertTrue("MMC1 bank-local JSR target should be traced", NESrev.isCode(0x0120));
+        assertTrue("MMC1 bank-local JSR target should be labeled", NESrev.isLabel(0x0120));
+        String asm = captureDisassemble();
+        assertContainsLine(asm, "JSR L08120");
+    }
+
+    private static void testMmc1FixedBankCodePointersSeedAllSwitchableBanks() throws Exception {
+        resetState();
+        configurePrgMapping(0x10000, 1);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x10000];
+        int[] map = new int[0x10000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        int fixed = 0xC000;
+        int table = fixed + 0x0100;
+        rom[table] = 0x20;
+        rom[table + 1] = 0x81;
+        for (int bank = 0; bank < 3; bank++) {
+            rom[(bank * 0x4000) + 0x0120] = 0x60;
+        }
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0x10000]);
+
+        java.util.ArrayList<Integer> starts = new java.util.ArrayList<Integer>();
+        starts.add(table);
+        java.util.ArrayList<Integer> counts = new java.util.ArrayList<Integer>();
+        counts.add(1);
+        setField("codePointersStart", starts);
+        setField("codePointersCount", counts);
+        setField("userCodePointersCount", 1);
+
+        NESrev.runAnalysisToFixedPoint();
+
+        for (int bank = 0; bank < 3; bank++) {
+            int target = (bank * 0x4000) + 0x0120;
+            assertTrue("fixed-bank MMC1 code pointer should seed bank " + bank, NESrev.isCode(target));
+            assertTrue("fixed-bank MMC1 code pointer should label bank " + bank, NESrev.isLabel(target));
+        }
+        String asm = captureDisassemble();
+        assertContainsLine(asm, "L08120:");
+        assertContainsLine(asm, "L18120:");
+        assertContainsLine(asm, "L28120:");
+        assertContainsLine(asm, ".DW $8120");
+        assertFalse("ambiguous fixed-bank pointer table must not choose one bank label",
+            asm.contains(".DW L08120"));
+    }
+
     private static void testGetAddressRejectsNonRomCpuAddress() throws Exception {
         resetState();
         int[] rom = new int[0x4000];
@@ -179,6 +335,77 @@ public class NESrevTest {
             baos.toString().startsWith(".ORG $8000"));
     }
 
+    private static void testMmc1DisassembleEmitsBankOrgsAndRoundTrips() throws Exception {
+        resetState();
+        configurePrgMapping(0xC000, 1);
+        int data = getIntField("DATA");
+        int[] rom = new int[0xC000];
+        int[] map = new int[0xC000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        int fixed = 0x8000;
+        rom[0x0000] = 0x11;
+        rom[0x4000] = 0x22;
+        rom[fixed] = 0xA9;
+        rom[fixed + 1] = 0x01;
+        rom[fixed + 2] = 0x60;
+        rom[0xBFFC] = 0x00;
+        rom[0xBFFD] = 0xC0;
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0xC000]);
+
+        invokePrivateNoArgs("appendFixedVectorTable");
+        NESrev.runAnalysisToFixedPoint();
+
+        String asm = captureDisassemble();
+        assertEquals("MMC1 output should have two switchable-bank ORGs",
+            2, countOccurrences(asm, ".ORG $8000"));
+        assertContainsLine(asm, ".ORG $C000");
+        assertContainsLine(asm, "L2C000:");
+
+        File asmFile = File.createTempFile("nesrev-mmc1-", ".asm");
+        asmFile.deleteOnExit();
+        try (FileWriter w = new FileWriter(asmFile)) {
+            w.write(asm);
+        }
+        File binFile = File.createTempFile("nesrev-mmc1-", ".o");
+        binFile.deleteOnExit();
+        assembleWithXasm(asmFile, binFile, "MMC1 fixed-bank output");
+        byte[] produced = Files.readAllBytes(binFile.toPath());
+        assertEquals("MMC1 reassembled byte length", rom.length, produced.length);
+        for (int i = 0; i < rom.length; i++) {
+            int expected = rom[i] & 0xFF;
+            int actual = produced[i] & 0xFF;
+            if (expected != actual) {
+                throw new AssertionError("MMC1 reassembly mismatch at PRG offset 0x"
+                    + Integer.toHexString(i) + ": expected $"
+                    + Integer.toHexString(expected) + ", got $"
+                    + Integer.toHexString(actual));
+            }
+        }
+        testsRun++;
+    }
+
+    private static void testMmc1UsesBankQualifiedDataLabels() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        int data = getIntField("DATA");
+        int label = getIntField("LABEL");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        map[0] |= label;
+        setField("ROM", rom);
+        setField("map", map);
+
+        String asm = captureDisassemble();
+        assertContainsLine(asm, "L08000:");
+    }
+
     private static void testFixedVectorTableUsesNrom256PrgTail() throws Exception {
         resetState();
         configurePrgMapping(0x8000);
@@ -195,6 +422,19 @@ public class NESrevTest {
             0x7FFA, starts.get(starts.size() - 1).intValue());
         assertEquals("fixed vector table should contain 3 pointers",
             3, counts.get(counts.size() - 1).intValue());
+    }
+
+    private static void testFixedVectorTableUsesMmc1PrgTail() throws Exception {
+        resetState();
+        configurePrgMapping(0x10000, 1);
+        invokePrivateNoArgs("appendFixedVectorTable");
+
+        @SuppressWarnings("unchecked")
+        java.util.ArrayList<Integer> starts =
+            (java.util.ArrayList<Integer>) getField("codePointersStart");
+
+        assertEquals("MMC1 vector table should be at PRG offset $FFFA",
+            0xFFFA, starts.get(starts.size() - 1).intValue());
     }
 
     private static void testNrom256RelativeBranchUses32KbAddressSpace() throws Exception {
@@ -220,6 +460,33 @@ public class NESrevTest {
         NESrev.processCode(0x3FF0);
         assertTrue("NROM-256 branch target should not wrap at 16 KB", NESrev.isCode(0x4071));
         assertFalse("NROM-256 branch target should not use stale 16 KB mirror", NESrev.isCode(0x0071));
+    }
+
+    private static void testMmc1RelativeBranchDoesNotTraceSwitchableWindow() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        int data = getIntField("DATA");
+        int[] rom = new int[0x8000];
+        int[] map = new int[0x8000];
+        for (int i = 0; i < map.length; i++) {
+            map[i] = data;
+        }
+        int fixed = 0x4000;
+        // $C000: BNE -4 targets $BFFE, which is in MMC1's switchable window.
+        // It must not be guessed as PRG offset $3FFE.
+        rom[fixed] = 0xD0;
+        rom[fixed + 1] = 0xFC;
+        rom[fixed + 2] = 0x60;
+        rom[fixed - 2] = 0x60;
+
+        setField("ROM", rom);
+        setField("map", map);
+        setField("blockedFromCode", new boolean[0x8000]);
+
+        NESrev.processCode(fixed);
+        assertTrue("MMC1 fixed-bank branch opcode should be code", NESrev.isCode(fixed));
+        assertTrue("MMC1 fixed-bank fallthrough should be code", NESrev.isCode(fixed + 2));
+        assertFalse("MMC1 switchable branch target should not be traced", NESrev.isCode(fixed - 2));
     }
 
     private static void testVerifyDataLabelsMarksCodeToDataBoundary() throws Exception {
@@ -698,6 +965,64 @@ public class NESrevTest {
         assertNotNull("bare EA63", cfg.findByCallee(0xEA63 & 0x3FFF));
     }
 
+    private static void testInlineCallsAcceptsBankQualifiedCallees() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        File f = writeTempConfig("inlinecalls-bank",
+            "bank|callee|layout\n"
+            + "0|$8120|u8\n"
+            + "1|$C220|bytes(2)\n");
+        NESrev.InlineCallsConfig cfg = NESrev.InlineCallsConfig.parse(f.getAbsolutePath());
+        assertNotNull("bank 0 callee", cfg.findByCallee(0x0120));
+        assertNotNull("fixed bank callee", cfg.findByCallee(0x4220));
+        resetState();
+    }
+
+    private static void testInlineCallsAcceptsCallsiteRows() throws Exception {
+        File f = writeTempConfig("inlinecalls-callsite",
+            "callsite|callee|layout\n"
+            + "$C100|$CFFE|ptr16(code)\n");
+        NESrev.InlineCallsConfig cfg = NESrev.InlineCallsConfig.parse(f.getAbsolutePath());
+        NESrev.InlineCallEntry entry = cfg.findForCallsite(0x0100, 0x0FFE);
+        assertNotNull("callsite entry exists", entry);
+        assertEquals("callsite CPU address", 0xC100, entry.callsiteCpu);
+        assertEquals("callsite PRG offset", 0x0100, entry.callsite);
+        assertEquals("callee CPU address", 0xCFFE, entry.calleeCpu);
+        assertEquals("layout field count", 1, entry.layout.fields.length);
+    }
+
+    private static void testInlineCallsAcceptsBankQualifiedCallsiteRows() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        File f = writeTempConfig("inlinecalls-bank-callsite",
+            "bank|callsite|callee|layout\n"
+            + "0|$8120|$C27C|ptr16(code),ptr16(code)\n");
+        NESrev.InlineCallsConfig cfg = NESrev.InlineCallsConfig.parse(f.getAbsolutePath());
+        NESrev.InlineCallEntry entry = cfg.findForCallsite(0x0120, 0x427C);
+        assertNotNull("banked callsite entry exists", entry);
+        assertEquals("banked callsite PRG offset", 0x0120, entry.callsite);
+        assertEquals("fixed callee PRG offset", 0x427C, entry.callee);
+        assertEquals("layout field count", 2, entry.layout.fields.length);
+        resetState();
+    }
+
+    private static void testInlineCallsCallsiteOverridesCalleeDefault() throws Exception {
+        File defaults = writeTempConfig("inlinecalls-default",
+            "callee|layout\n"
+            + "$CFFE|u8\n");
+        NESrev.InlineCallsConfig defaultCfg = NESrev.InlineCallsConfig.parse(defaults.getAbsolutePath());
+        assertEquals("default field count", 1,
+            defaultCfg.findForCallsite(0x0100, 0x0FFE).layout.fields.length);
+
+        File f = writeTempConfig("inlinecalls-specific",
+            "callsite|callee|layout\n"
+            + "$C100|$CFFE|bytes(2)\n");
+        NESrev.InlineCallsConfig cfg = NESrev.InlineCallsConfig.parse(f.getAbsolutePath());
+        NESrev.InlineCallEntry entry = cfg.findForCallsite(0x0100, 0x0FFE);
+        assertNotNull("specific callsite entry exists", entry);
+        assertEquals("specific byte count", 2, entry.layout.fields[0].byteCount);
+    }
+
     private static void testInlineCallsStripsCommentsAndBlankLines() throws Exception {
         File f = writeTempConfig("inlinecalls-comments",
             "# leading comment\n"
@@ -833,6 +1158,29 @@ public class NESrevTest {
         assertEquals("second pointer count", 1, counts.get(1).intValue());
     }
 
+    private static void testPointerTableConfigAcceptsBankQualifiedRows() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        File f = writeTempConfig("pointer-bank",
+            "bank|addr|count\n"
+            + "0|$8120|2\n"
+            + "1|$C220|1\n");
+        java.util.ArrayList<Integer> starts = new java.util.ArrayList<Integer>();
+        java.util.ArrayList<Integer> counts = new java.util.ArrayList<Integer>();
+        java.lang.reflect.Method m = NESrev.class.getDeclaredMethod("parsePointerTableConfig",
+            String.class, String.class, java.util.ArrayList.class, java.util.ArrayList.class);
+        m.setAccessible(true);
+
+        m.invoke(null, f.getAbsolutePath(), "code pointer", starts, counts);
+
+        assertEquals("banked pointer row count", 2, starts.size());
+        assertEquals("bank 0 pointer start", 0x0120, starts.get(0).intValue());
+        assertEquals("bank 0 pointer count", 2, counts.get(0).intValue());
+        assertEquals("fixed bank pointer start", 0x4220, starts.get(1).intValue());
+        assertEquals("fixed bank pointer count", 1, counts.get(1).intValue());
+        resetState();
+    }
+
     private static void testDataRangesParseValid() throws Exception {
         File f = writeTempConfig("dataranges-valid",
             "start|length\n"
@@ -861,6 +1209,22 @@ public class NESrevTest {
             + "D5B6|2\n");
         NESrev.DataRangesConfig cfg = NESrev.DataRangesConfig.parse(f.getAbsolutePath());
         assertEquals("range count", 3, cfg.entries.length);
+    }
+
+    private static void testDataRangesAcceptsBankQualifiedRows() throws Exception {
+        resetState();
+        configurePrgMapping(0x8000, 1);
+        File f = writeTempConfig("dataranges-bank",
+            "bank|addr|length\n"
+            + "0|$8120|4\n"
+            + "1|$C220|2\n");
+        NESrev.DataRangesConfig cfg = NESrev.DataRangesConfig.parse(f.getAbsolutePath());
+        assertEquals("banked range count", 2, cfg.entries.length);
+        assertEquals("bank 0 range start", 0x0120, cfg.entries[0].start);
+        assertEquals("bank 0 range length", 4, cfg.entries[0].length);
+        assertEquals("fixed bank range start", 0x4220, cfg.entries[1].start);
+        assertEquals("fixed bank range length", 2, cfg.entries[1].length);
+        resetState();
     }
 
     private static void testDataRangesStripsCommentsAndBlankLines() throws Exception {
@@ -2185,9 +2549,11 @@ public class NESrevTest {
 
     private static void resetState() throws Exception {
         setField("toHtml", false);
+        setField("mapperNumber", 0);
         setField("prgSize", 0x4000);
         setField("prgMask", 0x3FFF);
         setField("cpuBase", 0xC000);
+        setField("fixedBankOffset", 0x0000);
         setField("ROM", new int[0x4000]);
         int data = getIntField("DATA");
         int[] map = new int[0x4000];
@@ -2215,6 +2581,12 @@ public class NESrevTest {
         Method m = NESrev.class.getDeclaredMethod("configurePrgMapping", long.class);
         m.setAccessible(true);
         m.invoke(null, length);
+    }
+
+    private static void configurePrgMapping(long length, int mapper) throws Exception {
+        Method m = NESrev.class.getDeclaredMethod("configurePrgMapping", long.class, int.class);
+        m.setAccessible(true);
+        m.invoke(null, length, mapper);
     }
 
     private static void invokePrivateNoArgs(String name) throws Exception {
@@ -2265,5 +2637,18 @@ public class NESrevTest {
     private static String hex(int op) {
         String s = Integer.toHexString(op & 0xFF).toUpperCase();
         return "0x" + (s.length() == 1 ? "0" + s : s);
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int at = 0;
+        while (true) {
+            int next = haystack.indexOf(needle, at);
+            if (next < 0) {
+                return count;
+            }
+            count++;
+            at = next + needle.length();
+        }
     }
 }

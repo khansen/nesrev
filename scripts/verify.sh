@@ -145,8 +145,8 @@ else
 fi
 
 echo "[3/4] Checking unresolved generic labels"
-if rg -n "\bL[0-9A-F]{4}\b|^L[0-9A-F]{4}:" "${ASM_FILE}" >"${TMPDIR_VERIFY}/labels.out"; then
-  label_count="$(rg -o "\bL[0-9A-F]{4}\b" "${ASM_FILE}" | sort -u | wc -l | tr -d ' ')"
+if rg -n "\bL[0-9A-F]{4,5}\b|^L[0-9A-F]{4,5}:" "${ASM_FILE}" >"${TMPDIR_VERIFY}/labels.out"; then
+  label_count="$(rg -o "\bL[0-9A-F]{4,5}\b" "${ASM_FILE}" | sort -u | wc -l | tr -d ' ')"
   ref_count="$(wc -l <"${TMPDIR_VERIFY}/labels.out" | tr -d ' ')"
   if [[ "${ALLOW_UNRESOLVED_LXXXX:-0}" == "1" ]]; then
     echo "WARN: ${label_count} distinct LXXXX labels (${ref_count} refs); allowed by ALLOW_UNRESOLVED_LXXXX=1" >&2
@@ -155,7 +155,7 @@ if rg -n "\bL[0-9A-F]{4}\b|^L[0-9A-F]{4}:" "${ASM_FILE}" >"${TMPDIR_VERIFY}/labe
     sample_lines=20
     head -n "${sample_lines}" "${TMPDIR_VERIFY}/labels.out" >&2
     if (( ref_count > sample_lines )); then
-      echo "... +$((ref_count - sample_lines)) more sites; to list all: rg -n '\\bL[0-9A-F]{4}\\b' ${ASM_FILE}" >&2
+      echo "... +$((ref_count - sample_lines)) more sites; to list all: rg -n '\\bL[0-9A-F]{4,5}\\b' ${ASM_FILE}" >&2
     fi
     exit 3
   fi

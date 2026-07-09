@@ -48,10 +48,12 @@ STRICT_ACTIVE_RAW_ABSROM="$(
       raw_absrom_operand = "^(" bare_absrom "|" paren_absrom "|" bracket_absrom ")$"
     }
     toupper($1) ~ /^[A-Z]{3}(\.[A-Z])?$/ {
+      mnemonic=toupper($1)
       line=$0
       sub(/^[[:space:]]*[A-Z]{3}(\.[A-Z])?[[:space:]]+/, "", line)
       sub(/[[:space:];].*$/, "", line)
       if (line ~ /^#/) next
+      if (mnemonic ~ /^(STA|STX|STY)$/ && line ~ raw_absrom_operand) next
       if (line ~ raw_absrom_operand) c++
     }
     END { print c+0 }

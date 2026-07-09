@@ -92,23 +92,35 @@ fi
 
 # Supported ROM matrix (must match agent_playbook/NEW_PROJECT.md#rom-support-matrix):
 #   iNES 1.0 or NES 2.0 headers whose decoded fields stay in this matrix
-#   mapper 0 (NROM)
-#   PRG = 16 KB (1 unit) or 32 KB (2 units)
-#   CHR = 0 or 8 KB (0 or 1 unit)
-if [[ "${MAPPER_NUMBER}" != "0" ]]; then
-  echo "error: ${REF_NES} uses mapper ${MAPPER_NUMBER}; nesrev currently supports mapper 0 (NROM) only." >&2
+#   mapper 0 (NROM): PRG = 16 KB or 32 KB; CHR = 0 or 8 KB
+#   mapper 1 (MMC1): PRG = 16 KB aligned, up to 256 KB; CHR = 0..128 KB
+if [[ "${MAPPER_NUMBER}" != "0" && "${MAPPER_NUMBER}" != "1" ]]; then
+  echo "error: ${REF_NES} uses mapper ${MAPPER_NUMBER}; nesrev currently supports mapper 0 (NROM) and mapper 1 (MMC1) only." >&2
   echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
   exit 1
 fi
-if [[ "${PRG_UNITS}" != "1" && "${PRG_UNITS}" != "2" ]]; then
-  echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports PRG=16 KB or 32 KB (1 or 2 units) only." >&2
-  echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
-  exit 1
-fi
-if [[ "${CHR_UNITS}" != "0" && "${CHR_UNITS}" != "1" ]]; then
-  echo "error: ${REF_NES} has CHR units=${CHR_UNITS}; nesrev currently supports CHR=0 or 8 KB (0 or 1 unit)." >&2
-  echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
-  exit 1
+if [[ "${MAPPER_NUMBER}" == "0" ]]; then
+  if [[ "${PRG_UNITS}" != "1" && "${PRG_UNITS}" != "2" ]]; then
+    echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports NROM PRG=16 KB or 32 KB (1 or 2 units) only." >&2
+    echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
+    exit 1
+  fi
+  if [[ "${CHR_UNITS}" != "0" && "${CHR_UNITS}" != "1" ]]; then
+    echo "error: ${REF_NES} has CHR units=${CHR_UNITS}; nesrev currently supports NROM CHR=0 or 8 KB (0 or 1 unit)." >&2
+    echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
+    exit 1
+  fi
+else
+  if (( PRG_UNITS < 1 || PRG_UNITS > 16 )); then
+    echo "error: ${REF_NES} has PRG units=${PRG_UNITS}; nesrev currently supports MMC1 PRG=16 KB..256 KB (1..16 units)." >&2
+    echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
+    exit 1
+  fi
+  if (( CHR_UNITS < 0 || CHR_UNITS > 16 )); then
+    echo "error: ${REF_NES} has CHR units=${CHR_UNITS}; nesrev currently supports MMC1 CHR=0 KB..128 KB (0..16 units)." >&2
+    echo "       See agent_playbook/NEW_PROJECT.md#rom-support-matrix for the full support matrix." >&2
+    exit 1
+  fi
 fi
 
 TRAINER_SIZE=0
@@ -147,7 +159,7 @@ dd if="${REF_NES}" of="${RAW_PRG}" bs=1 skip="${PRG_OFFSET}" count="${PRG_SIZE}"
 
 javac NESrev.java -Xlint:unchecked >/dev/null
 
-cmd=(java NESrev "${RAW_PRG}")
+cmd=(java NESrev "${RAW_PRG}" -mapper "${MAPPER_NUMBER}")
 if [[ -n "${CODEPOINTERS_CSV}" ]]; then
   cmd+=(-codepointers "${CODEPOINTERS_CSV}")
 fi
@@ -163,23 +175,22 @@ fi
 if [[ -n "${DATARANGES_CSV}" ]]; then
   cmd+=(-dataranges "${DATARANGES_CSV}")
 fi
-
 "${cmd[@]}" > "${OUT_ASM}"
 mv "${OUT_ASM}" "${ASM_FILE}"
 
 echo "asm regenerated: ${ASM_FILE}"
 if [[ -n "${CODEPOINTERS_CSV}" ]]; then
-  echo "code pointer config: ${CODEPOINTERS_CSV} (raw PRG offsets)"
+  echo "code pointer config: ${CODEPOINTERS_CSV} (raw PRG offsets or bank-qualified rows)"
 fi
 if [[ -n "${DATAPOINTERS_CSV}" ]]; then
-  echo "data pointer config: ${DATAPOINTERS_CSV} (raw PRG offsets)"
+  echo "data pointer config: ${DATAPOINTERS_CSV} (raw PRG offsets or bank-qualified rows)"
 fi
 if [[ -n "${CODEENTRIES_TXT}" ]]; then
-  echo "code entries config: ${CODEENTRIES_TXT} (CPU addresses)"
+  echo "code entries config: ${CODEENTRIES_TXT} (CPU addresses or bank-qualified rows)"
 fi
 if [[ -n "${INLINECALLS_CSV}" ]]; then
-  echo "inline-call config: ${INLINECALLS_CSV} (CPU addresses)"
+  echo "inline-call config: ${INLINECALLS_CSV} (CPU addresses or bank-qualified rows)"
 fi
 if [[ -n "${DATARANGES_CSV}" ]]; then
-  echo "data-range config: ${DATARANGES_CSV} (CPU addresses)"
+  echo "data-range config: ${DATARANGES_CSV} (CPU addresses or bank-qualified rows)"
 fi

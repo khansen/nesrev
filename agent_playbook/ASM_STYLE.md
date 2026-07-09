@@ -121,7 +121,7 @@ canonical wording from `AGENTS.md` for use during in-depth work:
 - **Relative branch literals (`$+N`/`$-N`):** Treat as parity-sensitive. Do not rewrite to named labels unless target is proven instruction boundary.
 - **Parity trampolines:** Do not collapse `JMP` trampolines into fallthrough without verifying byte-for-byte parity.
 - **Doc hygiene:** Update `Used by:` lines and docs that mention localized internal labels in the same pass.
-- **Dual KPI tracking:** Track both definition count (`^L[0-9A-F]{4}:`) and total occurrence count in scorecard.
+- **Dual KPI tracking:** Track both definition count (`^L[0-9A-F]{4,5}:`) and total occurrence count in scorecard.
 - **Constraint notes:** Record in scorecard when a label is intentionally left non-local (scope split, parity risk, shared entry).
 <a id="local-global-labels"></a>
 ## Local and Global Label Rules
