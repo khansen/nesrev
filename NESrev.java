@@ -2362,14 +2362,15 @@ public class NESrev {
 
 /**
 * Layout grammar:
-*   layout       := field ("," field)*
+*   layout       := repeated_field ("," repeated_field)*
+*   repeated_field := field ["*" positive_integer]
 *   field        := "u8"
 *                 | "bytes(" positive_integer ")"
 *                 | "counted8"
 *                 | "ptr16(" pointer_kind ["," signed_integer] ")"
 *   pointer_kind := "code" | "data"
-* counted8 must be the final field. Whitespace around fields and inside
-* parenthesised arguments is ignored.
+* counted8 must be the final field and cannot use "*". Whitespace around
+* fields, repeat markers, and inside parenthesised arguments is ignored.
 **/
 
     static InlineLayout parseInlineLayout(String spec, int lineNo) {
@@ -2392,10 +2393,11 @@ public class NESrev {
                 throw new ConfigException("inlinecalls: unexpected character '" + spec.charAt(i)
                     + "' in layout at line " + lineNo + ": " + spec);
             }
+            InlineField field;
             if (tok.equals("u8")) {
-                fields.add(InlineField.u8());
+                field = InlineField.u8();
             } else if (tok.equals("counted8")) {
-                fields.add(InlineField.counted8());
+                field = InlineField.counted8();
             } else if (tok.equals("bytes")) {
                 while (i < n && Character.isWhitespace(spec.charAt(i))) {
                     i++;
@@ -2419,7 +2421,7 @@ public class NESrev {
                     throw new ConfigException("inlinecalls: 'bytes(N)' requires N > 0 at line " + lineNo
                         + ": " + count);
                 }
-                fields.add(InlineField.bytes(count));
+                field = InlineField.bytes(count);
                 i = close + 1;
             } else if (tok.equals("ptr16")) {
                 while (i < n && Character.isWhitespace(spec.charAt(i))) {
@@ -2461,13 +2463,49 @@ public class NESrev {
                             + lineNo + ": '" + adjStr + "'");
                     }
                 }
-                fields.add(InlineField.ptr16(pointerKind, adj));
+                field = InlineField.ptr16(pointerKind, adj);
                 i = close + 1;
             } else {
                 throw new ConfigException("inlinecalls: unknown field '" + tok + "' at line " + lineNo);
             }
             while (i < n && Character.isWhitespace(spec.charAt(i))) {
                 i++;
+            }
+            int repeat = 1;
+            if (i < n && spec.charAt(i) == '*') {
+                if (field.kind == InlineField.COUNTED8) {
+                    throw new ConfigException("inlinecalls: 'counted8' cannot use repeat '*' at line "
+                        + lineNo);
+                }
+                i++;
+                while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                    i++;
+                }
+                int repeatStart = i;
+                while (i < n && Character.isDigit(spec.charAt(i))) {
+                    i++;
+                }
+                if (repeatStart == i) {
+                    throw new ConfigException("inlinecalls: repeat '*' expects a positive integer at line "
+                        + lineNo + ": " + spec);
+                }
+                String repeatStr = spec.substring(repeatStart, i);
+                try {
+                    repeat = Integer.parseInt(repeatStr);
+                } catch (NumberFormatException ex) {
+                    throw new ConfigException("inlinecalls: repeat count must be a positive integer at line "
+                        + lineNo + ": '" + repeatStr + "'");
+                }
+                if (repeat <= 0) {
+                    throw new ConfigException("inlinecalls: repeat count requires N > 0 at line " + lineNo
+                        + ": " + repeat);
+                }
+                while (i < n && Character.isWhitespace(spec.charAt(i))) {
+                    i++;
+                }
+            }
+            for (int repeatIndex = 0; repeatIndex < repeat; repeatIndex++) {
+                fields.add(field);
             }
             if (i < n) {
                 if (spec.charAt(i) != ',') {

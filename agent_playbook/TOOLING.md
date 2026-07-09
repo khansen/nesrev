@@ -193,8 +193,9 @@ fails to recover inline-call payloads.
 # inlinecalls.csv — pipe-delimited; callee CPU address + payload layout
 # descriptor for inline-call patterns (JSR followed by inline bytes the
 # callee consumes from the return address). Layout tokens include `u8`,
-# `bytes(N)`, `counted8`, `ptr16(data)`, `ptr16(code,+1)`, etc. Use
-# callsite rows when one helper has variable record lengths. MMC1 rows
+# `bytes(N)`, `counted8`, `ptr16(data)`, `ptr16(code,+1)`, and repeat
+# shorthand such as `ptr16(code)*31`. Use callsite rows when one helper
+# has variable record lengths. MMC1 rows
 # may use bank|callee|layout for switched-bank callees, or
 # bank|callsite|callee|layout when the JSR site is in a specific bank.
 # callee|layout
@@ -202,11 +203,11 @@ fails to recover inline-call payloads.
 # $C963|bytes(6)
 # $EA05|counted8
 # callsite|callee|layout
-# $C120|$C27C|ptr16(code),ptr16(code),ptr16(code)
+# $C120|$C27C|ptr16(code)*3
 # bank|callee|layout
 # 0|$8120|u8
 # bank|callsite|callee|layout
-# 0|$8027|$C27C|ptr16(code),ptr16(code)
+# 0|$8027|$C27C|ptr16(code)*2
 
 # dataranges.csv — pipe-delimited; explicit data-byte regions NESrev should
 # treat as opaque payload rather than trying to decode as instructions. MMC1

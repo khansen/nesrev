@@ -115,10 +115,10 @@ $C963|bytes(6)
 $C8BB|u8,ptr16(data)
 
 callsite|callee|layout
-$C120|$C27C|ptr16(code),ptr16(code),ptr16(code)
+$C120|$C27C|ptr16(code)*3
 
 bank|callsite|callee|layout
-0|$8027|$C27C|ptr16(code),ptr16(code)
+0|$8027|$C27C|ptr16(code)*2
 ```
 
 Rules:
@@ -142,12 +142,13 @@ Rules:
 ### 5.2 Layout Grammar
 
 ```text
-layout       := field ("," field)*
-field        := "u8"
-              | "bytes(" positive_integer ")"
-              | "counted8"
-              | "ptr16(" pointer_kind ["," signed_integer] ")"
-pointer_kind := "code" | "data"
+layout         := repeated_field ("," repeated_field)*
+repeated_field := field ["*" positive_integer]
+field          := "u8"
+                | "bytes(" positive_integer ")"
+                | "counted8"
+                | "ptr16(" pointer_kind ["," signed_integer] ")"
+pointer_kind   := "code" | "data"
 ```
 
 | Field | Size | Meaning |
@@ -158,8 +159,13 @@ pointer_kind := "code" | "data"
 | `ptr16(data)` | 2 | Little-endian data pointer |
 | `ptr16(code)` | 2 | Little-endian code pointer |
 | `ptr16(K,+N)` | 2 | Pointer of kind K with signed target adjustment |
+| `FIELD*N` | field size × N | Repeat any fixed-size field N times |
 
-`counted8` must be the final field.
+`counted8` must be the final field and cannot use `*N`.
+
+Repeat shorthand is equivalent to spelling the field out repeatedly. For
+example, `ptr16(code)*31` means 31 consecutive little-endian code pointers.
+It can be mixed with other fields, such as `u8,ptr16(code)*4,bytes(2)`.
 
 Pointer decoding:
 
@@ -405,6 +411,7 @@ $EB0A|u8,ptr16(code,+1)
 $EA17|counted8
 $C963|bytes(6)
 $C8BB|u8,ptr16(data)
+$C27C|ptr16(code)*10
 ```
 
 ### 10.2 `dataranges.csv`

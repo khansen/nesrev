@@ -47,6 +47,7 @@ public class NESrevTest {
         testAddressingModesCoveredByProcessableOpcodes();
         testInlineCallsParseValid();
         testInlineCallsAcceptsLayoutWhitespaceAroundParens();
+        testInlineCallsAcceptsRepeatedFields();
         testInlineCallsAcceptsAddressForms();
         testInlineCallsAcceptsBankQualifiedCallees();
         testInlineCallsAcceptsCallsiteRows();
@@ -59,6 +60,7 @@ public class NESrevTest {
         testInlineCallsRejectsCountedNotFinal();
         testInlineCallsRejectsUnknownField();
         testInlineCallsRejectsBadBytesCount();
+        testInlineCallsRejectsBadRepeatCount();
         testInlineCallsRejectsBadPointerKind();
         testInlineCallsRejectsBadPointerAdjustment();
         testInlineCallsRejectsAddressOutOfRange();
@@ -952,6 +954,25 @@ public class NESrevTest {
         assertEquals("ptr16 adjustment", 1, entry.layout.fields[1].pointerAdjustment);
     }
 
+    private static void testInlineCallsAcceptsRepeatedFields() throws Exception {
+        File f = writeTempConfig("inlinecalls-repeat",
+            "callee|layout\n"
+            + "$EB0A|u8*2,ptr16(code)*3,bytes(2) * 2\n");
+        NESrev.InlineCallsConfig cfg = NESrev.InlineCallsConfig.parse(f.getAbsolutePath());
+
+        NESrev.InlineCallEntry entry = cfg.findByCallee(0xEB0A & 0x3FFF);
+        assertNotNull("EB0A entry exists", entry);
+        assertEquals("field count", 7, entry.layout.fields.length);
+        assertEquals("u8 repeat field[0]", NESrev.InlineField.U8, entry.layout.fields[0].kind);
+        assertEquals("u8 repeat field[1]", NESrev.InlineField.U8, entry.layout.fields[1].kind);
+        assertEquals("ptr repeat field[2]", NESrev.InlineField.PTR16, entry.layout.fields[2].kind);
+        assertEquals("ptr repeat field[4]", NESrev.InlineField.PTR16, entry.layout.fields[4].kind);
+        assertEquals("bytes repeat field[5]", NESrev.InlineField.BYTES, entry.layout.fields[5].kind);
+        assertEquals("bytes repeat size", 2, entry.layout.fields[5].byteCount);
+        assertEquals("fixedSize", 12, entry.layout.fixedSize);
+        assertFalse("repeated fixed fields are not variable", entry.layout.hasCounted8);
+    }
+
     private static void testInlineCallsAcceptsAddressForms() throws Exception {
         File f = writeTempConfig("inlinecalls-addrs",
             "callee|layout\n"
@@ -1080,6 +1101,23 @@ public class NESrevTest {
             "callee|layout\n$EB0A|bytes\n");
         expectConfigError("bytes without ( rejected",
             f2.getAbsolutePath(), true, "'bytes'");
+    }
+
+    private static void testInlineCallsRejectsBadRepeatCount() throws Exception {
+        File f = writeTempConfig("inlinecalls-repeat-zero",
+            "callee|layout\n$EB0A|ptr16(code)*0\n");
+        expectConfigError("repeat zero rejected",
+            f.getAbsolutePath(), true, "repeat count requires N > 0");
+
+        File f2 = writeTempConfig("inlinecalls-repeat-missing",
+            "callee|layout\n$EB0A|ptr16(code)*\n");
+        expectConfigError("repeat missing count rejected",
+            f2.getAbsolutePath(), true, "repeat '*' expects a positive integer");
+
+        File f3 = writeTempConfig("inlinecalls-repeat-counted",
+            "callee|layout\n$EB0A|counted8*2\n");
+        expectConfigError("counted8 repeat rejected",
+            f3.getAbsolutePath(), true, "counted8");
     }
 
     private static void testInlineCallsRejectsBadPointerKind() throws Exception {
