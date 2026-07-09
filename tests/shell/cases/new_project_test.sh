@@ -412,8 +412,8 @@ test_docs_check_rejects_unresolved_label_in_systems_overview() {
   local rc=$?
   set -e
 
-  assert_eq "${rc}" "2" "systems overview must reject unresolved LXXXX labels"
-  assert_match "systems doc contains unresolved LXXXX labels" \
+  assert_eq "${rc}" "2" "systems overview must reject unresolved LXXXX/LXXXXX labels"
+  assert_match "systems doc contains unresolved LXXXX/LXXXXX labels" \
     "$(cat "${NESREV_TEST_TMPDIR}/docs.stderr")"
 }
 

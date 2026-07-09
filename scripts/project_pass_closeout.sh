@@ -621,7 +621,7 @@ with renames_file.open("r", encoding="utf-8", newline="") as f:
                     "row": idx,
                     "old_name": old_name,
                     "expected": (
-                        "asm symbol-style name, LXXXX label, @@local label, "
+                        "asm symbol-style name, LXXXX/LXXXXX label, @@local label, "
                         "raw_$NN/raw_$NNNN address key, or specific raw_* synthetic key"
                     ),
                 })

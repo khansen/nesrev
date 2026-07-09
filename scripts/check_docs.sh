@@ -96,7 +96,7 @@ with path.open("r", encoding="utf-8", newline="") as f:
         if not valid_old_name_shape(old_name):
             print(f"FAIL: renames.csv row {idx} has invalid old_name: {old_name!r}", file=sys.stderr)
             print(
-                "expected an asm symbol-style name, LXXXX label, @@local label, "
+                "expected an asm symbol-style name, LXXXX/LXXXXX label, @@local label, "
                 "raw_$NN/raw_$NNNN address key, or specific raw_* synthetic key",
                 file=sys.stderr,
             )
@@ -182,7 +182,7 @@ fi
 echo "[4/8] Checking systems-doc maturity hygiene"
 systems_fail=0
 if rg -n 'L[0-9A-F]{4,5}' "${SYSTEMS_DOC}" >"${TMPDIR_CHECK_DOCS}/systems_lxxxx.out"; then
-  echo "FAIL: systems doc contains unresolved LXXXX labels:" >&2
+  echo "FAIL: systems doc contains unresolved LXXXX/LXXXXX labels:" >&2
   cat "${TMPDIR_CHECK_DOCS}/systems_lxxxx.out" >&2
   systems_fail=1
 fi

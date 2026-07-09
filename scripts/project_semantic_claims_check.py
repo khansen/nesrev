@@ -199,7 +199,7 @@ def validate_subject(where, subject, confidence, fields, symbols) -> list[str]:
         fields.get("Caveats", {})
     )
     if LXXXX_RE.match(subject):
-        out.append(f"{where}: Subject is a raw LXXXX label ({subject}); resolve it first")
+        out.append(f"{where}: Subject is a raw LXXXX/LXXXXX label ({subject}); resolve it first")
         return out
     if PLACEHOLDER_RE.match(subject) or BARE_RAW_RE.match(subject):
         if not mechanical_exempt:
