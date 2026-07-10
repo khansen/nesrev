@@ -18,6 +18,7 @@ _make_workflow_project() {
   cleanup_project "${slug}"
   mkdir -p \
     "${root}/asm" \
+    "${root}/build" \
     "${root}/reference" \
     "${root}/docs/crosswalk" \
     "${root}/docs/reverse_engineering/inventory/pass"
@@ -30,6 +31,7 @@ DOC_ROOT="${root}/docs/reverse_engineering"
 SYSTEMS_DOC="${root}/docs/reverse_engineering/${slug}_DX_Systems.md"
 WARN_BASELINE_FILE="${root}/docs/reverse_engineering/WARNING_BASELINE.txt"
 NESREV_RECOVERY_STATUS="${recovery_status}"
+OUT_BIN="${root}/build/${slug}.o"
 EOF
 
   cat > "${root}/asm/${slug}.asm" <<'ASM'
@@ -69,6 +71,140 @@ _write_pass_one_scorecard() {
 | 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
 | 1 | First corridor | 8 / 16 | 0 | not measured | 0 | 0 | 0 | pass (LXXXX gate suppressed) | pass | 0 | ${notes} |
 EOF
+}
+
+_write_pass_prep_xasm_stub() {
+  local stubdir="$1"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/xasm" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'CALL' >> "${XASM_LOG}"
+for arg in "$@"; do
+  printf '\t%s' "${arg}" >> "${XASM_LOG}"
+done
+printf '\n' >> "${XASM_LOG}"
+
+write_json() {
+  local path="$1" kind="$2"
+  mkdir -p "$(dirname "${path}")"
+  case "${kind}" in
+    summary)
+      printf '{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}\n' > "${path}"
+      ;;
+    xref)
+      printf '{"symbols":[],"references":[],"data_reads":[],"data_writes":[],"indirect_data_flows":[]}\n' > "${path}"
+      ;;
+    array)
+      printf '[]\n' > "${path}"
+      ;;
+  esac
+}
+
+out=""
+is_primary=0
+while (( $# > 0 )); do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    --xref-summary-output=*)
+      write_json "${1#*=}" summary
+      shift
+      ;;
+    --xref=*)
+      is_primary=1
+      write_json "${1#*=}" xref
+      shift
+      ;;
+    --index-patterns-output=*|--data-consumers-output=*|--data-coverage-output=*)
+      write_json "${1#*=}" array
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "${out}" ]]; then
+  mkdir -p "$(dirname "${out}")"
+  : > "${out}"
+fi
+
+if [[ "${is_primary}" == "1" && "${XASM_STUB_PRIMARY_EXIT:-0}" != "0" ]]; then
+  echo "stub primary failure ${XASM_STUB_PRIMARY_EXIT}" >&2
+  exit "${XASM_STUB_PRIMARY_EXIT}"
+fi
+STUB
+  chmod +x "${stubdir}/xasm"
+}
+
+_write_compare_size_xasm_stub() {
+  local stubdir="$1"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/xasm" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf 'CALL' >> "${XASM_LOG}"
+for arg in "$@"; do
+  printf '\t%s' "${arg}" >> "${XASM_LOG}"
+done
+printf '\n' >> "${XASM_LOG}"
+
+out=""
+compare=""
+while (( $# > 0 )); do
+  case "$1" in
+    -o)
+      out="$2"
+      shift 2
+      ;;
+    --compare=*)
+      compare="${1#*=}"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+if [[ -n "${compare}" ]]; then
+  printf 'COMPARE_SIZE\t%s\n' "$(wc -c < "${compare}" | tr -d ' ')" >> "${XASM_LOG}"
+fi
+
+if [[ -n "${out}" ]]; then
+  mkdir -p "$(dirname "${out}")"
+  python3 - "${out}" "${XASM_STUB_OUT_SIZE:-0}" <<'PY'
+import sys
+from pathlib import Path
+
+Path(sys.argv[1]).write_bytes(b"\x00" * int(sys.argv[2]))
+PY
+fi
+STUB
+  chmod +x "${stubdir}/xasm"
+}
+
+_write_nes2_prg_high_reference() {
+  local path="$1"
+  python3 - "${path}" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = bytearray(b"NES\x1a" + bytes(12))
+header[4] = 0
+header[7] = 0x08  # NES 2.0 identifier bits.
+header[9] = 0x01  # PRG-ROM size high nibble: 256 * 16 KB.
+with path.open("wb") as f:
+    f.write(header)
+    f.truncate(16 + 256 * 16384)
+PY
 }
 
 test_new_project_process_check_accepts_recorded_pass_one_analogue() {
@@ -159,6 +295,291 @@ ASM
   grep -qF 'UNUSED_TEST_CONSTANT,$2A,misc,0' \
     "projects/${slug}/docs/reverse_engineering/inventory/constants_catalog.csv" \
     || fail "unused constants must be retained with zero usage sites"
+}
+
+test_project_pass_prep_bundles_compatible_xasm_outputs() {
+  local slug; slug="$(unique_slug pass_prep_bundle)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  make_ines "projects/${slug}/reference/${slug}.nes" --prg 2
+  : > "projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_calls.tsv"
+  _write_pass_prep_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
+
+  python3 - "${log}" "projects/${slug}/docs/reverse_engineering/inventory/pass" <<'PY'
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+pass_dir = sys.argv[2]
+calls = [
+    line.rstrip("\n").split("\t")[1:]
+    for line in log_path.read_text(encoding="utf-8").splitlines()
+]
+if len(calls) != 2:
+    raise SystemExit(f"expected two total xasm calls from project-pass-prep, got {len(calls)}: {calls!r}")
+analysis_calls = [
+    args for args in calls
+    if any(arg.startswith("--xref-summary-output=") for arg in args)
+]
+if len(analysis_calls) != 2:
+    raise SystemExit(f"expected two pass-prep analysis xasm calls, got {len(analysis_calls)}: {calls!r}")
+
+bundle = [
+    args for args in analysis_calls
+    if f"--xref={pass_dir}/xref_with_data.json" in args
+]
+if len(bundle) != 1:
+    raise SystemExit(f"expected exactly one bundled xref/data-analysis call, got {bundle!r}")
+bundle = bundle[0]
+for required in (
+    "--compare-format=json",
+    "--compare-cpu-base=$8000",
+    f"--xref-summary-output={pass_dir}/xref_summary_all.json",
+    f"--xref={pass_dir}/xref_with_data.json",
+    f"--index-patterns-output={pass_dir}/index_patterns.json",
+    f"--data-consumers-output={pass_dir}/data_consumers.json",
+    f"--data-coverage-output={pass_dir}/data_coverage.json",
+):
+    if required not in bundle:
+        raise SystemExit(f"bundled xasm call missing {required}: {bundle!r}")
+if not any(arg.startswith("--compare=") for arg in bundle):
+    raise SystemExit(f"bundled xasm call must include parity compare: {bundle!r}")
+if any(arg.startswith("--xref-summary-include=") for arg in bundle):
+    raise SystemExit(f"all-symbol bundle must not include the generic-label filter: {bundle!r}")
+
+generic = [
+    args for args in analysis_calls
+    if f"--xref-summary-output={pass_dir}/xref_summary_generic.json" in args
+]
+if len(generic) != 1:
+    raise SystemExit(f"expected exactly one generic-summary xasm call, got {generic!r}")
+generic = generic[0]
+if not any(arg == "--xref-summary-include=^L[0-9A-F]{4,5}$" for arg in generic):
+    raise SystemExit(f"generic summary call missing LXXXX/LXXXXX include filter: {generic!r}")
+if any(arg.startswith("--xref=") for arg in generic):
+    raise SystemExit(f"generic summary must stay separate from owner/data xref outputs: {generic!r}")
+PY
+}
+
+test_project_pass_prep_fails_non_compare_xasm_error_even_when_artifacts_exist() {
+  local slug; slug="$(unique_slug pass_prep_xasm_fail)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  make_ines "projects/${slug}/reference/${slug}.nes"
+  : > "projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_fail_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_fail_calls.tsv"
+  _write_pass_prep_xasm_stub "${stubdir}"
+
+  local out="${NESREV_TEST_TMPDIR}/pass_prep_fail.stdout"
+  local err="${NESREV_TEST_TMPDIR}/pass_prep_fail.stderr"
+  local rc
+  set +e
+  PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
+    XASM_STUB_PRIMARY_EXIT=7 \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >"${out}" 2>"${err}"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "7" \
+    "project-pass-prep must not hide non-compare xasm failures even when JSON artifacts exist"
+  assert_match "stub primary failure 7" "$(cat "${err}")" \
+    "fatal xasm stderr should be surfaced to the caller"
+
+  local call_count
+  call_count="$(wc -l < "${log}" | tr -d ' ')"
+  assert_eq "${call_count}" "1" \
+    "project-pass-prep must stop before the generic summary after fatal primary xasm failure"
+}
+
+test_project_pass_prep_rejects_truncated_reference_before_compare() {
+  local slug; slug="$(unique_slug pass_prep_truncated_ref)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  : > "projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
+  python3 - "projects/${slug}/reference/${slug}.nes" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = b"NES\x1a" + bytes([1, 1, 0, 0]) + b"\x00" * 8
+path.write_bytes(header + b"\x00" * 1024)
+PY
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_truncated_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_truncated_calls.tsv"
+  _write_pass_prep_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
+
+  python3 - \
+    "${log}" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/baseline_status.json" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/compare.stderr" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+baseline_path = Path(sys.argv[2])
+stderr_path = Path(sys.argv[3])
+
+calls = [
+    line.rstrip("\n").split("\t")[1:]
+    for line in log_path.read_text(encoding="utf-8").splitlines()
+]
+if not calls:
+    raise SystemExit("xasm should still run to generate analysis artifacts")
+if any(any(arg.startswith("--compare=") for arg in args) for args in calls):
+    raise SystemExit(f"truncated reference must not be passed to xasm --compare: {calls!r}")
+
+baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+parity = baseline["checks"]["parity"]
+if parity["status"] != "fail" or parity["exit_code"] != 2:
+    raise SystemExit(f"truncated reference should be recorded as parity failure: {parity!r}")
+if "truncated" not in stderr_path.read_text(encoding="utf-8"):
+    raise SystemExit("compare.stderr should explain the truncated reference")
+PY
+}
+
+test_project_pass_prep_rejects_zero_prg_reference_before_compare() {
+  local slug; slug="$(unique_slug pass_prep_zero_prg_ref)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  : > "projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
+  python3 - "projects/${slug}/reference/${slug}.nes" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = b"NES\x1a" + bytes([0, 1, 0, 0]) + b"\x00" * 8
+path.write_bytes(header + b"\x00" * 8192)
+PY
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_zero_prg_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_zero_prg_calls.tsv"
+  _write_pass_prep_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
+
+  python3 - \
+    "${log}" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/baseline_status.json" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/compare.stderr" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+baseline_path = Path(sys.argv[2])
+stderr_path = Path(sys.argv[3])
+
+calls = [
+    line.rstrip("\n").split("\t")[1:]
+    for line in log_path.read_text(encoding="utf-8").splitlines()
+]
+if not calls:
+    raise SystemExit("xasm should still run to generate analysis artifacts")
+if any(any(arg.startswith("--compare=") for arg in args) for args in calls):
+    raise SystemExit(f"zero-PRG reference must not be passed to xasm --compare: {calls!r}")
+
+baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+parity = baseline["checks"]["parity"]
+if parity["status"] != "fail" or parity["exit_code"] != 2:
+    raise SystemExit(f"zero-PRG reference should be recorded as parity failure: {parity!r}")
+if "zero PRG banks" not in stderr_path.read_text(encoding="utf-8"):
+    raise SystemExit("compare.stderr should explain the zero-PRG reference")
+PY
+}
+
+test_project_pass_prep_accepts_nes2_prg_high_units_before_compare() {
+  local slug; slug="$(unique_slug pass_prep_nes2_prg_high)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  : > "projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
+  _write_nes2_prg_high_reference "projects/${slug}/reference/${slug}.nes"
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_nes2_prg_high_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_nes2_prg_high_calls.tsv"
+  _write_pass_prep_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
+
+  python3 - \
+    "${log}" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/baseline_status.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+log_path = Path(sys.argv[1])
+baseline_path = Path(sys.argv[2])
+
+calls = [
+    line.rstrip("\n").split("\t")[1:]
+    for line in log_path.read_text(encoding="utf-8").splitlines()
+]
+if not any(any(arg.startswith("--compare=") for arg in args) for args in calls):
+    raise SystemExit(f"NES 2.0 PRG high-unit reference should be passed to xasm --compare: {calls!r}")
+
+baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+parity = baseline["checks"]["parity"]
+if parity["status"] != "pass" or parity["exit_code"] != 0:
+    raise SystemExit(f"NES 2.0 PRG high-unit reference should be accepted for parity compare: {parity!r}")
+PY
+}
+
+test_project_compare_uses_shared_nes2_prg_high_extract() {
+  local slug; slug="$(unique_slug compare_nes2_prg_high)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_nes2_prg_high_reference "projects/${slug}/reference/${slug}.nes"
+
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_compare_nes2_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_compare_nes2_calls.tsv"
+  _write_compare_size_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_LOG="${log}" \
+    bash "${REPO_ROOT}/scripts/project_compare.sh" "${slug}" json >/dev/null
+
+  grep -qF $'COMPARE_SIZE\t4194304' "${log}" \
+    || fail "project_compare must extract the NES 2.0 high-unit PRG payload"
+}
+
+test_verify_uses_shared_nes2_prg_high_extract() {
+  local asm="${NESREV_TEST_TMPDIR}/verify_nes2_prg_high.asm"
+  local ref="${NESREV_TEST_TMPDIR}/verify_nes2_prg_high.nes"
+  local out="${NESREV_TEST_TMPDIR}/verify_nes2_prg_high.o"
+  local warnings="${NESREV_TEST_TMPDIR}/verify_nes2_warnings.txt"
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_verify_nes2_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_verify_nes2_calls.tsv"
+
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reset:
+  RTS
+ASM
+  : > "${warnings}"
+  _write_nes2_prg_high_reference "${ref}"
+  _write_compare_size_xasm_stub "${stubdir}"
+
+  PATH="${stubdir}:${PATH}" XASM_LOG="${log}" XASM_STUB_OUT_SIZE=4194304 \
+    bash "${REPO_ROOT}/scripts/verify.sh" "${asm}" "${ref}" "${out}" "${warnings}" '$C000' >/dev/null
 }
 
 test_legacy_project_process_check_does_not_require_analogue_record() {
