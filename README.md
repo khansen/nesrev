@@ -63,7 +63,10 @@ Optional variables:
 
 Use this as the default start/resume workflow for reverse-engineering passes.
 `project-pass-prep` refreshes inventory and generates structured `xasm`
-analysis artifacts, including owner-enriched xref JSON.
+analysis artifacts, including owner-enriched xref JSON. Compatible xasm
+outputs, including the baseline parity compare, are bundled into one assembler
+pass; the filtered generic-label xref summary is generated separately because
+its context is computed after applying the filter.
 `project-next-pass` reads those artifacts and emits compact candidate
 evidence for the next pass — advisory, not an authoritative recommender; the
 operator selects the corridor objective — including caller context, outbound edge summary,

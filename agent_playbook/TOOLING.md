@@ -85,8 +85,12 @@ Do not use broad `rg` sweeps or ad-hoc KPI scripts when pass artifacts already p
 <a id="data-consumer-analysis"></a>
 ## Data-Consumer, Data-Coverage, and Index-Pattern Analysis
 
-`make project-pass-prep` runs three xasm structured-analysis outputs into
-`docs/reverse_engineering/inventory/pass/`. Only `data_consumers.json` is
+`make project-pass-prep` emits baseline parity status, both xref summaries,
+owner-enriched xref, and three structured-analysis outputs into
+`docs/reverse_engineering/inventory/pass/`. Compatible outputs are bundled into
+one xasm process so the wrapper does not repeat the same parse/assemble work;
+the filtered generic-label xref summary stays separate because summary context
+is computed after the include filter is applied. Only `data_consumers.json` is
 loaded by `make project-next-pass` (consumer rollups for generated evidence);
 `index_patterns.json` and `data_coverage.json` are manual evidence artifacts.
 

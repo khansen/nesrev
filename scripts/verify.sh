@@ -12,6 +12,9 @@ REF_NES="$2"
 OUT_BIN="$3"
 WARN_BASELINE_FILE="$4"
 COMPARE_CPU_BASE="${5:-}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/project_common.sh
+source "${SCRIPT_DIR}/project_common.sh"
 TMPDIR_VERIFY="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_VERIFY}"' EXIT
 
@@ -72,44 +75,8 @@ echo "OK: warning baseline unchanged"
 
 echo "[2/4] Comparing ${OUT_BIN} to PRG ROM in ${REF_NES}"
 
-INES_MAGIC="$(od -An -tx1 -N4 "${REF_NES}" | tr -d ' \n')"
-if [[ "${INES_MAGIC}" != "4e45531a" ]]; then
-  echo "error: ${REF_NES} is not a valid iNES file (bad magic)" >&2
-  exit 2
-fi
-
-PRG_UNITS="$(od -An -tu1 -j4 -N1 "${REF_NES}" | tr -d ' ')"
-CHR_UNITS="$(od -An -tu1 -j5 -N1 "${REF_NES}" | tr -d ' ')"
-FLAGS6="$(od -An -tu1 -j6 -N1 "${REF_NES}" | tr -d ' ')"
-
-if [[ -z "${PRG_UNITS}" || -z "${CHR_UNITS}" || -z "${FLAGS6}" ]]; then
-  echo "error: failed to parse iNES header fields from ${REF_NES}" >&2
-  exit 2
-fi
-
-TRAINER_SIZE=0
-if (( (FLAGS6 & 0x04) != 0 )); then
-  TRAINER_SIZE=512
-fi
-
-PRG_OFFSET=$((16 + TRAINER_SIZE))
-PRG_SIZE=$((PRG_UNITS * 16384))
-CHR_SIZE=$((CHR_UNITS * 8192))
-EXPECTED_MIN_SIZE=$((PRG_OFFSET + PRG_SIZE + CHR_SIZE))
-REF_SIZE="$(wc -c < "${REF_NES}")"
-
-if (( PRG_SIZE == 0 )); then
-  echo "error: iNES PRG size is zero in ${REF_NES}" >&2
-  exit 2
-fi
-
-if (( REF_SIZE < EXPECTED_MIN_SIZE )); then
-  echo "error: ${REF_NES} is truncated (size ${REF_SIZE}, expected >= ${EXPECTED_MIN_SIZE})" >&2
-  exit 2
-fi
-
 REF_PRG="${TMPDIR_VERIFY}/reference_prg.bin"
-dd if="${REF_NES}" of="${REF_PRG}" bs=1 skip="${PRG_OFFSET}" count="${PRG_SIZE}" status=none
+extract_reference_prg_from_ines "${REF_NES}" "${REF_PRG}"
 
 if cmp -s "${REF_PRG}" "${OUT_BIN}"; then
   echo "OK: binary identity preserved"

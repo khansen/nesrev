@@ -164,3 +164,73 @@ load_project_conf() {
     fi
   fi
 }
+
+extract_reference_prg_from_ines() {
+  if [[ $# -ne 2 ]]; then
+    echo "usage: extract_reference_prg_from_ines <ref_nes> <out_prg>" >&2
+    return 64
+  fi
+
+  local ref_nes="$1"
+  local ref_prg="$2"
+
+  if [[ ! -f "${ref_nes}" ]]; then
+    echo "error: reference iNES file not found: ${ref_nes}" >&2
+    return 1
+  fi
+
+  local ines_magic
+  ines_magic="$(od -An -tx1 -N4 "${ref_nes}" | tr -d ' \n')"
+  if [[ "${ines_magic}" != "4e45531a" ]]; then
+    echo "error: ${ref_nes} is not a valid iNES file (bad magic)" >&2
+    return 2
+  fi
+
+  local prg_units chr_units flags6 flags7
+  prg_units="$(od -An -tu1 -j4 -N1 "${ref_nes}" | tr -d ' ')"
+  chr_units="$(od -An -tu1 -j5 -N1 "${ref_nes}" | tr -d ' ')"
+  flags6="$(od -An -tu1 -j6 -N1 "${ref_nes}" | tr -d ' ')"
+  flags7="$(od -An -tu1 -j7 -N1 "${ref_nes}" | tr -d ' ')"
+  if [[ -z "${prg_units}" || -z "${chr_units}" || -z "${flags6}" || -z "${flags7}" ]]; then
+    echo "error: failed to parse iNES header fields from ${ref_nes}" >&2
+    return 2
+  fi
+
+  local header_bits=$(( (flags7 & 0x0C) >> 2 ))
+  if (( header_bits == 2 )); then
+    local nes2_byte9 nes2_prg_units_high nes2_chr_units_high
+    nes2_byte9="$(od -An -tu1 -j9 -N1 "${ref_nes}" | tr -d ' ')"
+    if [[ -z "${nes2_byte9}" ]]; then
+      echo "error: failed to parse NES 2.0 ROM size extension from ${ref_nes}" >&2
+      return 2
+    fi
+    nes2_prg_units_high=$(( nes2_byte9 & 0x0F ))
+    nes2_chr_units_high=$(( (nes2_byte9 >> 4) & 0x0F ))
+    prg_units=$(( prg_units | (nes2_prg_units_high << 8) ))
+    chr_units=$(( chr_units | (nes2_chr_units_high << 8) ))
+  fi
+
+  if (( prg_units <= 0 )); then
+    echo "error: ${ref_nes} advertises zero PRG banks" >&2
+    return 2
+  fi
+
+  local trainer_size=0
+  if (( (flags6 & 0x04) != 0 )); then
+    trainer_size=512
+  fi
+
+  local prg_offset=$((16 + trainer_size))
+  local prg_size=$((prg_units * 16384))
+  local chr_size=$((chr_units * 8192))
+  local expected_size=$((prg_offset + prg_size + chr_size))
+  local actual_size
+  actual_size="$(wc -c < "${ref_nes}" | tr -d ' ')"
+  if [[ -z "${actual_size}" || "${actual_size}" -lt "${expected_size}" ]]; then
+    echo "error: ${ref_nes} is truncated; expected at least ${expected_size} bytes for advertised PRG/CHR payload, found ${actual_size:-0}" >&2
+    return 2
+  fi
+
+  mkdir -p "$(dirname "${ref_prg}")"
+  dd if="${ref_nes}" of="${ref_prg}" bs=1 skip="${prg_offset}" count="${prg_size}" status=none
+}
