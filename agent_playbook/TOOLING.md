@@ -322,11 +322,18 @@ ledger when it exists, so reverting such fields to raw low/high bytes fails
 until inventory and source agree.
 
 Projects may opt into the raw `.DB` embedded-pointer audit with
-`EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit first finds
-monotonic little-endian ROM-address runs in raw byte spans, then requires xasm
-paired-byte-read evidence and a ZP `PtrLo`/`PtrHi` store that is later
-dereferenced before treating a run as a hard failure. The monotonic count alone
-is advisory because CHR/pixel data and scalar tables can look pointer-like.
+`EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit finds
+little-endian runs of CPU addresses (values in the $8000-$FFFF PRG address
+space, not ROM file offsets) in raw byte spans — both monotonic pointer arrays
+and non-monotonic pointer structs — scoped to the per-bank PRG window inferred
+from each bank's `.ORG` (so NROM-128 mirror addresses are rejected). A
+run becomes a hard failure only with a consumer proof: either a xasm
+paired-byte-read plus a ZP `PtrLo`/`PtrHi` store that is later dereferenced
+(pointer arrays, alias-aware), or a block-copy into a ZP base that is
+dereferenced (structs). The run counts alone are advisory because CHR/pixel data
+and scalar tables can look pointer-like. Planned refinements and the validation
+corpus live in
+[EMBEDDED_POINTER_AUDIT_SPEC.md](EMBEDDED_POINTER_AUDIT_SPEC.md).
 
 ### Raw-address audit
 
