@@ -84,10 +84,15 @@ STRICT_ACTIVE_MAGIC_IMMEDIATES="$(
 
       # Numeric immediate literals only (hex, decimal, binary).
       if (line ~ /^#[0-9]+$/ || line ~ /^#\$[0-9A-Fa-f]+$/ || line ~ /^#%[01]+$/) {
-        # Allow literal zero clears.
+        # Allow the two self-evident values: 0 (default/clear) and 1 (flag set /
+        # unit). Naming these does not improve readability over the literal, so
+        # requiring a symbol for them just incentivises mundane constantisation.
         if (line ~ /^#0+$/) next
         if (line ~ /^#\$0+$/) next
         if (line ~ /^#%0+$/) next
+        if (line ~ /^#0*1$/) next
+        if (line ~ /^#\$0*1$/) next
+        if (line ~ /^#%0*1$/) next
         immediate = toupper(line)
         mnemonic = toupper(first_token)
         if (allow[current_label SUBSEP mnemonic SUBSEP immediate]) next
