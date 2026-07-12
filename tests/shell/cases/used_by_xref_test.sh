@@ -181,6 +181,37 @@ ASM
   python3 "${USED_BY_CHECK}" "${asm}" >/dev/null
 }
 
+test_used_by_xref_check_rejects_stale_through_producer() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_indirect_stale.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA PtrTable
+  RTS
+
+; Format: pointer table.
+; Used by: Reader.
+PtrTable:
+.DW OtherPayload
+
+; Format: payload bytes.
+; Used by: Reader through PtrTable.
+Payload:
+.DB $01
+
+OtherPayload:
+.DB $02
+ASM
+
+  set +e
+  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "through producer must reference the annotated target"
+  assert_match "PtrTable does not reference Payload" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
 test_used_by_xref_check_rejects_prg_banking_without_consumer_symbol() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_banking.asm"
   cat > "${asm}" <<'ASM'

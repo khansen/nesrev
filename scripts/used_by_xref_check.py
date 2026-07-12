@@ -23,6 +23,7 @@ USED_BY_RE = re.compile(r";\s*Used by:\s*(.+)", re.IGNORECASE)
 SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CONSUMER_SYMBOL_RE = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 CONNECTOR_RE = re.compile(r"\b(via|through)\b", re.IGNORECASE)
+SYMBOL_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 SKIP_PHRASES = (
     "no known",
     "no active",
@@ -44,6 +45,10 @@ def fail_usage() -> int:
 
 def sentence_prefix(text: str) -> str:
     return text.split(".", 1)[0].strip()
+
+
+def strip_comment(text: str) -> str:
+    return text.split(";", 1)[0]
 
 
 def split_symbols(text: str) -> list[str]:
@@ -157,6 +162,30 @@ def build_reference_owners(xref: dict[str, object]) -> tuple[set[str], dict[str,
     return {s for s in symbols if isinstance(s, str)}, owners
 
 
+def build_source_references(asm_path: Path, symbols: set[str]) -> dict[str, set[str]]:
+    refs: dict[str, set[str]] = defaultdict(set)
+    owner = ""
+    for raw in asm_path.read_text(encoding="utf-8").splitlines():
+        code = strip_comment(raw)
+        label_match = GLOBAL_DEF_RE.match(code)
+        equ_match = EQU_DEF_RE.match(code)
+        if label_match:
+            owner = label_match.group(1)
+            code = code[label_match.end() :]
+        elif equ_match:
+            owner = equ_match.group(1)
+            code = code[equ_match.end() :]
+        elif not code.strip():
+            continue
+        if not owner:
+            continue
+        for match in SYMBOL_TOKEN_RE.finditer(code):
+            symbol = match.group(0)
+            if symbol in symbols and symbol != owner:
+                refs[owner].add(symbol)
+    return refs
+
+
 def first_symbol(text: str) -> str | None:
     match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", text)
     if not match:
@@ -168,6 +197,7 @@ def check_annotation(
     annotation: dict[str, object],
     symbols: set[str],
     owners: dict[str, set[str]],
+    source_refs: dict[str, set[str]],
     *,
     strict: bool,
 ) -> tuple[list[str], list[str], bool]:
@@ -180,6 +210,7 @@ def check_annotation(
         return [], [], False
 
     connector = CONNECTOR_RE.search(sentence)
+    producer_for_target: str | None = None
     if connector:
         lhs = sentence[: connector.start()].strip()
         rhs = sentence[connector.end() :].strip()
@@ -195,6 +226,7 @@ def check_annotation(
             if "prg banking" in rhs.lower():
                 return [f"{line}: Used by comment for {target} names PRG banking instead of a concrete producer symbol"], [], False
             return [], [], False
+        producer_for_target = producer
         checked_symbol = producer
         context = f"{target} via {producer}"
     else:
@@ -206,6 +238,15 @@ def check_annotation(
 
     failures: list[str] = []
     advisories: list[str] = []
+    if producer_for_target:
+        producer_refs = source_refs.get(producer_for_target, set())
+        if target not in producer_refs:
+            rendered_refs = ", ".join(sorted(producer_refs)) or "none"
+            failures.append(
+                f"{line}: Used by comment for {target} says through {producer_for_target}, "
+                f"but {producer_for_target} does not reference {target}; "
+                f"source references are: {rendered_refs}"
+            )
     actual_owners = owners.get(checked_symbol, set())
     for consumer in consumers:
         if consumer not in symbols:
@@ -242,6 +283,7 @@ def main(argv: list[str]) -> int:
     annotations = collect_used_by_annotations(asm_path)
     xref = load_cached_xref(asm_path, xref_path) or run_xasm_xref(asm_path)
     symbols, owners = build_reference_owners(xref)
+    source_refs = build_source_references(asm_path, symbols)
 
     failures: list[str] = []
     advisories: list[str] = []
@@ -251,6 +293,7 @@ def main(argv: list[str]) -> int:
             annotation,
             symbols,
             owners,
+            source_refs,
             strict=strict,
         )
         failures.extend(new_failures)
