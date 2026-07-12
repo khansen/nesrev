@@ -5,6 +5,29 @@ EMBEDDED_TARGETS="${REPO_ROOT}/scripts/embedded_pointer_targets.py"
 EMBEDDED_TARGETS_CHECK="${REPO_ROOT}/scripts/embedded_pointer_targets_check.sh"
 EMBEDDED_AUDIT="${REPO_ROOT}/scripts/embedded_pointer_audit.py"
 
+test_embedded_pointer_audit_parse_int_accepts_xasm_address_formats() {
+  python3 - "${EMBEDDED_AUDIT}" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("embedded_pointer_audit", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+cases = {
+    "$C000": 0xC000,
+    "0xC000": 0xC000,
+    "C000": 0xC000,
+    "8000": 0x8000,
+    "49152": 49152,
+}
+for raw, expected in cases.items():
+    actual = mod.parse_int(raw)
+    if actual != expected:
+        raise SystemExit(f"{raw}: expected {expected}, got {actual}")
+PY
+}
+
 test_embedded_pointer_targets_extracts_db_low_high_pairs() {
   local asm="${NESREV_TEST_TMPDIR}/embedded_targets.asm"
   local csv="${NESREV_TEST_TMPDIR}/embedded_pointer_targets.csv"

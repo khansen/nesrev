@@ -21,12 +21,24 @@ BANK_SIZE = 0x4000
 DEFAULT_MIN_RUN = 6
 LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 RAW_BYTE_RE = re.compile(r"^(\$[0-9A-Fa-f]{1,2}|%[01]{1,8}|[0-9]{1,3})$")
+BARE_HEX_ADDRESS_RE = re.compile(r"^[0-9A-Fa-f]{4}$")
 
 
 def parse_int(value: str | int) -> int:
     if isinstance(value, int):
         return value
-    return int(str(value), 16)
+    text = str(value).strip()
+    if text.startswith("$"):
+        return int(text[1:], 16)
+    if text.lower().startswith("0x"):
+        return int(text, 16)
+    if re.search(r"[A-Fa-f]", text):
+        return int(text, 16)
+    if BARE_HEX_ADDRESS_RE.fullmatch(text):
+        hex_value = int(text, 16)
+        if 0x8000 <= hex_value <= 0xFFFF:
+            return hex_value
+    return int(text, 10)
 
 
 def split_operands(payload: str) -> list[str]:
