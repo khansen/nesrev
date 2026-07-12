@@ -112,6 +112,19 @@ if [[ "${WORKING_NOTES_MATURITY_REQUIRED}" == "1" ]]; then
   fi
 fi
 
+# Constantization smell (advisory, independent of the hard gates): a game of any
+# size should reach maturity with some intentional raw literals recorded in the
+# allowlist. A magic-immediate count of 0 alongside an empty allowlist usually
+# means every literal was symbolized rather than judged (mundane constantisation),
+# not that the code genuinely has no clearer-raw literals.
+const_report="$(bash "${SCRIPT_DIR}/constant_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
+magic_count="$(printf '%s\n' "${const_report}" | awk -F= '/strict_active_magic_immediates=/{print $2}')"
+allowlist_rows="$(awk -F',' 'NR>1 && $0 !~ /^[[:space:]]*(#|$)/ && NF>=3 {c++} END{print c+0}' \
+  "${DOC_ROOT}/inventory/constant_magic_allowlist.csv" 2>/dev/null || echo 0)"
+if [[ "${magic_count:-x}" == "0" && "${allowlist_rows}" == "0" ]]; then
+  echo "warn: strict_active_magic_immediates=0 with an empty constant_magic_allowlist.csv — likely over-constantisation (every literal symbolized rather than judged); expect a game of any size to retain some intentional raw literals (see agent_playbook/ASM_STYLE.md readability-first constantization)" >&2
+fi
+
 if [[ ${fail} -ne 0 ]]; then
   exit 1
 fi
