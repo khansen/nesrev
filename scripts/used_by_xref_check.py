@@ -47,7 +47,7 @@ def sentence_prefix(text: str) -> str:
 
 
 def split_symbols(text: str) -> list[str]:
-    normalized = re.sub(r"\band\b", ",", text)
+    normalized = re.sub(r"\band\b", ",", text, flags=re.IGNORECASE)
     out: list[str] = []
     seen: set[str] = set()
     for part in normalized.split(","):

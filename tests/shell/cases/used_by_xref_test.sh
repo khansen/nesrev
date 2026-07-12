@@ -88,6 +88,29 @@ ASM
   assert_match "OtherReader" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
 }
 
+test_used_by_xref_check_splits_and_case_insensitively() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_upper_and.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+
+; Format: one byte.
+; Used by: Reader AND FakeMissingConsumer.
+DataTable:
+.DB $01
+ASM
+
+  set +e
+  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "uppercase AND must still split Used by consumer symbols"
+  assert_match "FakeMissingConsumer" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
 test_used_by_xref_check_accepts_consumer_through_pointer_table() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_indirect.asm"
   cat > "${asm}" <<'ASM'

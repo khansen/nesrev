@@ -101,6 +101,37 @@ ASM
     "monotonic data without paired-read pointer proof must not fail"
 }
 
+test_embedded_pointer_audit_ignores_comment_only_deref() {
+  local asm="${NESREV_TEST_TMPDIR}/raw_pointer_comment_deref.asm"
+
+  cat > "${asm}" <<'ASM'
+ZP_TestPtrLo .EQU $00
+ZP_TestPtrHi .EQU $01
+
+.ORG $8000
+LoadRawPointer:
+  LDY #$00
+  LDA RawPointerTable,Y
+  STA ZP_TestPtrLo
+  LDA RawPointerTable+1,Y
+  STA ZP_TestPtrHi
+  ; No runtime dereference here: LDA [ZP_TestPtrLo],Y
+  RTS
+
+RawPointerTable: .DB $40,$80,$42,$80,$44,$80,$46,$80,$48,$80,$4A,$80
+
+.ORG $8040
+TargetData:
+  .DB $AA,$BB,$CC
+ASM
+
+  python3 "${EMBEDDED_AUDIT}" "${asm}" >"${NESREV_TEST_TMPDIR}/audit.out"
+  assert_match "embedded_pointer_raw_runs_strong=1" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
+    "comment-only deref fixture should still surface the strong raw run"
+  assert_match "embedded_pointer_confirmed_unrelocated=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
+    "comment-only deref text must not confirm an embedded pointer table"
+}
+
 test_embedded_pointer_audit_reports_xasm_diagnostics() {
   local asm="${NESREV_TEST_TMPDIR}/raw_pointer_bad_asm.asm"
 

@@ -57,11 +57,15 @@ def strip_label(source_text: str) -> str:
     return LABEL_RE.sub("", source_text or "", count=1)
 
 
+def strip_comment(source_text: str) -> str:
+    return (source_text or "").split(";", 1)[0]
+
+
 def is_raw_db_record(record: dict) -> bool:
     if record.get("directive_or_opcode") != ".DB" or not record.get("bytes_hex"):
         return False
     source = (record.get("source_text") or "")
-    text = strip_label(source).split(";", 1)[0].strip()
+    text = strip_comment(strip_label(source)).strip()
     if not re.match(r"^\.DB(\s|$)", text, re.IGNORECASE):
         return False
     payload = re.sub(r"^\.DB\s*", "", text, count=1, flags=re.IGNORECASE).strip()
@@ -246,7 +250,8 @@ def pointer_store_proof(lines: list[str], owner: str, routine: str) -> str:
     start, end = routine_block(lines, routine)
     if start < 0:
         return ""
-    block = lines[start:end]
+    block = [strip_comment(line) for line in lines[start:end]]
+    code_lines = [strip_comment(line) for line in lines]
     owner_re = re.escape(owner)
     for i, line in enumerate(block):
         if not re.search(rf"\bLDA\s+{owner_re}(\b|\+)", line):
@@ -266,7 +271,7 @@ def pointer_store_proof(lines: list[str], owner: str, routine: str) -> str:
             for k in range(j + 1, min(j + 4, len(block))):
                 if re.search(rf"\bSTA\s+{re.escape(hi_symbol)}\b", block[k]):
                     deref_re = re.compile(rf"[\[\(]{re.escape(lo_symbol)}[\]\)]")
-                    if any(deref_re.search(src_line) for src_line in lines):
+                    if any(deref_re.search(src_line) for src_line in code_lines):
                         return f"{routine}: stores {owner}/+1 into {lo_symbol}/{hi_symbol}; {lo_symbol} is dereferenced"
     return ""
 
