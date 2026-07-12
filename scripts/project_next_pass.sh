@@ -1580,6 +1580,9 @@ CONFIDENCE_CAVEAT = (
     "project value. The operator selects the corridor objective."
 )
 
+next_pass_path = Path(pass_dir) / "next_pass.json"
+previous_next_pass = load_json(next_pass_path)
+
 recommended = choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters)
 recommended["role"] = "generated_evidence_bucket"
 recommended["operator_action"] = "Select, broaden, or reject this bucket before project-pass-start."
@@ -1604,6 +1607,14 @@ cluster_candidates = make_cluster_candidates(
 )
 follow_up = make_follow_up(recommended["type"], cluster_candidates)
 operator_signals = extract_operator_signals(scorecard_file, working_notes_path, last_pass)
+previous_recommended = (previous_next_pass or {}).get("recommended_pass") or {}
+plateau_signal = None
+if recommended["type"] == "doc_closure" and previous_recommended.get("type") == "doc_closure":
+    plateau_signal = {
+        "kind": "doc_closure_plateau",
+        "text": "Static gate-visible work exhausted; run orthogonal audits or stop.",
+        "source": "project-next-pass consecutive doc_closure",
+    }
 
 # Advisory (never fails): warn on stderr when the top generated evidence bucket is a
 # broad mixed anchor (evidence container). Its actionable bytes should be
@@ -1657,6 +1668,7 @@ payload = {
         "selection_contract": "Run project-pass-start with TARGET plus CORRIDOR, WHY_NOW, BOUNDARIES, EVIDENCE, OUT_OF_SCOPE after choosing a corridor.",
     },
     "operator_signals": operator_signals,
+    "plateau_signal": plateau_signal,
     "cluster_candidates": cluster_candidates,
     "alternative_candidates": alternative_candidates,
     "confidence_caveat": CONFIDENCE_CAVEAT,
@@ -1666,7 +1678,6 @@ payload = {
 if notes:
     payload["notes"] = notes
 
-next_pass_path = Path(pass_dir) / "next_pass.json"
 next_pass_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 if out_format == "json":
@@ -1699,6 +1710,10 @@ if payload.get("operator_signals"):
     print("Work-based operator signals:")
     for signal in payload["operator_signals"]:
         print(f"- {signal['text']} ({signal['source']})")
+    print()
+if payload.get("plateau_signal"):
+    print("Static plateau signal:")
+    print(f"- {payload['plateau_signal']['text']} ({payload['plateau_signal']['source']})")
     print()
 print("Generated evidence buckets (mechanical scan; broaden, select, or reject):")
 print(f"Top generated evidence bucket: {payload['recommended_pass']['type']}")

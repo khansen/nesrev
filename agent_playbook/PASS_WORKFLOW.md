@@ -94,7 +94,7 @@ command.
 ## Next Pass Selection
 
 `make project-next-pass PROJECT=<slug>` emits evidence buckets. It ranks
-hotspots, not strategy; the operator selects the corridor objective
+hotspots, not strategy; select corridor objective
 ([#corridor-objective](#corridor-objective)).
 Its persisted output (`next_pass.json`) may include:
 
@@ -144,7 +144,7 @@ make project-pass-start PROJECT=<slug> TARGET=<corridor_anchor> \
   CORRIDOR="..." WHY_NOW="..." BOUNDARIES="..." EVIDENCE="..." OUT_OF_SCOPE="..."
 ```
 
-Keep durable rationale in `WORKING_NOTES.md` too, not chat.
+Keep rationale in `WORKING_NOTES.md`, not chat.
 
 <a id="low-yield-checkpoint"></a>
 ## Low-Yield Strategy Checkpoint
