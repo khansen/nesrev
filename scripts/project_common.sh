@@ -33,6 +33,10 @@ load_project_conf() {
   # set WORKING_NOTES_MATURITY_REQUIRED="1" so gold closeout cannot silently
   # accept a large notes file full of promotable findings or stale pass context.
   WORKING_NOTES_MATURITY_REQUIRED="0"
+  # Embedded-pointer audit opt-in. Projects enable this once raw pointer-table
+  # debt has a reviewed baseline; legacy projects default off to avoid noisy
+  # monotonic data runs becoming accidental hard gates.
+  EMBEDDED_POINTER_AUDIT_REQUIRED="0"
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   MAX_MATURITY_WORKING_NOTES_LINES="120"
@@ -97,6 +101,7 @@ load_project_conf() {
   : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
+  : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
   : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"
@@ -130,6 +135,9 @@ load_project_conf() {
   fi
   if [[ -z "${POINTER_TARGETS_FILE:-}" ]]; then
     POINTER_TARGETS_FILE="${DOC_ROOT}/inventory/pointer_targets.csv"
+  fi
+  if [[ -z "${EMBEDDED_POINTER_TARGETS_FILE:-}" ]]; then
+    EMBEDDED_POINTER_TARGETS_FILE="${DOC_ROOT}/inventory/embedded_pointer_targets.csv"
   fi
   if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" || -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
     local rom_cpu_base='$C000'

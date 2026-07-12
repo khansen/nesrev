@@ -385,7 +385,9 @@ consumer guidance for the generated cache under
 [agent_playbook/PASS_WORKFLOW.md#generated-vs-authored-artifacts](agent_playbook/PASS_WORKFLOW.md#generated-vs-authored-artifacts).
 
 Files in the authored set: `renames.csv` (rename ledger),
-`pointer_targets.csv` (pointer producer/consumer map),
+`pointer_targets.csv` (pointer producer/consumer map for `.DW` tables),
+`embedded_pointer_targets.csv` (symbolic `<label,>label` pointer fields
+inside `.DB` records),
 `branch_literal_sites.csv` (parity-sensitive relative branch
 literals), `constants_catalog.csv` (domain-separated constants),
 `data_extent_assertions.csv` (reviewed table-span assertions checked by

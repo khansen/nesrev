@@ -1494,6 +1494,48 @@ if not payload.get("operator_signals"):
 PY
 }
 
+test_next_pass_surfaces_static_plateau_after_consecutive_doc_closure() {
+  local slug; slug="$(unique_slug next_plateau)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+
+  local pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  cat > "${pass_dir}/baseline_status.json" <<'JSON'
+{"checks":{"docs_check":{"status":"pass"},"process_check":{"status":"pass"},"parity":{"status":"pass"}},"metrics":{"lxxxx_definitions":0,"lxxxx_occurrences":0,"strict_active_raw_lowaddr":0}}
+JSON
+  cat > "${pass_dir}/xref_summary_all.json" <<'JSON'
+{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
+JSON
+  cat > "${pass_dir}/xref_summary_generic.json" <<'JSON'
+{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
+JSON
+  cat > "${pass_dir}/xref_with_data.json" <<'JSON'
+{"symbols":[],"references":[],"data_reads":[],"data_writes":[]}
+JSON
+  cat > "${pass_dir}/data_consumers.json" <<'JSON'
+[]
+JSON
+  cat > "${pass_dir}/next_pass.json" <<'JSON'
+{"recommended_pass":{"type":"doc_closure"}}
+JSON
+
+  local output
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" text)"
+
+  assert_match "Static gate-visible work exhausted; run orthogonal audits or stop." "${output}" \
+    "next-pass must warn when doc_closure repeats"
+  python3 - "${pass_dir}/next_pass.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+signal = payload.get("plateau_signal") or {}
+if signal.get("kind") != "doc_closure_plateau":
+    raise SystemExit(f"missing doc_closure plateau signal: {signal!r}")
+PY
+}
+
 test_pass_start_warns_without_target_but_does_not_fail() {
   local slug; slug="$(unique_slug pass_no_target)"
   trap "cleanup_project ${slug}" EXIT

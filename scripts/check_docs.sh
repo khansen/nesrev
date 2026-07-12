@@ -61,7 +61,7 @@ ASM_BASENAME_RE="$(
 )"
 LINE_REF_RE="${ASM_BASENAME_RE}:[0-9]+"
 
-echo "[1/8] Checking renames.csv structure"
+echo "[1/9] Checking renames.csv structure"
 python3 - "${RENAMES_FILE}" "${SCRIPT_DIR}" <<'PY'
 import csv
 import sys
@@ -111,7 +111,7 @@ with path.open("r", encoding="utf-8", newline="") as f:
 print("OK: renames.csv structure is valid")
 PY
 
-echo "[2/8] Checking raw_ram_review.csv structure (if present)"
+echo "[2/9] Checking raw_ram_review.csv structure (if present)"
 if [[ -f "${RAW_RAM_REVIEW_FILE}" ]]; then
   python3 - "${RAW_RAM_REVIEW_FILE}" <<'PY'
 import csv
@@ -170,7 +170,7 @@ else
   echo "OK: raw_ram_review.csv not present for this project"
 fi
 
-echo "[3/8] Checking for stale line-based asm references"
+echo "[3/9] Checking for stale line-based asm references"
 if rg -n "${LINE_REF_RE}" "${DOC_FILES[@]}" >"${TMPDIR_CHECK_DOCS}/line_refs.out"; then
   echo "FAIL: stale line-number references found:" >&2
   cat "${TMPDIR_CHECK_DOCS}/line_refs.out" >&2
@@ -179,7 +179,7 @@ else
   echo "OK: no ${ASM_BASENAME}:<line> references in docs"
 fi
 
-echo "[4/8] Checking systems-doc maturity hygiene"
+echo "[4/9] Checking systems-doc maturity hygiene"
 systems_fail=0
 if rg -n 'L[0-9A-F]{4,5}' "${SYSTEMS_DOC}" >"${TMPDIR_CHECK_DOCS}/systems_lxxxx.out"; then
   echo "FAIL: systems doc contains unresolved LXXXX/LXXXXX labels:" >&2
@@ -198,7 +198,7 @@ if [[ ${systems_fail} -ne 0 ]]; then
 fi
 echo "OK: systems doc contains no unresolved labels or future-pass planning"
 
-echo "[5/8] Checking for scaffold placeholder support docs"
+echo "[5/9] Checking for scaffold placeholder support docs"
 python3 - "${DOC_ROOT}" "${RECOVERY_STATUS}" "${WARN_BASELINE_FILE}" <<'PY'
 import sys
 from pathlib import Path
@@ -262,7 +262,7 @@ if failures:
 print("OK: no scaffold placeholder support docs detected")
 PY
 
-echo "[6/8] Checking local .md references resolve"
+echo "[6/9] Checking local .md references resolve"
 python3 - "${DOC_ROOT}" <<'PY'
 import re
 import sys
@@ -309,14 +309,19 @@ if missing:
 print("OK: local .md references resolve")
 PY
 
-echo "[7/8] Building asm symbol index (labels + .EQU + local @@labels)"
+echo "[7/9] Building asm symbol index (labels + .EQU + local @@labels)"
 {
   rg -o "^[A-Za-z_][A-Za-z0-9_]*:" "${ASM_FILE}" | sed 's/:$//' || true
   rg -o "^@@[A-Za-z_][A-Za-z0-9_]*:" "${ASM_FILE}" | sed 's/:$//' || true
   rg -o "^[A-Za-z_][A-Za-z0-9_]*[[:space:]]+\\.EQU\\b" "${ASM_FILE}" | sed 's/[[:space:]].*$//' || true
 } | sort -u >"${TMPDIR_CHECK_DOCS}/asm_symbols.txt"
 
-echo "[8/8] Validating backticked symbol references in docs"
+echo "[8/9] Checking mechanically guarded Used by annotations"
+python3 "${SCRIPT_DIR}/used_by_xref_check.py" \
+  "${ASM_FILE}" \
+  "${DOC_ROOT}/inventory/pass/xref_with_data.json"
+
+echo "[9/9] Validating backticked symbol references in docs"
 { rg --no-filename -o '`@@?[A-Za-z_][A-Za-z0-9_]*`|`[A-Za-z_][A-Za-z0-9_]*`' "${DOC_FILES[@]}" || true; } \
   | tr -d '`' \
   | awk '
