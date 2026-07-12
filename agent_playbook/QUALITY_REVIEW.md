@@ -544,6 +544,10 @@ For each hit, pick exactly one of three dispositions:
    - parity-preserved redundant instructions / tail calls —
      [ASM_STYLE.md#tail-call-annotations](ASM_STYLE.md#tail-call-annotations).
 
+`project-maturity-check` warns on `strict_active_magic_immediates == 0` with an
+empty allowlist — an over-constantization smell (every literal symbolized rather
+than judged).
+
 <a id="pointer-byte-consolidation-audit"></a>
 ## Pointer-byte Consolidation Audit
 
