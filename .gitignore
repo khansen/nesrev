@@ -20,7 +20,9 @@ projects/*/docs/reverse_engineering/inventory/raw_address_audit.json
 # Project-specific binaries and build artifacts
 projects/*/reference/*
 projects/*/build/
-projects/*/mods/*/build/
+projects/*/tmp/
+# Trace-helper mods are local, untracked unless explicitly curated (git add -f).
+projects/*/mods/
 
 # Exclude all third-party/external reference material. Authored terminology
 # extraction and crosswalk analysis belong in tracked docs/crosswalk/.
