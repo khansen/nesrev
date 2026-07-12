@@ -75,7 +75,7 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
     listing = os.path.join(workdir, "listing.json")
     index_patterns = os.path.join(workdir, "index_patterns.json")
     out_bin = os.path.join(workdir, "out.bin")
-    subprocess.run([
+    cmd = [
         "xasm",
         "--pure-binary",
         "-o",
@@ -86,7 +86,21 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
         "--index-patterns-output=" + index_patterns,
         "--index-patterns-format=json",
         asm_file,
-    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ]
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    except FileNotFoundError:
+        print("error: xasm not found while running embedded pointer audit", file=sys.stderr)
+        raise SystemExit(66)
+    except subprocess.CalledProcessError as exc:
+        print(f"error: xasm analysis failed with exit code {exc.returncode}", file=sys.stderr)
+        if exc.stdout:
+            print("xasm stdout:", file=sys.stderr)
+            print(exc.stdout.rstrip(), file=sys.stderr)
+        if exc.stderr:
+            print("xasm stderr:", file=sys.stderr)
+            print(exc.stderr.rstrip(), file=sys.stderr)
+        raise SystemExit(exc.returncode or 1)
     with open(listing, encoding="utf-8") as f:
         records = json.load(f)["records"]
     with open(index_patterns, encoding="utf-8") as f:

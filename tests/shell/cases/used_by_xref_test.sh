@@ -132,7 +132,7 @@ ASM
   assert_match "PRG banking" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
 }
 
-test_project_docs_check_hard_fails_used_by_drift() {
+test_project_docs_check_hard_fails_unknown_used_by_consumer() {
   local slug; slug="$(unique_slug used_by_docs_fail)"
   trap "cleanup_project ${slug}" EXIT
   _make_used_by_docs_project "${slug}"

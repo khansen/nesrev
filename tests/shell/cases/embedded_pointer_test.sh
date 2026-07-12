@@ -100,3 +100,27 @@ ASM
   assert_match "embedded_pointer_confirmed_unrelocated=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
     "monotonic data without paired-read pointer proof must not fail"
 }
+
+test_embedded_pointer_audit_reports_xasm_diagnostics() {
+  local asm="${NESREV_TEST_TMPDIR}/raw_pointer_bad_asm.asm"
+
+  cat > "${asm}" <<'ASM'
+.ORG $8000
+Broken:
+  LDA MissingLabel
+  RTS
+ASM
+
+  set +e
+  python3 "${EMBEDDED_AUDIT}" "${asm}" \
+    >"${NESREV_TEST_TMPDIR}/audit_bad.out" \
+    2>"${NESREV_TEST_TMPDIR}/audit_bad.err"
+  local rc=$?
+  set -e
+
+  if [[ "${rc}" == "0" ]]; then
+    fail "embedded pointer audit must fail when xasm fails"
+  fi
+  assert_match "error: xasm analysis failed" "$(cat "${NESREV_TEST_TMPDIR}/audit_bad.err")"
+  assert_match "MissingLabel" "$(cat "${NESREV_TEST_TMPDIR}/audit_bad.err")"
+}

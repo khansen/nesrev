@@ -94,7 +94,7 @@ command.
 ## Next Pass Selection
 
 `make project-next-pass PROJECT=<slug>` emits evidence buckets. It ranks
-hotspots, not strategy; select corridor objective
+hotspots, not strategy; select the corridor objective
 ([#corridor-objective](#corridor-objective)).
 Its persisted output (`next_pass.json`) may include:
 
