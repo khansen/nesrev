@@ -124,6 +124,15 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
     return records, patterns
 
 
+def prg_bank_count(records: list[dict]) -> int:
+    banks = [
+        r["output_offset_start"] // BANK_SIZE
+        for r in records
+        if r.get("output_offset_start") is not None
+    ]
+    return max(banks) + 1 if banks else 0
+
+
 def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict[str, int], dict[tuple[int, int], str]]:
     records = [r for r in records if r.get("output_offset_start") is not None]
     records.sort(key=lambda r: r["output_offset_start"])
@@ -184,8 +193,10 @@ def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict
     return spans, label_cpu, label_by_bank_cpu
 
 
-def in_same_window(bank: int, address: int) -> bool:
-    if bank == 7:
+def in_same_window(bank: int, address: int, fixed_bank: int) -> bool:
+    if fixed_bank <= 0:
+        return 0x8000 <= address <= 0xFFFF
+    if bank == fixed_bank:
         return 0xC000 <= address <= 0xFFFF
     return 0x8000 <= address <= 0xBFFF
 
@@ -194,6 +205,7 @@ def find_monotonic_runs(
     spans: list[dict],
     label_by_bank_cpu: dict[tuple[int, int], str],
     min_run: int,
+    fixed_bank: int,
 ) -> list[dict]:
     hits: list[dict] = []
     for span in spans:
@@ -224,7 +236,7 @@ def find_monotonic_runs(
                         for label_off, name in span["labels"]:
                             if label_off <= start_off:
                                 owner = name
-                        same = sum(1 for a in targets if in_same_window(bank, a))
+                        same = sum(1 for a in targets if in_same_window(bank, a, fixed_bank))
                         labeled = sum(1 for a in targets if (bank, a) in label_by_bank_cpu)
                         hits.append({
                             "owner": owner,
@@ -334,8 +346,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="nesrev_embedded_ptr.") as workdir:
         records, patterns = run_xasm_analysis(str(asm_path), workdir)
 
+    fixed_bank = prg_bank_count(records) - 1
     spans, label_cpu, label_by_bank_cpu = build_raw_spans(records, min_run)
-    hits = find_monotonic_runs(spans, label_by_bank_cpu, min_run)
+    hits = find_monotonic_runs(spans, label_by_bank_cpu, min_run, fixed_bank)
     strong = [
         h for h in hits
         if h["same_window"] >= 0.7 * h["count"] or h["labeled"] >= 0.3 * h["count"]

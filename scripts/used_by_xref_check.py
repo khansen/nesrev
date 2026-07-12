@@ -24,6 +24,7 @@ SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CONSUMER_SYMBOL_RE = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 CONNECTOR_RE = re.compile(r"\b(via|through)\b", re.IGNORECASE)
 SYMBOL_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+UNRESOLVED_LABEL_RE = re.compile(r"^L[0-9A-Fa-f]{4,5}$")
 SKIP_PHRASES = (
     "no known",
     "no active",
@@ -193,6 +194,10 @@ def first_symbol(text: str) -> str | None:
     return match.group(1)
 
 
+def is_unresolved_label(symbol: str) -> bool:
+    return bool(UNRESOLVED_LABEL_RE.fullmatch(symbol))
+
+
 def check_annotation(
     annotation: dict[str, object],
     symbols: set[str],
@@ -220,6 +225,10 @@ def check_annotation(
                 return [f"{line}: Used by comment for {target} names PRG banking but no concrete consumer symbol"], [], False
             return [], [], False
         producer = first_symbol(rhs)
+        if producer and is_unresolved_label(producer):
+            return [
+                f"{line}: Used by comment for {target} cites unresolved producer label {producer}"
+            ], [], False
         if not producer or producer not in symbols:
             if rhs.lower().startswith(UNRESOLVED_INDIRECT_PREFIXES):
                 return [], [], False
@@ -249,7 +258,11 @@ def check_annotation(
             )
     actual_owners = owners.get(checked_symbol, set())
     for consumer in consumers:
-        if consumer not in symbols:
+        if is_unresolved_label(consumer):
+            failures.append(
+                f"{line}: Used by comment for {target} cites unresolved consumer label {consumer}"
+            )
+        elif consumer not in symbols:
             failures.append(
                 f"{line}: Used by comment for {target} names unknown consumer symbol {consumer}"
             )

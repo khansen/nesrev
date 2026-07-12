@@ -28,6 +28,26 @@ for raw, expected in cases.items():
 PY
 }
 
+test_embedded_pointer_audit_uses_last_prg_bank_as_fixed_window() {
+  python3 - "${EMBEDDED_AUDIT}" <<'PY'
+import importlib.util
+import sys
+
+spec = importlib.util.spec_from_file_location("embedded_pointer_audit", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+if not mod.in_same_window(3, 0xC000, 3):
+    raise SystemExit("bank 3 should be fixed when it is the final observed bank")
+if mod.in_same_window(3, 0x8000, 3):
+    raise SystemExit("final bank should not be treated as a switchable $8000 window")
+if not mod.in_same_window(2, 0x8000, 3):
+    raise SystemExit("non-final bank should be treated as a switchable $8000 window")
+if not mod.in_same_window(0, 0x8000, 0):
+    raise SystemExit("single-bank files should keep $8000-$FFFF traceable")
+PY
+}
+
 test_embedded_pointer_targets_extracts_db_low_high_pairs() {
   local asm="${NESREV_TEST_TMPDIR}/embedded_targets.asm"
   local csv="${NESREV_TEST_TMPDIR}/embedded_pointer_targets.csv"

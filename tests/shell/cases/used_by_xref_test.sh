@@ -212,6 +212,29 @@ ASM
   assert_match "PtrTable does not reference Payload" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
 }
 
+test_used_by_xref_check_rejects_unresolved_consumer_label() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_unresolved_label.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+L1234:
+  LDA DataTable
+  RTS
+
+; Format: one byte.
+; Used by: L1234.
+DataTable:
+.DB $01
+ASM
+
+  set +e
+  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "Used by comments must not cite unresolved LXXXX labels"
+  assert_match "unresolved consumer label L1234" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
 test_used_by_xref_check_rejects_prg_banking_without_consumer_symbol() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_banking.asm"
   cat > "${asm}" <<'ASM'
