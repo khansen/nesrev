@@ -43,6 +43,20 @@ if ! data_extent_report="$(bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" 
   echo "maturity gate failed: data extent assertions failed" >&2
   fail=1
 fi
+if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
+  if ! embedded_targets_report="$(bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" "${ASM_FILE}" "${EMBEDDED_POINTER_TARGETS_FILE}" 2>&1)"; then
+    printf '%s\n' "${embedded_targets_report}" >&2
+    echo "maturity gate failed: embedded pointer target registry is stale" >&2
+    fail=1
+  fi
+fi
+if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
+  if ! embedded_audit_report="$(python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" "${ASM_FILE}" 2>&1)"; then
+    printf '%s\n' "${embedded_audit_report}" >&2
+    echo "maturity gate failed: embedded pointer audit failed" >&2
+    fail=1
+  fi
+fi
 if [[ "${raw_lowaddr}" != "0" || "${raw_absrom}" != "0" ]]; then
   echo "maturity gate failed: raw-address debt is not zero (${raw_lowaddr}/${raw_absrom})" >&2
   fail=1

@@ -300,8 +300,8 @@ scripts/refresh_inventory.sh <slug>
 For *when* to refresh the inventory during a pass, see
 [PASS_WORKFLOW.md#pass-closeout](PASS_WORKFLOW.md#pass-closeout). The
 canonical authored-artifact catalog (`renames.csv`,
-`pointer_targets.csv`, `branch_literal_sites.csv`,
-`constants_catalog.csv`, `data_extent_assertions.csv`,
+`pointer_targets.csv`, `embedded_pointer_targets.csv`,
+`branch_literal_sites.csv`, `constants_catalog.csv`, `data_extent_assertions.csv`,
 `unknowns.md`, etc.) lives at
 [AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
 the generated cache under
@@ -312,6 +312,21 @@ the generated cache under
 Inline return-table payloads are attributed to their dispatching callsite, not
 to a synthetic table label, and the terminal three NES CPU vector words are
 excluded so they are not misattributed to the preceding data label.
+
+`embedded_pointer_targets.csv` reports relocatable pointer fields that remain
+inside `.DB` records as adjacent `<label,>label` operands. It is a sibling
+ledger, not a replacement for `pointer_targets.csv`: use it for fixed-stride
+records whose other fields must stay byte-sized, such as source-pointer fields
+mixed with bank, VRAM address, and count bytes. `project-verify` checks the
+ledger when it exists, so reverting such fields to raw low/high bytes fails
+until inventory and source agree.
+
+Projects may opt into the raw `.DB` embedded-pointer audit with
+`EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit first finds
+monotonic little-endian ROM-address runs in raw byte spans, then requires xasm
+paired-byte-read evidence and a ZP `PtrLo`/`PtrHi` store that is later
+dereferenced before treating a run as a hard failure. The monotonic count alone
+is advisory because CHR/pixel data and scalar tables can look pointer-like.
 
 ### Raw-address audit
 
@@ -333,10 +348,12 @@ bash scripts/comment_quality_kpi.sh Game.asm docs/reverse_engineering/inventory/
 bash scripts/constant_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/data_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/data_extent_assertions_check.sh Game.asm docs/reverse_engineering/inventory/data_extent_assertions.csv
+bash scripts/embedded_pointer_targets_check.sh Game.asm docs/reverse_engineering/inventory/embedded_pointer_targets.csv
 bash scripts/global_code_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/inferred_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/procedure_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/raw_address_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
+python3 scripts/embedded_pointer_audit.py Game.asm
 ```
 
 KPI gates are floors, not finish lines — see

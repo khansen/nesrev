@@ -47,6 +47,17 @@ bash "${SCRIPT_DIR}/pointer_targets_check.sh" \
   "${ASM_FILE}" \
   "${POINTER_TARGETS_FILE}"
 
+if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
+  bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" \
+    "${ASM_FILE}" \
+    "${EMBEDDED_POINTER_TARGETS_FILE}"
+fi
+
+if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
+  python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" \
+    "${ASM_FILE}"
+fi
+
 bash "${SCRIPT_DIR}/inferred_kpi.sh" \
   "${ASM_FILE}" \
   "${INFERRED_KPI_FILE}"
