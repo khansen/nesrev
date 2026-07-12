@@ -53,6 +53,14 @@ if not mod.in_same_window(0, 0xC000, nrom, 0):
     raise SystemExit("NROM-128 rom window $C000-$FFFF should be in-window")
 if mod.in_same_window(0, 0x8125, nrom, 0):
     raise SystemExit("NROM-128 $8000 mirror must not be treated as a valid target")
+
+# NROM-256 (32 KB flat): both half-windows are mapped, so the last bank may
+# target $8000-$BFFF and the first bank may target $C000-$FFFF.
+nrom256 = {0: (0x8000, 0xFFFF), 1: (0x8000, 0xFFFF)}
+if not mod.in_same_window(1, 0x8000, nrom256, 1):
+    raise SystemExit("NROM-256 last bank must reach $8000-$BFFF")
+if not mod.in_same_window(0, 0xF000, nrom256, 1):
+    raise SystemExit("NROM-256 first bank must reach $C000-$FFFF")
 PY
 }
 
@@ -74,6 +82,15 @@ records = [
 windows = mod.compute_bank_windows(records)
 if windows.get(0) != (0xC000, 0xFFFF):
     raise SystemExit(f"expected NROM-128 window (0xC000, 0xFFFF), got {windows.get(0)}")
+
+# NROM-256: two banks in distinct half-windows form a flat 32 KB image, so both
+# banks get the union window ($8000, $FFFF).
+flat256 = mod.compute_bank_windows([
+    {"output_offset_start": 0, "cpu_address_start": "0x8000"},
+    {"output_offset_start": 0x4000, "cpu_address_start": "0xC000"},
+])
+if flat256.get(0) != (0x8000, 0xFFFF) or flat256.get(1) != (0x8000, 0xFFFF):
+    raise SystemExit(f"NROM-256 should yield ($8000,$FFFF) for both banks, got {flat256}")
 
 # EQU aliases are read from the asm; a consumer reading via the alias still
 # resolves to the owner label.

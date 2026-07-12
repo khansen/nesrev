@@ -197,12 +197,18 @@ def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict
 def compute_bank_windows(records: list[dict]) -> dict[int, tuple[int, int]]:
     """Per-bank PRG window inferred from where the bank assembles (its .ORG).
 
-    Mapper-agnostic: each 16 KB PRG bank occupies exactly one of the two NES
-    PRG windows ($8000-$BFFF or $C000-$FFFF; these are CPU-memory-map constants,
-    not game-specific). The bank's minimum CPU address (its .ORG) selects which.
-    NROM-128 assembled at $C000 yields {0: ($C000, $FFFF)}, so the unused
-    $8000-$BFFF mirror is correctly rejected, while a full assembly's targets
-    are not clipped by sparse record coverage.
+    Mapper-agnostic: each 16 KB PRG bank occupies one of the two NES PRG windows
+    ($8000-$BFFF or $C000-$FFFF; CPU-memory-map constants, not game-specific),
+    selected by the bank's minimum CPU address (its .ORG).
+
+    If at most one bank sits in the low window, no two banks overlap there: the
+    image is flat (NROM-128/256), all banks are simultaneously mapped, and any
+    occupied window is a valid target — so every bank gets the union window.
+    NROM-256 (32 KB) therefore yields ($8000, $FFFF), and pointers in the last
+    bank to $8000-$BFFF are accepted. If several banks share the low window they
+    are switchable (e.g. MMC1) and each is scoped to its own half; a switchable
+    bank still reaches the shared fixed bank via in_same_window(). NROM-128 at
+    $C000 yields ($C000, $FFFF), so the unused $8000-$BFFF mirror is rejected.
     """
     base: dict[int, int] = {}
     for record in records:
@@ -212,9 +218,17 @@ def compute_bank_windows(records: list[dict]) -> dict[int, tuple[int, int]]:
         bank = off // BANK_SIZE
         cpu = parse_int(record["cpu_address_start"])
         base[bank] = min(base.get(bank, 0xFFFF), cpu)
+    low_banks = [b for b, lo in base.items() if lo < 0xC000]
     windows: dict[int, tuple[int, int]] = {}
-    for bank, lo in base.items():
-        windows[bank] = (0xC000, 0xFFFF) if lo >= 0xC000 else (0x8000, 0xBFFF)
+    if len(low_banks) <= 1:  # flat image: no switchable overlap in the low window
+        any_low = any(lo < 0xC000 for lo in base.values())
+        any_high = any(lo >= 0xC000 for lo in base.values())
+        union = (0x8000 if any_low else 0xC000, 0xFFFF if any_high else 0xBFFF)
+        for bank in base:
+            windows[bank] = union
+    else:  # switchable banks: scope each to its own half
+        for bank, lo in base.items():
+            windows[bank] = (0xC000, 0xFFFF) if lo >= 0xC000 else (0x8000, 0xBFFF)
     return windows
 
 
@@ -256,7 +270,7 @@ def find_monotonic_runs(
                 last = -1
                 while j + 1 < len(bytes_):
                     addr = bytes_[j][2] | (bytes_[j + 1][2] << 8)
-                    if not (0x8000 <= addr <= 0xFFFF):
+                    if not in_same_window(bank, addr, bank_windows, fixed_bank):
                         break
                     if addr < last or (last >= 0 and addr - last > 0x1000):
                         break
@@ -356,7 +370,7 @@ def find_pointer_struct_runs(
                         })
                     i = j
                 else:
-                    i += 1
+                    i += 2  # alignment handled by the outer loop; keep runtime linear
     return hits
 
 
