@@ -19,6 +19,7 @@ from pathlib import Path
 
 BANK_SIZE = 0x4000
 DEFAULT_MIN_RUN = 6
+MAX_TABLE_EXTENT = 0x400  # generous per-table extent for anchor-range matching
 LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 RAW_BYTE_RE = re.compile(r"^(\$[0-9A-Fa-f]{1,2}|%[01]{1,8}|[0-9]{1,3})$")
 BARE_HEX_ADDRESS_RE = re.compile(r"^[0-9A-Fa-f]{4}$")
@@ -193,18 +194,53 @@ def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict
     return spans, label_cpu, label_by_bank_cpu
 
 
-def in_same_window(bank: int, address: int, fixed_bank: int) -> bool:
-    if fixed_bank <= 0:
-        return 0x8000 <= address <= 0xFFFF
-    if bank == fixed_bank:
-        return 0xC000 <= address <= 0xFFFF
-    return 0x8000 <= address <= 0xBFFF
+def compute_bank_windows(records: list[dict]) -> dict[int, tuple[int, int]]:
+    """Per-bank PRG window inferred from where the bank assembles (its .ORG).
+
+    Mapper-agnostic: each 16 KB PRG bank occupies exactly one of the two NES
+    PRG windows ($8000-$BFFF or $C000-$FFFF; these are CPU-memory-map constants,
+    not game-specific). The bank's minimum CPU address (its .ORG) selects which.
+    NROM-128 assembled at $C000 yields {0: ($C000, $FFFF)}, so the unused
+    $8000-$BFFF mirror is correctly rejected, while a full assembly's targets
+    are not clipped by sparse record coverage.
+    """
+    base: dict[int, int] = {}
+    for record in records:
+        off = record.get("output_offset_start")
+        if off is None:
+            continue
+        bank = off // BANK_SIZE
+        cpu = parse_int(record["cpu_address_start"])
+        base[bank] = min(base.get(bank, 0xFFFF), cpu)
+    windows: dict[int, tuple[int, int]] = {}
+    for bank, lo in base.items():
+        windows[bank] = (0xC000, 0xFFFF) if lo >= 0xC000 else (0x8000, 0xBFFF)
+    return windows
+
+
+def in_same_window(
+    bank: int,
+    address: int,
+    bank_windows: dict[int, tuple[int, int]],
+    fixed_bank: int,
+) -> bool:
+    """A pointer in `bank` may target its own assembled window or the shared
+    fixed bank's window. Windows come from compute_bank_windows()."""
+    own = bank_windows.get(bank)
+    if own and own[0] <= address <= own[1]:
+        return True
+    if fixed_bank != bank:
+        fixed = bank_windows.get(fixed_bank)
+        if fixed and fixed[0] <= address <= fixed[1]:
+            return True
+    return False
 
 
 def find_monotonic_runs(
     spans: list[dict],
     label_by_bank_cpu: dict[tuple[int, int], str],
     min_run: int,
+    bank_windows: dict[int, tuple[int, int]],
     fixed_bank: int,
 ) -> list[dict]:
     hits: list[dict] = []
@@ -236,7 +272,7 @@ def find_monotonic_runs(
                         for label_off, name in span["labels"]:
                             if label_off <= start_off:
                                 owner = name
-                        same = sum(1 for a in targets if in_same_window(bank, a, fixed_bank))
+                        same = sum(1 for a in targets if in_same_window(bank, a, bank_windows, fixed_bank))
                         labeled = sum(1 for a in targets if (bank, a) in label_by_bank_cpu)
                         hits.append({
                             "owner": owner,
@@ -247,11 +283,125 @@ def find_monotonic_runs(
                             "target_max": max(targets),
                             "same_window": same,
                             "labeled": labeled,
+                            "start_off": start_off,
+                            "end_off": end_off,
+                            "kind": "monotonic",
                         })
                     i = j
                 else:
                     i += 2
     return hits
+
+
+def nearest_label(label_by_bank_cpu: dict[tuple[int, int], str], bank: int, cpu: int) -> str | None:
+    best_name = None
+    best_cpu = -1
+    for (b, c), name in label_by_bank_cpu.items():
+        if b == bank and c <= cpu and c > best_cpu:
+            best_cpu = c
+            best_name = name
+    return best_name
+
+
+def find_pointer_struct_runs(
+    spans: list[dict],
+    label_by_bank_cpu: dict[tuple[int, int], str],
+    bank_windows: dict[int, tuple[int, int]],
+    fixed_bank: int,
+    min_run: int,
+    covered: list[tuple[int, int]],
+) -> list[dict]:
+    """Improvement 2: non-monotonic pointer structs.
+
+    A struct of pointers to different tables is not sorted, so the monotonic
+    scan skips it. Flag stride-2 raw runs where every pair resolves in-window,
+    are not monotonic, and are not already covered by a monotonic run. These are
+    advisory candidates; confirmation happens via struct_copy_deref_proof.
+    """
+    hits: list[dict] = []
+    for span in spans:
+        bytes_ = span["bytes"]
+        bank = span["bank"]
+        for align in (0, 1):
+            i = align
+            while i + 1 < len(bytes_):
+                targets: list[int] = []
+                j = i
+                while j + 1 < len(bytes_):
+                    addr = bytes_[j][2] | (bytes_[j + 1][2] << 8)
+                    if not in_same_window(bank, addr, bank_windows, fixed_bank):
+                        break
+                    targets.append(addr)
+                    j += 2
+                if len(targets) >= min_run:
+                    start_off = bytes_[i][0]
+                    end_off = bytes_[j - 1][0]
+                    monotonic = all(targets[k] <= targets[k + 1] for k in range(len(targets) - 1))
+                    overlaps = any(a <= start_off and end_off <= z for a, z in covered)
+                    if not monotonic and not overlaps:
+                        owner = nearest_label(label_by_bank_cpu, bank, bytes_[i][1])
+                        labeled = sum(1 for a in targets if (bank, a) in label_by_bank_cpu)
+                        hits.append({
+                            "owner": owner,
+                            "bank": bank,
+                            "cpu": bytes_[i][1],
+                            "count": len(targets),
+                            "target_min": min(targets),
+                            "target_max": max(targets),
+                            "same_window": len(targets),
+                            "labeled": labeled,
+                            "start_off": start_off,
+                            "end_off": end_off,
+                            "kind": "struct",
+                        })
+                    i = j
+                else:
+                    i += 1
+    return hits
+
+
+def struct_copy_deref_proof(asm_lines: list[str], owner: str, owner_cpu: int, aliases: dict[str, str]) -> str:
+    """Improvement 3: confirm a struct candidate when the block is block-copied
+    into a ZP region (by label, alias, or CPU address) and that ZP pointer is
+    later dereferenced `[zp],Y`."""
+    code = [strip_comment(line) for line in asm_lines]
+    name_alt = "|".join(re.escape(n) for n in names_for_owner(owner, aliases))
+    src_re = re.compile(rf"\bLDA\s+(?:{name_alt}|\${owner_cpu:04X})\s*,\s*[XY]\b")
+    dest_re = re.compile(r"\bSTA\s+([A-Za-z_]\w*)\s*,\s*[XY]\b")
+    for i, line in enumerate(code):
+        if not src_re.search(line):
+            continue
+        for j in range(i, min(i + 4, len(code))):
+            match = dest_re.search(code[j])
+            if match:
+                zp = match.group(1)
+                deref = re.compile(rf"[\[\(]{re.escape(zp)}[\]\)]")
+                if any(deref.search(x) for x in code):
+                    return f"block copied from {owner} into {zp} (indexed) and dereferenced as [{zp}]"
+    return ""
+
+
+EQU_ALIAS_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s+\.EQU\s+([A-Za-z_]\w*)\s*(?:;.*)?$", re.IGNORECASE)
+
+
+def build_equ_aliases(asm_lines: list[str]) -> dict[str, str]:
+    """Improvement 4: map `<alias> .EQU <label>` so a consumer that reads a
+    table through an alias (e.g. `Table .EQU TableBankN`) still matches the
+    owner label. Fully generic — driven by the .EQU lines in the asm."""
+    aliases: dict[str, str] = {}
+    for line in asm_lines:
+        match = EQU_ALIAS_RE.match(line)
+        if match:
+            aliases[match.group(1)] = match.group(2)
+    return aliases
+
+
+def names_for_owner(owner: str, aliases: dict[str, str]) -> list[str]:
+    names = {owner}
+    for alias, target in aliases.items():
+        if target == owner:
+            names.add(alias)
+    return sorted(names)
 
 
 def routine_block(lines: list[str], routine: str) -> tuple[int, int]:
@@ -270,15 +420,15 @@ def routine_block(lines: list[str], routine: str) -> tuple[int, int]:
     return start, end
 
 
-def pointer_store_proof(lines: list[str], owner: str, routine: str) -> str:
+def pointer_store_proof(lines: list[str], owner: str, routine: str, aliases: dict[str, str]) -> str:
     start, end = routine_block(lines, routine)
     if start < 0:
         return ""
     block = [strip_comment(line) for line in lines[start:end]]
     code_lines = [strip_comment(line) for line in lines]
-    owner_re = re.escape(owner)
-    owner_lo_load_re = re.compile(rf"\bLDA\s+{owner_re}(?:\b|\s*,[XY]\b|\+)")
-    owner_hi_load_re = re.compile(rf"\bLDA\s+{owner_re}\+1(?:\b|\s*,[XY]\b)")
+    alt = "|".join(re.escape(n) for n in names_for_owner(owner, aliases))
+    owner_lo_load_re = re.compile(rf"\bLDA\s+(?:{alt})(?:\b|\s*,[XY]\b|\+)")
+    owner_hi_load_re = re.compile(rf"\bLDA\s+(?:{alt})\+1(?:\b|\s*,[XY]\b)")
     for i, line in enumerate(block):
         if not owner_lo_load_re.search(line):
             continue
@@ -307,6 +457,7 @@ def confirm_candidates(
     patterns: list[dict],
     label_cpu: dict[str, int],
     asm_lines: list[str],
+    aliases: dict[str, str],
 ) -> list[dict]:
     patterns_by_label: dict[str, list[dict]] = {}
     for pattern in patterns:
@@ -319,11 +470,18 @@ def confirm_candidates(
         owner = hit.get("owner")
         if not owner or owner not in label_cpu:
             continue
-        for pattern in patterns_by_label.get(owner, []):
+        candidate_patterns: list[dict] = []
+        for name in names_for_owner(owner, aliases):
+            candidate_patterns += patterns_by_label.get(name, [])
+        for pattern in candidate_patterns:
             displacement = int(pattern.get("displacement", 0))
-            if label_cpu[owner] + displacement != hit["cpu"]:
+            anchor = label_cpu[owner] + displacement
+            # Improvement 5: composite/shared-heavy tables fragment, so the
+            # detected run can start mid-table. Confirm when the run start falls
+            # within the table extent of the paired-read anchor, not only at it.
+            if not (anchor <= hit["cpu"] <= anchor + MAX_TABLE_EXTENT):
                 continue
-            proof = pointer_store_proof(asm_lines, owner, pattern.get("routine", ""))
+            proof = pointer_store_proof(asm_lines, owner, pattern.get("routine", ""), aliases)
             if proof:
                 enriched = dict(hit)
                 enriched["consumer_proof"] = proof
@@ -347,17 +505,39 @@ def main() -> int:
         records, patterns = run_xasm_analysis(str(asm_path), workdir)
 
     fixed_bank = prg_bank_count(records) - 1
+    bank_windows = compute_bank_windows(records)
     spans, label_cpu, label_by_bank_cpu = build_raw_spans(records, min_run)
-    hits = find_monotonic_runs(spans, label_by_bank_cpu, min_run, fixed_bank)
+    hits = find_monotonic_runs(spans, label_by_bank_cpu, min_run, bank_windows, fixed_bank)
     strong = [
         h for h in hits
         if h["same_window"] >= 0.7 * h["count"] or h["labeled"] >= 0.3 * h["count"]
     ]
     asm_lines = asm_path.read_text(encoding="utf-8").splitlines()
-    confirmed = confirm_candidates(strong, patterns, label_cpu, asm_lines)
+    aliases = build_equ_aliases(asm_lines)
+    confirmed = confirm_candidates(strong, patterns, label_cpu, asm_lines, aliases)
+
+    covered = [(h["start_off"], h["end_off"]) for h in hits]
+    struct_candidates = find_pointer_struct_runs(
+        spans, label_by_bank_cpu, bank_windows, fixed_bank, min_run, covered
+    )
+    seen_struct: set[tuple] = set()
+    for hit in struct_candidates:
+        owner = hit.get("owner")
+        if not owner or owner not in label_cpu:
+            continue
+        key = (owner, hit["cpu"])
+        if key in seen_struct:
+            continue
+        proof = struct_copy_deref_proof(asm_lines, owner, label_cpu[owner], aliases)
+        if proof:
+            seen_struct.add(key)
+            enriched = dict(hit)
+            enriched["consumer_proof"] = proof
+            confirmed.append(enriched)
 
     print(f"embedded_pointer_raw_runs_total={len(hits)}")
     print(f"embedded_pointer_raw_runs_strong={len(strong)}")
+    print(f"embedded_pointer_struct_candidates={len(struct_candidates)}")
     print(f"embedded_pointer_confirmed_unrelocated={len(confirmed)}")
 
     if confirmed:
