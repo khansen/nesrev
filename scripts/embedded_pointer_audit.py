@@ -265,8 +265,10 @@ def pointer_store_proof(lines: list[str], owner: str, routine: str) -> str:
     block = [strip_comment(line) for line in lines[start:end]]
     code_lines = [strip_comment(line) for line in lines]
     owner_re = re.escape(owner)
+    owner_lo_load_re = re.compile(rf"\bLDA\s+{owner_re}(?:\b|\s*,[XY]\b|\+)")
+    owner_hi_load_re = re.compile(rf"\bLDA\s+{owner_re}\+1(?:\b|\s*,[XY]\b)")
     for i, line in enumerate(block):
-        if not re.search(rf"\bLDA\s+{owner_re}(\b|\+)", line):
+        if not owner_lo_load_re.search(line):
             continue
         lo_symbol = ""
         for j in range(i + 1, min(i + 4, len(block))):
@@ -278,7 +280,7 @@ def pointer_store_proof(lines: list[str], owner: str, routine: str) -> str:
             continue
         hi_symbol = lo_symbol[:-2] + "Hi"
         for j in range(i + 1, min(i + 10, len(block))):
-            if not re.search(rf"\bLDA\s+{owner_re}\+1\b", block[j]):
+            if not owner_hi_load_re.search(block[j]):
                 continue
             for k in range(j + 1, min(j + 4, len(block))):
                 if re.search(rf"\bSTA\s+{re.escape(hi_symbol)}\b", block[k]):

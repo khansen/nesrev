@@ -110,13 +110,17 @@ def run_xasm_xref(asm_path: Path) -> dict[str, object]:
             "--xref-data=true",
             str(asm_path),
         ]
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        except FileNotFoundError:
+            print("error: xasm not found while running Used by xref check", file=sys.stderr)
+            sys.exit(66)
         if proc.returncode != 0:
             print("FAIL: xasm xref generation failed for Used by check", file=sys.stderr)
             if proc.stdout:
@@ -265,6 +269,12 @@ def main(argv: list[str]) -> int:
     if strict:
         print(f"OK: Used by xref annotations are synchronized ({checked} strict claims checked)")
     else:
+        if advisories:
+            print("ADVISORY: Used by xref owner mismatches:", file=sys.stderr)
+            for advisory in advisories[:40]:
+                print(f"{asm_path}:{advisory}", file=sys.stderr)
+            if len(advisories) > 40:
+                print(f"... {len(advisories) - 40} more advisories omitted", file=sys.stderr)
         print(
             "OK: Used by hard-error scan passed "
             f"({checked} symbol-shaped claims parsed; strict owner matching is opt-in)"

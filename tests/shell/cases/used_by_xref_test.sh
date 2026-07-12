@@ -88,6 +88,54 @@ ASM
   assert_match "OtherReader" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
 }
 
+test_used_by_xref_check_reports_owner_mismatch_advisory_without_strict() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_advisory.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+OtherReader:
+  RTS
+
+; Format: one byte.
+; Used by: OtherReader.
+DataTable:
+.DB $01
+ASM
+
+  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+
+  assert_match "Used by hard-error scan passed" "$(cat "${NESREV_TEST_TMPDIR}/used_by.out")"
+  assert_match "ADVISORY: Used by xref owner mismatches" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+  assert_match "OtherReader" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
+test_used_by_xref_check_reports_missing_xasm_cleanly() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_missing_xasm.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+
+; Format: one byte.
+; Used by: Reader.
+DataTable:
+.DB $01
+ASM
+
+  set +e
+  PATH=/usr/bin:/bin python3 "${USED_BY_CHECK}" "${asm}" \
+    >"${NESREV_TEST_TMPDIR}/used_by.out" \
+    2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "66" "missing xasm must return a stable error code"
+  assert_match "xasm not found" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
 test_used_by_xref_check_splits_and_case_insensitively() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_upper_and.asm"
   cat > "${asm}" <<'ASM'
