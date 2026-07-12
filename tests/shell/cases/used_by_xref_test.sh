@@ -3,6 +3,49 @@
 
 USED_BY_CHECK="${REPO_ROOT}/scripts/used_by_xref_check.py"
 
+_make_used_by_docs_project() {
+  local slug="$1"
+  local root="projects/${slug}"
+
+  cleanup_project "${slug}"
+  mkdir -p \
+    "${root}/asm" \
+    "${root}/build" \
+    "${root}/reference" \
+    "${root}/docs/reverse_engineering/inventory"
+
+  cat > "${root}/project.conf" <<EOF
+PROJECT_NAME="${slug}"
+ASM_FILE="${root}/asm/${slug}.asm"
+REF_NES="${root}/reference/${slug}.nes"
+DOC_ROOT="${root}/docs/reverse_engineering"
+SYSTEMS_DOC="${root}/docs/reverse_engineering/${slug}_DX_Systems.md"
+WARN_BASELINE_FILE="${root}/docs/reverse_engineering/WARNING_BASELINE.txt"
+NESREV_RECOVERY_STATUS="legacy"
+OUT_BIN="${root}/build/${slug}.o"
+EOF
+
+  cat > "${root}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+
+; Format: one byte.
+; Used by: FakeMissingConsumer.
+DataTable:
+.DB $01
+ASM
+
+  : > "${root}/reference/${slug}.nes"
+  : > "${root}/docs/reverse_engineering/${slug}_DX_Systems.md"
+  : > "${root}/docs/reverse_engineering/WARNING_BASELINE.txt"
+  : > "${root}/docs/reverse_engineering/ONBOARDING.md"
+  : > "${root}/docs/reverse_engineering/QUICK_REFERENCE.md"
+  printf 'old_name,new_name,reason,confidence,pass_id\n' \
+    > "${root}/docs/reverse_engineering/inventory/renames.csv"
+}
+
 test_used_by_xref_check_accepts_direct_data_consumer() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_direct.asm"
   cat > "${asm}" <<'ASM'
@@ -87,4 +130,19 @@ ASM
 
   assert_eq "${rc}" "2" "generic MMC1 banking Used by comment must fail"
   assert_match "PRG banking" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+}
+
+test_project_docs_check_hard_fails_used_by_drift() {
+  local slug; slug="$(unique_slug used_by_docs_fail)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_used_by_docs_project "${slug}"
+
+  set +e
+  make project-docs-check "PROJECT=${slug}" \
+    >"${NESREV_TEST_TMPDIR}/docs.out" 2>"${NESREV_TEST_TMPDIR}/docs.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "project-docs-check must hard-fail stale Used by comments"
+  assert_match "FakeMissingConsumer" "$(cat "${NESREV_TEST_TMPDIR}/docs.err")"
 }
