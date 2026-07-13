@@ -351,8 +351,9 @@ masks, and pointer bytes. Run without `--strict` for a non-failing count.
 (`...PtrTable`, `...Pointers`, ...) whose body is still a raw numeric `.DB` lo/hi
 run — un-relocated embedded pointers the audit's consumer proof cannot see. It
 skips already-symbolic bodies (`.DW`, `.DB` with `<`/`>`) and non-PRG words, so
-headers and misnamed tables do not fire. `--strict` fails when any remain;
-projects opt in via `POINTER_TABLE_RELOCATION_REQUIRED=1`. Recipe:
+headers and misnamed tables do not fire. `project-verify` and
+`project-maturity-check` run this check in strict mode for every project; a
+non-zero count is a regression. Recipe:
 [REVIEW_AUDITS.md#pointer-byte-consolidation-audit](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 
 ### Raw-address audit

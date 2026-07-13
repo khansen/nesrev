@@ -57,6 +57,11 @@ if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
     fail=1
   fi
 fi
+if ! pointer_table_report="$(python3 "${SCRIPT_DIR}/pointer_table_body_check.py" "${ASM_FILE}" --strict 2>&1)"; then
+  printf '%s\n' "${pointer_table_report}" >&2
+  echo "maturity gate failed: pointer-table bodies must be symbolic" >&2
+  fail=1
+fi
 if [[ "${raw_lowaddr}" != "0" || "${raw_absrom}" != "0" ]]; then
   echo "maturity gate failed: raw-address debt is not zero (${raw_lowaddr}/${raw_absrom})" >&2
   fail=1
