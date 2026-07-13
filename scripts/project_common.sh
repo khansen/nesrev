@@ -42,6 +42,11 @@ load_project_conf() {
   # index-register / unit-step quantity contexts. Legacy projects default off so
   # their existing base-by-habit debt is not a retroactive hard gate.
   BASE_READABILITY_REQUIRED="0"
+  # Pointer-table relocation gate opt-in. Projects enable this after relocating
+  # every pointer-table-named label to a symbolic body; verify then hard-fails if
+  # a *PtrTable*/*Pointers* label reappears with a raw .DB pointer run. Legacy
+  # projects default off so existing un-relocated tables are not a retroactive gate.
+  POINTER_TABLE_RELOCATION_REQUIRED="0"
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   MAX_MATURITY_WORKING_NOTES_LINES="120"
@@ -108,6 +113,7 @@ load_project_conf() {
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${BASE_READABILITY_REQUIRED:=0}"
+  : "${POINTER_TABLE_RELOCATION_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
   : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"

@@ -346,6 +346,15 @@ decimal. Opt in after a base pass reaches zero, to guard against regression; the
 check ignores `LDA`/`AND`/`ORA` zeros, which legitimately carry tiles, sentinels,
 masks, and pointer bytes. Run without `--strict` for a non-failing count.
 
+<a id="pointer-table-relocation-gate"></a>
+`pointer_table_body_check.py <asm>` flags labels named as a pointer table
+(`...PtrTable`, `...Pointers`, ...) whose body is still a raw numeric `.DB` lo/hi
+run — un-relocated embedded pointers the audit's consumer proof cannot see. It
+skips already-symbolic bodies (`.DW`, `.DB` with `<`/`>`) and non-PRG words, so
+headers and misnamed tables do not fire. `--strict` fails when any remain;
+projects opt in via `POINTER_TABLE_RELOCATION_REQUIRED=1`. Recipe:
+[QUALITY_REVIEW.md#pointer-byte-consolidation-audit](QUALITY_REVIEW.md#pointer-byte-consolidation-audit).
+
 ### Raw-address audit
 
 ```sh
