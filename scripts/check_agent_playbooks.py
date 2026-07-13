@@ -106,12 +106,15 @@ ROOT_WORD_CEILING = 6000
 # relocatable trace-mod guidance, inline dispatch naming, and CPU vector naming.
 # Static-readability hardening later added mandatory NOP/padding, packed-flag,
 # and redundant-sequence audit dispositions before static-exhaustion claims.
+# The pointer-table relocation gate later added the ASM_STYLE naming/symbolic-body
+# rule, the QUALITY_REVIEW named-pointer-table review check, and the TOOLING entry
+# for pointer_table_body_check.py.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
 ROUTE_BUDGETS = {
-    "default": (2650, 18750),
-    "data-recovery": (2450, 18550),
-    "new-project": (3625, 26100),
+    "default": (2650, 18900),
+    "data-recovery": (2450, 18700),
+    "new-project": (3625, 26300),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

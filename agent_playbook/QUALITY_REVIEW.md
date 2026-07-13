@@ -556,9 +556,9 @@ Corridor passes apply the recipes to the sites they touch (see
 [DATA_RECOVERY.md#computed-pointer-recovery](DATA_RECOVERY.md#computed-pointer-recovery));
 this audit handles the remaining sites across the project.
 
-Run when enough symbolization has stabilized that the recipes match
-cleanly (typically once raw-address debt is at or near zero and high-use
-RAM/ZP owners are named). The audit is not gated on any phase.
+Run once symbolization has stabilized (raw-address debt at or near zero,
+high-use RAM/ZP owners named) so the recipes match cleanly; not gated on
+any phase.
 
 The five DATA_RECOVERY recipes produce *candidates*, not proven
 pointers. Execute the audit in four stages:
@@ -579,17 +579,24 @@ pointers. Execute the audit in four stages:
      when it recurs across audit runs or is genuinely ambiguous; do not
      create a parallel roster file.
 3. **Group actionable candidates by corridor.** Bin every *proven
-   pointer* under exactly one primary owning corridor — the
-   routine/data subsystem with the dominant consumer/producer
-   relationship for that site. Note any secondary corridors as
-   dependencies or review scope on the same bin so the corridor batch
-   covers cross-corridor reviewers without processing the site twice.
+   pointer* under one primary owning corridor (the subsystem with the
+   dominant consumer/producer for that site). Note secondary corridors on
+   the same bin so one batch covers cross-corridor reviewers without
+   processing the site twice.
 4. **Process and verify one corridor batch at a time.** For each
    corridor bin, apply the substitution, run the corridor batch's diff
    review, then run parity verification before moving to the next
    corridor — even when the underlying mapping is globally invariant;
    see
    [PASS_WORKFLOW.md#batching-and-commit-boundaries](PASS_WORKFLOW.md#batching-and-commit-boundaries).
+
+### Named pointer tables
+
+Confirm every pointer-table label (`...PtrTable`, `...Pointers`) a pass opens has
+a symbolic body, not a raw `.DB` lo/hi run — the name proves the entries are
+pointers even where the consumer-proof audit misses them (copied `.DW` block plus
+indirect `[ZP],Y`). `pointer_table_body_check.py` lists offenders
+([TOOLING.md](TOOLING.md#pointer-table-relocation-gate)).
 
 <a id="global-label-review"></a>
 ## Global-Label Documentation and Localization Review
