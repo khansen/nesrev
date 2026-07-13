@@ -107,7 +107,7 @@ ASM
   python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
 
   assert_match "Used by hard-error scan passed" "$(cat "${NESREV_TEST_TMPDIR}/used_by.out")"
-  assert_match "ADVISORY: Used by xref owner mismatches" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+  assert_match "ADVISORY: Used by xref" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
   assert_match "OtherReader" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
 }
 
@@ -181,7 +181,7 @@ ASM
   python3 "${USED_BY_CHECK}" "${asm}" >/dev/null
 }
 
-test_used_by_xref_check_rejects_stale_through_producer() {
+test_used_by_xref_check_through_producer_advisory_unless_strict() {
   local asm="${NESREV_TEST_TMPDIR}/used_by_indirect_stale.asm"
   cat > "${asm}" <<'ASM'
 .ORG $C000
@@ -203,13 +203,23 @@ OtherPayload:
 .DB $02
 ASM
 
+  # Non-strict: an unverifiable through/via dispatcher (indirect reach) is
+  # advisory, not a hard failure -- the xref cannot follow the indirection.
   set +e
   python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
-
-  assert_eq "${rc}" "2" "through producer must reference the annotated target"
+  assert_eq "${rc}" "0" "through-producer must be advisory (not hard) without --strict"
+  assert_match "ADVISORY" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
   assert_match "PtrTable does not reference Payload" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
+
+  # --strict opt-in still enforces it as a hard failure.
+  set +e
+  python3 "${USED_BY_CHECK}" --strict "${asm}" >"${NESREV_TEST_TMPDIR}/used_by_s.out" 2>"${NESREV_TEST_TMPDIR}/used_by_s.err"
+  local rc_strict=$?
+  set -e
+  assert_eq "${rc_strict}" "2" "through-producer must hard-fail under --strict"
+  assert_match "PtrTable does not reference Payload" "$(cat "${NESREV_TEST_TMPDIR}/used_by_s.err")"
 }
 
 test_used_by_xref_check_rejects_unresolved_consumer_label() {

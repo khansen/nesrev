@@ -500,6 +500,7 @@ Rules:
 
 - `Format:` must state the minimal self-contained record/stream shape that is actually proven — record width, field order, and any sentinel/terminator the reader needs to scan the bytes locally.
 - `Used by:` must name the consumer routine(s). `Consumer:` is also acceptable.
+- `Used by: X through <dispatcher>` may name an indirect dispatcher (jump/pointer table or ZP pointer). The static xref cannot follow that indirection, so a missing direct reference is advisory, not a failure (hard only under `--strict`); a named consumer that is not a real symbol still hard-fails.
 - If part of the format is still unresolved, document the proven subset and mark only the uncertain clause with `inferred`.
 - Do not use filler text like "packed byte data block" or "used by gameplay/render/audio routines".
 - When the same format also has a dedicated subsystem or format doc, keep the minimal shape inline and link out only for detailed semantics, constraints/failure modes, value catalogs, and worked examples. Do not replace the shape itself with a link.

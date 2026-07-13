@@ -251,11 +251,16 @@ def check_annotation(
         producer_refs = source_refs.get(producer_for_target, set())
         if target not in producer_refs:
             rendered_refs = ", ".join(sorted(producer_refs)) or "none"
-            failures.append(
+            # A through/via dispatcher commonly reaches the target indirectly --
+            # a jump table, pointer table, or ZP pointer the static xref cannot
+            # follow -- so a missing *direct* reference is unverifiable, not
+            # necessarily wrong. Advisory by default; hard only under --strict.
+            msg = (
                 f"{line}: Used by comment for {target} says through {producer_for_target}, "
                 f"but {producer_for_target} does not reference {target}; "
                 f"source references are: {rendered_refs}"
             )
+            (failures if strict else advisories).append(msg)
     actual_owners = owners.get(checked_symbol, set())
     for consumer in consumers:
         if is_unresolved_label(consumer):
@@ -326,7 +331,7 @@ def main(argv: list[str]) -> int:
         print(f"OK: Used by xref annotations are synchronized ({checked} strict claims checked)")
     else:
         if advisories:
-            print("ADVISORY: Used by xref owner mismatches:", file=sys.stderr)
+            print("ADVISORY: Used by xref (unverifiable indirect dispatch or owner mismatch):", file=sys.stderr)
             for advisory in advisories[:40]:
                 print(f"{asm_path}:{advisory}", file=sys.stderr)
             if len(advisories) > 40:
