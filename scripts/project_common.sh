@@ -37,6 +37,11 @@ load_project_conf() {
   # debt has a reviewed baseline; legacy projects default off to avoid noisy
   # monotonic data runs becoming accidental hard gates.
   EMBEDDED_POINTER_AUDIT_REQUIRED="0"
+  # Base-readability gate opt-in. Projects enable this after a literal-base pass
+  # drives the count to zero; verify then hard-fails if hex #$00/#$01 reappear in
+  # index-register / unit-step quantity contexts. Legacy projects default off so
+  # their existing base-by-habit debt is not a retroactive hard gate.
+  BASE_READABILITY_REQUIRED="0"
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   MAX_MATURITY_WORKING_NOTES_LINES="120"
@@ -102,6 +107,7 @@ load_project_conf() {
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
+  : "${BASE_READABILITY_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
   : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"
