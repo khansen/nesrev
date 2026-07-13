@@ -42,6 +42,7 @@ REQUIRED_PLAYBOOKS = [
     "DATA_RECOVERY.md",
     "DOCUMENTATION.md",
     "QUALITY_REVIEW.md",
+    "REVIEW_AUDITS.md",
     "TOOLING.md",
 ]
 
@@ -54,6 +55,7 @@ EXPECTED_ROUTING_TASKS = [
     "Constantize magic numbers, offsets, bounds, or hardware masks",
     "Review or rewrite comments/docs",
     "Assess gold-standard maturity",
+    "Run a project-level review audit",
     "Change NESrev, xasm, wrappers, or quality gates",
     "Create or review a mod",
 ]
@@ -107,14 +109,17 @@ ROOT_WORD_CEILING = 6000
 # Static-readability hardening later added mandatory NOP/padding, packed-flag,
 # and redundant-sequence audit dispositions before static-exhaustion claims.
 # The pointer-table relocation gate later added the ASM_STYLE naming/symbolic-body
-# rule, the QUALITY_REVIEW named-pointer-table review check, and the TOOLING entry
-# for pointer_table_body_check.py.
+# rule (present on the data-recovery and new-project bundles), which is why those
+# two word ceilings carry a little more headroom than the pre-gate baseline. The
+# gold-standard/default routes were relieved instead by splitting the review
+# playbook: QUALITY_REVIEW.md now holds only the review criteria and the audit
+# procedures moved to REVIEW_AUDITS.md, so the default ceiling returns to baseline.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
 ROUTE_BUDGETS = {
-    "default": (2650, 18900),
-    "data-recovery": (2450, 18700),
-    "new-project": (3625, 26300),
+    "default": (2650, 18750),
+    "data-recovery": (2450, 18650),
+    "new-project": (3625, 26250),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
