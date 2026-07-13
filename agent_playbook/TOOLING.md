@@ -353,7 +353,7 @@ run — un-relocated embedded pointers the audit's consumer proof cannot see. It
 skips already-symbolic bodies (`.DW`, `.DB` with `<`/`>`) and non-PRG words, so
 headers and misnamed tables do not fire. `--strict` fails when any remain;
 projects opt in via `POINTER_TABLE_RELOCATION_REQUIRED=1`. Recipe:
-[QUALITY_REVIEW.md#pointer-byte-consolidation-audit](QUALITY_REVIEW.md#pointer-byte-consolidation-audit).
+[REVIEW_AUDITS.md#pointer-byte-consolidation-audit](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 
 ### Raw-address audit
 

@@ -151,7 +151,7 @@ Keep rationale in `WORKING_NOTES.md`, not chat.
 
 If recent passes are low-yield, stop. Pick a broader corridor, switch to a
 readability sweep, run the
-[static debt audit](QUALITY_REVIEW.md#static-readability-debt-audit), or record
+[static debt audit](REVIEW_AUDITS.md#static-readability-debt-audit), or record
 the plan in `WORKING_NOTES.md`. Do not accept generated buckets repeatedly; static
 exhaustion requires audit dispositions.
 <a id="current-pass-plan"></a>
@@ -447,7 +447,7 @@ Framing rules:
 - Pointer-byte consolidation: corridor-local trigger and recipes —
   [DATA_RECOVERY.md#computed-pointer-recovery](DATA_RECOVERY.md#computed-pointer-recovery);
   project-wide residual audit —
-  [QUALITY_REVIEW.md#pointer-byte-consolidation-audit](QUALITY_REVIEW.md#pointer-byte-consolidation-audit).
+  [REVIEW_AUDITS.md#pointer-byte-consolidation-audit](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 - Do not leave placeholder inventory stubs in
   `docs/reverse_engineering/inventory/` after active work. The closeout
   helper sweeps authored ledgers (`raw_ram_review.csv`, `WORKING_NOTES.md`,
@@ -488,7 +488,7 @@ semantic pass. Promote only after the analyzer accepts the scenario gate. See
 trace tooling contract,
 [QUALITY_REVIEW.md#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)
 for promotion criteria, and
-[QUALITY_REVIEW.md#deep-confidence-passes](QUALITY_REVIEW.md#deep-confidence-passes)
+[REVIEW_AUDITS.md#deep-confidence-passes](REVIEW_AUDITS.md#deep-confidence-passes)
 for the broader deep-confidence-pass framing.
 <a id="completion-checklist"></a>
 ## Completion Checklist
@@ -607,7 +607,7 @@ Every batch must conclude with:
    corridor. Apply
    [AGENTS.md#reviewer-simulation-checklist](../AGENTS.md#reviewer-simulation-checklist)
    and
-   [QUALITY_REVIEW.md#readability-self-audit](QUALITY_REVIEW.md#readability-self-audit)
+   [REVIEW_AUDITS.md#readability-self-audit](REVIEW_AUDITS.md#readability-self-audit)
    before calling the pass complete. The scorecard row must name the
    corridor-level readability or semantic gain, not just KPI movement.
    Apply the comment admission test before writing each new comment; do not

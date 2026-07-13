@@ -18,6 +18,7 @@ Authoritative bundle map. Load the listed playbooks before substantial work. Cro
 | Constantize magic numbers, offsets, bounds, or hardware masks | `ASM_STYLE.md`, `DATA_RECOVERY.md`, `DOCUMENTATION.md` |
 | Review or rewrite comments/docs | `DOCUMENTATION.md`, `QUALITY_REVIEW.md` |
 | Assess gold-standard maturity | `QUALITY_REVIEW.md`, `DOCUMENTATION.md`, `ASM_STYLE.md` |
+| Run a project-level review audit | `REVIEW_AUDITS.md`, `QUALITY_REVIEW.md` |
 | Change NESrev, xasm, wrappers, or quality gates | `TOOLING.md`, `QUALITY_REVIEW.md` |
 | Create or review a mod | `ASM_STYLE.md`, `PASS_WORKFLOW.md`, `TOOLING.md` |
 
@@ -113,7 +114,7 @@ code review to the user. Fix or explicitly defer each issue found:
 
 If generated pass artifacts report only generic `doc_closure` or no strong
 corridor, run this project-wide reviewer simulation and the
-[static readability debt audit](agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit)
+[static readability debt audit](agent_playbook/REVIEW_AUDITS.md#static-readability-debt-audit)
 before declaring static exhaustion.
 
 
@@ -437,9 +438,9 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - <a id="blob-decode-kpi-pre-assessment"></a>**Blob-decode KPI pre-assessment** — [DATA_RECOVERY.md#orphan-opcode-decode](agent_playbook/DATA_RECOVERY.md#orphan-opcode-decode).
 - <a id="review-quality-bar"></a>**Review quality bar** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).
 - <a id="success-evaluation-criteria"></a>**Success evaluation criteria** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).
-- <a id="readability-self-audit"></a>**Readability self-audit** — [agent_playbook/QUALITY_REVIEW.md#readability-self-audit](agent_playbook/QUALITY_REVIEW.md#readability-self-audit).
-- <a id="static-readability-debt-audit"></a>**Static debt audit** — [agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit](agent_playbook/QUALITY_REVIEW.md#static-readability-debt-audit).
-- <a id="optional-deep-confidence-passes"></a>**Optional deep-confidence passes** — [agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes](agent_playbook/QUALITY_REVIEW.md#deep-confidence-passes).
+- <a id="readability-self-audit"></a>**Readability self-audit** — [agent_playbook/REVIEW_AUDITS.md#readability-self-audit](agent_playbook/REVIEW_AUDITS.md#readability-self-audit).
+- <a id="static-readability-debt-audit"></a>**Static debt audit** — [agent_playbook/REVIEW_AUDITS.md#static-readability-debt-audit](agent_playbook/REVIEW_AUDITS.md#static-readability-debt-audit).
+- <a id="optional-deep-confidence-passes"></a>**Optional deep-confidence passes** — [agent_playbook/REVIEW_AUDITS.md#deep-confidence-passes](agent_playbook/REVIEW_AUDITS.md#deep-confidence-passes).
 - <a id="command-template"></a>**Command template (general)** — [TOOLING.md#command-reference](agent_playbook/TOOLING.md#command-reference).
 - **Pre-close relocation safety gate** — [PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
 - **Runtime evidence workflow (purpose: improve the asm's semantic names; feed findings back by renaming the owning symbol, not by comment)** — [PASS_WORKFLOW.md#runtime-evidence-workflow](agent_playbook/PASS_WORKFLOW.md#runtime-evidence-workflow).

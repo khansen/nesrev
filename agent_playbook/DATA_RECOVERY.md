@@ -405,7 +405,7 @@ recipes as same-batch obligations for the proven-pointer sites the
 corridor touches. The project-wide consolidation audit across all
 remaining sites — including the canonical collect/classify/group/process
 flow — is owned by
-[QUALITY_REVIEW.md#pointer-byte-consolidation-audit](QUALITY_REVIEW.md#pointer-byte-consolidation-audit);
+[REVIEW_AUDITS.md#pointer-byte-consolidation-audit](REVIEW_AUDITS.md#pointer-byte-consolidation-audit);
 it is not gated on any phase, but it will typically wait until enough
 symbolization has stabilized that the recipes match cleanly.
 1. **Adjacent immediate-pair pointer construction.** Two `LDA #$NN` immediates whose bytes form a 16-bit pointer, typically followed by `STA ptr_lo` / `STA ptr_hi`.
