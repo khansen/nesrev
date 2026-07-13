@@ -150,9 +150,9 @@ reviewer must inspect the touched regions and ledgers.
     `...AddrC000...`, or `...Field10...` are acceptable only when
     the address/value identity is the durable meaning or the
     placeholder is explicitly recorded as future debt.
-17. **No obvious derivable counts/bounds** remaining as raw
-    literals in executable logic when table/record label math
-    would be clearer.
+17. **No obvious derivable counts/bounds or table offsets**
+    remain raw when label math is clearer. This includes selector/request
+    `.DB $NN` offsets to known labels; use `TargetLabel-BaseLabel`.
 18. **Systems-overview promotion and abstraction are correct.**
     `*_DX_Systems.md` remains minimal until stable names, ownership, control
     flow, and format boundaries exist. A promoted overview contains no

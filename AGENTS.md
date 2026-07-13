@@ -91,6 +91,8 @@ code review to the user. Fix or explicitly defer each issue found:
   raw hex suffixes where semantics are now known
 - hardcoded offsets, pointer bytes, or table sizes that can be expressed with
   field symbols, labels, or label math
+- selector/request `.DB $NN` offsets to known row/record/stream boundaries
+  that should be `TargetLabel-BaseLabel`
 - unclassified NOP/padding oddities as defined in
   [ASM_STYLE.md#nop-and-padding-representation](agent_playbook/ASM_STYLE.md#nop-and-padding-representation)
 - packed flag/mask families where only the touched bit was named, nearby raw
