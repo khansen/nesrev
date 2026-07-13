@@ -58,6 +58,13 @@ if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
     "${ASM_FILE}"
 fi
 
+if [[ "${BASE_READABILITY_REQUIRED}" == "1" ]]; then
+  # Hard gate for opted-in projects: fails if hex #$00/#$01 reappear in
+  # index-register / unit-step quantity contexts.
+  bash "${SCRIPT_DIR}/base_readability_kpi.sh" \
+    "${ASM_FILE}" --strict
+fi
+
 bash "${SCRIPT_DIR}/inferred_kpi.sh" \
   "${ASM_FILE}" \
   "${INFERRED_KPI_FILE}"

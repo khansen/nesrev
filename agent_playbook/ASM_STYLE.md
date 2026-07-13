@@ -229,7 +229,7 @@ Choose numeric base by semantics, not habit.
   restating the inverse literal. For compound clear masks, introduce the
   positive `*_MASK` first, then define the clear mask from it.
 - When a literal has a stable semantic role and appears more than once, prefer introducing a named constant over relying on either raw decimal or raw hex.
-- Do not churn literals mechanically; only rewrite base when it clearly improves readability.
+- Do not churn literals mechanically; only rewrite base when it clearly improves readability. A gate ([TOOLING.md](TOOLING.md)) catches regressions.
 <a id="hardware-constants"></a>
 ## Hardware, OAM, Joypad, PPU, and APU Constants
 

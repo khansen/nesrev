@@ -335,6 +335,17 @@ and scalar tables can look pointer-like. Planned refinements and the validation
 corpus live in
 [EMBEDDED_POINTER_AUDIT_SPEC.md](EMBEDDED_POINTER_AUDIT_SPEC.md).
 
+<a id="base-readability-gate"></a>
+Projects may opt into the base-readability gate with
+`BASE_READABILITY_REQUIRED=1` in `project.conf`. `project-verify` then runs
+`base_readability_kpi.sh --strict`, which hard-fails when hex `#$00`/`#$01`
+appear in index-register (`LDX`/`LDY`/`CPX`/`CPY`) or unit-step
+(`ADC`/`SBC #$01`) quantity contexts, where the
+[Literal Base Readability](ASM_STYLE.md#literal-base-readability) rule requires
+decimal. Opt in after a base pass reaches zero, to guard against regression; the
+check ignores `LDA`/`AND`/`ORA` zeros, which legitimately carry tiles, sentinels,
+masks, and pointer bytes. Run without `--strict` for a non-failing count.
+
 ### Raw-address audit
 
 ```sh
