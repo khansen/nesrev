@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests the pointer-table body check (scripts/pointer_table_body_check.py) and
-# its opt-in plumbing (POINTER_TABLE_RELOCATION_REQUIRED in project_common.sh).
+# the mandatory project-verify gate.
 
 CHECK="${REPO_ROOT}/scripts/pointer_table_body_check.py"
 
@@ -66,27 +66,13 @@ test_pointer_table_missing_file_errors() {
   assert_exit 65 python3 "${CHECK}" "${NESREV_TEST_TMPDIR}/nope.asm"
 }
 
-_load_flag() {
-  bash -c '
-    set -euo pipefail
-    cd "'"${REPO_ROOT}"'"
-    source scripts/project_common.sh
-    load_project_conf "'"$1"'" >/dev/null 2>&1
-    echo "${POINTER_TABLE_RELOCATION_REQUIRED}"
-  '
-}
-
-test_pointer_table_required_defaults_off() {
-  local slug rom; slug="$(unique_slug ptreloc_off)"; rom="${NESREV_TEST_TMPDIR}/rom.nes"
-  make_ines "${rom}"; scaffold_project "${slug}" "${rom}"
-  local flag; flag="$(_load_flag "${slug}")"; cleanup_project "${slug}"
-  assert_eq "0" "${flag}" "legacy projects default POINTER_TABLE_RELOCATION_REQUIRED off"
-}
-
-test_pointer_table_required_opt_in_via_conf() {
-  local slug rom; slug="$(unique_slug ptreloc_on)"; rom="${NESREV_TEST_TMPDIR}/rom.nes"
-  make_ines "${rom}"; scaffold_project "${slug}" "${rom}"
-  printf 'POINTER_TABLE_RELOCATION_REQUIRED="1"\n' >> "projects/${slug}/project.conf"
-  local flag; flag="$(_load_flag "${slug}")"; cleanup_project "${slug}"
-  assert_eq "1" "${flag}" "project.conf opt-in must enable the gate flag"
+test_project_verify_always_requires_symbolic_pointer_table_bodies() {
+  local verify common
+  verify="$(cat "${REPO_ROOT}/scripts/project_verify.sh")"
+  common="$(cat "${REPO_ROOT}/scripts/project_common.sh")"
+  assert_match "pointer_table_body_check.py" "${verify}" \
+    "project-verify must invoke the pointer-table body gate"
+  if printf '%s\n%s\n' "${verify}" "${common}" | grep -q "POINTER_TABLE_RELOCATION_REQUIRED"; then
+    fail "pointer-table body gate must not be guarded by POINTER_TABLE_RELOCATION_REQUIRED"
+  fi
 }
