@@ -488,8 +488,12 @@ Canonical conversion rules for any recovered pointer table.
 <a id="table-offset-literal-elimination"></a>
 ### Table-offset literal elimination
 
-- Replace `BaseLabel+$NN` expressions with boundary-label math (`SomeTableEnd-$02`). Introduce explicit boundary labels (`...End`, `...PayloadStart`).
-- Apply during the first pointer-table normalization pass, not later.
+- Replace `BaseLabel+$NN` and selector/request `.DB $NN` offsets into known
+  record/row/stream/payload boundaries with exact labels and
+  `TargetLabel-BaseLabel`; preserve order and byte count.
+- Apply during the first pointer/offset-table normalization pass. If target
+  rows are proven but offsets stay raw, record the evidence gap in the
+  scorecard.
 <a id="pointer-table-readability-normalization"></a>
 ### Pointer-table readability normalization
 
