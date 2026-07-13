@@ -50,6 +50,7 @@ rg -n "\\b[A-Za-z_][A-Za-z0-9_]*(Record|Frame|Entry|Variant)[0-9]+\\b" "${ASM_FI
 rg -n "\\bNOP\\b|^\\s*\\.DB\\b.*\\$EA\\b" "${ASM_FILE}"
 rg -n "^\\s*\\.DB\\s+\\$(FF|00)(,\\$(FF|00)){2,}\\b" "${ASM_FILE}"
 rg -n "(AND|ORA|EOR|BIT|CMP) #(\\$[0-9A-Fa-f]{2}|%[01]{8})\\b|\\b[A-Za-z_][A-Za-z0-9_]*(Flags|Flag|Mask|Bits|State)\\b" "${ASM_FILE}"
+rg -n "(unreferenced|no known static consumer|no direct consumer|orphan|mixed.*blob|payload|stream bytes|composite|packed)" "${WARN_BASELINE_FILE}" "${ASM_FILE}" "${DOC_ROOT}"
 ```
 
 Read owners before editing. Decisions: reflow proven opaque blobs/long rows per
@@ -61,6 +62,22 @@ vocabulary with prior projects.
 
 Required dispositions for this audit:
 
+- **Opaque data blobs, referenced or not:** treat every long `.DB` blob,
+  payload container, mixed byte island, packed/composite stream, or
+  warning-baselined data label as a structure-discovery smell until its
+  internal format is reviewed. A reference to the container label only proves
+  that some code reaches the base; it does not prove the interior has no
+  substreams, pointer fields, selector-indexed records, sentinels, or split
+  payloads. Before calling the blob disposed, inspect the consumer and nearby
+  records/tables for raw little-endian ROM address pairs into the blob, high
+  label-hit-ratio pointer structs, copied state records whose fields later
+  feed ZP/RAM pointer bytes, selector/cursor offsets, and in-blob `$00` /
+  `$FF` / opcode-like sentinels that match a consumer. If a pointer field or
+  substructure is proven, add exact boundary/target labels and relocate pointer
+  fields to `<Label,>Label` or `.DW Label` in the same pass. If no internal
+  structure is proven, record the specific failed consumer/pointer/selector
+  search in `WORKING_NOTES.md` or the scorecard; a generic "referenced by X" or
+  "no known consumer" note is not a disposition.
 - **NOP and padding representation:** apply
   [ASM_STYLE.md#nop-and-padding-representation](ASM_STYLE.md#nop-and-padding-representation)
   to every NOP, executable `$EA` byte, jump-over-padding pattern, and

@@ -114,12 +114,15 @@ ROOT_WORD_CEILING = 6000
 # gold-standard/default routes were relieved instead by splitting the review
 # playbook: QUALITY_REVIEW.md now holds only the review criteria and the audit
 # procedures moved to REVIEW_AUDITS.md, so the default ceiling returns to baseline.
+# The new-project route also carries the opaque data/blob internal-structure
+# rule because intake and early passes must not treat a referenced blob as
+# structurally disposed without inspecting its consumers and interior fields.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
 ROUTE_BUDGETS = {
     "default": (2650, 18750),
     "data-recovery": (2450, 18650),
-    "new-project": (3625, 26250),
+    "new-project": (3625, 26375),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
