@@ -355,6 +355,8 @@ Before closing a pass, audit:
 - record/header pointers symbolized
 - loop bounds use `Start/End` math
 - major blobs have `...End` labels
+- touched opaque data/blob containers have an internal-structure disposition
+  per [REVIEW_AUDITS.md#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit)
 - every remaining semantic literal is symbolized, structurally derived, or
   dispositioned through the canonical allowlist/parity-bug rules; an inline
   comment is not a substitute for any of those outcomes
@@ -382,6 +384,9 @@ Before running verify, preempt the known failure modes in one pass:
   for the resolution order).
 - **New reference to a previously unreferenced label:** remove the
   baseline entry before first verify.
+- **Opaque data/blob label touched:** trace the consumer and run the
+  internal-structure check from the static readability debt audit; split proven
+  substructures and relocate proven pointer fields before closeout.
 - **Blob decode (`.DB` -> instructions):** complete the
   [AGENTS.md#blob-decode-kpi-pre-assessment](../AGENTS.md#blob-decode-kpi-pre-assessment)
   checklist before verify.
