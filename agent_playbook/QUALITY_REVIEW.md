@@ -112,13 +112,22 @@ reviewer must inspect the touched regions and ledgers.
    and KPI filler fail this item. Review high-fanout callables and public
    jump/dispatch targets from `xref_summary_all.json`; localize,
    rename/structure, add a concise header, or record why none is needed.
-8. **Major data regions include format and index comments.**
-   When a review proves a bounded indexed-table span that ordinary coverage
-   cannot infer, record it in `data_extent_assertions.csv` so
-   `project-verify` and `project-maturity-check` can catch later drift.
+8. **Major data regions have dedicated format coverage.** Inline `Format:`
+   comments are not enough for core editable systems. If the game has
+   levels/stages/rooms/maps, objects/actors/enemies/hazards,
+   items/pickups, projectiles, metasprites/animation, PPU packet/update
+   streams, music, SFX, or shared audio cue/channel formats, those families
+   must have dedicated `*_FORMAT.md` docs or one clearly scoped shared doc
+   such as `AUDIO_FORMAT.md` that explicitly covers both music and SFX.
+   If a family is absent or not yet statically understood, record that
+   disposition instead of leaving the silence ambiguous. When a review proves
+   a bounded indexed-table span that ordinary coverage cannot infer, record it
+   in `data_extent_assertions.csv` so `project-verify` and
+   `project-maturity-check` can catch later drift.
 9. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
-   and promoted subsystem `*_DX_Systems.md`). A not-yet-promoted systems
+   dedicated format/state-machine docs, and promoted subsystem
+   `*_DX_Systems.md`). A not-yet-promoted systems
    scaffold is acceptable while semantic work remains; speculative expansion
    is not. New projects opt into a maturity budget for `WORKING_NOTES.md`; if
    the file is over budget, promote stable facts to canonical docs/source, act
@@ -159,7 +168,11 @@ reviewer must inspect the touched regions and ledgers.
     unresolved `LXXXX`, raw RAM/ZP inventory, boot-step walkthrough,
     helper-by-helper narration, hypotheses, or future-pass planning. Route
     provisional material to `WORKING_NOTES.md` or process artifacts and link
-    detailed formats/state machines instead of embedding them.
+    detailed formats/state machines instead of embedding them. For games
+    that have levels/stages/rooms, objects/actors/enemies, items/pickups,
+    projectiles, rendering packet streams, music, or SFX, the overview must
+    mention those systems at the architectural level and link the relevant
+    dedicated format docs or an explicit not-applicable/disposition note.
 ### Final readability sweep
 
 19. Run a final readability audit using targeted searches plus
@@ -190,9 +203,12 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
     If no mature-project headers result, the scorecard must name what was
     reviewed and why names/callers were sufficient.
 21. Before any claim that static work is "done" or exhausted, run the
-    [#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit) and record
-    the disposition in the scorecard. A green gate set without this audit is a
-    mechanical-maturity statement only, not a static-quality conclusion.
+    [core data-format coverage audit](REVIEW_AUDITS.md#core-data-format-coverage-audit)
+    and
+    [static readability debt audit](REVIEW_AUDITS.md#static-readability-debt-audit),
+    then record dispositions in the scorecard. A green gate set without these
+    audits is a mechanical-maturity statement only, not a static-quality
+    conclusion.
 
 <a id="semantic-claims"></a>
 ## Semantic Claims Ledger

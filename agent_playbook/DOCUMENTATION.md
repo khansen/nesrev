@@ -292,22 +292,42 @@ up after later passes.
 
 ### Prioritization
 
-1. **Prioritize documentation of moddable systems.** Any system where an end user might want to edit data, create content, or modify behavior deserves standalone prose documentation. Common examples: level/stage/track data formats, enemy/actor behavior state machines, audio sequence formats, sprite/tile mapping tables.
+1. **Prioritize documentation of moddable systems.** Any system where a user
+   might edit data, create content, or modify behavior deserves standalone
+   prose: levels/rooms/maps, object/actor/enemy behavior, item tables,
+   music/SFX streams, sprites/metasprites/tiles, and PPU packet streams.
 
-2. **Each major data format gets its own doc.** Do not bury format specifications inside `<slug>_DX_Systems.md`. Create dedicated files (e.g., `TRACK_DATA_FORMAT.md`, `STAGE_LAYOUT_FORMAT.md`, `AUDIO_SEQUENCE_FORMAT.md`). The per-format content checklist (byte order, terminators/sentinels, parser/consumer, constraints/failure modes, worked example) lives at [#data-format-documentation](#data-format-documentation). Each dedicated doc should additionally include the items below when applicable; for any that does not apply (for example a pointer table has no tile/value catalog, an audio stream has no fixed segment list), state `not applicable` with a one-line reason:
+2. **Each major data format gets its own doc.** Do not bury format
+   specifications inside `<slug>_DX_Systems.md`. Create files such as
+   `ROOM_FORMAT.md`, `OBJECT_ACTOR_FORMAT.md`, `ENEMY_FORMAT.md`,
+   `ITEM_FORMAT.md`, `METASPRITE_FORMAT.md`, `MUSIC_FORMAT.md`,
+   `SFX_FORMAT.md`, or a shared `AUDIO_FORMAT.md` when one driver covers
+   both music and SFX. The content checklist lives at
+   [#data-format-documentation](#data-format-documentation). Add, when
+   applicable:
    - Architecture overview (how the system's layers relate)
    - Data catalog (all segments/entries/patterns enumerated with purpose)
    - Tile/value ID reference table
-3. **Each major state machine gets its own doc.** Create dedicated files (e.g., `RIDER_STATE_MACHINE.md`, `ENEMY_AI.md`) with:
+   Audio is mandatory: document music/jingles and SFX/cues, including shared
+   channel, instrument, envelope, or copied-state formats. If one cue/stream
+   system covers both, say so explicitly.
+3. **Core gameplay data families require disposition.** Before maturity, each
+   present family needs a linked `*_FORMAT.md` doc or an explicit
+   absent/unknown note: levels/rooms/maps; object/actor/enemy/hazard/
+   projectile/item definitions; behavior/state/movement/animation streams;
+   graphics/PPU formats; music and SFX cue/channel/instrument/effect-state
+   formats. Closely coupled formats may share one doc, but every existing
+   core family must be findable from the systems overview.
+4. **Each major state machine gets its own doc.** Create dedicated files (e.g., `RIDER_STATE_MACHINE.md`, `ENEMY_AI.md`) with:
    - State diagram (entry/exit conditions, per-frame behavior for each state)
    - Key variable reference table (address, name, purpose)
    - For scripted AI: command stream format, opcode catalog, worked example
-4. **Include a modding guide for actionable formats.** If a format is user-editable (level data, character stats, track layouts), include step-by-step instructions for:
+5. **Include a modding guide for actionable formats.** If a format is user-editable (level data, character stats, track layouts), include step-by-step instructions for:
    - Editing existing ROM data (which bytes to change, what they mean)
    - Using in-game editors to create content and extracting it via RAM dump
    - Hand-composing new content from scratch using the format spec
 
-5. **Keep the systems scaffold honest.** Before promotion, retain only a short
+6. **Keep the systems scaffold honest.** Before promotion, retain only a short
    statement that the overview is intentionally deferred pending stable
    subsystem understanding. Do not fill it incrementally. Once the promotion
    gate is met, replace that statement with a concise durable overview.
@@ -317,12 +337,18 @@ up after later passes.
 Use `*_DX_Systems.md` for stable subsystem understanding, not pass narration
 and not helper-by-helper inventory.
 
-Every mature systems doc should cover:
+Every mature systems doc should cover or explicitly mark not applicable:
 
 - frame lifecycle / NMI ownership
 - high-level gameplay control flow (what the per-frame gameplay updater owns)
-- major subsystems (player, actors/hazards, rendering/PPU updates, audio, scoring/HUD, stage/setup flow as applicable)
-- core data formats that materially help a reader modify the game
+- major subsystems: player/control, levels/rooms, objects/actors/enemies/
+  hazards, items, projectiles/collision, rendering/PPU, audio, scoring/HUD,
+  and setup flow
+- music and SFX ownership: frame entries, request/cue flow, channel ownership,
+  and links to music/SFX or shared audio format docs
+- links to dedicated docs for present core formats: levels/rooms,
+  objects/actors/enemies, items, projectiles, metasprites, animation,
+  PPU streams, music, and SFX
 
 Abstraction rules:
 

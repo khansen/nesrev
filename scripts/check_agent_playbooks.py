@@ -117,12 +117,18 @@ ROOT_WORD_CEILING = 6000
 # The new-project route also carries the opaque data/blob internal-structure
 # rule because intake and early passes must not treat a referenced blob as
 # structurally disposed without inspecting its consumers and interior fields.
+# Core data-format coverage later made audio/music/SFX documentation and
+# level/object/enemy/item/graphics format disposition explicit maturity
+# requirements. That prose intentionally lives in DOCUMENTATION.md,
+# QUALITY_REVIEW.md, and REVIEW_AUDITS.md, so the documentation-heavy route
+# ceilings carry additional headroom rather than compressing the rule into
+# ambiguous shorthand.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
 ROUTE_BUDGETS = {
-    "default": (2650, 18750),
-    "data-recovery": (2450, 18650),
-    "new-project": (3625, 26375),
+    "default": (2650, 19000),
+    "data-recovery": (2450, 19000),
+    "new-project": (3625, 26650),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
