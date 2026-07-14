@@ -3,8 +3,9 @@
 This playbook is the canonical home for the concrete review *procedures* run
 during and near maturity: the static readability debt audit, the readability
 self-audit, the expanded reviewer simulation, the stale-placeholder /
-symbol-family / residual-magic-number / global-label audits, the project-wide
-pointer-byte consolidation audit, and optional deep-confidence passes. The review
+symbol-family / residual-magic-number / global-label audits, the core
+data-format coverage audit, the project-wide pointer-byte consolidation audit,
+and optional deep-confidence passes. The review
 *criteria* that invoke these audits (quality bar, gold-standard checklist, KPI
 interpretation, semantic-claims, parity registry) live in
 [QUALITY_REVIEW.md](QUALITY_REVIEW.md).
@@ -21,6 +22,7 @@ This playbook owns the project-level review audit procedures:
 - residual magic-number and hardcoded-offset review
 - project-wide pointer-byte consolidation audit
 - global-label documentation/localization review
+- core data-format coverage audit
 - optional deep-confidence passes
 
 The gold-standard criteria that invoke these audits live in
@@ -198,13 +200,52 @@ work exhausted, run the deeper audits below in this order:
    [DOCUMENTATION.md#dx-systems-scope](DOCUMENTATION.md#dx-systems-scope);
    otherwise revert it and route the facts to the appropriate current-state
    artifact.
-7. **Static readability debt audit** —
+7. **Core data-format coverage audit** —
+   [#core-data-format-coverage-audit](#core-data-format-coverage-audit).
+8. **Static readability debt audit** —
    [#static-readability-debt-audit](#static-readability-debt-audit).
 
-Only after all seven turn up nothing actionable should the agent
+Only after all eight turn up nothing actionable should the agent
 conclude that static work is exhausted and runtime evidence
 ([#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)) is the next
 move.
+
+<a id="core-data-format-coverage-audit"></a>
+## Core Data-Format Coverage Audit
+
+Mandatory before static-exhaustion or gold-static claims for projects with
+substantial data. This audit closes the gap between "all labels are documented"
+and "the game’s core editable formats are actually understood."
+
+Review the current asm, reference docs, systems overview, and dedicated
+format/state-machine docs. For each applicable family, record one disposition
+in the scorecard or `WORKING_NOTES.md`: **documented and linked**,
+**queued static pass**, **absent/not applicable**, or **runtime-gated** with
+the exact evidence needed.
+
+Required families to check:
+
+- level, stage, room, world-map, screen, area-transition, or track layouts
+- object, actor, enemy, hazard, projectile, item, pickup, and spawn/placement
+  definitions
+- behavior/state/action tables, movement scripts, and animation/frame streams
+- sprite, metasprite, tile, CHR, nametable, PPU packet, and update-queue
+  formats
+- audio music and audio SFX: song/jingle/cue sequences, channel streams,
+  instruments/envelopes, effect-state records, SFX request records, and shared
+  audio cue formats
+
+Audio has two explicit coverage questions: **music** and **SFX**. A single
+`AUDIO_FORMAT.md` is acceptable when one engine or data model covers both, but
+the doc must say how music/jingles and SFX/cues map onto that shared model. If
+static analysis finds no separate music stream format, document that finding
+and the evidence instead of leaving music unmentioned.
+
+`*_DX_Systems.md` is the index and architecture overview for these families,
+not the place to duplicate byte layouts. A promoted systems overview should
+mention each applicable major subsystem and link the relevant `*_FORMAT.md` or
+state-machine doc. Do not create stub format docs to satisfy this audit; if the
+format is not understood yet, queue the static corridor that will prove it.
 
 <a id="stale-placeholder-audit"></a>
 ## Stale Placeholder, Value, and Address-Name Audits
