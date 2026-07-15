@@ -105,6 +105,11 @@ PROCEDURE_CONTRACTS_REQUIRED="1"
 WORKING_NOTES_MATURITY_REQUIRED="1"
 MAX_MATURITY_WORKING_NOTES_LINES="120"
 
+# New clean-room projects carry an explicit core data-format target inventory.
+# Process checks validate the list while semantic work is in progress; maturity
+# checks require every canonical family to be dispositioned.
+DATA_FORMAT_TARGETS_REQUIRED="1"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required
@@ -384,6 +389,21 @@ DOC
 
 cat > "$root/docs/reverse_engineering/inventory/renames.csv" <<'DOC'
 old_name,new_name,reason,confidence,pass_id
+DOC
+
+cat > "$root/docs/reverse_engineering/inventory/data_format_targets.csv" <<'DOC'
+family,disposition,artifact,evidence
+levels_rooms_maps,not_yet_reviewed,,intake scaffold - identify level room map screen area transition or track data
+objects_actors_enemies_hazards,not_yet_reviewed,,intake scaffold - identify object actor enemy hazard and spawn definitions
+items_pickups_powerups,not_yet_reviewed,,intake scaffold - identify item pickup powerup inventory or reward formats
+projectiles_collision,not_yet_reviewed,,intake scaffold - identify projectile collision hitbox or damage formats
+behavior_state_movement_animation,not_yet_reviewed,,intake scaffold - identify behavior state action movement and animation streams
+metasprites_sprite_animation,not_yet_reviewed,,intake scaffold - identify metasprite sprite strip frame and coordinate formats
+graphics_tiles_chr_nametables,not_yet_reviewed,,intake scaffold - identify graphics tile CHR nametable attribute and image formats
+ppu_packet_update_streams,not_yet_reviewed,,intake scaffold - identify PPU packet VRAM update queue and screen-transfer streams
+audio_music_jingles,not_yet_reviewed,,intake scaffold - identify music jingle song channel instrument and envelope formats
+audio_sfx_cues,not_yet_reviewed,,intake scaffold - identify SFX cue request effect-state and channel formats
+password_save_progression,not_yet_reviewed,,intake scaffold - identify password save progression checkpoint or mark absent
 DOC
 
 cat > "$root/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'DOC'

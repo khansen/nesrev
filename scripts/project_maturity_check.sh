@@ -117,6 +117,21 @@ if [[ "${WORKING_NOTES_MATURITY_REQUIRED}" == "1" ]]; then
   fi
 fi
 
+if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
+  data_format_required_args=()
+  if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" ]]; then
+    data_format_required_args=(--required)
+  fi
+  if ! python3 "${SCRIPT_DIR}/data_format_targets_check.py" \
+      "${DATA_FORMAT_TARGETS_FILE}" \
+      --doc-root "${DOC_ROOT}" \
+      --mode maturity \
+      "${data_format_required_args[@]}"; then
+    echo "maturity gate failed: data-format target inventory is incomplete" >&2
+    fail=1
+  fi
+fi
+
 # Constantization smell (advisory, independent of the hard gates): a game of any
 # size should reach maturity with some intentional raw literals recorded in the
 # allowlist. A magic-immediate count of 0 alongside an empty allowlist usually

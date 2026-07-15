@@ -118,4 +118,17 @@ python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
   "${SCRIPT_DIR}/../agent_playbook/ASM_STYLE.md" \
   "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" || true
 
+if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
+  echo "[data-format] Checking data-format target inventory"
+  data_format_required_args=()
+  if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" ]]; then
+    data_format_required_args=(--required)
+  fi
+  python3 "${SCRIPT_DIR}/data_format_targets_check.py" \
+    "${DATA_FORMAT_TARGETS_FILE}" \
+    --doc-root "${DOC_ROOT}" \
+    --mode process \
+    "${data_format_required_args[@]}"
+fi
+
 echo "OK: project process checks passed"

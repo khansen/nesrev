@@ -219,9 +219,11 @@ and "the game’s core editable formats are actually understood."
 
 Review the current asm, reference docs, systems overview, and dedicated
 format/state-machine docs. For each applicable family, record one disposition
-in the scorecard or `WORKING_NOTES.md`: **documented and linked**,
-**queued static pass**, **absent/not applicable**, or **runtime-gated** with
-the exact evidence needed.
+in `inventory/data_format_targets.csv` when present; otherwise use the
+scorecard or `WORKING_NOTES.md`: `documented`, `queued_static_pass`,
+`absent_not_applicable`, or `runtime_gated` with the exact evidence needed.
+Maturity may retain documented, absent/not-applicable, or runtime-gated rows;
+it must not retain `not_yet_reviewed` or `queued_static_pass` rows.
 
 Required families to check:
 
