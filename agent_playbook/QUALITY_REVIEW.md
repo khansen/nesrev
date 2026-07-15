@@ -120,7 +120,9 @@ reviewer must inspect the touched regions and ledgers.
    must have dedicated `*_FORMAT.md` docs or one clearly scoped shared doc
    such as `AUDIO_FORMAT.md` that explicitly covers both music and SFX.
    If a family is absent or not yet statically understood, record that
-   disposition instead of leaving the silence ambiguous. When a review proves
+   disposition instead of leaving the silence ambiguous. New projects record
+   these dispositions in `inventory/data_format_targets.csv`; the maturity
+   check rejects undispositioned or still-queued rows. When a review proves
    a bounded indexed-table span that ordinary coverage cannot infer, record it
    in `data_extent_assertions.csv` so `project-verify` and
    `project-maturity-check` can catch later drift.

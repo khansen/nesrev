@@ -33,6 +33,10 @@ load_project_conf() {
   # set WORKING_NOTES_MATURITY_REQUIRED="1" so gold closeout cannot silently
   # accept a large notes file full of promotable findings or stale pass context.
   WORKING_NOTES_MATURITY_REQUIRED="0"
+  # Core data-format disposition opt-in (legacy projects default off). New
+  # scaffolds set DATA_FORMAT_TARGETS_REQUIRED="1" so gold closeout cannot
+  # silently skip map/room/object/item/audio/graphics format disposition.
+  DATA_FORMAT_TARGETS_REQUIRED="0"
   # Embedded-pointer audit opt-in. Projects enable this once raw pointer-table
   # debt has a reviewed baseline; legacy projects default off to avoid noisy
   # monotonic data runs becoming accidental hard gates.
@@ -106,6 +110,7 @@ load_project_conf() {
   : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
+  : "${DATA_FORMAT_TARGETS_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${BASE_READABILITY_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
@@ -136,6 +141,7 @@ load_project_conf() {
   : "${COMMENT_KPI_FILE:=${KPI_FILE}}"
   : "${DATA_LABEL_DOC_KPI_FILE:=${KPI_FILE}}"
   : "${DATA_EXTENT_ASSERTIONS_FILE:=${DOC_ROOT}/inventory/data_extent_assertions.csv}"
+  : "${DATA_FORMAT_TARGETS_FILE:=${DOC_ROOT}/inventory/data_format_targets.csv}"
   if [[ -z "${BRANCH_SITES_FILE:-}" ]]; then
     BRANCH_SITES_FILE="${DOC_ROOT}/inventory/branch_literal_sites.csv"
   fi

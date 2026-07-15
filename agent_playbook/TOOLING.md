@@ -302,7 +302,7 @@ For *when* to refresh the inventory during a pass, see
 canonical authored-artifact catalog (`renames.csv`,
 `pointer_targets.csv`, `embedded_pointer_targets.csv`,
 `branch_literal_sites.csv`, `constants_catalog.csv`, `data_extent_assertions.csv`,
-`unknowns.md`, etc.) lives at
+`data_format_targets.csv`, `unknowns.md`, etc.) lives at
 [AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
 the generated cache under
 `docs/reverse_engineering/inventory/pass/` is documented at
@@ -320,6 +320,13 @@ records whose other fields must stay byte-sized, such as source-pointer fields
 mixed with bank, VRAM address, and count bytes. `project-verify` checks the
 ledger when it exists, so reverting such fields to raw low/high bytes fails
 until inventory and source agree.
+
+`data_format_targets.csv` is an authored maturity worklist for core data-format
+families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
+validate schema and canonical family coverage, and maturity checks additionally
+reject rows still marked `not_yet_reviewed` or `queued_static_pass`.
+Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
+`absent_not_applicable`, and `runtime_gated`.
 
 Projects may opt into the raw `.DB` embedded-pointer audit with
 `EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit finds

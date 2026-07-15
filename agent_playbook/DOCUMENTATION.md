@@ -317,7 +317,11 @@ up after later passes.
    projectile/item definitions; behavior/state/movement/animation streams;
    graphics/PPU formats; music and SFX cue/channel/instrument/effect-state
    formats. Closely coupled formats may share one doc, but every existing
-   core family must be findable from the systems overview.
+   core family must be findable from the systems overview. New projects carry
+   this as `docs/reverse_engineering/inventory/data_format_targets.csv`; keep
+   that worklist current as families become documented, absent/not applicable,
+   runtime-gated, or queued for a static pass. Maturity must not leave
+   `not_yet_reviewed` or `queued_static_pass` rows.
 4. **Each major state machine gets its own doc.** Create dedicated files (e.g., `RIDER_STATE_MACHINE.md`, `ENEMY_AI.md`) with:
    - State diagram (entry/exit conditions, per-frame behavior for each state)
    - Key variable reference table (address, name, purpose)
