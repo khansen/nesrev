@@ -276,7 +276,10 @@ def parse_active_raw_sites(path: Path):
         if not m:
             continue
         mnemonic = m.group(1)
-        operand = m.group(2).strip().split()[0]
+        operand_parts = m.group(2).strip().split()
+        if not operand_parts:
+            continue
+        operand = operand_parts[0]
         if operand.startswith("#"):
             continue
         m2 = RAW_LOWADDR_OPERAND_RE.match(operand)
