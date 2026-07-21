@@ -122,10 +122,14 @@ reviewer must inspect the touched regions and ledgers.
    If a family is absent or not yet statically understood, record that
    disposition instead of leaving the silence ambiguous. New projects record
    these dispositions in `inventory/data_format_targets.csv`; the maturity
-   check rejects undispositioned or still-queued rows. When a review proves
-   a bounded indexed-table span that ordinary coverage cannot infer, record it
-   in `data_extent_assertions.csv` so `project-verify` and
-   `project-maturity-check` can catch later drift.
+   check rejects undispositioned or still-queued rows. When a review or pass
+   proves a fixed-size table that a consumer indexes with a **masked or
+   fixed-count** index (`AND #mask` / `CPX #count` before `LDA Table,Y`),
+   record its `expected_size` in `data_extent_assertions.csv` so
+   `project-verify` and `project-maturity-check` catch later drift. The masked
+   or fixed-count index is the proof of the bound; the assertion then catches a
+   size drift that a byte-parity check alone would miss — a boundary shift that
+   preserves the total ROM size still passes parity.
 9. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    dedicated format/state-machine docs, and promoted subsystem
