@@ -58,7 +58,13 @@ HEADER_REQUIRED = {"pass_id", "notes", "verify", "docs_check", "rework_items"}
 
 def cell(text):
     text = re.sub(r"\s+", " ", (text or "").strip())
-    return text.replace("|", "/")
+    if "|" in text:
+        raise SystemExit(
+            "error: raw '|' is not allowed in a scorecard cell "
+            f"(got {text!r}); the scorecard is a Markdown-table ledger, so a pipe "
+            "breaks the row. Use a pipe-free prose form, e.g. 'codeentries bank 1 $A64C'."
+        )
+    return text
 
 
 def table_line(cells):
