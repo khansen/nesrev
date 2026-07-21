@@ -355,6 +355,13 @@ Before closing a pass, audit:
 - record/header pointers symbolized
 - loop bounds use `Start/End` math
 - major blobs have `...End` labels
+- a data table the pass named or created that a consumer indexes with a
+  **masked or fixed-count** index (`AND #mask` / `CPX #count` before
+  `LDA Table,Y`) has an `expected_size` row in `data_extent_assertions.csv`
+  pinning its span — e.g. a four-entry default table read via
+  `AND #$03 / TAY / LDA Table,Y` must assert size 4, or a later edit can
+  silently let the index run past the table. The masked/counted index is the
+  bound proof; see [QUALITY_REVIEW.md](QUALITY_REVIEW.md)
 - touched opaque data/blob containers have an internal-structure disposition
   per [REVIEW_AUDITS.md#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit)
 - every remaining semantic literal is symbolized, structurally derived, or
