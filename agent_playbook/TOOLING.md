@@ -331,11 +331,14 @@ consumer indexes with a masked or fixed-count index (`AND #mask` / `CPX #count`
 before `LDA Table,Y`). Two scripts pair with it: `data_extent_assertions_check.sh`
 (in `project-verify`) *validates* listed rows — it fails if an asserted table's
 assembled size drifts; `data_extent_missing_scan.py` (advisory, in
-`project-process-check`) *detects omissions* — it runs `xasm --data-consumers`,
-finds tables read with an indexed absolute mode whose reading routine bounds the
-index with `AND #(size-1)` or `CPX/CPY #size`, and lists any such table that has
-no assertion row. The scan never fails the gate; it only surfaces candidates for
-the operator to add or disposition.
+`project-process-check`) *detects omissions* — it reads the `--data-consumers`
+cache that `project-pass-prep` generates, finds tables read with an indexed
+absolute mode whose reading routine bounds *that index register* with
+`AND #(size-1)` transferred via `TAX`/`TAY` or a matching `CPX`/`CPY #size`, and
+lists any such table lacking an assertion row. It never fails the gate; it only
+surfaces candidates for the operator to add or disposition. It matches only the
+raw-mask idiom — symbolic masks/counts are not detected, so a clean scan is not
+proof that every bounded table is asserted.
 Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 

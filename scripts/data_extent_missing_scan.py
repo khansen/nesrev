@@ -14,14 +14,24 @@ the wrapper-first evidence rule; if that cache is absent it skips.
 
 Signal:
   1. The cache reports the table is read with an indexed absolute addressing
-     mode (`absolute_x` / `absolute_y`).
-  2. The reading routine's body bounds that index with either a bitmask
-     `AND #(size-1)` (size a power of two) or a fixed count `CPX/CPY #size`.
+     mode (`absolute_x` / `absolute_y`), which fixes the index register.
+  2. The reading routine's body bounds *that index register* with either a
+     bitmask (`AND #(size-1)` immediately transferred to the index register via
+     `TAX`/`TAY`, size a power of two) or a matching fixed-count compare
+     (`CPX #size` for an X-indexed read, `CPY #size` for a Y-indexed read).
   3. The table is not already in `data_extent_assertions.csv`.
 
 A hit means: a future edit to the table's length would silently let the index
 run past it, and parity alone would not catch a boundary shift that preserves
 total ROM size. See agent_playbook/QUALITY_REVIEW.md and PASS_WORKFLOW.md.
+
+Known limitations (advisory, not proof):
+  - Symbolic masks/counts (`AND #MASK3`, `CPX #ACTOR_SLOT_COUNT`) are not
+    matched, so a clean scan is NOT proof that every bounded table is asserted;
+    coverage shrinks as a corridor symbolizes its literals.
+  - Only the direct `AND #imm / TA{reg} / LDA Table,{reg}` idiom is recognized;
+    a masked value that reaches the index register indirectly (via a store and
+    reload) is not proven and is left unflagged rather than mis-flagged.
 """
 import csv
 import json
@@ -45,15 +55,28 @@ def routine_bodies(asm_file):
     return bodies
 
 
-def bound_proof(body, size):
-    """Return a short description if the routine bounds an index to `size`."""
+def bound_proof(body, size, reg):
+    """Return a short description if the routine bounds the `reg` index to `size`.
+
+    The bound must connect to the index register used by the read (`reg` is
+    "X" or "Y"): a mask must be transferred to it (`AND #(size-1)` then
+    `TA{reg}` within a couple of instructions), and a fixed-count compare must
+    use it (`CP{reg} #size`). This tie is what keeps an unrelated in-routine
+    mask from falsely bounding a coincidentally-sized table.
+    """
+    lines = [l.strip() for l in body.splitlines() if l.strip()]
     if size in POW2:
-        for m in re.finditer(r"\bAND #\$([0-9A-Fa-f]{1,2})\b", body):
-            if int(m.group(1), 16) == size - 1:
-                return f"AND #${size - 1:02X}"
-    for m in re.finditer(r"\bCP[XY] #\$([0-9A-Fa-f]{1,2})\b", body):
-        if int(m.group(1), 16) == size:
-            return f"{m.group(0).split()[0]} #${size:02X}"
+        transfer = f"TA{reg}"
+        for i, line in enumerate(lines):
+            m = re.fullmatch(r"AND #\$([0-9A-Fa-f]{1,2})", line)
+            if m and int(m.group(1), 16) == size - 1:
+                # masked value must reach the index register right away
+                if any(lines[j] == transfer for j in range(i + 1, min(i + 3, len(lines)))):
+                    return f"AND #${size - 1:02X} -> {transfer}"
+    for line in lines:
+        m = re.fullmatch(rf"CP{reg} #\$([0-9A-Fa-f]{{1,2}})", line)
+        if m and int(m.group(1), 16) == size:
+            return f"CP{reg} #${size:02X}"
     return None
 
 
@@ -94,7 +117,8 @@ def main():
         if not indexed:
             continue
         for site in indexed:
-            proof = bound_proof(bodies.get(site.get("routine", ""), ""), size)
+            reg = "X" if site["addressing_mode"] == "absolute_x" else "Y"
+            proof = bound_proof(bodies.get(site.get("routine", ""), ""), size, reg)
             if proof:
                 hits.append((label, size, site["routine"], proof))
                 break
@@ -108,6 +132,8 @@ def main():
     for label, size, routine, proof in sorted(set(hits)):
         print(f"  {label}: size {size}, indexed in {routine} bounded by {proof}")
         print(f"    -> add row: {label},{size},<consumer indexes it with {proof}>")
+    print("note: raw-mask idiom only; symbolic masks/counts are not detected, so a"
+          " clean scan is not proof that every bounded table is asserted.")
     raise SystemExit(1)
 
 
