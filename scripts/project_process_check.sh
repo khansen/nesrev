@@ -118,6 +118,16 @@ python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
   "${SCRIPT_DIR}/../agent_playbook/ASM_STYLE.md" \
   "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" || true
 
+# Advisory only (must not fail the gate): flag data tables that a masked or
+# fixed-count index bounds but that have no data_extent_assertions.csv entry
+# pinning their size. Complements data_extent_assertions_check.sh, which only
+# validates listed rows.
+echo "[data-extent-scan] Scanning for bounded-index tables missing an extent assertion (advisory)"
+python3 "${SCRIPT_DIR}/data_extent_missing_scan.py" \
+  "${DOC_ROOT}/inventory/pass/data_consumers.json" \
+  "${ASM_FILE}" \
+  "${DATA_EXTENT_ASSERTIONS_FILE}" || true
+
 if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
   echo "[data-format] Checking data-format target inventory"
   data_format_required_args=()

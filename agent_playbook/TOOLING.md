@@ -325,6 +325,17 @@ until inventory and source agree.
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
 validate schema and canonical family coverage, and maturity checks additionally
 reject rows still marked `not_yet_reviewed` or `queued_static_pass`.
+
+`data_extent_assertions.csv` pins the byte size of a fixed-size table that a
+consumer indexes with a masked or fixed-count index (`AND #mask` / `CPX #count`
+before `LDA Table,Y`). Two scripts pair with it: `data_extent_assertions_check.sh`
+(in `project-verify`) *validates* listed rows — it fails if an asserted table's
+assembled size drifts; `data_extent_missing_scan.py` (advisory, in
+`project-process-check`) *detects omissions* — it runs `xasm --data-consumers`,
+finds tables read with an indexed absolute mode whose reading routine bounds the
+index with `AND #(size-1)` or `CPX/CPY #size`, and lists any such table that has
+no assertion row. The scan never fails the gate; it only surfaces candidates for
+the operator to add or disposition.
 Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 
