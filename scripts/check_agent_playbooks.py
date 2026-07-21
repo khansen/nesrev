@@ -125,10 +125,15 @@ ROOT_WORD_CEILING = 6000
 # ambiguous shorthand.
 # These ceilings preserve the documented modest headroom over measured sizes
 # rather than shaving required governance prose.
+# The new-project line ceiling was raised from 3625 to 3650 when the masked /
+# fixed-count data-extent-assertion trigger prose was added to QUALITY_REVIEW.md
+# and PASS_WORKFLOW.md; 3650 restores roughly the same ~0.6% headroom the word
+# ceiling already carries over the measured bundle, rather than compressing that
+# governance rule into shorthand.
 ROUTE_BUDGETS = {
     "default": (2650, 19000),
     "data-recovery": (2450, 19000),
-    "new-project": (3625, 26650),
+    "new-project": (3650, 26650),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
