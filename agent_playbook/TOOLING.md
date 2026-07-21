@@ -331,14 +331,17 @@ consumer indexes with a masked or fixed-count index (`AND #mask` / `CPX #count`
 before `LDA Table,Y`). Two scripts pair with it: `data_extent_assertions_check.sh`
 (in `project-verify`) *validates* listed rows — it fails if an asserted table's
 assembled size drifts; `data_extent_missing_scan.py` (advisory, in
-`project-process-check`) *detects omissions* — it reads the `--data-consumers`
-cache that `project-pass-prep` generates, finds tables read with an indexed
-absolute mode whose reading routine bounds *that index register* with
-`AND #(size-1)` transferred via `TAX`/`TAY` or a matching `CPX`/`CPY #size`, and
-lists any such table lacking an assertion row. It never fails the gate; it only
-surfaces candidates for the operator to add or disposition. It matches only the
-raw-mask idiom — symbolic masks/counts are not detected, so a clean scan is not
-proof that every bounded table is asserted.
+`project-process-check`) *detects omissions*. The scan is a pure join of two
+cached pass-prep artifacts and never assembles: it reads `index_upper_bound` /
+`index_bound_kind` from `index_patterns.json` (xasm resolves the mask/compare
+bound, tied to the read's index register, with symbolic mask/count constants
+resolved — see `xorcyst/XASM_INDEX_BOUND_ANALYSIS_SPEC.md`) and `declared_size`
+from `data_consumers.json`, then flags any table whose proven bound equals its
+declared size and which lacks an assertion row. It never fails the gate; it only
+surfaces candidates for the operator to add or disposition. Only the two direct
+idioms xasm proves are covered (a mask reaching the index register indirectly,
+or a bound held in a variable, is not proven), so a clean scan is a strong
+signal but not an exhaustive guarantee.
 Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 
