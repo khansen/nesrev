@@ -36,7 +36,9 @@ fi
 # Scorecard cells must not contain a raw '|' (the Markdown-table column
 # delimiter): a pipe inside a cell breaks rendering and the row parsers.
 python3 "${SCRIPT_DIR}/scorecard_cell_check.py" "${PROGRESS_SCORECARD_FILE}"
-python3 "${SCRIPT_DIR}/scorecard_lifecycle_check.py" "${PROGRESS_SCORECARD_FILE}"
+if [[ "${SCORECARD_LIFECYCLE_REQUIRED}" == "1" ]]; then
+  python3 "${SCRIPT_DIR}/scorecard_lifecycle_check.py" "${PROGRESS_SCORECARD_FILE}"
+fi
 
 renames_header="$(head -n 1 "${RENAMES_FILE}" || true)"
 if [[ "${renames_header}" != "old_name,new_name,reason,confidence,pass_id" ]]; then

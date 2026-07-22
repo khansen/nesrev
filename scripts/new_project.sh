@@ -105,6 +105,11 @@ PROCEDURE_CONTRACTS_REQUIRED="1"
 WORKING_NOTES_MATURITY_REQUIRED="1"
 MAX_MATURITY_WORKING_NOTES_LINES="120"
 
+# New clean-room projects keep a strict pass lifecycle ledger: unique,
+# ordered pass IDs, and no completed historical row left with pending gate
+# outcomes. Legacy/imported scorecards can opt in after normalization.
+SCORECARD_LIFECYCLE_REQUIRED="1"
+
 # New clean-room projects carry an explicit core data-format target inventory.
 # Process checks validate the list while semantic work is in progress; maturity
 # checks require every canonical family to be dispositioned.
