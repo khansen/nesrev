@@ -64,6 +64,10 @@ python3 "${SCRIPT_DIR}/embedded_pointer_targets.py" \
   "${ASM_FILE}" \
   "${inv_dir}/embedded_pointer_targets.csv"
 
+python3 "${SCRIPT_DIR}/split_pointer_targets.py" \
+  "${ASM_FILE}" \
+  "${inv_dir}/split_pointer_targets.csv"
+
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 raw_lowaddr="$(printf '%s\n' "$raw_report" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
 raw_absrom="$(printf '%s\n' "$raw_report" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
@@ -143,6 +147,13 @@ embedded_unknown_pointer_count="$(awk -F, 'NR > 1 && $4 == "unknown_pointer" { c
 if [ "${embedded_unknown_pointer_count}" != "0" ]; then
   cat >> "${inv_dir}/unknowns.md" <<DOC
 - Review embedded_pointer_targets.csv entries with target_type=unknown_pointer and classify each as code/data/mixed.
+DOC
+fi
+
+split_unknown_pointer_count="$(awk -F, 'NR > 1 && $5 == "unknown_pointer" { count++ } END { print count + 0 }' "${inv_dir}/split_pointer_targets.csv")"
+if [ "${split_unknown_pointer_count}" != "0" ]; then
+  cat >> "${inv_dir}/unknowns.md" <<DOC
+- Review split_pointer_targets.csv entries with target_type=unknown_pointer and classify each as code/data/mixed.
 DOC
 fi
 

@@ -392,6 +392,7 @@ Files in the authored set: `renames.csv` (rename ledger),
 `pointer_targets.csv` (pointer producer/consumer map for `.DW` tables),
 `embedded_pointer_targets.csv` (symbolic `<label,>label` pointer fields
 inside `.DB` records),
+`split_pointer_targets.csv` (symbolic split low/high pointer-table pairs),
 `branch_literal_sites.csv` (parity-sensitive relative branch
 literals), `constants_catalog.csv` (domain-separated constants),
 `data_format_targets.csv` (core data-format family disposition worklist),

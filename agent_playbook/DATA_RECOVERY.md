@@ -328,7 +328,7 @@ sentinels like `$FF`).
 
 For confirmed fields:
 
-- convert to `.DW Label` (true word tables) or `<Label`/`>Label` (embedded record fields)
+- convert to `.DW Label` (true word tables), `<Label`/`>Label` (embedded record fields), or paired split low/high tables when the consumer really reads separate byte tables
 - split blobs and introduce labels at exact target bytes as needed
 - keep byte count/order identical
 
@@ -346,7 +346,7 @@ make project-inventory PROJECT=<slug>
 make project-verify PROJECT=<slug>
 ```
 
-- ensure `inventory/pointer_targets.csv` is synchronized
+- ensure `inventory/pointer_targets.csv`, `inventory/embedded_pointer_targets.csv`, and `inventory/split_pointer_targets.csv` are synchronized for present shapes
 - ensure no unreviewed `unknown_pointer` entries remain
 <a id="computed-pointer-recovery"></a>
 ## Computed-Pointer Consumer Recovery
