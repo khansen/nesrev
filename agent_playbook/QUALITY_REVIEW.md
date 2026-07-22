@@ -129,7 +129,11 @@ reviewer must inspect the touched regions and ledgers.
    `project-verify` and `project-maturity-check` catch later drift. The masked
    or fixed-count index is the proof of the bound; the assertion then catches a
    size drift that a byte-parity check alone would miss — a boundary shift that
-   preserves the total ROM size still passes parity.
+   preserves the total ROM size still passes parity. For each long or opaque
+   data span surfaced by `data_coverage.json`, record a row in
+   `data_blob_dispositions.csv` with the exact consumer evidence, pointer-field
+   search result, extent proof, and reflow status; this is the maturity proof
+   that the bytes are understood, not merely labeled.
 9. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    dedicated format/state-machine docs, and promoted subsystem

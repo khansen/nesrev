@@ -156,4 +156,19 @@ if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE
     "${data_format_required_args[@]}"
 fi
 
+if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then
+  echo "[data-blobs] Checking data-blob disposition inventory"
+  data_blob_args=(
+    "${DATA_BLOB_DISPOSITIONS_FILE}"
+    --doc-root "${DOC_ROOT}"
+    --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json"
+    --mode process
+  )
+  if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" ]]; then
+    data_blob_args+=(--required)
+  fi
+  python3 "${SCRIPT_DIR}/data_blob_dispositions_check.py" \
+    "${data_blob_args[@]}"
+fi
+
 echo "OK: project process checks passed"

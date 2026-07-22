@@ -373,8 +373,9 @@ Before closing a pass, audit:
   `AND #$03 / TAY / LDA Table,Y` must assert size 4, or a later edit can
   silently let the index run past the table. The masked/counted index is the
   bound proof; see [QUALITY_REVIEW.md](QUALITY_REVIEW.md)
-- touched opaque data/blob containers have an internal-structure disposition
-  per [REVIEW_AUDITS.md#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit)
+- touched opaque data/blob containers have a structure disposition in
+  `data_blob_dispositions.csv` when present, or a durable scorecard/
+  `WORKING_NOTES.md` note per [REVIEW_AUDITS.md#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit)
 - every remaining semantic literal is symbolized, structurally derived, or
   dispositioned through the canonical allowlist/parity-bug rules; an inline
   comment is not a substitute for any of those outcomes

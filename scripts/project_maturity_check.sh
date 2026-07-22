@@ -139,6 +139,23 @@ if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE
   fi
 fi
 
+if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then
+  data_blob_args=(
+    "${DATA_BLOB_DISPOSITIONS_FILE}"
+    --doc-root "${DOC_ROOT}"
+    --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json"
+    --mode maturity
+  )
+  if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" ]]; then
+    data_blob_args+=(--required)
+  fi
+  if ! python3 "${SCRIPT_DIR}/data_blob_dispositions_check.py" \
+      "${data_blob_args[@]}"; then
+    echo "maturity gate failed: data-blob disposition inventory is incomplete" >&2
+    fail=1
+  fi
+fi
+
 # Constantization smell (advisory, independent of the hard gates): a game of any
 # size should reach maturity with some intentional raw literals recorded in the
 # allowlist. A magic-immediate count of 0 alongside an empty allowlist usually

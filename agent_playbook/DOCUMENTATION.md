@@ -321,7 +321,10 @@ up after later passes.
    this as `docs/reverse_engineering/inventory/data_format_targets.csv`; keep
    that worklist current as families become documented, absent/not applicable,
    runtime-gated, or queued for a static pass. Maturity must not leave
-   `not_yet_reviewed` or `queued_static_pass` rows.
+   `not_yet_reviewed` or `queued_static_pass` rows. This family list does not
+   replace per-label blob review: long/opaque labels need
+   `inventory/data_blob_dispositions.csv` rows with consumer, pointer-search,
+   extent, reflow, artifact links.
 4. **Each major state machine gets its own doc.** Create dedicated files (e.g., `RIDER_STATE_MACHINE.md`, `ENEMY_AI.md`) with:
    - State diagram (entry/exit conditions, per-frame behavior for each state)
    - Key variable reference table (address, name, purpose)

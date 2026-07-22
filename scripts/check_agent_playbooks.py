@@ -130,9 +130,14 @@ ROOT_WORD_CEILING = 6000
 # and PASS_WORKFLOW.md; 3650 restores roughly the same ~0.6% headroom the word
 # ceiling already carries over the measured bundle, rather than compressing that
 # governance rule into shorthand.
+# Per-blob data-format dispositions added a small amount of TOOLING,
+# DOCUMENTATION, QUALITY_REVIEW, REVIEW_AUDITS, and PASS_WORKFLOW prose. The
+# affected route ceilings keep that rule explicit: data labels are not mature
+# merely because their names are documented; opaque spans need consumer,
+# pointer-search, extent, and reflow evidence.
 ROUTE_BUDGETS = {
-    "default": (2650, 19000),
-    "data-recovery": (2450, 19000),
+    "default": (2650, 19100),
+    "data-recovery": (2470, 19000),
     "new-project": (3650, 26650),
 }
 

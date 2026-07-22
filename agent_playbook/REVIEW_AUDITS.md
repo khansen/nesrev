@@ -225,6 +225,15 @@ scorecard or `WORKING_NOTES.md`: `documented`, `queued_static_pass`,
 Maturity may retain documented, absent/not-applicable, or runtime-gated rows;
 it must not retain `not_yet_reviewed` or `queued_static_pass` rows.
 
+For each long or opaque data label opened during the audit, also record a
+per-label row in `inventory/data_blob_dispositions.csv` when present. A useful
+row says which consumer proves the format, whether raw little-endian pointer
+fields were found or ruled out, what fixes the span boundary, and whether the
+bytes were reflowed into records/packets/streams. This prevents "documented
+data label" from becoming a synonym for "unexamined blob with a comment." Use
+glob patterns only for repeated labels with the same format and the same
+evidence chain.
+
 Required families to check:
 
 - level, stage, room, world-map, screen, area-transition, or track layouts

@@ -303,7 +303,7 @@ canonical authored-artifact catalog (`renames.csv`,
 `pointer_targets.csv`, `embedded_pointer_targets.csv`,
 `split_pointer_targets.csv`, `branch_literal_sites.csv`,
 `constants_catalog.csv`, `data_extent_assertions.csv`,
-`data_format_targets.csv`, `unknowns.md`, etc.) lives at
+`data_format_targets.csv`, `data_blob_dispositions.csv`, `unknowns.md`, etc.) lives at
 [AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
 the generated cache under
 `docs/reverse_engineering/inventory/pass/` is documented at
@@ -331,6 +331,15 @@ expressions; it is shape-specific, not a general embedded-pointer detector.
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
 validate schema and canonical family coverage, and maturity checks additionally
 reject rows still marked `not_yet_reviewed` or `queued_static_pass`.
+
+`data_blob_dispositions.csv` is a per-label worklist for long or opaque spans.
+New scaffolds enable `DATA_BLOB_DISPOSITIONS_REQUIRED=1`. `project-process-check`
+validates existing ledgers and prints advisory candidates from
+`inventory/pass/data_coverage.json`; maturity blocks opted-in projects when
+candidate spans lack rows, rows remain `not_yet_reviewed` or
+`queued_static_pass`, or structural rows lack consumer, pointer-search, extent,
+artifact, or reflow evidence. Exact labels or glob patterns are allowed only
+for genuinely repeated same-format spans.
 
 `data_extent_assertions.csv` pins the byte size of a fixed-size table that a
 consumer indexes with a masked or fixed-count index (`AND #mask` / `CPX #count`
