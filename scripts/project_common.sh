@@ -46,6 +46,10 @@ load_project_conf() {
   # index-register / unit-step quantity contexts. Legacy projects default off so
   # their existing base-by-habit debt is not a retroactive hard gate.
   BASE_READABILITY_REQUIRED="0"
+  # Scorecard lifecycle strictness opt-in. New projects use a clean ordered
+  # scorecard and enable this; legacy projects may have imported or partial
+  # historical rows that need a separate normalization pass before strict mode.
+  SCORECARD_LIFECYCLE_REQUIRED="0"
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   MAX_MATURITY_WORKING_NOTES_LINES="120"
@@ -113,6 +117,7 @@ load_project_conf() {
   : "${DATA_FORMAT_TARGETS_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${BASE_READABILITY_REQUIRED:=0}"
+  : "${SCORECARD_LIFECYCLE_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
   : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"

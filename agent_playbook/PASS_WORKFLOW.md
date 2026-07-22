@@ -177,12 +177,14 @@ is generated cache.
 signals. `project-pass-closeout` auto-syncs most KPI cells in the
 latest pass row — see [#pass-closeout](#pass-closeout). Metrics:
 
-`project-process-check` enforces basic ledger integrity: pass IDs must be
-unique and strictly increasing in file order; historical rows must not leave
-`verify` or `docs_check` blank/`pending`; the latest row may stay pending while
-`project-pass-finish` is still running. Notes cells must also avoid raw `|`
-characters because Markdown treats them as column delimiters; write pipe-shaped
-formats such as `bank|$addr` in prose form (`bank 1 $A64C`) instead.
+`project-process-check` always rejects raw `|` characters in notes cells
+because Markdown treats them as column delimiters; write pipe-shaped formats
+such as `bank|$addr` in prose form (`bank 1 $A64C`) instead. New clean-room
+projects also set `SCORECARD_LIFECYCLE_REQUIRED=1`, making process-check reject
+duplicate or out-of-order pass IDs and historical rows whose `verify` or
+`docs_check` cell is blank/`pending`. The latest row may stay pending while
+`project-pass-finish` is still running. Legacy/imported scorecards can opt in
+after a normalization pass.
 
 1. **Pass count.** Mature project target: `<= 12` major passes to
    the quality bar. Count meaningful edit/verify passes.

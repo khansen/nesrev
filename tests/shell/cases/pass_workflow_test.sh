@@ -287,6 +287,45 @@ EOF
   assert_match "unknown owner symbol 'OldOwner'" "${output}"
 }
 
+test_project_process_check_skips_scorecard_lifecycle_for_legacy_imports() {
+  local slug; slug="$(unique_slug process_lifecycle_legacy)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "legacy"
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 | Imported latest pass | 0 / 0 | 0 | 0 | 0 | 0 | 0 | pass | pass | 0 | Imported history. |
+| 1 | Imported stale pass | 0 / 0 | 0 | 0 | 0 | 0 | 0 | pass | pending | 0 | Imported history. |
+EOF
+
+  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+}
+
+test_project_process_check_enforces_scorecard_lifecycle_when_required() {
+  local slug; slug="$(unique_slug process_lifecycle_required)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+SCORECARD_LIFECYCLE_REQUIRED="1"
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
+| 1 | First corridor | 8 / 16 | 0 | not measured | 0 | 0 | 0 | pass (LXXXX gate suppressed) | pending | 0 | Analogue: none (synthetic test fixture; no prior-project pattern applies). |
+| 2 | Current pass | 7 / 14 | 0 | not measured | 0 | 0 | 0 | pending | pending | 0 | Closeout in progress. |
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "opted-in scorecard lifecycle drift must fail process-check"
+  assert_match "non-latest pass 1 has docs_check='pending'" "${output}"
+}
+
 test_raw_address_kpi_excludes_mapper_register_stores_from_absrom_count() {
   local asm="${NESREV_TEST_TMPDIR}/mapper_stores.asm"
   cat > "${asm}" <<'ASM'
