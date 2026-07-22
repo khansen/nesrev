@@ -28,15 +28,24 @@ GENERATED_INVENTORY_FILES = (
 )
 RAW_RAM_OWNER_FIELDS = ("top_readers", "top_writers")
 GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4,5}):\s*(?:;.*)?$")
+LOCAL_LABEL_RE = re.compile(r"^(@@[A-Za-z_][A-Za-z0-9_]*|@):\s*(?:;.*)?$")
 
 
-def load_global_labels(asm_file: Path) -> set[str]:
+def load_label_index(asm_file: Path) -> tuple[set[str], dict[str, set[str]]]:
     labels: set[str] = set()
+    locals_by_global: dict[str, set[str]] = {}
+    current_global: str | None = None
     for raw in asm_file.read_text(encoding="utf-8").splitlines():
-        match = GLOBAL_LABEL_RE.match(raw.strip())
+        text = raw.strip()
+        match = GLOBAL_LABEL_RE.match(text)
         if match:
-            labels.add(match.group(1))
-    return labels
+            current_global = match.group(1)
+            labels.add(current_global)
+            continue
+        local_match = LOCAL_LABEL_RE.match(text)
+        if local_match and current_global:
+            locals_by_global.setdefault(current_global, set()).add(local_match.group(1))
+    return labels, locals_by_global
 
 
 def owner_name_from_count_item(item: str) -> str | None:
@@ -52,11 +61,30 @@ def owner_name_from_count_item(item: str) -> str | None:
     return owner_text or None
 
 
+def raw_ram_owner_error(owner: str, labels: set[str], locals_by_global: dict[str, set[str]]) -> str | None:
+    if owner in labels:
+        return None
+    if owner == "@" or owner.startswith("@@"):
+        return (
+            f"names unscoped local owner symbol {owner!r}; "
+            "write local owners as Global@@local"
+        )
+    if "@@" in owner:
+        global_owner, local_owner = owner.split("@@", 1)
+        scoped_local = f"@@{local_owner}" if local_owner else ""
+        if not global_owner or global_owner not in labels:
+            return f"names unknown owner symbol {owner!r}"
+        if not scoped_local or scoped_local not in locals_by_global.get(global_owner, set()):
+            return f"names unknown scoped local owner symbol {owner!r}"
+        return None
+    return f"names unknown owner symbol {owner!r}"
+
+
 def validate_raw_ram_owners(raw_ram_review: Path, asm_file: Path) -> list[str]:
     if not raw_ram_review.exists():
         return []
 
-    labels = load_global_labels(asm_file)
+    labels, locals_by_global = load_label_index(asm_file)
     errors: list[str] = []
     with raw_ram_review.open("r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -68,14 +96,19 @@ def validate_raw_ram_owners(raw_ram_review: Path, asm_file: Path) -> list[str]:
             if None in row:
                 errors.append(f"{raw_ram_review}:{row_index}: row has too many columns")
                 continue
+            if (row.get("active") or "").strip().lower() != "yes":
+                continue
             for field in RAW_RAM_OWNER_FIELDS:
                 for item in (row.get(field) or "").split(","):
                     owner = owner_name_from_count_item(item)
-                    if owner and owner not in labels:
+                    if owner:
+                        owner_error = raw_ram_owner_error(owner, labels, locals_by_global)
+                    else:
+                        owner_error = None
+                    if owner_error:
                         addr = (row.get("addr_hex") or "<unknown address>").strip() or "<unknown address>"
                         errors.append(
-                            f"{raw_ram_review}:{row_index}: {addr} {field} names "
-                            f"unknown owner symbol {owner!r}"
+                            f"{raw_ram_review}:{row_index}: {addr} {field} {owner_error}"
                         )
     return errors
 
