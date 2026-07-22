@@ -234,6 +234,59 @@ test_new_project_process_check_rejects_missing_pass_one_analogue() {
   assert_match "pass 1 notes must record 'Analogue:" "${output}"
 }
 
+test_project_process_check_rejects_stale_generated_inventory() {
+  local slug; slug="$(unique_slug process_stale_inventory)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  bash "${REPO_ROOT}/scripts/refresh_inventory.sh" "${slug}" >/dev/null
+  printf '\nmanual stale edit\n' \
+    >> "projects/${slug}/docs/reverse_engineering/inventory/unknowns.md"
+
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "stale generated inventory must fail process-check"
+  assert_match "generated inventory is out of sync" "${output}"
+  assert_match "unknowns.md" "${output}"
+}
+
+test_project_process_check_rejects_stale_raw_ram_review_owner() {
+  local slug; slug="$(unique_slug process_stale_raw_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+  LDA $10
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,OldOwner:1,
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "stale raw-RAM owner names must fail process-check"
+  assert_match "raw_ram_review.csv" "${output}"
+  assert_match "unknown owner symbol 'OldOwner'" "${output}"
+}
+
 test_raw_address_kpi_excludes_mapper_register_stores_from_absrom_count() {
   local asm="${NESREV_TEST_TMPDIR}/mapper_stores.asm"
   cat > "${asm}" <<'ASM'

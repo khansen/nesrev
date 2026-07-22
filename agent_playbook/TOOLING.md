@@ -345,6 +345,16 @@ signal but not an exhaustive guarantee.
 Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 
+`project-process-check` also runs a non-mutating inventory integrity guard. If
+any generated inventory snapshot exists (`constants_catalog.csv`,
+`pointer_targets.csv`, `embedded_pointer_targets.csv`,
+`branch_literal_sites.csv`, or `unknowns.md`), the guard regenerates those
+snapshots into a temporary directory and fails when the project copy is stale;
+run `scripts/refresh_inventory.sh <slug>` and commit the synchronized output.
+It also validates that `raw_ram_review.csv` `top_readers` / `top_writers`
+owners still resolve to live global labels, catching stale owner columns after
+renames that bypassed closeout.
+
 Projects may opt into the raw `.DB` embedded-pointer audit with
 `EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit finds
 little-endian runs of CPU addresses (values in the $8000-$FFFF PRG address

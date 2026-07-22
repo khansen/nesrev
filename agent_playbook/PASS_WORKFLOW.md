@@ -177,6 +177,13 @@ is generated cache.
 signals. `project-pass-closeout` auto-syncs most KPI cells in the
 latest pass row — see [#pass-closeout](#pass-closeout). Metrics:
 
+`project-process-check` enforces basic ledger integrity: pass IDs must be
+unique and strictly increasing in file order; historical rows must not leave
+`verify` or `docs_check` blank/`pending`; the latest row may stay pending while
+`project-pass-finish` is still running. Notes cells must also avoid raw `|`
+characters because Markdown treats them as column delimiters; write pipe-shaped
+formats such as `bank|$addr` in prose form (`bank 1 $A64C`) instead.
+
 1. **Pass count.** Mature project target: `<= 12` major passes to
    the quality bar. Count meaningful edit/verify passes.
 2. **Rework rate.** Target `< 15%` late fixes per pass. If exceeded,
