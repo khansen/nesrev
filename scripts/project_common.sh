@@ -37,6 +37,10 @@ load_project_conf() {
   # scaffolds set DATA_FORMAT_TARGETS_REQUIRED="1" so gold closeout cannot
   # silently skip map/room/object/item/audio/graphics format disposition.
   DATA_FORMAT_TARGETS_REQUIRED="0"
+  # Per-blob data-format disposition opt-in (legacy projects default off). New
+  # scaffolds set DATA_BLOB_DISPOSITIONS_REQUIRED="1" so gold closeout cannot
+  # silently accept large opaque spans whose internal structure was not reviewed.
+  DATA_BLOB_DISPOSITIONS_REQUIRED="0"
   # Embedded-pointer audit opt-in. Projects enable this once raw pointer-table
   # debt has a reviewed baseline; legacy projects default off to avoid noisy
   # monotonic data runs becoming accidental hard gates.
@@ -115,6 +119,7 @@ load_project_conf() {
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
   : "${DATA_FORMAT_TARGETS_REQUIRED:=0}"
+  : "${DATA_BLOB_DISPOSITIONS_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${BASE_READABILITY_REQUIRED:=0}"
   : "${SCORECARD_LIFECYCLE_REQUIRED:=0}"
@@ -147,6 +152,7 @@ load_project_conf() {
   : "${DATA_LABEL_DOC_KPI_FILE:=${KPI_FILE}}"
   : "${DATA_EXTENT_ASSERTIONS_FILE:=${DOC_ROOT}/inventory/data_extent_assertions.csv}"
   : "${DATA_FORMAT_TARGETS_FILE:=${DOC_ROOT}/inventory/data_format_targets.csv}"
+  : "${DATA_BLOB_DISPOSITIONS_FILE:=${DOC_ROOT}/inventory/data_blob_dispositions.csv}"
   if [[ -z "${BRANCH_SITES_FILE:-}" ]]; then
     BRANCH_SITES_FILE="${DOC_ROOT}/inventory/branch_literal_sites.csv"
   fi

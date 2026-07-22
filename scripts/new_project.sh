@@ -115,6 +115,12 @@ SCORECARD_LIFECYCLE_REQUIRED="1"
 # checks require every canonical family to be dispositioned.
 DATA_FORMAT_TARGETS_REQUIRED="1"
 
+# New clean-room projects also carry an explicit per-blob disposition inventory.
+# Process checks surface candidate opaque spans while semantic work is in
+# progress; maturity checks require each candidate span to have a reviewed
+# consumer/pointer/extent disposition.
+DATA_BLOB_DISPOSITIONS_REQUIRED="1"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required
@@ -409,6 +415,10 @@ ppu_packet_update_streams,not_yet_reviewed,,intake scaffold - identify PPU packe
 audio_music_jingles,not_yet_reviewed,,intake scaffold - identify music jingle song channel instrument and envelope formats
 audio_sfx_cues,not_yet_reviewed,,intake scaffold - identify SFX cue request effect-state and channel formats
 password_save_progression,not_yet_reviewed,,intake scaffold - identify password save progression checkpoint or mark absent
+DOC
+
+cat > "$root/docs/reverse_engineering/inventory/data_blob_dispositions.csv" <<'DOC'
+label,disposition,format,artifact,consumer_evidence,pointer_evidence,extent_evidence,reflow_status,notes
 DOC
 
 cat > "$root/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'DOC'

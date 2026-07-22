@@ -76,8 +76,12 @@ test_make_project_init_scaffolds_a_project() {
     || fail "make project-init did not write project.conf"
   [[ -f "projects/${slug}/docs/reverse_engineering/inventory/data_format_targets.csv" ]] \
     || fail "make project-init did not write data_format_targets.csv"
+  [[ -f "projects/${slug}/docs/reverse_engineering/inventory/data_blob_dispositions.csv" ]] \
+    || fail "make project-init did not write data_blob_dispositions.csv"
   grep -qF 'DATA_FORMAT_TARGETS_REQUIRED="1"' "projects/${slug}/project.conf" \
     || fail "make project-init did not opt into data-format target maturity checks"
+  grep -qF 'DATA_BLOB_DISPOSITIONS_REQUIRED="1"' "projects/${slug}/project.conf" \
+    || fail "make project-init did not opt into data-blob disposition maturity checks"
   grep -qF 'SCORECARD_LIFECYCLE_REQUIRED="1"' "projects/${slug}/project.conf" \
     || fail "make project-init did not opt into scorecard lifecycle checks"
   grep -qF "audio_music_jingles,not_yet_reviewed" \

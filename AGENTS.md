@@ -189,6 +189,7 @@ Every active project uses this fixed set; process gates validate it.
 | `docs/reverse_engineering/SEMANTIC_CLAIMS.md` | maturity-time semantic-claims ledger ([QUALITY_REVIEW.md#semantic-claims](agent_playbook/QUALITY_REVIEW.md#semantic-claims); validated by `project-maturity-check`) |
 | `docs/reverse_engineering/inventory/renames.csv` | rename ledger (closeout reads this) |
 | `docs/reverse_engineering/inventory/data_format_targets.csv` | core data-format family disposition worklist for new projects |
+| `docs/reverse_engineering/inventory/data_blob_dispositions.csv` | blob worklist |
 | `docs/reverse_engineering/inventory/raw_ram_review.csv` | raw-RAM review queue (once project enters raw-RAM mode) |
 Optional support docs: `WORKING_NOTES.md` (rules at
 [DOCUMENTATION.md#working-notes](agent_playbook/DOCUMENTATION.md#working-notes)),
@@ -396,6 +397,7 @@ inside `.DB` records),
 `branch_literal_sites.csv` (parity-sensitive relative branch
 literals), `constants_catalog.csv` (domain-separated constants),
 `data_format_targets.csv` (core data-format family disposition worklist),
+`data_blob_dispositions.csv` (blob worklist),
 `data_extent_assertions.csv` (reviewed table-span assertions checked by
 `project-verify` and `project-maturity-check` when present),
 `raw_ram_review.csv` (raw-RAM review queue — operation at
