@@ -351,9 +351,11 @@ any generated inventory snapshot exists (`constants_catalog.csv`,
 `branch_literal_sites.csv`, or `unknowns.md`), the guard regenerates those
 snapshots into a temporary directory and fails when the project copy is stale;
 run `scripts/refresh_inventory.sh <slug>` and commit the synchronized output.
-It also validates that `raw_ram_review.csv` `top_readers` / `top_writers`
-owners still resolve to live global labels, catching stale owner columns after
-renames that bypassed closeout.
+It also validates active `raw_ram_review.csv` `top_readers` / `top_writers`
+owners still resolve to live labels, catching stale owner columns after renames
+that bypassed closeout. Owner tokens should name a global label, or a scoped
+local label written as `Global@@local`; inactive historical rows are not
+retroactively normalized by this guard.
 
 Projects may opt into the raw `.DB` embedded-pointer audit with
 `EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit finds

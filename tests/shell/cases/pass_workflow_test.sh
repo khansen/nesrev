@@ -287,6 +287,83 @@ EOF
   assert_match "unknown owner symbol 'OldOwner'" "${output}"
 }
 
+test_project_process_check_accepts_scoped_local_raw_ram_review_owner() {
+  local slug; slug="$(unique_slug process_scoped_raw_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+  LDA $10
+@@poll:
+  STA $10
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,2,1,1,1,NewOwner:1,NewOwner@@poll:1
+EOF
+
+  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+}
+
+test_project_process_check_rejects_unscoped_local_raw_ram_review_owner() {
+  local slug; slug="$(unique_slug process_unscoped_raw_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+  LDA $10
+@@poll:
+  STA $10
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,2,1,1,1,NewOwner:1,@@poll:1
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "unscoped local owner names must fail process-check"
+  assert_match "unscoped local owner symbol '@@poll'" "${output}"
+  assert_match "Global@@local" "${output}"
+}
+
+test_project_process_check_skips_inactive_raw_ram_review_owner_residue() {
+  local slug; slug="$(unique_slug process_inactive_raw_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,symbolized,ZP_Done,inactive imported owner evidence,1,no,1,1,1,1,@@oldLocal:1,@:1
+EOF
+
+  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+}
+
 test_project_process_check_skips_scorecard_lifecycle_for_legacy_imports() {
   local slug; slug="$(unique_slug process_lifecycle_legacy)"
   trap "cleanup_project ${slug}" EXIT
