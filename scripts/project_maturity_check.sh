@@ -50,6 +50,13 @@ if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
     fail=1
   fi
 fi
+if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
+  if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" "${ASM_FILE}" "${SPLIT_POINTER_TARGETS_FILE}" 2>&1)"; then
+    printf '%s\n' "${split_targets_report}" >&2
+    echo "maturity gate failed: split pointer target registry is stale" >&2
+    fail=1
+  fi
+fi
 if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
   if ! embedded_audit_report="$(python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" "${ASM_FILE}" 2>&1)"; then
     printf '%s\n' "${embedded_audit_report}" >&2

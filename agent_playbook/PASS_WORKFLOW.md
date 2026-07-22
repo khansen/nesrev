@@ -362,6 +362,8 @@ Before closing a pass, audit:
 - no avoidable `JSR/JMP $XXXX` to known labels
 - no raw pointer-byte loads where `#<Label`/`#>Label` works
 - record/header pointers symbolized
+- paired split low/high pointer tables use `<Label` / `>Label` entries and
+  have synchronized rows in `split_pointer_targets.csv`
 - loop bounds use `Start/End` math
 - major blobs have `...End` labels
 - a data table the pass named or created that a consumer indexes with a
@@ -385,8 +387,9 @@ Before running verify, preempt the known failure modes in one pass:
   docs; update `renames.csv` (`old_name,new_name,reason,confidence,pass_id`).
   Use `mechanical` confidence for non-semantic aliases.
 - **Pointer-table edits:** scan for `BaseLabel+$NN` in pointer
-  tables; convert to dedicated target labels. Verify packet-format
-  alignment if applicable.
+  tables; convert to dedicated target labels. For split low/high tables,
+  update `split_pointer_targets.csv` and verify entry-count/target alignment.
+  Verify packet-format alignment if applicable.
 - **New global label:** localize it when it is only internal control flow.
   If it is a real public code entry, add a useful contract/entry-role header
   only when it passes
@@ -436,7 +439,8 @@ sequential project phases. Every corridor pass advances the dimensions it
 touches; project-wide assessment runs against all four at maturity.
 
 - **Mechanical integrity:** parity, `strict_active_raw_lowaddr=0`,
-  `strict_active_raw_absrom=0`, `pointer_targets.csv` and
+  `strict_active_raw_absrom=0`, `pointer_targets.csv`,
+  `embedded_pointer_targets.csv`, `split_pointer_targets.csv`, and
   `branch_literal_sites.csv` synced, dynamic length/counter rewrites,
   `ZP_Tmp*` / `RAM_Tmp*` audited, warning-baseline hygiene, no
   placeholder alias churn.

@@ -301,7 +301,8 @@ For *when* to refresh the inventory during a pass, see
 [PASS_WORKFLOW.md#pass-closeout](PASS_WORKFLOW.md#pass-closeout). The
 canonical authored-artifact catalog (`renames.csv`,
 `pointer_targets.csv`, `embedded_pointer_targets.csv`,
-`branch_literal_sites.csv`, `constants_catalog.csv`, `data_extent_assertions.csv`,
+`split_pointer_targets.csv`, `branch_literal_sites.csv`,
+`constants_catalog.csv`, `data_extent_assertions.csv`,
 `data_format_targets.csv`, `unknowns.md`, etc.) lives at
 [AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
 the generated cache under
@@ -320,6 +321,11 @@ records whose other fields must stay byte-sized, such as source-pointer fields
 mixed with bank, VRAM address, and count bytes. `project-verify` checks the
 ledger when it exists, so reverting such fields to raw low/high bytes fails
 until inventory and source agree.
+
+`split_pointer_targets.csv` reports relocatable targets in paired low/high byte
+tables (`FooPtrLoTable` `<Target` plus `FooPtrHiTable` `>Target`). The sync
+check requires equal counts, symbolic entries, and identical per-index target
+expressions; it is shape-specific, not a general embedded-pointer detector.
 
 `data_format_targets.csv` is an authored maturity worklist for core data-format
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
@@ -348,9 +354,10 @@ Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `project-process-check` also runs a non-mutating inventory integrity guard. If
 any generated inventory snapshot exists (`constants_catalog.csv`,
 `pointer_targets.csv`, `embedded_pointer_targets.csv`,
-`branch_literal_sites.csv`, or `unknowns.md`), the guard regenerates those
-snapshots into a temporary directory and fails when the project copy is stale;
-run `scripts/refresh_inventory.sh <slug>` and commit the synchronized output.
+`split_pointer_targets.csv`, `branch_literal_sites.csv`, or `unknowns.md`), the
+guard regenerates those snapshots into a temporary directory and fails when the
+project copy is stale; run `scripts/refresh_inventory.sh <slug>` and commit the
+synchronized output.
 It also validates active `raw_ram_review.csv` `top_readers` / `top_writers`
 owners still resolve to live labels, catching stale owner columns after renames
 that bypassed closeout. Owner tokens should name a global label, or a scoped

@@ -156,6 +156,9 @@ load_project_conf() {
   if [[ -z "${EMBEDDED_POINTER_TARGETS_FILE:-}" ]]; then
     EMBEDDED_POINTER_TARGETS_FILE="${DOC_ROOT}/inventory/embedded_pointer_targets.csv"
   fi
+  if [[ -z "${SPLIT_POINTER_TARGETS_FILE:-}" ]]; then
+    SPLIT_POINTER_TARGETS_FILE="${DOC_ROOT}/inventory/split_pointer_targets.csv"
+  fi
   if [[ -z "${XASM_AUDIT_ROM_RANGE:-}" || -z "${XASM_COMPARE_CPU_BASE:-}" ]]; then
     local rom_cpu_base='$C000'
     if [[ -n "${REF_NES:-}" && -f "${REF_NES}" ]]; then

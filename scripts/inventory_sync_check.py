@@ -23,6 +23,7 @@ GENERATED_INVENTORY_FILES = (
     "constants_catalog.csv",
     "pointer_targets.csv",
     "embedded_pointer_targets.csv",
+    "split_pointer_targets.csv",
     "branch_literal_sites.csv",
     "unknowns.md",
 )

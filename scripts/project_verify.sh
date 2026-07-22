@@ -53,6 +53,12 @@ if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
     "${EMBEDDED_POINTER_TARGETS_FILE}"
 fi
 
+if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
+  bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" \
+    "${ASM_FILE}" \
+    "${SPLIT_POINTER_TARGETS_FILE}"
+fi
+
 if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
   python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" \
     "${ASM_FILE}"
