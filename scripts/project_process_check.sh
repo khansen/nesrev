@@ -33,6 +33,10 @@ if [[ ${missing} -ne 0 ]]; then
   exit 1
 fi
 
+# Scorecard cells must not contain a raw '|' (the Markdown-table column
+# delimiter): a pipe inside a cell breaks rendering and the row parsers.
+python3 "${SCRIPT_DIR}/scorecard_cell_check.py" "${PROGRESS_SCORECARD_FILE}"
+
 renames_header="$(head -n 1 "${RENAMES_FILE}" || true)"
 if [[ "${renames_header}" != "old_name,new_name,reason,confidence,pass_id" ]]; then
   echo "invalid renames.csv header in ${RENAMES_FILE}" >&2
