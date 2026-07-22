@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
 
-inv_dir="${DOC_ROOT}/inventory"
+inv_dir="${NESREV_INVENTORY_OUT_DIR:-${DOC_ROOT}/inventory}"
 mkdir -p "${inv_dir}"
 
 project_slug="$1"

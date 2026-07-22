@@ -36,6 +36,7 @@ fi
 # Scorecard cells must not contain a raw '|' (the Markdown-table column
 # delimiter): a pipe inside a cell breaks rendering and the row parsers.
 python3 "${SCRIPT_DIR}/scorecard_cell_check.py" "${PROGRESS_SCORECARD_FILE}"
+python3 "${SCRIPT_DIR}/scorecard_lifecycle_check.py" "${PROGRESS_SCORECARD_FILE}"
 
 renames_header="$(head -n 1 "${RENAMES_FILE}" || true)"
 if [[ "${renames_header}" != "old_name,new_name,reason,confidence,pass_id" ]]; then
@@ -103,6 +104,13 @@ if analogue is None:
     raise SystemExit(1)
 PY
 fi
+
+echo "[inventory] Checking generated inventory and raw-RAM owner sync"
+python3 "${SCRIPT_DIR}/inventory_sync_check.py" \
+  "$1" \
+  "${ASM_FILE}" \
+  "${DOC_ROOT}" \
+  "${SCRIPT_DIR}/refresh_inventory.sh"
 
 echo "[2/4] Checking RAM/ZP symbol naming"
 python3 "${SCRIPT_DIR}/check_symbol_naming.py" "${ASM_FILE}"
