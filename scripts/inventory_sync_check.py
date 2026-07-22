@@ -64,7 +64,9 @@ def owner_name_from_count_item(item: str) -> str | None:
 def raw_ram_owner_error(owner: str, labels: set[str], locals_by_global: dict[str, set[str]]) -> str | None:
     if owner in labels:
         return None
-    if owner == "@" or owner.startswith("@@"):
+    if owner == "@":
+        return None
+    if owner.startswith("@@"):
         return (
             f"names unscoped local owner symbol {owner!r}; "
             "write local owners as Global@@local"
