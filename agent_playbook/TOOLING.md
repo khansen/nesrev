@@ -194,10 +194,12 @@ The generated doc groups findings into four sections plus an excluded list:
   **software-flag** test is a trade-off — `BMI`/`BPL` hard-codes bit 7 (it breaks
   if the flag's layout moves) and drops the named mask, so it needs a comment
   naming the bit. `CMP #$00` and the transfer rewrite carry no such cost.
-- **D. Redundant reload after store** (lower confidence) — only when the reload
-  `LD_` is *unlabeled*, so it is reached solely by fall-through from the store; a
-  labeled reload target may be entered by another flow with a different A (the
-  listing carries labels as their own records, so this is checked structurally).
+- **D. Redundant reload after store** (lower confidence) — only when **both** the
+  store and the reload `LD_` are *unlabeled*, so the pair has a single
+  fall-through entry. A labeled reload may be entered with a different A; a labeled
+  *store* may be entered with N/Z set by another instruction (e.g. via `BNE`),
+  making the reload's `LD_` needed to refresh the flags. Labels come from the
+  listing (their own records), so this is checked structurally.
 - **Excluded** — category-C-shaped candidates whose affected value liveness could
   not prove dead on every path (e.g. live at an `RTS`, so possibly a return
   value); listed rather than asserted.

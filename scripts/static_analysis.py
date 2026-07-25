@@ -524,17 +524,20 @@ def analyze(prog):
                        'rewrite': f"CP{reg} {c['src'].split(None, 1)[-1]}"}
                 out['excluded' if a_live else 'xfer'].append(rec)
 
-        # redundant reload: ST_ x ; LD_ x (same location), contiguous, and the
-        # reload is reached only by that fall-through. The reload must be
-        # *unlabeled*: a labeled LD_ may be a branch/JMP/JSR target reached with a
-        # different A (an absolute JMP into it is not in the CFG), so the reload is
-        # not redundant on those paths.
+        # redundant reload: ST_ x ; LD_ x (same location), contiguous. Both the
+        # store *and* the reload must be *unlabeled*, so the pair has a single
+        # fall-through entry. If either is a branch/JMP/JSR target, an incoming
+        # flow may reach it with different A (a labeled LD_) or with N/Z set by
+        # some other instruction (a labeled ST_, e.g. reached by `BNE`/`BCS`) --
+        # then the reload's LD_ is needed to refresh the flags and is not
+        # redundant. (Absolute JMP edges are not in the CFG, hence the label test.)
         pair = {'STA': 'LDA', 'STX': 'LDX', 'STY': 'LDY'}
         if op in pair:
             n = ins[i + 1] if i + 1 < len(ins) else None
             if (n and n['op'] == pair[op] and n['mode'] == mode
                     and n['bytes'][1:] == t['bytes'][1:]
-                    and prog.preds[i + 1] == [i] and not n['labeled']):
+                    and prog.preds[i + 1] == [i]
+                    and not t['labeled'] and not n['labeled']):
                 out['reload'].append({'line': t['line'], 'store': t['src'],
                                       'reload': n['src']})
     return out

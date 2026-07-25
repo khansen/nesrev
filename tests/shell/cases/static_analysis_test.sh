@@ -19,6 +19,7 @@ Out1       .EQU $0013
 Out2       .EQU $0014
 ZP_StateA  .EQU $0015
 ZP_StateB  .EQU $0016
+ZP_State2  .EQU $0017
 
 ; Confirmed overrun: wrong-register init (LDX where LDY was needed).
 ConfirmedOverrun:
@@ -112,6 +113,21 @@ PlainReload:
     BEQ pr_done
     STA Out2
 pr_done:
+    RTS
+
+; Reload whose STORE is a branch target: the BNE path arrives with N/Z set by LDX,
+; not by A, so the reload's LDA is needed to set Z for the BEQ. Not redundant,
+; even though the reload's LD_ is itself unlabeled.
+ReloadStoreIsTarget:
+    LDX Flag
+    BNE rst_store
+    LDA InputByte
+rst_store:
+    STA ZP_State2
+    LDA ZP_State2
+    BEQ rst_done
+    STA Out1
+rst_done:
     RTS
 
 ; Wrong-register store: a dead LDY #0 before a STA is the fingerprint of an
@@ -238,6 +254,10 @@ if any("ZP_StateA" in s for s in stores):
 # The plain unlabeled reload (sole fall-through) must still be a candidate.
 if not any("ZP_StateB" in s for s in stores):
     raise SystemExit(f"a sole-fall-through reload should be a candidate: {stores}")
+# A reload whose STORE is a branch target must be omitted -- an incoming flow may
+# set N/Z from another instruction, so the reload's LD_ is needed for the flags.
+if any("ZP_State2" in s for s in stores):
+    raise SystemExit(f"reload whose store is a branch target must be omitted: {stores}")
 PY
 }
 
