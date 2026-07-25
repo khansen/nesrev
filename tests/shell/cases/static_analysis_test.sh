@@ -113,6 +113,25 @@ PlainReload:
     STA Out2
 pr_done:
     RTS
+
+; Wrong-register store: a dead LDY #0 before a STA is the fingerprint of an
+; LDA #0 typo -- the STA writes the stale A ($07), not 0. Y is redefined below so
+; the LDY #0 is genuinely dead.
+WrongRegStore:
+    LDA #$07
+    LDY #0
+    STA ZP_StateA
+    LDY #1
+    STY ZP_StateB
+    RTS
+
+; Control: a dead LDY #imm that is NOT immediately before a STA stays a plain
+; dead instruction, not a wrong-register finding.
+DeadLdyControl:
+    LDY #$05
+    LDY #$06
+    STY ZP_StateA
+    RTS
 ASM
 }
 
@@ -192,5 +211,26 @@ if any("ZP_StateA" in s for s in stores):
 # The plain unlabeled reload (sole fall-through) must still be a candidate.
 if not any("ZP_StateB" in s for s in stores):
     raise SystemExit(f"a sole-fall-through reload should be a candidate: {stores}")
+PY
+}
+
+test_static_analysis_flags_wrong_register_store() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_wrongreg.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_wrongreg.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+# A dead LDY #0 immediately before a STA is promoted to a correctness finding
+# proposing the intended LDA #0.
+hit = [r for r in d["wrongreg"] if r["dead"] == "LDY #0"]
+if not hit or hit[0]["intended"] != "LDA #0":
+    raise SystemExit(f"dead LDY #0 before a STA must be a wrong-register load: {d['wrongreg']}")
+# A dead LDY not before a STA stays a plain dead instruction.
+if any(r["dead"] == "LDY #$05" for r in d["wrongreg"]):
+    raise SystemExit("a dead LDY not before a STA must not be a wrong-register load")
+if "LDY #$05" not in [r["src"] for r in d["dead"]]:
+    raise SystemExit(f"the control dead LDY should remain in dead: {[r['src'] for r in d['dead']]}")
 PY
 }

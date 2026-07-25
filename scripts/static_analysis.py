@@ -9,11 +9,12 @@ across mapper banks, unlike CPU addresses); backward liveness of the registers
 liveness on all paths.
 
 Reports (see the generated STATIC_ANALYSIS.md for prose):
-  A correctness : index register live-in to a fixed-count copy loop (read before
-                  the routine writes it -> buffer overrun). Split by confidence: a
-                  wrong-register init is a confirmed defect; otherwise it is an
-                  input-register contract downgraded to a call-site review candidate
-                  (callers are checked to see whether they establish the index).
+  A correctness : two wrong-register symptoms. (1) An index register live-in to a
+                  fixed-count copy loop (read before the routine writes it ->
+                  overrun); split by confidence -- a wrong-register init is a
+                  confirmed defect, else it is a call-site review candidate. (2) A
+                  dead LDX/LDY #imm right before a STA -- likely LDA #imm was meant,
+                  so the store writes the stale A instead of #imm.
   B dead        : a def whose every output is dead-on-exit, no side effect.
   C micro-opts  : AND #$80 -> BMI/BPL (only when A and Z are both dead after the
                   branch); redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
@@ -411,7 +412,8 @@ def find_overruns(prog):
 def analyze(prog):
     ins = prog.ins
     out = {k: [] for k in
-           ('bugs', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')}
+           ('bugs', 'wrongreg', 'dead', 'bit7', 'cmp0', 'xfer', 'reload',
+            'excluded')}
     out['bugs'] = find_overruns(prog)
     for i, t in enumerate(ins):
         op, mode = t['op'], t['mode']
@@ -419,8 +421,20 @@ def analyze(prog):
         # dead instruction: every defined output dead on exit, no side effect
         if op in DEAD_CANDIDATES and not prog.SE[i] and prog.D[i]:
             if prog.D[i] & prog.live_out(i) == 0:
-                out['dead'].append({'i': i, 'line': t['line'], 'op': op,
-                                    'mode': mode, 'src': t['src']})
+                # A dead `LDX/LDY #imm` immediately before a `STA` is the
+                # fingerprint of a wrong-register typo: `LDA #imm` was likely
+                # meant, so the store writes the *stale* A instead of #imm.
+                # Promote it from a dead instruction to a correctness finding.
+                nxt = ins[i + 1] if i + 1 < len(ins) else None
+                if (op in ('LDX', 'LDY') and mode == 'immediate' and nxt
+                        and nxt['op'] == 'STA'
+                        and nxt['off'] == t['off'] + t['nbytes']):
+                    out['wrongreg'].append({
+                        'line': t['line'], 'dead': t['src'], 'store': nxt['src'],
+                        'intended': 'LDA ' + t['src'].split(None, 1)[1]})
+                else:
+                    out['dead'].append({'i': i, 'line': t['line'], 'op': op,
+                                        'mode': mode, 'src': t['src']})
 
         # bit-7 test: producer ; AND #$80 ; BNE/BEQ  -> BMI/BPL
         if op == 'AND' and prog.imm(t) == 0x80:
@@ -519,12 +533,13 @@ def fence(*lines):
 
 
 def emit(out, title, asm, commit, date):
-    bugs, dead, reload_, excl = out['bugs'], out['dead'], out['reload'], out['excluded']
+    bugs, wrongreg = out['bugs'], out['wrongreg']
+    dead, reload_, excl = out['dead'], out['reload'], out['excluded']
     micro = len(out['bit7']) + len(out['cmp0']) + len(out['xfer'])
     doc = HEADER.format(title=title, asm=asm, commit=commit, date=date,
-                        bugs=len(bugs), dead=len(dead), micro=micro,
+                        bugs=len(bugs) + len(wrongreg), dead=len(dead), micro=micro,
                         reload=len(reload_), excluded=len(excl))
-    total = len(bugs) + len(dead) + micro + len(reload_)
+    total = len(bugs) + len(wrongreg) + len(dead) + micro + len(reload_)
     if total == 0 and not excl:
         doc += ("\nNo correctness, dead-instruction, optimization, or redundancy "
                 "findings under the patterns scanned. The hand-written code here is "
@@ -533,13 +548,24 @@ def emit(out, title, asm, commit, date):
     confirmed = [r for r in bugs if r.get('confidence') == 'high']
     review = [r for r in bugs if r.get('confidence') != 'high']
     doc += "\n## A. Correctness / latent bugs\n\n"
-    if not bugs:
+    if not bugs and not wrongreg:
         doc += "None detected.\n"
-    else:
-        doc += ("An index register is read by a fixed-count copy/fill loop before "
-                "the routine ever writes it. The scan proves only that the index is "
-                "unset *inside* the routine; whether that is a bug depends on the "
-                "callers, so findings are split by confidence.\n\n")
+    if wrongreg:
+        doc += ("### Suspected wrong-register load\n\n"
+                "A dead `LDX`/`LDY #imm` sits immediately before a `STA` -- the "
+                "fingerprint of a wrong-register typo: `LDA #imm` was likely intended, "
+                "so the store writes the **stale A**, not `#imm`. Verify intent (if "
+                "storing the current A is deliberate, the dead load is merely cruft).\n\n")
+        for r in wrongreg:
+            doc += (f"- **L{r['line']}** -- `{r['dead']}` is dead and precedes "
+                    f"`{r['store']}`; likely a typo for `{r['intended']}` (the store "
+                    f"writes the stale A).\n\n")
+    if bugs:
+        doc += ("**Uninitialised-index overrun.** An index register is read by a "
+                "fixed-count copy/fill loop before the routine ever writes it. The "
+                "scan proves only that the index is unset *inside* the routine; "
+                "whether that is a bug depends on the callers, so findings are split "
+                "by confidence.\n\n")
     if confirmed:
         doc += ("### Confirmed (wrong-register init)\n\n"
                 "The routine initialises the *other* index register -- a typo -- so "
@@ -667,7 +693,7 @@ def main():
         with open(args.doc_out, 'w', encoding='utf-8') as f:
             f.write(doc)
     if args.do_print or not (args.json or args.doc_out):
-        order = ('bugs', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')
+        order = ('bugs', 'wrongreg', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')
         print(f"{args.asm_file}: {len(prog.ins)} instrs  "
               + "  ".join(f"{k}={counts[k]}" for k in order))
 

@@ -166,14 +166,18 @@ against liveness on every path.
 
 The generated doc groups findings into four sections plus an excluded list:
 
-- **A. Correctness / latent bugs** — an index register that is *live-in* to a
-  tight fixed-count copy/fill loop, i.e. read before the routine ever writes it,
-  so it overruns its buffer if it is not the expected base. The scan proves only
-  that the index is unset *inside* the routine, so findings are split by
-  confidence: a **wrong-register init** (`LDX` where `LDY` was meant) is a
-  confirmed defect regardless of caller, while a no-typo case is downgraded to a
+- **A. Correctness / latent bugs** — two wrong-register symptoms.
+  (1) *Uninitialised-index overrun*: an index register *live-in* to a tight
+  fixed-count copy/fill loop (read before the routine writes it) overruns its
+  buffer. The scan proves only that the index is unset *inside* the routine, so
+  findings split by confidence: a **wrong-register init** (`LDX` where `LDY` was
+  meant) is a confirmed defect regardless of caller, while a no-typo case is a
   **call-contract review candidate** — the index is an input register, and the
   tool checks the direct `JSR` callers to report whether they establish it.
+  (2) *Suspected wrong-register load*: a **dead `LDX`/`LDY #imm` immediately
+  before a `STA`** is the fingerprint of an `LDA #imm` typo — the store writes the
+  stale A, not `#imm` (e.g. a leftover sprite-hide Y of `$F4` reaching `PPUSCROLL`
+  instead of `0`). Promoted out of the dead-instruction category.
 - **B. Dead instructions** — every register/flag the instruction defines is dead
   on exit and it has no side effect.
 - **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL` (only when
