@@ -58,6 +58,7 @@ EXPECTED_ROUTING_TASKS = [
     "Run a project-level review audit",
     "Change NESrev, xasm, wrappers, or quality gates",
     "Create or review a mod",
+    "Audit for dead code, latent bugs, or micro-optimizations",
 ]
 
 # Anchors that must stay present at AGENTS.md root because external
@@ -135,10 +136,18 @@ ROOT_WORD_CEILING = 6000
 # affected route ceilings keep that rule explicit: data labels are not mature
 # merely because their names are documented; opaque spans need consumer,
 # pointer-search, extent, and reflow evidence.
+# The data-recovery line ceiling was raised from 2470 to 2560 when the
+# Static-Analysis Scanner section (the static_analysis.py dead-code / latent-bug /
+# micro-optimization tool and its make wrapper) was documented in full in
+# TOOLING.md, and the new-project ceilings from 3650/26650 to 3660/26720 for the
+# matching root routing row ("Audit for dead code, latent bugs, or
+# micro-optimizations"). The tool documents a novel CFG+liveness analysis and its
+# four finding categories; the ceilings carry that prose at readable length with
+# the same modest headroom the other ceilings hold, rather than compressing it.
 ROUTE_BUDGETS = {
     "default": (2650, 19100),
-    "data-recovery": (2470, 19000),
-    "new-project": (3650, 26650),
+    "data-recovery": (2560, 19000),
+    "new-project": (3660, 26720),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

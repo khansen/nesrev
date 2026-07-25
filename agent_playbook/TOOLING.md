@@ -8,6 +8,7 @@ This playbook owns commands, tool options, and diagnostic procedures:
 
 - xasm listings and xref options
 - data-consumer, data-coverage, and index-pattern analysis
+- the static-analysis scanner (dead code, latent bugs, micro-optimizations)
 - NESrev regeneration controls
 - inventory commands
 - parity-drift diagnostics
@@ -148,6 +149,48 @@ mis-split blobs or hidden consumers).
 
 Prefer these structured outputs over ad-hoc grep when planning a pass;
 see also [Evidence Order](#xasm-structured-analysis).
+
+<a id="static-analysis"></a>
+## Static-Analysis Scanner
+
+`make project-static-analysis PROJECT=<slug>` runs `scripts/static_analysis.py`
+and writes the project's `docs/reverse_engineering/STATIC_ANALYSIS.md` (direct
+form: `scripts/static_analysis.py <asm> --doc-out <md> [--title T] [--json J]
+[--print]`). It assembles the source with xasm and reads the JSON listing — never
+regex over source text — so instruction identity, addressing mode, and operand
+values are the assembled truth. It builds a control-flow graph keyed by ROM
+**output offset** (globally unique, unlike CPU addresses, which repeat across
+mapper banks), resolves relative branches by offset arithmetic, and runs backward
+liveness of registers {A,X,Y} and flags {Z,N,C,V}. Every finding is verified
+against liveness on every path.
+
+The generated doc groups findings into four sections plus an excluded list:
+
+- **A. Correctness / latent bugs** — an index register that is *live-in* to a
+  tight fixed-count copy/fill loop, i.e. read before the routine ever writes it,
+  so it inherits the caller's value and overruns its buffer. A wrong-register
+  init (e.g. `LDX` where `LDY` was meant) is reported as a typo signal. This is
+  the only category that is a real defect rather than an optimization.
+- **B. Dead instructions** — every register/flag the instruction defines is dead
+  on exit and it has no side effect.
+- **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL`, a redundant
+  `CMP #$00` after a flag-setting op, and a register→A transfer before a compare
+  replaceable with `CPX`/`CPY`.
+- **D. Redundant reload after store** (lower confidence).
+- **Excluded** — category-C-shaped candidates whose affected value liveness could
+  not prove dead on every path (e.g. live at an `RTS`, so possibly a return
+  value); listed rather than asserted.
+
+Conservative by construction, so reported items are a floor rather than guesses:
+`JSR`/`RTS` use all registers and flags, and absolute `JMP`/`JSR` targets plus
+non-ROM-contiguous fall-through (the `.DB $2C` opcode-skip idiom) are treated as
+unresolved (full live-out). Hardware-register read side effects and memory-operand
+shift/rotate flag semantics come from the listing's addressing mode, not a guess.
+Categories B–D are **mod-only**: applying them breaks byte parity, so they serve
+an article on hand-written 6502 and future relocatable mod builds, while the A
+findings are genuine ROM defects. Extend the tool by adding a detector that
+consumes the shared CFG + liveness in `analyze()` / `find_overruns()`, then re-run
+the wrapper to regenerate the doc.
 
 <a id="nesrev-controls"></a>
 ## NESrev Regeneration Controls
@@ -476,6 +519,11 @@ debug-only recipes not big enough to warrant their own section.
 
 - Index patterns, data consumers, data coverage:
   [#data-consumer-analysis](#data-consumer-analysis)
+
+### Static analysis
+
+- Dead code, latent bugs, micro-optimizations
+  (`make project-static-analysis PROJECT=<slug>`): [#static-analysis](#static-analysis)
 
 ### NESrev regeneration
 
