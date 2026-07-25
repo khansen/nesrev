@@ -177,7 +177,12 @@ The generated doc groups findings into four sections plus an excluded list:
   (2) *Suspected wrong-register load*: a **dead `LDX`/`LDY #imm` immediately
   before a `STA`** is the fingerprint of an `LDA #imm` typo — the store writes the
   stale A, not `#imm` (e.g. a leftover sprite-hide Y of `$F4` reaching `PPUSCROLL`
-  instead of `0`). Promoted out of the dead-instruction category.
+  instead of `0`).
+  (3) *Suspected shift/carry confusion*: a **dead carry-setter (`CLC`/`SEC`/`CMP`)
+  discarded by a following accumulator `ASL`/`LSR`** — the shift folds a `0` into
+  the vacated bit, not the carry, so `ROL`/`ROR` was likely meant (harmless where
+  the carry was never needed, a real bug where the carry-dependent path is now
+  dead). (2) and (3) are promoted out of the dead-instruction category.
 - **B. Dead instructions** — every register/flag the instruction defines is dead
   on exit and it has no side effect.
 - **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL` (only when

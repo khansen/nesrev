@@ -9,12 +9,15 @@ across mapper banks, unlike CPU addresses); backward liveness of the registers
 liveness on all paths.
 
 Reports (see the generated STATIC_ANALYSIS.md for prose):
-  A correctness : two wrong-register symptoms. (1) An index register live-in to a
-                  fixed-count copy loop (read before the routine writes it ->
-                  overrun); split by confidence -- a wrong-register init is a
-                  confirmed defect, else it is a call-site review candidate. (2) A
-                  dead LDX/LDY #imm right before a STA -- likely LDA #imm was meant,
-                  so the store writes the stale A instead of #imm.
+  A correctness : symptoms that expose likely typos/misconceptions. (1) An index
+                  register live-in to a fixed-count copy loop (read before the
+                  routine writes it -> overrun); split by confidence -- a
+                  wrong-register init is a confirmed defect, else a call-site review
+                  candidate. (2) A dead LDX/LDY #imm right before a STA -- likely
+                  LDA #imm was meant, so the store writes the stale A. (3) A dead
+                  carry-setter (CLC/SEC/CMP) discarded by a following accumulator
+                  ASL/LSR -- the shift folds 0, not carry, so ROL/ROR was likely
+                  meant (a real bug where the carry mattered).
   B dead        : a def whose every output is dead-on-exit, no side effect.
   C micro-opts  : AND #$80 -> BMI/BPL (only when A and Z are both dead after the
                   branch); redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
@@ -71,6 +74,7 @@ DEAD_CANDIDATES = {
     'INX', 'DEX', 'INY', 'DEY', 'ADC', 'SBC', 'AND', 'ORA', 'EOR',
     'CMP', 'CPX', 'CPY', 'BIT', 'ASL', 'LSR', 'ROL', 'ROR', 'CLC', 'SEC', 'CLV',
 }
+CARRY_CONSUMERS = {'BCC', 'BCS', 'ROL', 'ROR', 'ADC', 'SBC'}  # read the carry flag
 
 
 def sem(op, mode):
@@ -409,11 +413,38 @@ def find_overruns(prog):
     return found
 
 
+def carry_discarded_by_shift(prog, i):
+    """If the carry set at instruction i is discarded (unused) by a following
+    accumulator `ASL`/`LSR` -- a sign the shift was meant to be `ROL`/`ROR` to fold
+    the carry into bit 0 -- return that shift record, else None. Stops at a carry
+    consumer (the carry is really used), another carry redefine, or a block edge."""
+    ins = prog.ins
+    j = i + 1
+    steps = 0
+    while j < len(ins) and steps < 5:
+        t = ins[j]
+        if (t['labeled'] or ins[j - 1]['off'] is None or t['off'] is None
+                or t['off'] != ins[j - 1]['off'] + ins[j - 1]['nbytes']):
+            return None  # not a clean fall-through chain
+        op = t['op']
+        if op in ('ASL', 'LSR') and t['mode'] == 'implied':
+            return t  # accumulator shift discards the carry it was handed
+        if op in CARRY_CONSUMERS:
+            return None  # carry is genuinely used -- no confusion
+        if op in ('CLC', 'SEC', 'CMP', 'CPX', 'CPY', 'PLP'):
+            return None  # carry redefined by something other than the shift
+        if op in BRANCHES or op in ('JMP', 'JSR', 'RTS', 'RTI', 'BRK'):
+            return None  # left the straight-line block
+        j += 1
+        steps += 1
+    return None
+
+
 def analyze(prog):
     ins = prog.ins
     out = {k: [] for k in
-           ('bugs', 'wrongreg', 'dead', 'bit7', 'cmp0', 'xfer', 'reload',
-            'excluded')}
+           ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer',
+            'reload', 'excluded')}
     out['bugs'] = find_overruns(prog)
     for i, t in enumerate(ins):
         op, mode = t['op'], t['mode']
@@ -426,12 +457,21 @@ def analyze(prog):
                 # meant, so the store writes the *stale* A instead of #imm.
                 # Promote it from a dead instruction to a correctness finding.
                 nxt = ins[i + 1] if i + 1 < len(ins) else None
+                shift = (carry_discarded_by_shift(prog, i)
+                         if op in ('CLC', 'SEC', 'CMP', 'CPX', 'CPY') else None)
                 if (op in ('LDX', 'LDY') and mode == 'immediate' and nxt
                         and nxt['op'] == 'STA'
                         and nxt['off'] == t['off'] + t['nbytes']):
                     out['wrongreg'].append({
                         'line': t['line'], 'dead': t['src'], 'store': nxt['src'],
                         'intended': 'LDA ' + t['src'].split(None, 1)[1]})
+                elif shift is not None:
+                    # The dead carry-setter feeds an accumulator ASL/LSR that
+                    # discards the carry: the author likely thought the shift folds
+                    # carry into bit 0 (that is ROL/ROR). Promote out of "dead".
+                    out['carryshift'].append({
+                        'line': t['line'], 'setter': t['src'], 'shift': shift['src'],
+                        'intended': {'ASL': 'ROL', 'LSR': 'ROR'}[shift['op']]})
                 else:
                     out['dead'].append({'i': i, 'line': t['line'], 'op': op,
                                         'mode': mode, 'src': t['src']})
@@ -533,13 +573,15 @@ def fence(*lines):
 
 
 def emit(out, title, asm, commit, date):
-    bugs, wrongreg = out['bugs'], out['wrongreg']
+    bugs, wrongreg, carryshift = out['bugs'], out['wrongreg'], out['carryshift']
     dead, reload_, excl = out['dead'], out['reload'], out['excluded']
     micro = len(out['bit7']) + len(out['cmp0']) + len(out['xfer'])
     doc = HEADER.format(title=title, asm=asm, commit=commit, date=date,
-                        bugs=len(bugs) + len(wrongreg), dead=len(dead), micro=micro,
+                        bugs=len(bugs) + len(wrongreg) + len(carryshift),
+                        dead=len(dead), micro=micro,
                         reload=len(reload_), excluded=len(excl))
-    total = len(bugs) + len(wrongreg) + len(dead) + micro + len(reload_)
+    total = (len(bugs) + len(wrongreg) + len(carryshift) + len(dead) + micro
+             + len(reload_))
     if total == 0 and not excl:
         doc += ("\nNo correctness, dead-instruction, optimization, or redundancy "
                 "findings under the patterns scanned. The hand-written code here is "
@@ -548,8 +590,19 @@ def emit(out, title, asm, commit, date):
     confirmed = [r for r in bugs if r.get('confidence') == 'high']
     review = [r for r in bugs if r.get('confidence') != 'high']
     doc += "\n## A. Correctness / latent bugs\n\n"
-    if not bugs and not wrongreg:
+    if not bugs and not wrongreg and not carryshift:
         doc += "None detected.\n"
+    if carryshift:
+        doc += ("### Suspected shift/carry confusion\n\n"
+                "A dead carry-setter (`CLC`/`SEC`/`CMP`) is discarded by a following "
+                "accumulator `ASL`/`LSR`, which shifts a **0** into bit 0 -- it does "
+                "*not* fold the carry in. This is the fingerprint of thinking the "
+                "shift is `ROL`/`ROR`: harmless where the carry was never needed, but "
+                "a real bug where it was (the carry-dependent path is dead).\n\n")
+        for r in carryshift:
+            doc += (f"- **L{r['line']}** -- `{r['setter']}` sets carry that "
+                    f"`{r['shift']}` discards; if the shift was meant to fold carry "
+                    f"into bit 0 it should be `{r['intended']}`.\n\n")
     if wrongreg:
         doc += ("### Suspected wrong-register load\n\n"
                 "A dead `LDX`/`LDY #imm` sits immediately before a `STA` -- the "
@@ -693,7 +746,7 @@ def main():
         with open(args.doc_out, 'w', encoding='utf-8') as f:
             f.write(doc)
     if args.do_print or not (args.json or args.doc_out):
-        order = ('bugs', 'wrongreg', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')
+        order = ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')
         print(f"{args.asm_file}: {len(prog.ins)} instrs  "
               + "  ".join(f"{k}={counts[k]}" for k in order))
 

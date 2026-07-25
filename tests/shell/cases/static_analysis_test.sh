@@ -132,6 +132,33 @@ DeadLdyControl:
     LDY #$06
     STY ZP_StateA
     RTS
+
+; Shift/carry confusion: CLC before an accumulator ASL. ASL shifts 0 into bit 0,
+; not the carry, so the CLC is dead and the shift was likely meant to be ROL.
+CarryClcShift:
+    LDA Flag2
+    CLC
+    ASL
+    STA Out1
+    RTS
+
+; A carry-set (CMP) whose carry is discarded by a later accumulator ASL.
+CarryCmpShift:
+    LDA Flag2
+    CMP #6
+    LDA InputByte
+    ASL
+    STA Out2
+    RTS
+
+; Control: SEC before SBC -- the SBC genuinely consumes the carry, so this is not
+; a shift/carry confusion and must not be flagged.
+CarryUsedControl:
+    SEC
+    LDA Flag2
+    SBC InputByte
+    STA Out1
+    RTS
 ASM
 }
 
@@ -232,5 +259,26 @@ if any(r["dead"] == "LDY #$05" for r in d["wrongreg"]):
     raise SystemExit("a dead LDY not before a STA must not be a wrong-register load")
 if "LDY #$05" not in [r["src"] for r in d["dead"]]:
     raise SystemExit(f"the control dead LDY should remain in dead: {[r['src'] for r in d['dead']]}")
+PY
+}
+
+test_static_analysis_flags_shift_carry_confusion() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_carry.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_carry.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+cs = json.load(open(sys.argv[1]))["carryshift"]
+setters = [(r["setter"], r["intended"]) for r in cs]
+# CLC before an accumulator ASL is a shift/carry confusion; ROL was likely meant.
+if ("CLC", "ROL") not in setters:
+    raise SystemExit(f"CLC before an accumulator ASL must be flagged (ROL): {setters}")
+# A CMP whose carry a later ASL discards is flagged too.
+if not any(s == "CMP #6" for s, _ in setters):
+    raise SystemExit(f"a CMP whose carry a later ASL discards must be flagged: {setters}")
+# A carry-set genuinely consumed (SEC before SBC) must NOT be flagged.
+if any(s == "SEC" for s, _ in setters):
+    raise SystemExit("a SEC whose carry SBC consumes must not be flagged")
 PY
 }
