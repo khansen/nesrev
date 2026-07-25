@@ -9,6 +9,7 @@ STATIC_ANALYSIS="${REPO_ROOT}/scripts/static_analysis.py"
 _write_static_analysis_fixture() {
   cat > "$1" <<'ASM'
 .ORG $8000
+PPUSTATUS  .EQU $2002
 SrcTable   .EQU $0300
 DstBuffer  .EQU $0200
 InputByte  .EQU $0010
@@ -74,6 +75,16 @@ b7s_hit:
     LDA #$04
     STA Out1
     RTS
+
+; bit-7 on a hardware register: the idiomatic PPUSTATUS vblank wait. Bit 7 is
+; fixed by the PPU, so it is a clean win (no layout risk, no comment needed).
+VblankWait:
+    LDA PPUSTATUS
+    AND #$80
+    BNE VblankWait
+    LDA #$00
+    STA Out2
+    RTS
 ASM
 }
 
@@ -106,13 +117,34 @@ test_static_analysis_bit7_requires_a_and_z_dead() {
   python3 - "${out}" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
-bit7_masks = [r["mask"] for r in d["bit7"]]
+bit7_preds = [r["pred"] for r in d["bit7"]]
 excl_kinds = [r.get("kind") for r in d["excluded"]]
-# The Z-live case (Bit7Unsafe) must be excluded, never suggested as a rewrite.
+# The Z-live case (Bit7Zlive, `LDA Flag`) must be excluded, never suggested.
+if "LDA Flag" in bit7_preds:
+    raise SystemExit("bit-7 with Z live after the branch must not be suggested")
 if not any(k == "bit-7 mask" for k in excl_kinds):
     raise SystemExit("bit-7 mask with Z live after the branch must be excluded")
-# Exactly one bit-7 rewrite survives (Bit7Safe); the unsafe one does not.
-if len(d["bit7"]) != 1:
-    raise SystemExit(f"only the A/Z-dead bit-7 case should be suggested: {bit7_masks}")
+# The A/Z-dead case (Bit7Safe, `LDA Flag2`) must be suggested.
+if "LDA Flag2" not in bit7_preds:
+    raise SystemExit("the A/Z-dead bit-7 case should be suggested")
+PY
+}
+
+test_static_analysis_bit7_hardware_vs_software() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_hw.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_hw.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+b7 = json.load(open(sys.argv[1]))["bit7"]
+hw = [r for r in b7 if "PPUSTATUS" in r["pred"]]
+sw = [r for r in b7 if "PPUSTATUS" not in r["pred"]]
+# A PPUSTATUS bit-7 test is a hardware/idiomatic clean win (bit 7 = vblank).
+if not hw or not all(r["hw"] and r["ppustatus"] for r in hw):
+    raise SystemExit(f"PPUSTATUS bit-7 must be tagged hardware/idiomatic: {hw}")
+# A RAM software-flag bit-7 test must not be tagged hardware.
+if not sw or any(r["hw"] for r in sw):
+    raise SystemExit(f"a software-flag bit-7 must not be tagged hardware: {sw}")
 PY
 }

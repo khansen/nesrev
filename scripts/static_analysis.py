@@ -297,6 +297,14 @@ class Program:
     def imm(self, t):
         return t['bytes'][1] if t['mode'] == 'immediate' and t['nbytes'] >= 2 else None
 
+    def operand_addr(self, t):
+        """Resolved absolute/zeropage operand address, or None."""
+        if t['mode'] in ('absolute', 'absolute_x', 'absolute_y') and t['nbytes'] >= 3:
+            return t['bytes'][1] | (t['bytes'][2] << 8)
+        if t['mode'] in ('zeropage', 'zeropage_x') and t['nbytes'] >= 2:
+            return t['bytes'][1]
+        return None
+
 
 def caller_index_setup(prog, routine, reg):
     """Among direct `JSR <routine>` callers, how many establish index `reg` (via
@@ -405,8 +413,13 @@ def analyze(prog):
                 # byte) and Z (bit 7 vs whole byte); N is unchanged. It is safe
                 # only when neither A nor Z is live after the branch.
                 unsafe = bool(prog.live_out(i + 1) & (A | Z))
+                # Bit 7 of a hardware register is fixed by the hardware (e.g.
+                # PPUSTATUS bit 7 = vblank), so the layout-coupling caveat does not
+                # apply and the vblank-wait form is idiomatic.
+                prod_addr = prog.operand_addr(ins[p])
                 rec = {'line': t['line'], 'pred': ins[p]['src'], 'mask': t['src'],
-                       'branch': br['src'], 'rewrite': rewrite, 'kind': 'bit-7 mask'}
+                       'branch': br['src'], 'rewrite': rewrite, 'kind': 'bit-7 mask',
+                       'hw': prod_addr in HW, 'ppustatus': prod_addr == 0x2002}
                 out['excluded' if unsafe else 'bit7'].append(rec)
 
         # redundant compare-to-zero: producer ; CMP/CPX/CPY #$00 ; Z/N-branch
@@ -546,20 +559,31 @@ def emit(out, title, asm, commit, date):
     if micro:
         doc += "\n## C. Micro-optimizations\n\n"
         if out['bit7']:
+            hw = [r for r in out['bit7'] if r.get('hw')]
+            sw = [r for r in out['bit7'] if not r.get('hw')]
             doc += ("### Bit-7 test via `AND #$80` (-> `BMI`/`BPL`)\n\n"
                     "The producing load already sets **N** from bit 7, so the "
                     "`AND #$80` + `BNE`/`BEQ` collapses to one `BMI`/`BPL` (-2 bytes, "
-                    "-2 cycles). **This is a trade-off, not a free win** -- weigh it "
-                    "per site:\n"
-                    "- It hard-codes bit 7. The `AND #<flag>` form tests whatever bit "
-                    "the named mask occupies and survives a layout change; `BMI`/`BPL` "
-                    "silently breaks if the flag moves off bit 7.\n"
-                    "- It drops the named mask, so the branch no longer documents "
-                    "*what* it tests -- the resulting `BMI`/`BPL` wants a comment "
-                    "naming the bit, which partly offsets the saving.\n\n")
-            for r in out['bit7']:
-                doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
-                doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
+                    "-2 cycles). Whether that is a clean win or a trade-off depends on "
+                    "what supplies bit 7.\n\n")
+            if hw:
+                doc += ("**Hardware register (idiomatic, clean win).** Bit 7 of a "
+                        "hardware register is fixed by the hardware and cannot be "
+                        "repurposed (`PPUSTATUS` bit 7 = vblank), so there is no layout "
+                        "risk and `LDA PPUSTATUS / BPL` is the canonical vblank wait -- "
+                        "drop the `AND`; no comment needed.\n\n")
+                for r in hw:
+                    doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}`:\n\n"
+                    doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
+            if sw:
+                doc += ("\n**Software flag (trade-off).** For a RAM/software flag the "
+                        "bit position is a project choice: `BMI`/`BPL` hard-codes bit 7 "
+                        "(it breaks silently if the flag's layout moves) and drops the "
+                        "named mask, so add a comment naming the bit -- which partly "
+                        "offsets the 2-byte saving.\n\n")
+                for r in sw:
+                    doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
+                    doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
         if out['cmp0']:
             doc += ("\n### Redundant compare-to-zero\n\n"
                     "The preceding op already set **Z**/**N**; the `#$00` compare is "
