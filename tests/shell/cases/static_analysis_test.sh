@@ -17,6 +17,8 @@ Flag       .EQU $0011
 Flag2      .EQU $0012
 Out1       .EQU $0013
 Out2       .EQU $0014
+ZP_StateA  .EQU $0015
+ZP_StateB  .EQU $0016
 
 ; Confirmed overrun: wrong-register init (LDX where LDY was needed).
 ConfirmedOverrun:
@@ -85,6 +87,32 @@ VblankWait:
     LDA #$00
     STA Out2
     RTS
+
+; Reload whose LD_ is a branch target: another flow JMPs in with a different A,
+; so ZP_StateA is not necessarily in A on entry -- the reload is not redundant
+; and must be omitted even though the CFG cannot see the absolute JMP edge.
+StoreThenLabeledReload:
+    STA ZP_StateA
+LabeledReloadTarget:
+    LDA ZP_StateA
+    JMP UseStateA
+JumpsIntoLabeledReload:
+    LDA #$07
+    JMP LabeledReloadTarget
+UseStateA:
+    STA Out1
+    RTS
+
+; Plain reload: the LD_ is unlabeled (reachable only by fall-through), so A still
+; holds the stored value -- a valid (lower-confidence) reload candidate.
+PlainReload:
+    LDA InputByte
+    STA ZP_StateB
+    LDA ZP_StateB
+    BEQ pr_done
+    STA Out2
+pr_done:
+    RTS
 ASM
 }
 
@@ -146,5 +174,23 @@ if not hw or not all(r["hw"] and r["ppustatus"] for r in hw):
 # A RAM software-flag bit-7 test must not be tagged hardware.
 if not sw or any(r["hw"] for r in sw):
     raise SystemExit(f"a software-flag bit-7 must not be tagged hardware: {sw}")
+PY
+}
+
+test_static_analysis_reload_skips_labeled_target() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_reload.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_reload.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+stores = [r["store"] for r in json.load(open(sys.argv[1]))["reload"]]
+# The reload whose LD_ is a labeled branch target (other flows JMP in) must be
+# omitted -- it is redundant only if A holds the value on *every* incoming path.
+if any("ZP_StateA" in s for s in stores):
+    raise SystemExit(f"reload at a labeled branch target must be omitted: {stores}")
+# The plain unlabeled reload (sole fall-through) must still be a candidate.
+if not any("ZP_StateB" in s for s in stores):
+    raise SystemExit(f"a sole-fall-through reload should be a candidate: {stores}")
 PY
 }

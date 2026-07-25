@@ -42,6 +42,18 @@ import tempfile
 
 LABEL_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*)\s*:')
 
+
+def is_label_record(r):
+    """True if a listing record is a label definition. The listing emits every
+    label -- global (`Foo:`), local (`@@foo:`), or anonymous (`-`/`+`) -- as its
+    own record with the (scope-qualified) name in ``directive_or_opcode``, a null
+    ``addressing_mode``, and empty ``bytes_hex``. Directives (`.ORG`, `.DB`) start
+    with `.` or carry bytes; EQUs emit no record. An instruction with no label
+    record in front of it is reachable only by fall-through."""
+    op = r.get('directive_or_opcode')
+    return (r.get('addressing_mode') is None and not r.get('bytes_hex')
+            and bool(op) and not op.startswith('.'))
+
 A, X, Y, Z, N, C, V = (1 << i for i in range(7))
 ALL = A | X | Y | Z | N | C | V
 NZ = Z | N
@@ -182,12 +194,15 @@ class Program:
     def __init__(self, records):
         ins = []
         cur_routine, cur_rstart, pending = None, 0, True
+        label_before = True  # something can enter here (routine/file start)
         for r in records:
             src = (r.get('source_text') or '').strip()
             m = LABEL_RE.match(src)
             if m:
                 cur_routine = m.group(1)  # nearest global label = routine entry
                 pending = True
+            if is_label_record(r):
+                label_before = True
             if r.get('addressing_mode') is None:
                 continue
             b = [int(x, 16) for x in r.get('bytes_hex') or []]
@@ -201,7 +216,12 @@ class Program:
                 'mode': r['addressing_mode'], 'off': r['output_offset_start'],
                 'nbytes': len(b), 'bytes': b, 'src': src,
                 'routine': cur_routine, 'rstart': cur_rstart,
+                # A labeled instruction may be a branch/JMP/JSR target whose
+                # incoming edges the CFG cannot fully resolve (absolute JMP/JSR
+                # are left unresolved), so it is not a sole fall-through entry.
+                'labeled': label_before,
             })
+            label_before = False
         self.ins = ins
         off_idx = {t['off']: i for i, t in enumerate(ins) if t['off'] is not None}
 
@@ -450,13 +470,17 @@ def analyze(prog):
                        'rewrite': f"CP{reg} {c['src'].split(None, 1)[-1]}"}
                 out['excluded' if a_live else 'xfer'].append(rec)
 
-        # redundant reload: ST_ x ; LD_ x (same location), contiguous, sole pred
+        # redundant reload: ST_ x ; LD_ x (same location), contiguous, and the
+        # reload is reached only by that fall-through. The reload must be
+        # *unlabeled*: a labeled LD_ may be a branch/JMP/JSR target reached with a
+        # different A (an absolute JMP into it is not in the CFG), so the reload is
+        # not redundant on those paths.
         pair = {'STA': 'LDA', 'STX': 'LDX', 'STY': 'LDY'}
         if op in pair:
             n = ins[i + 1] if i + 1 < len(ins) else None
             if (n and n['op'] == pair[op] and n['mode'] == mode
                     and n['bytes'][1:] == t['bytes'][1:]
-                    and prog.preds[i + 1] == [i]):
+                    and prog.preds[i + 1] == [i] and not n['labeled']):
                 out['reload'].append({'line': t['line'], 'store': t['src'],
                                       'reload': n['src']})
     return out
