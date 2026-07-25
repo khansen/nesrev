@@ -457,11 +457,13 @@ HEADER = """# Static Analysis -- {title}
 > liveness over a control-flow graph. Line numbers are a snapshot and drift as
 > passes land.
 >
-> **Correctness findings (A) are real defects** in the retail ROM. Categories
-> B--D are **mod-only**: the canonical disassembly must reassemble byte-for-byte,
-> so those rewrites may not be applied to `{asm}` -- they are for an article on
-> hand-written-6502 code and for future *relocatable mod* builds. See
-> *Methodology* for the excluded classes.
+> **Category A** flags correctness/overrun risks (a confirmed wrong-register bug
+> vs call-site review candidates); **B--D** are **mod-only**: the canonical
+> disassembly must reassemble byte-for-byte, so those rewrites may not be applied
+> to `{asm}` -- they are for an article on hand-written-6502 code and for future
+> *relocatable mod* builds. Method, confidence rules, and the excluded
+> false-positive classes are documented once in
+> `agent_playbook/TOOLING.md` (Static-Analysis Scanner), not repeated here.
 
 ## Summary
 
@@ -473,34 +475,6 @@ HEADER = """# Static Analysis -- {title}
 | D | Redundant reload after store | {reload} | mod-only; lower confidence |
 | - | Excluded (C lookalikes not provably safe) | {excluded} | not asserted |
 """
-
-METHOD = """
-## Methodology
-
-`scripts/static_analysis.py` assembles the source with xasm and reads the JSON
-listing -- no regex over source text. It builds a control-flow graph keyed by ROM
-**output offset** (unique across mapper banks, unlike CPU addresses), resolving
-relative branches by offset arithmetic, then runs backward liveness of registers
-{A,X,Y} and flags {Z,N,C,V}.
-
-- **Correctness (A):** a routine whose index register is *live-in* to a tight
-  fixed-count copy/fill loop -- read before the routine writes it -- so it inherits
-  the caller's value and overruns. Routines that initialise the index locally or
-  `JSR` a helper first are excluded.
-- **Dead (B):** every register/flag the instruction defines is dead on exit and it
-  has no side effect.
-- **Micro-optimizations (C) / reload (D):** admitted only when liveness proves the
-  affected value dead on **every** path; the rest go to *Excluded*.
-
-Excluded false-positive classes (handled structurally):
-- Reads of `$2002`/`$2007`/`$4015`/`$4016`/`$4017` -- side effects, never dead.
-- `.DB $2C` **opcode-skip** -- a non-ROM-contiguous fall-through is unresolved, so
-  alternate-entry `LD_ #imm` chains are not mistaken for dead.
-- Memory-operand `ASL`/`LSR`/`ROL`/`ROR` -- set flags from memory, not A.
-- Absolute `JMP`/`JSR` targets and `JSR`/`RTS` register effects are conservative
-  (full live-out), so reported items are a floor, not guesses.
-"""
-
 
 def fence(*lines):
     body = '\n'.join('  ' + s for s in lines)
@@ -611,7 +585,6 @@ def emit(out, title, asm, commit, date):
                 "may be a return value. Listed rather than asserted.\n\n")
         for r in excl:
             doc += f"- **L{r['line']}** ({r['kind']}) -- value live after the branch; required.\n"
-    doc += METHOD
     return doc
 
 
