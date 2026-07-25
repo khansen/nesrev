@@ -168,14 +168,18 @@ The generated doc groups findings into four sections plus an excluded list:
 
 - **A. Correctness / latent bugs** — an index register that is *live-in* to a
   tight fixed-count copy/fill loop, i.e. read before the routine ever writes it,
-  so it inherits the caller's value and overruns its buffer. A wrong-register
-  init (e.g. `LDX` where `LDY` was meant) is reported as a typo signal. This is
-  the only category that is a real defect rather than an optimization.
+  so it overruns its buffer if it is not the expected base. The scan proves only
+  that the index is unset *inside* the routine, so findings are split by
+  confidence: a **wrong-register init** (`LDX` where `LDY` was meant) is a
+  confirmed defect regardless of caller, while a no-typo case is downgraded to a
+  **call-contract review candidate** — the index is an input register, and the
+  tool checks the direct `JSR` callers to report whether they establish it.
 - **B. Dead instructions** — every register/flag the instruction defines is dead
   on exit and it has no side effect.
-- **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL`, a redundant
-  `CMP #$00` after a flag-setting op, and a register→A transfer before a compare
-  replaceable with `CPX`/`CPY`.
+- **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL` (only when
+  **both A and Z** are dead after the branch, since dropping the `AND` changes
+  Z), a redundant `CMP #$00` after a flag-setting op, and a register→A transfer
+  before a compare replaceable with `CPX`/`CPY`.
 - **D. Redundant reload after store** (lower confidence).
 - **Excluded** — category-C-shaped candidates whose affected value liveness could
   not prove dead on every path (e.g. live at an `RTS`, so possibly a return

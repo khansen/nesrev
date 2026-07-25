@@ -9,10 +9,14 @@ across mapper banks, unlike CPU addresses); backward liveness of the registers
 liveness on all paths.
 
 Reports (see the generated STATIC_ANALYSIS.md for prose):
-  A correctness : index register live-in to a fixed-count copy loop (uninitialised
-                  -> buffer overrun); the only category that is a real defect.
+  A correctness : index register live-in to a fixed-count copy loop (read before
+                  the routine writes it -> buffer overrun). Split by confidence: a
+                  wrong-register init is a confirmed defect; otherwise it is an
+                  input-register contract downgraded to a call-site review candidate
+                  (callers are checked to see whether they establish the index).
   B dead        : a def whose every output is dead-on-exit, no side effect.
-  C micro-opts  : AND #$80 -> BMI/BPL; redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
+  C micro-opts  : AND #$80 -> BMI/BPL (only when A and Z are both dead after the
+                  branch); redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
   D reload      : ST_ x ; LD_ x (same location) -> drop reload.
   - excluded    : C candidates whose value is not provably dead (e.g. live at RTS).
 
@@ -157,7 +161,8 @@ def sem(op, mode):
 def run_xasm_listing(asm_file):
     with tempfile.TemporaryDirectory() as tmp:
         listing = os.path.join(tmp, 'listing.json')
-        cmd = ['xasm', '--pure-binary', '-o', os.path.join(tmp, 'out.bin'),
+        xasm = os.environ.get('XASM_BIN', 'xasm')
+        cmd = [xasm, '--pure-binary', '-o', os.path.join(tmp, 'out.bin'),
                '--listing=' + listing, '--listing-format=json', asm_file]
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE,
@@ -293,6 +298,35 @@ class Program:
         return t['bytes'][1] if t['mode'] == 'immediate' and t['nbytes'] >= 2 else None
 
 
+def caller_index_setup(prog, routine, reg):
+    """Among direct `JSR <routine>` callers, how many establish index `reg` (via
+    LDX/TAX/TSX or LDY/TAY) in the straight-line block just before the call.
+    Returns (n_callers, n_setting). This separates a confirmed wrong-register bug
+    from an input-register contract the caller satisfies -- proving the index is
+    uninitialised *inside* a routine does not prove it is uninitialised at the
+    call site."""
+    setters = {'LDX', 'TAX', 'TSX'} if reg == 'X' else {'LDY', 'TAY'}
+    ins = prog.ins
+    n = nset = 0
+    for j, t in enumerate(ins):
+        if t['op'] != 'JSR':
+            continue
+        parts = t['src'].split()
+        if len(parts) < 2 or parts[1] != routine:
+            continue
+        n += 1
+        k, steps = j - 1, 0
+        while k >= 0 and steps < 8:
+            p = ins[k]
+            if p['op'] in setters:
+                nset += 1
+                break
+            if p['op'] in ('JMP', 'RTS', 'RTI') or prog.preds[k + 1] != [k]:
+                break  # left the caller's straight-line block
+            k, steps = k - 1, steps + 1
+    return n, nset
+
+
 def find_overruns(prog):
     """Correctness: an index register used by a tight fixed-count copy/fill loop
     (`ST_ base,R` + `IN R` + `CP R #const` + backward branch) that is never
@@ -338,8 +372,11 @@ def find_overruns(prog):
         seen.add(routine)
         other = ({'LDY', 'TAY'} if reg == 'X' else {'LDX', 'TAX'})
         typo = next((p['src'] for p in pre if p['op'] in other), None)
+        n_call, n_set = caller_index_setup(prog, routine, reg)
         found.append({'line': ins[rstart]['line'], 'routine': routine, 'reg': reg,
-                      'bound': cmp_ins['src'], 'store': store['src'], 'typo': typo})
+                      'bound': cmp_ins['src'], 'store': store['src'], 'typo': typo,
+                      'confidence': 'high' if typo else 'review',
+                      'n_callers': n_call, 'n_callers_set': n_set})
     return found
 
 
@@ -364,10 +401,13 @@ def analyze(prog):
             if (p is not None and ins[p]['op'] in A_PRODUCERS
                     and br and br['op'] in ('BNE', 'BEQ') and prog.preds[i + 1] == [i]):
                 rewrite = 'BMI' if br['op'] == 'BNE' else 'BPL'
-                a_live = bool(prog.live_out(i + 1) & A)
+                # The rewrite drops the AND, so it changes both A (masked vs whole
+                # byte) and Z (bit 7 vs whole byte); N is unchanged. It is safe
+                # only when neither A nor Z is live after the branch.
+                unsafe = bool(prog.live_out(i + 1) & (A | Z))
                 rec = {'line': t['line'], 'pred': ins[p]['src'], 'mask': t['src'],
                        'branch': br['src'], 'rewrite': rewrite, 'kind': 'bit-7 mask'}
-                out['excluded' if a_live else 'bit7'].append(rec)
+                out['excluded' if unsafe else 'bit7'].append(rec)
 
         # redundant compare-to-zero: producer ; CMP/CPX/CPY #$00 ; Z/N-branch
         if op in ('CMP', 'CPX', 'CPY') and prog.imm(t) == 0:
@@ -427,7 +467,7 @@ HEADER = """# Static Analysis -- {title}
 
 | # | Category | Count | Note |
 |---|----------|-------|------|
-| A | Correctness / latent bugs | {bugs} | overrun risks -- read closely |
+| A | Correctness / latent bugs | {bugs} | confirmed (typo) vs call-contract review |
 | B | Dead instructions | {dead} | mod-only; -1..3 bytes each |
 | C | Micro-optimizations (bit-7 / compare-0 / transfer) | {micro} | mod-only; -1..2 bytes each |
 | D | Redundant reload after store | {reload} | mod-only; lower confidence |
@@ -479,24 +519,44 @@ def emit(out, title, asm, commit, date):
                 "findings under the patterns scanned. The hand-written code here is "
                 "already tight.\n")
 
+    confirmed = [r for r in bugs if r.get('confidence') == 'high']
+    review = [r for r in bugs if r.get('confidence') != 'high']
     doc += "\n## A. Correctness / latent bugs\n\n"
     if not bugs:
         doc += "None detected.\n"
     else:
         doc += ("An index register is read by a fixed-count copy/fill loop before "
-                "the routine ever writes it, so it inherits the caller's value and "
-                "overruns its buffer if that value is not the expected base. A "
-                "**wrong-register init (typo signal)** makes it a near-certain bug; "
-                "otherwise it is a latent risk that depends on the caller/data "
-                "establishing a valid base. Unlike an optimization, this is a defect "
-                "in the shipped ROM -- though fixing it, like any change, is mod-only "
-                "against the parity-exact source.\n\n")
-        for r in bugs:
-            typo = (f" -- looks like a wrong-register init (`{r['typo']}` sets the "
-                    f"other register)") if r['typo'] else ""
+                "the routine ever writes it. The scan proves only that the index is "
+                "unset *inside* the routine; whether that is a bug depends on the "
+                "callers, so findings are split by confidence.\n\n")
+    if confirmed:
+        doc += ("### Confirmed (wrong-register init)\n\n"
+                "The routine initialises the *other* index register -- a typo -- so "
+                "this index is left unset regardless of the caller: a real defect in "
+                "the shipped ROM (its fix, like any change, is mod-only against the "
+                "parity-exact source).\n\n")
+        for r in confirmed:
             doc += (f"- **L{r['line']} `{r['routine']}`** -- index **{r['reg']}** is "
-                    f"never initialised in the routine but drives `{r['store']}` "
-                    f"(loop bound `{r['bound']}`){typo}.\n\n")
+                    f"never initialised (the routine's `{r['typo']}` sets the other "
+                    f"register) but drives `{r['store']}` (loop bound `{r['bound']}`).\n\n")
+    if review:
+        doc += ("### Call-contract review candidates\n\n"
+                "The index is read as an **input register**; the routine does not set "
+                "it and there is no wrong-register typo, so it is a defect only if a "
+                "caller fails to establish a valid base. Verify the call sites -- "
+                "**not asserted as a bug**.\n\n")
+        for r in review:
+            nc, ns = r.get('n_callers', 0), r.get('n_callers_set', 0)
+            if nc == 0:
+                cc = "no direct `JSR` caller found -- check every entry path"
+            elif ns == nc:
+                cc = (f"all {nc} direct caller(s) set **{r['reg']}** first (an input "
+                      f"contract; verify the value stays within the bound)")
+            else:
+                cc = (f"{nc} direct caller(s), only {ns} set **{r['reg']}** first -- "
+                      f"the rest may overrun")
+            doc += (f"- **L{r['line']} `{r['routine']}`** -- index **{r['reg']}** "
+                    f"drives `{r['store']}` (loop bound `{r['bound']}`); {cc}.\n\n")
 
     if dead:
         doc += "\n## B. Dead instructions\n\n"
