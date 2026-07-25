@@ -179,7 +179,10 @@ The generated doc groups findings into four sections plus an excluded list:
 - **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL` (only when
   **both A and Z** are dead after the branch, since dropping the `AND` changes
   Z), a redundant `CMP #$00` after a flag-setting op, and a register→A transfer
-  before a compare replaceable with `CPX`/`CPY`.
+  before a compare replaceable with `CPX`/`CPY`. The bit-7 case is a **trade-off,
+  not a free win**: `BMI`/`BPL` hard-codes bit 7 (it breaks if the flag's layout
+  moves) and drops the named mask, so it needs a comment naming the bit — the doc
+  flags that per site. `CMP #$00` and the transfer rewrite carry no such cost.
 - **D. Redundant reload after store** (lower confidence).
 - **Excluded** — category-C-shaped candidates whose affected value liveness could
   not prove dead on every path (e.g. live at an `RTS`, so possibly a return

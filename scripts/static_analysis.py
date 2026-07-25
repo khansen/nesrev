@@ -471,7 +471,7 @@ HEADER = """# Static Analysis -- {title}
 |---|----------|-------|------|
 | A | Correctness / latent bugs | {bugs} | confirmed (typo) vs call-contract review |
 | B | Dead instructions | {dead} | mod-only; -1..3 bytes each |
-| C | Micro-optimizations (bit-7 / compare-0 / transfer) | {micro} | mod-only; -1..2 bytes each |
+| C | Micro-optimizations (bit-7 / compare-0 / transfer) | {micro} | mod-only; bit-7 is a readability/layout trade-off |
 | D | Redundant reload after store | {reload} | mod-only; lower confidence |
 | - | Excluded (C lookalikes not provably safe) | {excluded} | not asserted |
 """
@@ -548,9 +548,17 @@ def emit(out, title, asm, commit, date):
         if out['bit7']:
             doc += ("### Bit-7 test via `AND #$80` (-> `BMI`/`BPL`)\n\n"
                     "The producing load already sets **N** from bit 7, so the "
-                    "`AND #$80` + `BNE`/`BEQ` collapses to one `BMI`/`BPL`.\n\n")
+                    "`AND #$80` + `BNE`/`BEQ` collapses to one `BMI`/`BPL` (-2 bytes, "
+                    "-2 cycles). **This is a trade-off, not a free win** -- weigh it "
+                    "per site:\n"
+                    "- It hard-codes bit 7. The `AND #<flag>` form tests whatever bit "
+                    "the named mask occupies and survives a layout change; `BMI`/`BPL` "
+                    "silently breaks if the flag moves off bit 7.\n"
+                    "- It drops the named mask, so the branch no longer documents "
+                    "*what* it tests -- the resulting `BMI`/`BPL` wants a comment "
+                    "naming the bit, which partly offsets the saving.\n\n")
             for r in out['bit7']:
-                doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}`:\n\n"
+                doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
                 doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
         if out['cmp0']:
             doc += ("\n### Redundant compare-to-zero\n\n"
