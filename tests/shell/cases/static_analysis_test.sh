@@ -187,6 +187,15 @@ CarryUsedControl:
     SBC InputByte
     STA Out1
     RTS
+
+; LSR variant: CLC before an accumulator LSR. LSR vacates bit 7, so ROR (bit 7)
+; was likely meant -- the reported bit must be 7, not 0.
+CarryClcLsr:
+    LDA Flag2
+    CLC
+    LSR
+    STA Out2
+    RTS
 ASM
 }
 
@@ -306,15 +315,19 @@ test_static_analysis_flags_shift_carry_confusion() {
   python3 - "${out}" <<'PY'
 import json, sys
 cs = json.load(open(sys.argv[1]))["carryshift"]
-setters = [(r["setter"], r["intended"]) for r in cs]
-# CLC before an accumulator ASL is a shift/carry confusion; ROL was likely meant.
-if ("CLC", "ROL") not in setters:
-    raise SystemExit(f"CLC before an accumulator ASL must be flagged (ROL): {setters}")
+# CLC before an accumulator ASL -> ROL, folding carry into bit 0.
+asl = [r for r in cs if r["setter"] == "CLC" and r["shift"] == "ASL"]
+if not asl or asl[0]["intended"] != "ROL" or asl[0]["bit"] != "0":
+    raise SystemExit(f"CLC before ASL must be flagged as ROL / bit 0: {cs}")
+# CLC before an accumulator LSR -> ROR, folding carry into bit 7 (not bit 0).
+lsr = [r for r in cs if r["setter"] == "CLC" and r["shift"] == "LSR"]
+if not lsr or lsr[0]["intended"] != "ROR" or lsr[0]["bit"] != "7":
+    raise SystemExit(f"CLC before LSR must be flagged as ROR / bit 7: {cs}")
 # A CMP whose carry a later ASL discards is flagged too.
-if not any(s == "CMP #6" for s, _ in setters):
-    raise SystemExit(f"a CMP whose carry a later ASL discards must be flagged: {setters}")
+if not any(r["setter"] == "CMP #6" for r in cs):
+    raise SystemExit(f"a CMP whose carry a later ASL discards must be flagged: {cs}")
 # A carry-set genuinely consumed (SEC before SBC) must NOT be flagged.
-if any(s == "SEC" for s, _ in setters):
+if any(r["setter"] == "SEC" for r in cs):
     raise SystemExit("a SEC whose carry SBC consumes must not be flagged")
 PY
 }

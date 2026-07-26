@@ -23,7 +23,8 @@ Reports (see the generated STATIC_ANALYSIS.md for prose):
   C micro-opts  : AND #$80 -> BMI/BPL (only when A and Z are both dead after the
                   branch); redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
   D reload      : ST_ x ; LD_ x (same location) -> drop reload.
-  - excluded    : C candidates whose value is not provably dead (e.g. live at RTS).
+  (Category-C candidates whose value is not provably dead are kept in the
+  `excluded` bucket for --json/debugging only; they are not in the doc report.)
 
 Conservative by construction (credibility over completeness): JSR and RTS/RTI use
 every register/flag; absolute JMP/JSR targets and non-ROM-contiguous fall-through
@@ -479,7 +480,9 @@ def analyze(prog):
                     # carry into bit 0 (that is ROL/ROR). Promote out of "dead".
                     out['carryshift'].append({
                         'line': t['line'], 'setter': t['src'], 'shift': shift['src'],
-                        'intended': {'ASL': 'ROL', 'LSR': 'ROR'}[shift['op']]})
+                        'intended': {'ASL': 'ROL', 'LSR': 'ROR'}[shift['op']],
+                        # ASL/ROL vacate bit 0; LSR/ROR vacate bit 7.
+                        'bit': '0' if shift['op'] == 'ASL' else '7'})
                 else:
                     out['dead'].append({'i': i, 'line': t['line'], 'op': op,
                                         'mode': mode, 'src': t['src']})
@@ -575,7 +578,6 @@ HEADER = """# Static Analysis -- {title}
 | B | Dead instructions | {dead} | mod-only; -1..3 bytes each |
 | C | Micro-optimizations (bit-7 / compare-0 / transfer) | {micro} | mod-only; bit-7 is a readability/layout trade-off |
 | D | Redundant reload after store | {reload} | mod-only; lower confidence |
-| - | Excluded (C lookalikes not provably safe) | {excluded} | not asserted |
 """
 
 def fence(*lines):
@@ -585,15 +587,14 @@ def fence(*lines):
 
 def emit(out, title, asm, commit, date):
     bugs, wrongreg, carryshift = out['bugs'], out['wrongreg'], out['carryshift']
-    dead, reload_, excl = out['dead'], out['reload'], out['excluded']
+    dead, reload_ = out['dead'], out['reload']
     micro = len(out['bit7']) + len(out['cmp0']) + len(out['xfer'])
     doc = HEADER.format(title=title, asm=asm, commit=commit, date=date,
                         bugs=len(bugs) + len(wrongreg) + len(carryshift),
-                        dead=len(dead), micro=micro,
-                        reload=len(reload_), excluded=len(excl))
+                        dead=len(dead), micro=micro, reload=len(reload_))
     total = (len(bugs) + len(wrongreg) + len(carryshift) + len(dead) + micro
              + len(reload_))
-    if total == 0 and not excl:
+    if total == 0:
         doc += ("\nNo correctness, dead-instruction, optimization, or redundancy "
                 "findings under the patterns scanned. The hand-written code here is "
                 "already tight.\n")
@@ -606,14 +607,15 @@ def emit(out, title, asm, commit, date):
     if carryshift:
         doc += ("### Suspected shift/carry confusion\n\n"
                 "A dead carry-setter (`CLC`/`SEC`/`CMP`) is discarded by a following "
-                "accumulator `ASL`/`LSR`, which shifts a **0** into bit 0 -- it does "
-                "*not* fold the carry in. This is the fingerprint of thinking the "
-                "shift is `ROL`/`ROR`: harmless where the carry was never needed, but "
-                "a real bug where it was (the carry-dependent path is dead).\n\n")
+                "accumulator `ASL`/`LSR`, which shifts a **0** into the vacated bit "
+                "(bit 0 for `ASL`, bit 7 for `LSR`) -- it does *not* fold the carry "
+                "in. This is the fingerprint of thinking the shift is `ROL`/`ROR`: "
+                "harmless where the carry was never needed, but a real bug where it "
+                "was (the carry-dependent path is dead).\n\n")
         for r in carryshift:
             doc += (f"- **L{r['line']}** -- `{r['setter']}` sets carry that "
                     f"`{r['shift']}` discards; if the shift was meant to fold carry "
-                    f"into bit 0 it should be `{r['intended']}`.\n\n")
+                    f"into bit {r['bit']} it should be `{r['intended']}`.\n\n")
     if wrongreg:
         doc += ("### Suspected wrong-register load/store\n\n"
                 "A dead immediate load `LD? #imm` sits immediately before a store "
@@ -725,15 +727,6 @@ def emit(out, title, asm, commit, date):
         for r in reload_:
             doc += f"- **L{r['line']}** -- reload:\n\n"
             doc += fence(r['store'], r['reload']) + "\n"
-
-    if excl:
-        doc += "\n## Excluded -- C lookalikes not provably safe\n\n"
-        doc += ("Structurally these match category C, but liveness could not prove "
-                "the masked/transferred value dead on every path: it is reused "
-                "downstream, or is live at a routine boundary (`RTS`/`JSR`) where it "
-                "may be a return value. Listed rather than asserted.\n\n")
-        for r in excl:
-            doc += f"- **L{r['line']}** ({r['kind']}) -- value live after the branch; required.\n"
     return doc
 
 

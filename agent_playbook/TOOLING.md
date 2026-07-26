@@ -164,7 +164,7 @@ mapper banks), resolves relative branches by offset arithmetic, and runs backwar
 liveness of registers {A,X,Y} and flags {Z,N,C,V}. Every finding is verified
 against liveness on every path.
 
-The generated doc groups findings into four sections plus an excluded list:
+The generated doc groups findings into four sections:
 
 - **A. Correctness / latent bugs** — two wrong-register symptoms.
   (1) *Uninitialised-index overrun*: an index register *live-in* to a tight
@@ -203,9 +203,11 @@ The generated doc groups findings into four sections plus an excluded list:
   *store* may be entered with N/Z set by another instruction (e.g. via `BNE`),
   making the reload's `LD_` needed to refresh the flags. Labels come from the
   listing (their own records), so this is checked structurally.
-- **Excluded** — category-C-shaped candidates whose affected value liveness could
-  not prove dead on every path (e.g. live at an `RTS`, so possibly a return
-  value); listed rather than asserted.
+
+Category-C candidates whose affected value liveness could not prove dead on every
+path (e.g. live at an `RTS`, so possibly a return value) are simply not reported —
+they were report noise. They remain in the `--json` output under `excluded` for
+tuning/debugging the liveness only.
 
 Conservative by construction, so reported items are a floor rather than guesses:
 `JSR`/`RTS` use all registers and flags, and absolute `JMP`/`JSR` targets plus
