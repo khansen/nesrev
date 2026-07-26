@@ -6,12 +6,12 @@ acceptance tests. Implement improvements independently; each must pass the
 validation corpus before it is relied on.
 
 Addresses/bytes cited below are parity-invariant, so they stay valid across
-relabeling passes. Metroid cases are validated against the `projects` branch;
-the flat-PRG cases (clu_clu_land, tennis, pinball) likewise.
+relabeling passes. Both the banked (MMC1) and flat-PRG (NROM) cases are
+validated against assembled reference ROMs.
 
 ## Status
 
-Implemented in `scripts/embedded_pointer_audit.py` (this branch): improvements
+Implemented in `scripts/embedded_pointer_audit.py`: improvements
 **1, 2, 3, 4, 5**. Improvement **6** (fixed-stride record mode) is deferred as
 a stretch. All logic is generic — parameters are derived at runtime from the
 assembled listing (`.ORG` spans → windows) and the asm text (`.EQU` aliases,
@@ -49,11 +49,11 @@ For NROM-128 (16 KB) the audit computes `prg_bank_count == 1` → `fixed_bank ==
 → this branch accepts the entire 32 KB CPU space, **including the `$8000-$BFFF`
 hardware mirror where no real data lives.**
 
-**Evidence.** `clu_clu_land` is `.ORG $C000`, 16 KB. Its ROM occupies
-`$C000-$FFFF` only; `$8000-$BFFF` is an unused mirror. The audit reports **38
-strong runs**, e.g. `HiddenGoldPatternPpuStream*` with targets like
-`$8125-$C2FA` — spans wider than 16 KB, impossible for a real table, made of
-bytes that decode into the mirror.
+**Evidence.** A representative flat-PRG (NROM-128) project is `.ORG $C000`,
+16 KB. Its ROM occupies `$C000-$FFFF` only; `$8000-$BFFF` is an unused mirror.
+The audit reports **38 strong runs** — e.g. a wide PPU-stream data blob with
+targets like `$8125-$C2FA` — spans wider than 16 KB, impossible for a real
+table, made of bytes that decode into the mirror.
 
 **Change.** Derive the valid target window(s) from the **assembled `.ORG`
 spans** (the CPU ranges the ROM actually occupies), not a hardcoded banked
@@ -62,10 +62,10 @@ assumption. Apply the window to **both** the monotonic-scan acceptance test
 - NROM-128 assembled at `$C000` → `{$C000-$FFFF}`
 - NROM-128 assembled at `$8000` → `{$8000-$BFFF}`
 - NROM-256 (32 KB) → `{$8000-$FFFF}`
-- banked (Metroid, MMC1) → per-bank `{$8000-$BFFF}` + fixed `{$C000-$FFFF}`
+- banked (MMC1) → per-bank `{$8000-$BFFF}` + fixed `{$C000-$FFFF}`
 
-**Acceptance.** `clu_clu_land` strong count drops 38 → ~0. Metroid banked
-detection is unchanged (regression guard).
+**Acceptance.** The flat-PRG project's strong count drops 38 → ~0. Banked
+(MMC1) detection is unchanged (regression guard).
 
 ### 2. Non-monotonic struct-of-pointers detection (highest priority — fixes false negatives)
 
@@ -73,8 +73,8 @@ detection is unchanged (regression guard).
 **struct** (several pointers to *different* tables, not a sorted array) is
 skipped.
 
-**Evidence.** `ActiveBankRoomLoadDefaultStateBlockBank1` is a 7-pointer struct:
-`.DW RoomObjectStreamPtrTableBank1` then six raw pairs `$A372, $AEF0, $9DE0,
+**Evidence.** `BankedStateBlockBank1` is a 7-pointer struct:
+`.DW SubTablePtrTableBank1` then six raw pairs `$A372, $AEF0, $9DE0,
 $9EE0, $9F0E, $9D6A` — **not monotonic**, but **6/6 resolve onto/just past real
 labels**. Only entry 0 was relocated; entries 1-6 are raw. The family repeats
 across banks 1-5 (30 raw pointers total). The monotonic scan misses all of it.
@@ -84,7 +84,7 @@ across banks 1-5 (30 raw pointers total). The monotonic scan misses all of it.
 of a known label, **regardless of ordering**. Report as a candidate; confirm via
 improvement 3.
 
-**Acceptance.** The raw form of `ActiveBankRoomLoadDefaultStateBlockBankN` is
+**Acceptance.** The raw form of `BankedStateBlockBankN` is
 reported as a candidate. Guardrails in the corpus stay unconfirmed.
 
 ### 3. ZP-copy + indirect-deref consumer proof
@@ -93,9 +93,9 @@ reported as a candidate. Guardrails in the corpus stay unconfirmed.
 `LDA table+1,Y` → `…PtrLo`/`…PtrHi` shape. A struct copied wholesale into a ZP
 region and dereferenced word-by-word is not recognized.
 
-**Evidence.** `CopyDefaultRoomLoadState` block-copies the room-load struct into
-ZP `$3B-$48`; the game then dereferences `[ZP_RoomLoadDefaultStateBase],Y`,
-`[ZP_RoomScreenObjectDefTablePtrLo],Y` ($3D), `[ZP_EnemyMetaspriteFrameDataPtrTableLo],Y`
+**Evidence.** `CopyStateBlockToZp` block-copies the state block into
+ZP `$3B-$48`; the consumer then dereferences `[ZP_StateBlockBase],Y`,
+`[ZP_SubTableAPtrLo],Y` ($3D), `[ZP_SubTableBPtrLo],Y`
 ($41), etc. — one dereference per struct word.
 
 **Change.** Add a second consumer-proof form: a raw block whose bytes are
@@ -103,7 +103,7 @@ copied into a contiguous ZP region, where words of that ZP region are
 dereferenced as `[ptr],Y`. Confirm the candidate from improvement 2 when this
 holds.
 
-**Acceptance.** `ActiveBankRoomLoadDefaultStateBlockBankN` (raw form) is
+**Acceptance.** `BankedStateBlockBankN` (raw form) is
 **confirmed**, not merely a candidate.
 
 ### 4. Follow `.EQU` aliases in `pointer_store_proof`
@@ -112,9 +112,9 @@ holds.
 label. When the consumer references the table via an `.EQU` alias, the names do
 not match and confirmation fails even for a genuine table.
 
-**Evidence.** The ActiveBank metasprite subtable is anchored by
-`ActiveBankObjectMetaspriteDataPtrTable .EQU ActiveBankObjectMetaspriteDataPtrTableBank1`;
-the consumer does `LDA ActiveBankObjectMetaspriteDataPtrTable,X`. With the span
+**Evidence.** The banked subtable is anchored by
+`BankedSubTablePtr .EQU BankedSubTablePtrBank1`;
+the consumer does `LDA BankedSubTablePtr,X`. With the span
 owner `…Bank1`, `pointer_store_proof` searches for `LDA …Bank1` and finds
 nothing. Verified: reverting that subtable to raw yields a strong run that is
 **not** confirmed, solely because of the alias-name mismatch.
@@ -123,7 +123,7 @@ nothing. Verified: reverting that subtable to raw yields a strong run that is
 accept a consumer `LDA <alias>` when `<alias>` resolves to the owner label or
 its address.
 
-**Acceptance.** Reverting `ActiveBankObjectMetaspriteDataPtrTableBank1` to raw →
+**Acceptance.** Reverting `BankedSubTablePtrBank1` to raw →
 confirmed (combined with improvement 5).
 
 ### 5. Within-table displacement matching
@@ -132,7 +132,7 @@ confirmed (combined with improvement 5).
 `label_cpu[owner] + displacement`. Composite / shared-heavy tables fragment, so
 the detected run starts mid-table and the equality check rejects it.
 
-**Evidence.** For the ActiveBank subtable, xasm reports `paired_byte_reads` at
+**Evidence.** For the banked subtable, xasm reports `paired_byte_reads` at
 displacement 0 (`$860B`), but the fragmented monotonic run starts at `$866E`;
 `anchor + 0 != $866E` rejects it.
 
@@ -140,7 +140,7 @@ displacement 0 (`$860B`), but the fragmented monotonic run starts at `$866E`;
 anchor + table_extent]` (extent from `data_extent_assertions.csv` or the span
 length), not only at the exact anchor.
 
-**Acceptance.** ActiveBank subtable confirmed even with a fragmented run.
+**Acceptance.** banked subtable confirmed even with a fragmented run.
 
 ### 6. Fixed-stride record pointer-field mode (stretch)
 
@@ -163,17 +163,17 @@ flags the table. Lower priority; may ship after 1-5.
 ## Validation corpus (teeth tests — run every version against these)
 
 Must be **confirmed** (raw form):
-- `EnemyMovementScriptPtrTableBank1-5` — regression guard, must keep working.
-- `ActiveBankRoomLoadDefaultStateBlockBankN` — new (improvements 2+3).
-- `ActiveBankObjectMetaspriteDataPtrTableBank1` reverted to raw — new (4+5).
+- `ScriptPtrTableBank1-5` — regression guard, must keep working.
+- `BankedStateBlockBankN` — new (improvements 2+3).
+- `BankedSubTablePtrBank1` reverted to raw — new (4+5).
 - `PpuTransferDescriptorTable` src reverted to raw — new (6, stretch).
 
 Must **not** be confirmed (false-positive guardrails):
 - `TitleStartupNametablePacket` (nametable data, immediate copy-source)
 - `MetaspriteAnimationOffsetTable` (scalar deltas via `ADC`)
-- `clu_clu_land HiddenGoldPatternPpuStream*` (PPU stream data)
-- `tennis ContactAnimCoordDeltaStream*` (coordinate deltas)
-- `pinball Trig_SinTable*` (sine table — inherently monotonic)
+- a wide PPU-stream data blob (immediate copy-source, not pointers)
+- a coordinate-delta stream (signed deltas via `ADC`, not pointers)
+- a sine/trig table (inherently monotonic, not pointers)
 
 Method: prove teeth against a known-bad state (revert a converted table to raw
 in a scratch copy, confirm the audit fails), and prove precision on the

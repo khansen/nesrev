@@ -202,7 +202,7 @@ corresponding load instead.
 
 Left unprocessed, this idiom causes three intake-time problems:
 
-- **Spurious cross-procedure references.** If the BIT operand happens to resolve to a labeled address elsewhere in the ROM, NESrev emits `BIT InitPlayer1ObjectLoop` or `BIT BonusBoxInitialStateTable-3` — references that read as semantically meaningful but are pure byte-coincidence (the operand bytes were the next entry's `LDA #imm` opcode pair, and the address happens to have low byte `$A9`).
+- **Spurious cross-procedure references.** If the BIT operand happens to resolve to a labeled address elsewhere in the ROM, NESrev emits `BIT InitPlayer1ObjectLoop` or `BIT SomeStateTable-3` — references that read as semantically meaningful but are pure byte-coincidence (the operand bytes were the next entry's `LDA #imm` opcode pair, and the address happens to have low byte `$A9`).
 - **Cryptic callsite arithmetic.** Alternate entries have no symbol, so callers reach them via `JSR Label+3` / `JSR Label+6` / `JSR Label+9` / `JSR OtherLabel-14` byte-offset arithmetic. Renaming the parent procedure does not update these offsets, and a reader must count bytes to locate the actual entry.
 - **Cryptic relative branches.** When the dispatch into a BIT-overlay chain uses `BMI $+NN` / `BPL $+NN` PC-relative branches, the byte offsets are correct but opaque — changing the chain shape silently breaks every branch.
 
@@ -215,8 +215,8 @@ instruction. The emitted bytes are byte-identical: `BIT $XXyy` assembles
 to `2C yy XX`, and `.DB $2C` + the load `(yy XX)` produces the same
 three bytes. Binary parity is preserved.
 
-Worked example: pinball's three-entry APU-note-table-dispatch chain
-selects the APU channel register offset (Pulse 1 = `$00`, Pulse 2 = `$04`,
+Worked example: a three-entry APU channel-dispatch chain
+seeds the index register with the channel register offset (Pulse 1 = `$00`, Pulse 2 = `$04`,
 Triangle = `$08`, indexing `APU_PULSE1_TIMER_LO,X` and adjacent channel
 registers) for the shared note-frequency code that follows.
 
@@ -224,7 +224,7 @@ Before cleanup (what NESrev would emit verbatim — entries 2 and 3 are
 hidden inside `BIT` operands):
 
 ```asm
-APU_NoteTable_Dispatch_P1:
+SelectApuChannelPulse1:
     LDX #$00
     BIT $04A2          ; offset 3 -> LDX #$04 (Pulse 2)
     BIT $08A2          ; offset 6 -> LDX #$08 (Triangle)
@@ -235,23 +235,22 @@ APU_NoteTable_Dispatch_P1:
 After cleanup:
 
 ```asm
-APU_NoteTable_Dispatch_P1:
+SelectApuChannelPulse1:
     LDX #$00
     .DB $2C
-APU_NoteTable_Dispatch_P2:
+SelectApuChannelPulse2:
     LDX #$04
     .DB $2C
-APU_NoteTable_Dispatch_Tri:
+SelectApuChannelTriangle:
     LDX #$08
     TAY
     ; ... shared note-frequency code
 ```
 
-Callsites change from `JSR APU_NoteTable_Dispatch_P1+3` (Pulse 2 entry)
-to `JSR APU_NoteTable_Dispatch_P2`, and `JMP APU_NoteTable_Dispatch_P1+6`
-to `JMP APU_NoteTable_Dispatch_Tri`. See
-`projects/pinball/asm/pinball.asm` (`APU_NoteTable_Dispatch_P1` /
-`APU_NoteTable_Dispatch_P2` / `APU_NoteTable_Dispatch_Tri`).
+Callsites change from `JSR SelectApuChannelPulse1+3` (Pulse 2 entry)
+to `JSR SelectApuChannelPulse2`, and `JMP SelectApuChannelPulse1+6`
+to `JMP SelectApuChannelTriangle`. This shape is common in shared audio
+note-table dispatch and other per-channel fall-through selectors.
 
 ### Pattern detection at intake
 
