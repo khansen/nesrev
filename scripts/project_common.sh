@@ -45,10 +45,10 @@ load_project_conf() {
   # debt has a reviewed baseline; legacy projects default off to avoid noisy
   # monotonic data runs becoming accidental hard gates.
   EMBEDDED_POINTER_AUDIT_REQUIRED="0"
-  # Base-readability gate opt-in. Projects enable this after a literal-base pass
-  # drives the count to zero; verify then hard-fails if hex #$00/#$01 reappear in
-  # index-register / unit-step quantity contexts. Legacy projects default off so
-  # their existing base-by-habit debt is not a retroactive hard gate.
+  # Base-readability gate opt-in (legacy projects default off). New scaffolds
+  # set BASE_READABILITY_REQUIRED="1" so index/count zero-one immediates and
+  # unit-step arithmetic use decimal notation from the start. Legacy projects
+  # default off so existing base-by-habit debt is not a retroactive hard gate.
   BASE_READABILITY_REQUIRED="0"
   # Scorecard lifecycle strictness opt-in. New projects use a clean ordered
   # scorecard and enable this; legacy projects may have imported or partial
