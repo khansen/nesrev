@@ -13,8 +13,9 @@ Reports (see the generated STATIC_ANALYSIS.md for prose):
                   register live-in to a fixed-count copy loop (read before the
                   routine writes it -> overrun); split by confidence -- a
                   wrong-register init is a confirmed defect, else a call-site review
-                  candidate. (2) A dead LDX/LDY #imm right before a STA -- likely
-                  LDA #imm was meant, so the store writes the stale A. (3) A dead
+                  candidate. (2) A dead LD? #imm right before a ST? that reads a
+                  different register -- a load/store register mismatch, so #imm is
+                  discarded and a stale register is stored. (3) A dead
                   carry-setter (CLC/SEC/CMP) discarded by a following accumulator
                   ASL/LSR -- the shift folds 0, not carry, so ROL/ROR was likely
                   meant (a real bug where the carry mattered).
@@ -75,6 +76,8 @@ DEAD_CANDIDATES = {
     'CMP', 'CPX', 'CPY', 'BIT', 'ASL', 'LSR', 'ROL', 'ROR', 'CLC', 'SEC', 'CLV',
 }
 CARRY_CONSUMERS = {'BCC', 'BCS', 'ROL', 'ROR', 'ADC', 'SBC'}  # read the carry flag
+LOAD_REG = {'LDA': 'A', 'LDX': 'X', 'LDY': 'Y'}
+STORE_REG = {'STA': 'A', 'STX': 'X', 'STY': 'Y'}
 
 
 def sem(op, mode):
@@ -459,12 +462,17 @@ def analyze(prog):
                 nxt = ins[i + 1] if i + 1 < len(ins) else None
                 shift = (carry_discarded_by_shift(prog, i)
                          if op in ('CLC', 'SEC', 'CMP', 'CPX', 'CPY') else None)
-                if (op in ('LDX', 'LDY') and mode == 'immediate' and nxt
-                        and nxt['op'] == 'STA'
-                        and nxt['off'] == t['off'] + t['nbytes']):
+                if (op in LOAD_REG and mode == 'immediate' and nxt
+                        and nxt['op'] in STORE_REG
+                        and nxt['off'] == t['off'] + t['nbytes']
+                        and LOAD_REG[op] != STORE_REG[nxt['op']]):
+                    r1, r2 = LOAD_REG[op], STORE_REG[nxt['op']]
+                    imm = t['src'].split(None, 1)[1]
+                    operand = (nxt['src'].split(None, 1) + [''])[1]
                     out['wrongreg'].append({
                         'line': t['line'], 'dead': t['src'], 'store': nxt['src'],
-                        'intended': 'LDA ' + t['src'].split(None, 1)[1]})
+                        'r1': r1, 'r2': r2, 'fix_load': f'LD{r2} {imm}',
+                        'fix_store': f'ST{r1} {operand}'.rstrip()})
                 elif shift is not None:
                     # The dead carry-setter feeds an accumulator ASL/LSR that
                     # discards the carry: the author likely thought the shift folds
@@ -607,15 +615,18 @@ def emit(out, title, asm, commit, date):
                     f"`{r['shift']}` discards; if the shift was meant to fold carry "
                     f"into bit 0 it should be `{r['intended']}`.\n\n")
     if wrongreg:
-        doc += ("### Suspected wrong-register load\n\n"
-                "A dead `LDX`/`LDY #imm` sits immediately before a `STA` -- the "
-                "fingerprint of a wrong-register typo: `LDA #imm` was likely intended, "
-                "so the store writes the **stale A**, not `#imm`. Verify intent (if "
-                "storing the current A is deliberate, the dead load is merely cruft).\n\n")
+        doc += ("### Suspected wrong-register load/store\n\n"
+                "A dead immediate load `LD? #imm` sits immediately before a store "
+                "`ST?` that reads a **different register** -- the fingerprint of a "
+                "register mismatch: the immediate lands in one register but the store "
+                "writes another, so `#imm` is discarded and a stale register is "
+                "stored. Verify intent (if storing the current register is deliberate, "
+                "the dead load is merely cruft).\n\n")
         for r in wrongreg:
             doc += (f"- **L{r['line']}** -- `{r['dead']}` is dead and precedes "
-                    f"`{r['store']}`; likely a typo for `{r['intended']}` (the store "
-                    f"writes the stale A).\n\n")
+                    f"`{r['store']}`; the immediate goes into **{r['r1']}** but the "
+                    f"store reads **{r['r2']}**, so it writes a stale {r['r2']} -- "
+                    f"likely `{r['fix_load']}` or `{r['fix_store']}` was meant.\n\n")
     if bugs:
         doc += ("**Uninitialised-index overrun.** An index register is read by a "
                 "fixed-count copy/fill loop before the routine ever writes it. The "

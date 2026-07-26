@@ -20,6 +20,7 @@ Out2       .EQU $0014
 ZP_StateA  .EQU $0015
 ZP_StateB  .EQU $0016
 ZP_State2  .EQU $0017
+ZP_State3  .EQU $0018
 
 ; Confirmed overrun: wrong-register init (LDX where LDY was needed).
 ConfirmedOverrun:
@@ -141,7 +142,18 @@ WrongRegStore:
     STY ZP_StateB
     RTS
 
-; Control: a dead LDY #imm that is NOT immediately before a STA stays a plain
+; Mirror case: a dead LDA #imm before a STX -- the immediate goes into A but the
+; store reads X, so #imm is discarded (either LDX #imm or STA was meant). A is
+; redefined below so the LDA #$09 is genuinely dead.
+WrongRegStore2:
+    LDX InputByte
+    LDA #$09
+    STX ZP_State3
+    LDA #0
+    STA Out1
+    RTS
+
+; Control: a dead LDY #imm that is NOT immediately before a store stays a plain
 ; dead instruction, not a wrong-register finding.
 DeadLdyControl:
     LDY #$05
@@ -269,14 +281,18 @@ test_static_analysis_flags_wrong_register_store() {
   python3 - "${out}" <<'PY'
 import json, sys
 d = json.load(open(sys.argv[1]))
-# A dead LDY #0 immediately before a STA is promoted to a correctness finding
-# proposing the intended LDA #0.
-hit = [r for r in d["wrongreg"] if r["dead"] == "LDY #0"]
-if not hit or hit[0]["intended"] != "LDA #0":
-    raise SystemExit(f"dead LDY #0 before a STA must be a wrong-register load: {d['wrongreg']}")
-# A dead LDY not before a STA stays a plain dead instruction.
-if any(r["dead"] == "LDY #$05" for r in d["wrongreg"]):
-    raise SystemExit("a dead LDY not before a STA must not be a wrong-register load")
+wr = d["wrongreg"]
+# Dead LDY #0 before STA: immediate into Y, store reads A -> LDA #0 (or STY) meant.
+ldy = [r for r in wr if r["dead"] == "LDY #0"]
+if not ldy or ldy[0]["r1"] != "Y" or ldy[0]["r2"] != "A" or ldy[0]["fix_load"] != "LDA #0":
+    raise SystemExit(f"dead LDY #0 before a STA must be a wrong-register finding: {wr}")
+# Mirror: dead LDA #imm before STX: immediate into A, store reads X.
+lda = [r for r in wr if r["dead"] == "LDA #$09"]
+if not lda or lda[0]["r1"] != "A" or lda[0]["r2"] != "X" or lda[0]["fix_load"] != "LDX #$09":
+    raise SystemExit(f"dead LDA #imm before a STX must be a wrong-register finding: {wr}")
+# A dead LDY not before a store stays a plain dead instruction.
+if any(r["dead"] == "LDY #$05" for r in wr):
+    raise SystemExit("a dead LDY not before a store must not be a wrong-register finding")
 if "LDY #$05" not in [r["src"] for r in d["dead"]]:
     raise SystemExit(f"the control dead LDY should remain in dead: {[r['src'] for r in d['dead']]}")
 PY

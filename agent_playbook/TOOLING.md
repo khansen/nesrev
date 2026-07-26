@@ -174,10 +174,13 @@ The generated doc groups findings into four sections plus an excluded list:
   meant) is a confirmed defect regardless of caller, while a no-typo case is a
   **call-contract review candidate** — the index is an input register, and the
   tool checks the direct `JSR` callers to report whether they establish it.
-  (2) *Suspected wrong-register load*: a **dead `LDX`/`LDY #imm` immediately
-  before a `STA`** is the fingerprint of an `LDA #imm` typo — the store writes the
-  stale A, not `#imm` (e.g. a leftover sprite-hide Y of `$F4` reaching `PPUSCROLL`
-  instead of `0`).
+  (2) *Suspected wrong-register load/store*: a **dead `LD? #imm` immediately
+  before a `ST?` that reads a different register** is the fingerprint of a
+  load/store register mismatch — the immediate lands in one register but the store
+  writes another, so `#imm` is discarded and a stale register is stored (e.g. a
+  leftover `$F4` reaching `PPUSCROLL` because `LDY #0` sat before `STA`, or a
+  `LDA #imm` sitting before an `STX`). Fix is either `LD<store-reg> #imm` or
+  `ST<load-reg>`.
   (3) *Suspected shift/carry confusion*: a **dead carry-setter (`CLC`/`SEC`/`CMP`)
   discarded by a following accumulator `ASL`/`LSR`** — the shift folds a `0` into
   the vacated bit, not the carry, so `ROL`/`ROR` was likely meant (harmless where
