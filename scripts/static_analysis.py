@@ -413,7 +413,8 @@ def find_overruns(prog):
         found.append({'line': ins[rstart]['line'], 'routine': routine, 'reg': reg,
                       'bound': cmp_ins['src'], 'store': store['src'], 'typo': typo,
                       'confidence': 'high' if typo else 'review',
-                      'n_callers': n_call, 'n_callers_set': n_set})
+                      'n_callers': n_call, 'n_callers_set': n_set,
+                      'annotated': has_inline_comment(store['src'], cmp_ins['src'], typo)})
     return found
 
 
@@ -472,6 +473,14 @@ def reload_producer_jsr(prog, sta_i):
     return None
 
 
+def has_inline_comment(*srcs):
+    """A finding counts as *already annotated* when any instruction source line it
+    displays carries an inline comment (`;`) -- i.e. someone has already documented
+    the redundancy/bug/trade-off at the site. Un-annotated findings are the ones a
+    source-annotation sweep still has to reach."""
+    return any(';' in (s or '') for s in srcs)
+
+
 def analyze(prog):
     ins = prog.ins
     out = {k: [] for k in
@@ -501,7 +510,8 @@ def analyze(prog):
                     out['wrongreg'].append({
                         'line': t['line'], 'dead': t['src'], 'store': nxt['src'],
                         'r1': r1, 'r2': r2, 'fix_load': f'LD{r2} {imm}',
-                        'fix_store': f'ST{r1} {operand}'.rstrip()})
+                        'fix_store': f'ST{r1} {operand}'.rstrip(),
+                        'annotated': has_inline_comment(t['src'], nxt['src'])})
                 elif shift is not None:
                     # The dead carry-setter feeds an accumulator ASL/LSR that
                     # discards the carry: the author likely thought the shift folds
@@ -510,10 +520,12 @@ def analyze(prog):
                         'line': t['line'], 'setter': t['src'], 'shift': shift['src'],
                         'intended': {'ASL': 'ROL', 'LSR': 'ROR'}[shift['op']],
                         # ASL/ROL vacate bit 0; LSR/ROR vacate bit 7.
-                        'bit': '0' if shift['op'] == 'ASL' else '7'})
+                        'bit': '0' if shift['op'] == 'ASL' else '7',
+                        'annotated': has_inline_comment(t['src'], shift['src'])})
                 else:
                     out['dead'].append({'i': i, 'line': t['line'], 'op': op,
-                                        'mode': mode, 'src': t['src']})
+                                        'mode': mode, 'src': t['src'],
+                                        'annotated': has_inline_comment(t['src'])})
 
         # bit-7 test: producer ; AND #$80 ; BNE/BEQ  -> BMI/BPL
         if op == 'AND' and prog.imm(t) == 0x80:
@@ -532,7 +544,8 @@ def analyze(prog):
                 prod_addr = prog.operand_addr(ins[p])
                 rec = {'line': t['line'], 'pred': ins[p]['src'], 'mask': t['src'],
                        'branch': br['src'], 'rewrite': rewrite, 'kind': 'bit-7 mask',
-                       'hw': prod_addr in HW, 'ppustatus': prod_addr == 0x2002}
+                       'hw': prod_addr in HW, 'ppustatus': prod_addr == 0x2002,
+                       'annotated': has_inline_comment(ins[p]['src'], t['src'], br['src'])}
                 out['excluded' if unsafe else 'bit7'].append(rec)
 
         # redundant compare-to-zero: producer ; CMP/CPX/CPY #$00 ; Z/N-branch
@@ -552,7 +565,9 @@ def analyze(prog):
                     named = not re.match(r'^\$?0+$', operand)
                     out['cmp0'].append({'line': t['line'], 'op': op,
                                         'pred': ins[p]['src'], 'cmp': t['src'],
-                                        'branch': br['src'], 'named': named})
+                                        'branch': br['src'], 'named': named,
+                                        'annotated': has_inline_comment(
+                                            ins[p]['src'], t['src'], br['src'])})
 
         # transfer before compare: TXA/TYA ; CMP #imm ; branch  -> CPX/CPY
         if op in ('TXA', 'TYA'):
@@ -565,7 +580,8 @@ def analyze(prog):
                 a_live = bool(prog.live_out(i + 1) & A)
                 rec = {'line': t['line'], 'xfer': t['src'], 'cmp': c['src'],
                        'branch': br['src'], 'kind': 'transfer',
-                       'rewrite': f"CP{reg} {c['src'].split(None, 1)[-1]}"}
+                       'rewrite': f"CP{reg} {c['src'].split(None, 1)[-1]}",
+                       'annotated': has_inline_comment(t['src'], c['src'], br['src'])}
                 out['excluded' if a_live else 'xfer'].append(rec)
 
         # redundant reload: ST_ x ; LD_ x (same location), contiguous. Both the
@@ -584,7 +600,8 @@ def analyze(prog):
                     and not t['labeled'] and not n['labeled']):
                 out['reload'].append({'line': t['line'], 'store': t['src'],
                                       'reload': n['src'],
-                                      'jsr': reload_producer_jsr(prog, i)})
+                                      'jsr': reload_producer_jsr(prog, i),
+                                      'annotated': has_inline_comment(t['src'], n['src'])})
     return out
 
 
@@ -619,6 +636,12 @@ def fence(*lines):
     return "  ```\n" + body + "\n  ```"
 
 
+def annot(r):
+    """Marker appended to an already-annotated finding, so the un-marked findings
+    are the source-annotation worklist."""
+    return ' *(already annotated in source)*' if r.get('annotated') else ''
+
+
 def emit(out, title, asm, commit, date):
     bugs, wrongreg, carryshift = out['bugs'], out['wrongreg'], out['carryshift']
     dead, reload_ = out['dead'], out['reload']
@@ -632,6 +655,32 @@ def emit(out, title, asm, commit, date):
         doc += ("\nNo correctness, dead-instruction, optimization, or redundancy "
                 "findings under the patterns scanned. The hand-written code here is "
                 "already tight.\n")
+
+    # Source-annotation status: a finding is "annotated" when its site already
+    # carries an inline comment. The un-annotated set is the sweep worklist; it is
+    # the actionable list, so it leads the report.
+    all_findings = ([('A', r) for r in bugs + wrongreg + carryshift]
+                    + [('B', r) for r in dead]
+                    + [('C', r) for r in out['bit7'] + out['cmp0'] + out['xfer']]
+                    + [('D', r) for r in reload_])
+    todo = [(c, r) for c, r in all_findings if not r.get('annotated')]
+    if all_findings:
+        done = len(all_findings) - len(todo)
+        doc += ("\n## Source-annotation status\n\n"
+                f"**{len(todo)} of {len(all_findings)} findings are not yet annotated "
+                f"in the source** ({done} already carry an inline comment). Findings "
+                "already annotated are marked *(already annotated in source)* below; "
+                "the rest are the annotation worklist:\n\n")
+        by_cat = {}
+        for c, r in todo:
+            by_cat.setdefault(c, []).append(r['line'])
+        for c in ('A', 'B', 'C', 'D'):
+            if by_cat.get(c):
+                nums = ', '.join(f"L{n}" for n in sorted(by_cat[c]))
+                doc += f"- **{c}:** {nums}\n"
+        if not todo:
+            doc += "- every finding is already annotated in the source.\n"
+        doc += "\n"
 
     confirmed = [r for r in bugs if r.get('confidence') == 'high']
     review = [r for r in bugs if r.get('confidence') != 'high']
@@ -647,7 +696,7 @@ def emit(out, title, asm, commit, date):
                 "harmless where the carry was never needed, but a real bug where it "
                 "was (the carry-dependent path is dead).\n\n")
         for r in carryshift:
-            doc += (f"- **L{r['line']}** -- `{r['setter']}` sets carry that "
+            doc += (f"- **L{r['line']}**{annot(r)} -- `{r['setter']}` sets carry that "
                     f"`{r['shift']}` discards; if the shift was meant to fold carry "
                     f"into bit {r['bit']} it should be `{r['intended']}`.\n\n")
     if wrongreg:
@@ -659,7 +708,7 @@ def emit(out, title, asm, commit, date):
                 "stored. Verify intent (if storing the current register is deliberate, "
                 "the dead load is merely cruft).\n\n")
         for r in wrongreg:
-            doc += (f"- **L{r['line']}** -- `{r['dead']}` is dead and precedes "
+            doc += (f"- **L{r['line']}**{annot(r)} -- `{r['dead']}` is dead and precedes "
                     f"`{r['store']}`; the immediate goes into **{r['r1']}** but the "
                     f"store reads **{r['r2']}**, so it writes a stale {r['r2']} -- "
                     f"likely `{r['fix_load']}` or `{r['fix_store']}` was meant.\n\n")
@@ -676,7 +725,7 @@ def emit(out, title, asm, commit, date):
                 "the shipped ROM (its fix, like any change, is mod-only against the "
                 "parity-exact source).\n\n")
         for r in confirmed:
-            doc += (f"- **L{r['line']} `{r['routine']}`** -- index **{r['reg']}** is "
+            doc += (f"- **L{r['line']} `{r['routine']}`**{annot(r)} -- index **{r['reg']}** is "
                     f"never initialised (the routine's `{r['typo']}` sets the other "
                     f"register) but drives `{r['store']}` (loop bound `{r['bound']}`).\n\n")
     if review:
@@ -695,7 +744,7 @@ def emit(out, title, asm, commit, date):
             else:
                 cc = (f"{nc} direct caller(s), only {ns} set **{r['reg']}** first -- "
                       f"the rest may overrun")
-            doc += (f"- **L{r['line']} `{r['routine']}`** -- index **{r['reg']}** "
+            doc += (f"- **L{r['line']} `{r['routine']}`**{annot(r)} -- index **{r['reg']}** "
                     f"drives `{r['store']}` (loop bound `{r['bound']}`); {cc}.\n\n")
 
     if dead:
@@ -703,10 +752,7 @@ def emit(out, title, asm, commit, date):
         doc += ("Every register/flag the instruction defines is overwritten before "
                 "use on every path, and it has no side effect.\n\n")
         for r in dead:
-            low = r['src'].lower()
-            note = (' *(already annotated in source)*'
-                    if any(w in low for w in ('redundant', 'parity', 'unused')) else '')
-            doc += f"- **L{r['line']}** `{r['op']}`{note}:\n\n"
+            doc += f"- **L{r['line']}** `{r['op']}`{annot(r)}:\n\n"
             doc += fence(r['src']) + "\n"
 
     if micro:
@@ -726,7 +772,7 @@ def emit(out, title, asm, commit, date):
                         "risk and `LDA PPUSTATUS / BPL` is the canonical vblank wait -- "
                         "drop the `AND`; no comment needed.\n\n")
                 for r in hw:
-                    doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}`:\n\n"
+                    doc += f"- **L{r['line']}**{annot(r)} -> drop `AND`, use `{r['rewrite']}`:\n\n"
                     doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
             if sw:
                 doc += ("\n**Software flag (trade-off).** For a RAM/software flag the "
@@ -735,7 +781,7 @@ def emit(out, title, asm, commit, date):
                         "named mask, so add a comment naming the bit -- which partly "
                         "offsets the 2-byte saving.\n\n")
                 for r in sw:
-                    doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
+                    doc += f"- **L{r['line']}**{annot(r)} -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
                     doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
         if out['cmp0']:
             lit = [r for r in out['cmp0'] if not r.get('named')]
@@ -746,7 +792,7 @@ def emit(out, title, asm, commit, date):
             if lit:
                 doc += "A literal `#$00` compare -- a clean drop:\n\n"
                 for r in lit:
-                    doc += f"- **L{r['line']}** -- drop `{r['op']}`:\n\n"
+                    doc += f"- **L{r['line']}**{annot(r)} -- drop `{r['op']}`:\n\n"
                     doc += fence(r['pred'], r['cmp'], r['branch']) + "\n"
             if named:
                 doc += ("\nA **named** zero-valued sentinel -- a trade-off, like the "
@@ -754,7 +800,7 @@ def emit(out, title, asm, commit, date):
                         "`0`, and it removes the name that documents *what* the branch "
                         "tests, so the branch wants a comment naming the sentinel:\n\n")
                 for r in named:
-                    doc += (f"- **L{r['line']}** -- drop `{r['op']}` (add a comment "
+                    doc += (f"- **L{r['line']}**{annot(r)} -- drop `{r['op']}` (add a comment "
                             f"naming the sentinel):\n\n")
                     doc += fence(r['pred'], r['cmp'], r['branch']) + "\n"
         if out['xfer']:
@@ -762,7 +808,7 @@ def emit(out, title, asm, commit, date):
                     "The `TXA`/`TYA` only feeds the compare; the register compare "
                     "does it directly and A is dead afterward on every path.\n\n")
             for r in out['xfer']:
-                doc += f"- **L{r['line']}** -> `{r['rewrite']}`, drop the transfer:\n\n"
+                doc += f"- **L{r['line']}**{annot(r)} -> `{r['rewrite']}`, drop the transfer:\n\n"
                 doc += fence(r['xfer'], r['cmp'], r['branch']) + "\n"
 
     if reload_:
@@ -778,7 +824,7 @@ def emit(out, title, asm, commit, date):
             if r.get('jsr'):
                 note = (f" -- **non-local**: the value comes from `JSR {r['jsr']}`, so "
                         f"this is safe only if `{r['jsr']}` returns with N/Z set on A")
-            doc += f"- **L{r['line']}** -- reload{note}:\n\n"
+            doc += f"- **L{r['line']}**{annot(r)} -- reload{note}:\n\n"
             doc += fence(r['store'], r['reload']) + "\n"
     return doc
 

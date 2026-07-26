@@ -163,6 +163,14 @@ DeadLdyControl:
     STY ZP_StateA
     RTS
 
+; A dead instruction that already carries an inline comment -> annotated=True,
+; so a source-annotation sweep can skip it (it is already documented).
+AnnotatedDead:
+    LDY #$07 ; redundant load kept for ROM parity
+    LDY #$08
+    STY ZP_StateB
+    RTS
+
 ; Shift/carry confusion: CLC before an accumulator ASL. ASL shifts 0 into bit 0,
 ; not the carry, so the CLC is dead and the shift was likely meant to be ROL.
 CarryClcShift:
@@ -410,4 +418,33 @@ viajsr = [r for r in rl if "ZP_State4" in r["store"]]
 if not viajsr or viajsr[0]["jsr"] != "SomeBcdSub":
     raise SystemExit(f"a JSR-produced reload must name the subroutine: {rl}")
 PY
+}
+
+test_static_analysis_flags_already_annotated_findings() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_annot.asm"
+  local json="${NESREV_TEST_TMPDIR}/sa_annot.json"
+  local doc="${NESREV_TEST_TMPDIR}/sa_annot.md"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${json}" --doc-out "${doc}" \
+    --title Fixture --commit test --date 2026-07-26 >/dev/null
+  python3 - "${json}" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+dead = d["dead"]
+if any("annotated" not in r for r in dead):
+    raise SystemExit("every dead finding must expose an 'annotated' flag")
+# a dead instruction carrying an inline comment is already annotated.
+ann = [r for r in dead if "#$07" in r["src"]]
+if not ann or not ann[0]["annotated"]:
+    raise SystemExit(f"a commented dead instruction must be annotated=True: {dead}")
+# a dead instruction with no inline comment is not annotated (the sweep worklist).
+un = [r for r in dead if "#$05" in r["src"]]
+if not un or un[0]["annotated"]:
+    raise SystemExit(f"an un-commented dead instruction must be annotated=False: {dead}")
+PY
+  # the doc must foreground the un-annotated worklist.
+  grep -q "Source-annotation status" "${doc}" \
+    || { echo "doc missing annotation-status section" >&2; return 1; }
+  grep -q "not yet annotated in the source" "${doc}" \
+    || { echo "doc missing un-annotated count" >&2; return 1; }
 }

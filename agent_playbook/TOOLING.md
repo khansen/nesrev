@@ -216,6 +216,15 @@ path (e.g. live at an `RTS`, so possibly a return value) are simply not reported
 they were report noise. They remain in the `--json` output under `excluded` for
 tuning/debugging the liveness only.
 
+Every finding carries an `annotated` flag: true when the finding's site already
+carries an inline comment (`;`), i.e. the redundancy/bug/trade-off is already
+documented in the source. The report leads with a **Source-annotation status**
+block that counts the un-annotated findings and lists them per category — the
+worklist for a source-annotation sweep — and tags the annotated ones
+*(already annotated in source)*. Idiomatic category-A/C forms that need no comment
+(e.g. a hardware bit-7 vblank wait, a literal compare-to-zero) still appear in the
+worklist until a comment is added or the reviewer judges none is warranted.
+
 Conservative by construction, so reported items are a floor rather than guesses:
 `JSR`/`RTS` use all registers and flags, and absolute `JMP`/`JSR` targets plus
 non-ROM-contiguous fall-through (the `.DB $2C` opcode-skip idiom) are treated as

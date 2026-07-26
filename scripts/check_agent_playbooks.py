@@ -144,8 +144,13 @@ ROOT_WORD_CEILING = 6000
 # micro-optimizations"). The tool documents a novel CFG+liveness analysis and its
 # four finding categories; the ceilings carry that prose at readable length with
 # the same modest headroom the other ceilings hold, rather than compressing it.
+# The default ceiling was raised from 2650/19100 to 2700/19260 when the
+# Static-Analysis Scanner section documented the per-finding `annotated` flag and
+# the report's Source-annotation status / worklist block (which findings still
+# need a source comment). This keeps that governance prose explicit rather than
+# compressing it, at the same modest headroom the other ceilings hold.
 ROUTE_BUDGETS = {
-    "default": (2650, 19100),
+    "default": (2700, 19260),
     "data-recovery": (2560, 19000),
     "new-project": (3660, 26720),
 }
