@@ -21,6 +21,7 @@ ZP_StateA  .EQU $0015
 ZP_StateB  .EQU $0016
 ZP_State2  .EQU $0017
 ZP_State3  .EQU $0018
+END_SENTINEL .EQU $00
 
 ; Confirmed overrun: wrong-register init (LDX where LDY was needed).
 ConfirmedOverrun:
@@ -196,6 +197,31 @@ CarryClcLsr:
     LSR
     STA Out2
     RTS
+
+; Redundant compare-to-zero with a *literal* #0 -- a clean drop (named=false).
+; (The CLC redefines carry before RTS so the compare's carry is dead.)
+Cmp0Literal:
+    LDA Flag2
+    CMP #0
+    BNE c0l_join
+    LDA #1
+    STA Out1
+c0l_join:
+    CLC
+    RTS
+
+; Redundant compare-to-zero with a *named* zero-valued sentinel -- a trade-off
+; (named=true): only redundant while END_SENTINEL == 0, and the name documents
+; what the branch tests.
+Cmp0Named:
+    LDA Flag2
+    CMP #END_SENTINEL
+    BNE c0n_join
+    LDA #1
+    STA Out2
+c0n_join:
+    CLC
+    RTS
 ASM
 }
 
@@ -329,5 +355,24 @@ if not any(r["setter"] == "CMP #6" for r in cs):
 # A carry-set genuinely consumed (SEC before SBC) must NOT be flagged.
 if any(r["setter"] == "SEC" for r in cs):
     raise SystemExit("a SEC whose carry SBC consumes must not be flagged")
+PY
+}
+
+test_static_analysis_compare_zero_named_vs_literal() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_cmp0.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_cmp0.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+cmp0 = json.load(open(sys.argv[1]))["cmp0"]
+# A literal #0 compare is a clean drop (named=false).
+lit = [r for r in cmp0 if r["cmp"] == "CMP #0"]
+if not lit or lit[0]["named"]:
+    raise SystemExit(f"a literal #0 compare must be a clean drop (named=false): {cmp0}")
+# A named zero-valued sentinel is a trade-off (named=true).
+nm = [r for r in cmp0 if "END_SENTINEL" in r["cmp"]]
+if not nm or not nm[0]["named"]:
+    raise SystemExit(f"a named zero-sentinel compare must be a trade-off (named=true): {cmp0}")
 PY
 }

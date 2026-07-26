@@ -517,9 +517,14 @@ def analyze(prog):
                       (op == 'CPX' and pop in X_PRODUCERS) or
                       (op == 'CPY' and pop in Y_PRODUCERS))
                 if ok and (prog.live_out(i) & C) == 0:
+                    # A literal `#$00`/`#0` is a clean drop; a named zero-valued
+                    # sentinel is a trade-off (only redundant while it == 0, and the
+                    # name documents what the branch tests).
+                    operand = t['src'].split('#', 1)[-1].split(';')[0].strip()
+                    named = not re.match(r'^\$?0+$', operand)
                     out['cmp0'].append({'line': t['line'], 'op': op,
                                         'pred': ins[p]['src'], 'cmp': t['src'],
-                                        'branch': br['src']})
+                                        'branch': br['src'], 'named': named})
 
         # transfer before compare: TXA/TYA ; CMP #imm ; branch  -> CPX/CPY
         if op in ('TXA', 'TYA'):
@@ -704,12 +709,25 @@ def emit(out, title, asm, commit, date):
                     doc += f"- **L{r['line']}** -> drop `AND`, use `{r['rewrite']}` (add a comment naming the bit):\n\n"
                     doc += fence(r['pred'], r['mask'], r['branch']) + "\n"
         if out['cmp0']:
+            lit = [r for r in out['cmp0'] if not r.get('named')]
+            named = [r for r in out['cmp0'] if r.get('named')]
             doc += ("\n### Redundant compare-to-zero\n\n"
-                    "The preceding op already set **Z**/**N**; the `#$00` compare is "
-                    "dead for the following branch.\n\n")
-            for r in out['cmp0']:
-                doc += f"- **L{r['line']}** -- drop `{r['op']}`:\n\n"
-                doc += fence(r['pred'], r['cmp'], r['branch']) + "\n"
+                    "The preceding load/logic already set **Z**/**N**, so a `#0` "
+                    "compare is dead for the following branch.\n\n")
+            if lit:
+                doc += "A literal `#$00` compare -- a clean drop:\n\n"
+                for r in lit:
+                    doc += f"- **L{r['line']}** -- drop `{r['op']}`:\n\n"
+                    doc += fence(r['pred'], r['cmp'], r['branch']) + "\n"
+            if named:
+                doc += ("\nA **named** zero-valued sentinel -- a trade-off, like the "
+                        "bit-7 case: the drop is valid only while the constant equals "
+                        "`0`, and it removes the name that documents *what* the branch "
+                        "tests, so the branch wants a comment naming the sentinel:\n\n")
+                for r in named:
+                    doc += (f"- **L{r['line']}** -- drop `{r['op']}` (add a comment "
+                            f"naming the sentinel):\n\n")
+                    doc += fence(r['pred'], r['cmp'], r['branch']) + "\n"
         if out['xfer']:
             doc += ("\n### Register->A transfer before compare (-> `CPX`/`CPY`)\n\n"
                     "The `TXA`/`TYA` only feeds the compare; the register compare "

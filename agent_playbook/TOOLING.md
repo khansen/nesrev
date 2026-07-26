@@ -196,7 +196,11 @@ The generated doc groups findings into four sections:
   hardware) is the idiomatic vblank wait, a clean win that needs no comment; a
   **software-flag** test is a trade-off — `BMI`/`BPL` hard-codes bit 7 (it breaks
   if the flag's layout moves) and drops the named mask, so it needs a comment
-  naming the bit. `CMP #$00` and the transfer rewrite carry no such cost.
+  naming the bit. The compare-to-zero case splits the same way: a literal `#$00`
+  is a clean drop, but a **named zero-valued sentinel** (`CMP #FOO_END`, `FOO_END
+  == 0`) is a trade-off — only redundant while the constant is `0`, and dropping
+  it loses the name, so it wants a comment. The transfer rewrite carries no such
+  cost.
 - **D. Redundant reload after store** (lower confidence) — only when **both** the
   store and the reload `LD_` are *unlabeled*, so the pair has a single
   fall-through entry. A labeled reload may be entered with a different A; a labeled
