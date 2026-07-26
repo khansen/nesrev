@@ -64,6 +64,12 @@ A, X, Y, Z, N, C, V = (1 << i for i in range(7))
 ALL = A | X | Y | Z | N | C | V
 NZ = Z | N
 HW = {0x2002, 0x2007, 0x4015, 0x4016, 0x4017}  # reads with side effects
+# Registers whose bit 7 is a hardware-fixed status flag that software cannot
+# repurpose: PPUSTATUS ($2002) vblank, and $4015 read (DMC interrupt). This is a
+# *distinct* concept from the side-effect-read set above -- $2007/$4016/$4017
+# also read with side effects, but their bit 7 is data / open bus, so a bit-7
+# test there is an ordinary software-flag trade-off, not a fixed-layout clean win.
+FIXED_BIT7 = {0x2002, 0x4015}
 
 A_PRODUCERS = {'LDA', 'TXA', 'TYA', 'PLA', 'AND', 'ORA', 'EOR', 'ADC', 'SBC'}
 X_PRODUCERS = {'LDX', 'TAX', 'TSX', 'INX', 'DEX'}
@@ -414,7 +420,7 @@ def find_overruns(prog):
                       'bound': cmp_ins['src'], 'store': store['src'], 'typo': typo,
                       'confidence': 'high' if typo else 'review',
                       'n_callers': n_call, 'n_callers_set': n_set,
-                      'annotated': has_inline_comment(store['src'], cmp_ins['src'], typo)})
+                      'annotated': has_inline_comment(ins[rstart]['src'])})
     return found
 
 
@@ -474,10 +480,12 @@ def reload_producer_jsr(prog, sta_i):
 
 
 def has_inline_comment(*srcs):
-    """A finding counts as *already annotated* when any instruction source line it
-    displays carries an inline comment (`;`) -- i.e. someone has already documented
-    the redundancy/bug/trade-off at the site. Un-annotated findings are the ones a
-    source-annotation sweep still has to reach."""
+    """True when a finding's *flagged instruction* carries an inline comment (`;`).
+    Callers pass only the flagged line (the dead instruction, the reload's `LD_`,
+    the compare, ...), never the surrounding context lines -- a comment on a
+    producer/branch is usually unrelated semantic prose and must not mask the
+    finding. This is a heuristic proxy for "already handled", not a semantic claim,
+    so the report says "has an inline comment", not "annotated"."""
     return any(';' in (s or '') for s in srcs)
 
 
@@ -511,7 +519,7 @@ def analyze(prog):
                         'line': t['line'], 'dead': t['src'], 'store': nxt['src'],
                         'r1': r1, 'r2': r2, 'fix_load': f'LD{r2} {imm}',
                         'fix_store': f'ST{r1} {operand}'.rstrip(),
-                        'annotated': has_inline_comment(t['src'], nxt['src'])})
+                        'annotated': has_inline_comment(t['src'])})
                 elif shift is not None:
                     # The dead carry-setter feeds an accumulator ASL/LSR that
                     # discards the carry: the author likely thought the shift folds
@@ -521,7 +529,7 @@ def analyze(prog):
                         'intended': {'ASL': 'ROL', 'LSR': 'ROR'}[shift['op']],
                         # ASL/ROL vacate bit 0; LSR/ROR vacate bit 7.
                         'bit': '0' if shift['op'] == 'ASL' else '7',
-                        'annotated': has_inline_comment(t['src'], shift['src'])})
+                        'annotated': has_inline_comment(t['src'])})
                 else:
                     out['dead'].append({'i': i, 'line': t['line'], 'op': op,
                                         'mode': mode, 'src': t['src'],
@@ -544,8 +552,8 @@ def analyze(prog):
                 prod_addr = prog.operand_addr(ins[p])
                 rec = {'line': t['line'], 'pred': ins[p]['src'], 'mask': t['src'],
                        'branch': br['src'], 'rewrite': rewrite, 'kind': 'bit-7 mask',
-                       'hw': prod_addr in HW, 'ppustatus': prod_addr == 0x2002,
-                       'annotated': has_inline_comment(ins[p]['src'], t['src'], br['src'])}
+                       'hw': prod_addr in FIXED_BIT7, 'ppustatus': prod_addr == 0x2002,
+                       'annotated': has_inline_comment(t['src'])}
                 out['excluded' if unsafe else 'bit7'].append(rec)
 
         # redundant compare-to-zero: producer ; CMP/CPX/CPY #$00 ; Z/N-branch
@@ -566,8 +574,7 @@ def analyze(prog):
                     out['cmp0'].append({'line': t['line'], 'op': op,
                                         'pred': ins[p]['src'], 'cmp': t['src'],
                                         'branch': br['src'], 'named': named,
-                                        'annotated': has_inline_comment(
-                                            ins[p]['src'], t['src'], br['src'])})
+                                        'annotated': has_inline_comment(t['src'])})
 
         # transfer before compare: TXA/TYA ; CMP #imm ; branch  -> CPX/CPY
         if op in ('TXA', 'TYA'):
@@ -581,7 +588,7 @@ def analyze(prog):
                 rec = {'line': t['line'], 'xfer': t['src'], 'cmp': c['src'],
                        'branch': br['src'], 'kind': 'transfer',
                        'rewrite': f"CP{reg} {c['src'].split(None, 1)[-1]}",
-                       'annotated': has_inline_comment(t['src'], c['src'], br['src'])}
+                       'annotated': has_inline_comment(t['src'])}
                 out['excluded' if a_live else 'xfer'].append(rec)
 
         # redundant reload: ST_ x ; LD_ x (same location), contiguous. Both the
@@ -601,7 +608,7 @@ def analyze(prog):
                 out['reload'].append({'line': t['line'], 'store': t['src'],
                                       'reload': n['src'],
                                       'jsr': reload_producer_jsr(prog, i),
-                                      'annotated': has_inline_comment(t['src'], n['src'])})
+                                      'annotated': has_inline_comment(n['src'])})
     return out
 
 
@@ -637,9 +644,9 @@ def fence(*lines):
 
 
 def annot(r):
-    """Marker appended to an already-annotated finding, so the un-marked findings
-    are the source-annotation worklist."""
-    return ' *(already annotated in source)*' if r.get('annotated') else ''
+    """Marker for a finding whose flagged instruction already has an inline
+    comment, so the un-marked findings are the source-annotation worklist."""
+    return ' *(flagged instruction has an inline comment)*' if r.get('annotated') else ''
 
 
 def emit(out, title, asm, commit, date):
@@ -656,9 +663,11 @@ def emit(out, title, asm, commit, date):
                 "findings under the patterns scanned. The hand-written code here is "
                 "already tight.\n")
 
-    # Source-annotation status: a finding is "annotated" when its site already
-    # carries an inline comment. The un-annotated set is the sweep worklist; it is
-    # the actionable list, so it leads the report.
+    # Source-annotation status: a finding is treated as "handled" when its flagged
+    # instruction already carries an inline comment. That is a heuristic (the
+    # comment could be unrelated), so the report describes the observable ("has an
+    # inline comment"), not a semantic claim. The set with no inline comment is the
+    # actionable sweep worklist, so it leads the report.
     all_findings = ([('A', r) for r in bugs + wrongreg + carryshift]
                     + [('B', r) for r in dead]
                     + [('C', r) for r in out['bit7'] + out['cmp0'] + out['xfer']]
@@ -667,10 +676,13 @@ def emit(out, title, asm, commit, date):
     if all_findings:
         done = len(all_findings) - len(todo)
         doc += ("\n## Source-annotation status\n\n"
-                f"**{len(todo)} of {len(all_findings)} findings are not yet annotated "
-                f"in the source** ({done} already carry an inline comment). Findings "
-                "already annotated are marked *(already annotated in source)* below; "
-                "the rest are the annotation worklist:\n\n")
+                f"**{len(todo)} of {len(all_findings)} findings have no inline comment "
+                f"at the flagged instruction** ({done} already carry one). The flagged "
+                "instruction is the finding's own line (the dead instruction, the "
+                "reload's `LD_`, the compare, ...), not the surrounding context; a "
+                "comment there is treated as the finding already being handled and is "
+                "marked *(flagged instruction has an inline comment)* below. The rest "
+                "are the annotation worklist:\n\n")
         by_cat = {}
         for c, r in todo:
             by_cat.setdefault(c, []).append(r['line'])
@@ -679,7 +691,7 @@ def emit(out, title, asm, commit, date):
                 nums = ', '.join(f"L{n}" for n in sorted(by_cat[c]))
                 doc += f"- **{c}:** {nums}\n"
         if not todo:
-            doc += "- every finding is already annotated in the source.\n"
+            doc += "- every finding's flagged instruction already has an inline comment.\n"
         doc += "\n"
 
     confirmed = [r for r in bugs if r.get('confidence') == 'high']

@@ -149,9 +149,14 @@ ROOT_WORD_CEILING = 6000
 # the report's Source-annotation status / worklist block (which findings still
 # need a source comment). This keeps that governance prose explicit rather than
 # compressing it, at the same modest headroom the other ceilings hold.
+# The data-recovery ceiling was raised from 2560/19000 to 2585/19140 when the
+# scanner section was corrected: the annotation flag is checked only on a
+# finding's flagged instruction (not context lines), the report describes the
+# observable ("has an inline comment") rather than overclaiming, and the fixed-
+# bit-7 register set was documented as distinct from the side-effect-read set.
 ROUTE_BUDGETS = {
     "default": (2700, 19260),
-    "data-recovery": (2560, 19000),
+    "data-recovery": (2585, 19140),
     "new-project": (3660, 26720),
 }
 

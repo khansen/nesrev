@@ -92,6 +92,22 @@ VblankWait:
     STA Out2
     RTS
 
+; bit-7 on $4016 (controller read): a *side-effect* read, but bit 7 is data / open
+; bus, NOT a hardware-fixed status bit -- so it must not be a clean win (hw=False).
+; This distinguishes the side-effect-read set from the fixed-bit-7 set. A/Z are
+; dead after the branch so it is a genuine bit-7 candidate, not excluded.
+Bit7ControllerReg:
+    LDA $4016
+    AND #$80
+    BNE b7c_set
+    LDA #$00
+    STA Out1
+    RTS
+b7c_set:
+    LDA #$01
+    STA Out1
+    RTS
+
 ; Reload whose LD_ is a branch target: another flow JMPs in with a different A,
 ; so ZP_StateA is not necessarily in A on entry -- the reload is not redundant
 ; and must be omitted even though the CFG cannot see the absolute JMP edge.
@@ -116,6 +132,18 @@ PlainReload:
     BEQ pr_done
     STA Out2
 pr_done:
+    RTS
+
+; Narrowing check: an unrelated inline comment sits on the STORE, but the flagged
+; reload's LD_ has none. Only the flagged instruction (the reload) is inspected,
+; so this finding must be annotated=False -- the store comment must not mask it.
+ContextCommentedReload:
+    LDA InputByte
+    STA ZP_State3 ; unrelated prose on the store, not about the reload
+    LDA ZP_State3
+    BEQ ccr_done
+    STA Out1
+ccr_done:
     RTS
 
 ; Reload whose STORE is a branch target: the BNE path arrives with N/Z set by LDX,
@@ -307,6 +335,11 @@ if not hw or not all(r["hw"] and r["ppustatus"] for r in hw):
 # A RAM software-flag bit-7 test must not be tagged hardware.
 if not sw or any(r["hw"] for r in sw):
     raise SystemExit(f"a software-flag bit-7 must not be tagged hardware: {sw}")
+# A $4016 read has side effects, but its bit 7 is NOT hardware-fixed (data/open
+# bus), so it must be a software-flag trade-off, never a fixed-bit-7 clean win.
+ctrl = [r for r in b7 if "$4016" in r["pred"]]
+if not ctrl or any(r["hw"] for r in ctrl):
+    raise SystemExit(f"a $4016 side-effect read must not be a fixed-bit-7 clean win: {ctrl}")
 PY
 }
 
@@ -441,10 +474,16 @@ if not ann or not ann[0]["annotated"]:
 un = [r for r in dead if "#$05" in r["src"]]
 if not un or un[0]["annotated"]:
     raise SystemExit(f"an un-commented dead instruction must be annotated=False: {dead}")
+# Narrowing: only the FLAGGED instruction's line is inspected. A reload whose
+# store carries an unrelated comment (but whose reload LD_ does not) must NOT be
+# masked -- annotated=False, so it stays in the worklist.
+ctx = [r for r in d["reload"] if "unrelated prose" in r["store"]]
+if not ctx or ctx[0]["annotated"]:
+    raise SystemExit(f"a context comment on the store must not mask the reload: {d['reload']}")
 PY
-  # the doc must foreground the un-annotated worklist.
+  # the doc must foreground the worklist and describe the observable, not overclaim.
   grep -q "Source-annotation status" "${doc}" \
     || { echo "doc missing annotation-status section" >&2; return 1; }
-  grep -q "not yet annotated in the source" "${doc}" \
+  grep -q "have no inline comment at the flagged instruction" "${doc}" \
     || { echo "doc missing un-annotated count" >&2; return 1; }
 }

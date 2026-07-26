@@ -155,8 +155,9 @@ see also [Evidence Order](#xasm-structured-analysis).
 
 `make project-static-analysis PROJECT=<slug>` runs `scripts/static_analysis.py`
 and writes the project's `docs/reverse_engineering/STATIC_ANALYSIS.md` (direct
-form: `scripts/static_analysis.py <asm> --doc-out <md> [--title T] [--json J]
-[--print]`). It assembles the source with xasm and reads the JSON listing — never
+form: `python3 scripts/static_analysis.py <asm> --doc-out <md> [--title T]
+[--json J] [--print]` — the script is not marked executable, so invoke it via
+`python3`). It assembles the source with xasm and reads the JSON listing — never
 regex over source text — so instruction identity, addressing mode, and operand
 values are the assembled truth. It builds a control-flow graph keyed by ROM
 **output offset** (globally unique, unlike CPU addresses, which repeat across
@@ -192,11 +193,13 @@ The generated doc groups findings into four sections:
   **both A and Z** are dead after the branch, since dropping the `AND` changes
   Z), a redundant `CMP #$00` after a flag-setting op, and a register→A transfer
   before a compare replaceable with `CPX`/`CPY`. The doc splits the **bit-7** case:
-  a **hardware-register** test (`LDA PPUSTATUS` — bit 7 = vblank is fixed by the
-  hardware) is the idiomatic vblank wait, a clean win that needs no comment; a
+  a **fixed-bit-7 register** test (`LDA PPUSTATUS` — bit 7 = vblank, or `$4015` —
+  bit 7 = DMC IRQ) is the idiomatic wait, a clean win that needs no comment; a
   **software-flag** test is a trade-off — `BMI`/`BPL` hard-codes bit 7 (it breaks
   if the flag's layout moves) and drops the named mask, so it needs a comment
-  naming the bit. The compare-to-zero case splits the same way: a literal `#$00`
+  naming the bit. This fixed-bit-7 set is distinct from the side-effect-read set:
+  `$2007`/`$4016`/`$4017` also read with side effects, but their bit 7 is data or
+  open bus, so a bit-7 test there is a software-flag trade-off, not a clean win. The compare-to-zero case splits the same way: a literal `#$00`
   is a clean drop, but a **named zero-valued sentinel** (`CMP #FOO_END`, `FOO_END
   == 0`) is a trade-off — only redundant while the constant is `0`, and dropping
   it loses the name, so it wants a comment. The transfer rewrite carries no such
@@ -216,14 +219,19 @@ path (e.g. live at an `RTS`, so possibly a return value) are simply not reported
 they were report noise. They remain in the `--json` output under `excluded` for
 tuning/debugging the liveness only.
 
-Every finding carries an `annotated` flag: true when the finding's site already
-carries an inline comment (`;`), i.e. the redundancy/bug/trade-off is already
-documented in the source. The report leads with a **Source-annotation status**
-block that counts the un-annotated findings and lists them per category — the
-worklist for a source-annotation sweep — and tags the annotated ones
-*(already annotated in source)*. Idiomatic category-A/C forms that need no comment
-(e.g. a hardware bit-7 vblank wait, a literal compare-to-zero) still appear in the
-worklist until a comment is added or the reviewer judges none is warranted.
+Every finding carries an `annotated` flag: true when the finding's **flagged
+instruction** (its own line — the dead instruction, the reload's `LD_`, the
+compare, ...) carries an inline comment (`;`). Only that line is checked, never
+the surrounding context (a comment on a producer/branch is usually unrelated
+prose and must not mask the finding). This is a heuristic proxy for "already
+handled", not a semantic claim, so the report describes the observable ("has an
+inline comment"), not "annotated". The report leads with a **Source-annotation
+status** block that counts the findings with no inline comment and lists them per
+category — the worklist for a source-annotation sweep — and marks the rest
+*(flagged instruction has an inline comment)*. Idiomatic category-A/C forms that
+need no comment (e.g. a fixed-bit-7 vblank wait, a literal compare-to-zero) still
+appear in the worklist until a comment is added or the reviewer judges none is
+warranted.
 
 Conservative by construction, so reported items are a floor rather than guesses:
 `JSR`/`RTS` use all registers and flags, and absolute `JMP`/`JSR` targets plus
