@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests the advisory base-readability KPI (scripts/base_readability_kpi.sh) and
-# its opt-in plumbing (BASE_READABILITY_ADVISORY in project_common.sh).
+# its project.conf plumbing (BASE_READABILITY_REQUIRED in project_common.sh).
 
 BASE_READABILITY="${REPO_ROOT}/scripts/base_readability_kpi.sh"
 
@@ -107,27 +107,25 @@ _load_flag() {
   '
 }
 
-test_base_readability_required_defaults_off() {
-  local slug rom
-  slug="$(unique_slug brreq_off)"
-  rom="${NESREV_TEST_TMPDIR}/rom.nes"
-  make_ines "${rom}"
-  scaffold_project "${slug}" "${rom}"
+test_base_readability_required_new_project_defaults_on() {
+  local slug
+  slug="$(unique_slug brreq_on)"
+  bash scripts/new_project.sh "${slug}" >/dev/null
   local flag
   flag="$(_load_flag "${slug}")"
   cleanup_project "${slug}"
-  assert_eq "0" "${flag}" "legacy projects default BASE_READABILITY_REQUIRED off"
+  assert_eq "${flag}" "1" "new project scaffold must enable BASE_READABILITY_REQUIRED"
 }
 
-test_base_readability_required_opt_in_via_conf() {
+test_base_readability_required_legacy_default_off_without_conf() {
   local slug rom
-  slug="$(unique_slug brreq_on)"
+  slug="$(unique_slug brreq_legacy)"
   rom="${NESREV_TEST_TMPDIR}/rom.nes"
   make_ines "${rom}"
   scaffold_project "${slug}" "${rom}"
-  printf 'BASE_READABILITY_REQUIRED="1"\n' >> "projects/${slug}/project.conf"
+  perl -0pi -e 's/^BASE_READABILITY_REQUIRED="1"\\n//m' "projects/${slug}/project.conf"
   local flag
   flag="$(_load_flag "${slug}")"
   cleanup_project "${slug}"
-  assert_eq "1" "${flag}" "project.conf opt-in must enable the gate flag"
+  assert_eq "${flag}" "0" "legacy project.conf without the scaffold flag defaults off"
 }

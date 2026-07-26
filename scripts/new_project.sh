@@ -121,6 +121,11 @@ DATA_FORMAT_TARGETS_REQUIRED="1"
 # consumer/pointer/extent disposition.
 DATA_BLOB_DISPOSITIONS_REQUIRED="1"
 
+# New clean-room projects enforce the strict literal-base readability class
+# from the start: index/count zero-one immediates and unit-step arithmetic use
+# decimal notation, while machine-oriented bytes stay hex.
+BASE_READABILITY_REQUIRED="1"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required

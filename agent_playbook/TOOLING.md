@@ -389,15 +389,18 @@ corpus live in
 [EMBEDDED_POINTER_AUDIT_SPEC.md](EMBEDDED_POINTER_AUDIT_SPEC.md).
 
 <a id="base-readability-gate"></a>
-Projects may opt into the base-readability gate with
-`BASE_READABILITY_REQUIRED=1` in `project.conf`. `project-verify` then runs
+New clean-room project scaffolds set `BASE_READABILITY_REQUIRED=1` in
+`project.conf`. Legacy projects default off and may opt in after a base pass
+reaches zero. When enabled, `project-verify` runs
 `base_readability_kpi.sh --strict`, which hard-fails when hex `#$00`/`#$01`
 appear in index-register (`LDX`/`LDY`/`CPX`/`CPY`) or unit-step
 (`ADC`/`SBC #$01`) quantity contexts, where the
 [Literal Base Readability](ASM_STYLE.md#literal-base-readability) rule requires
-decimal. Opt in after a base pass reaches zero, to guard against regression; the
-check ignores `LDA`/`AND`/`ORA` zeros, which legitimately carry tiles, sentinels,
-masks, and pointer bytes. Run without `--strict` for a non-failing count.
+decimal. The check does not mechanically inspect `LDA`/`AND`/`ORA`
+immediate-zero sites because that opcode class includes real machine-oriented
+exceptions, such as hardware-register payloads, address low bytes, tiles,
+sentinels, masks, or pointer bytes. Review those sites semantically before any
+broader conversion. Run without `--strict` for a non-failing count.
 
 <a id="pointer-table-relocation-gate"></a>
 `pointer_table_body_check.py <asm>` flags labels named as a pointer table
