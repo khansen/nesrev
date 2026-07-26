@@ -21,6 +21,7 @@ Authoritative bundle map. Load the listed playbooks before substantial work. Cro
 | Run a project-level review audit | `REVIEW_AUDITS.md`, `QUALITY_REVIEW.md` |
 | Change NESrev, xasm, wrappers, or quality gates | `TOOLING.md`, `QUALITY_REVIEW.md` |
 | Create or review a mod | `ASM_STYLE.md`, `PASS_WORKFLOW.md`, `TOOLING.md` |
+| Audit for dead code, latent bugs, or micro-optimizations | `TOOLING.md` |
 
 Subsystem-specific playbooks discovered during a task must also be loaded — e.g. a semantic pass that opens a structured PPU packet stream must additionally load [`DATA_RECOVERY.md`](agent_playbook/DATA_RECOVERY.md).
 <a id="guiding-pass-philosophy"></a>

@@ -8,6 +8,7 @@ This playbook owns commands, tool options, and diagnostic procedures:
 
 - xasm listings and xref options
 - data-consumer, data-coverage, and index-pattern analysis
+- the static-analysis scanner (dead code, latent bugs, micro-optimizations)
 - NESrev regeneration controls
 - inventory commands
 - parity-drift diagnostics
@@ -148,6 +149,100 @@ mis-split blobs or hidden consumers).
 
 Prefer these structured outputs over ad-hoc grep when planning a pass;
 see also [Evidence Order](#xasm-structured-analysis).
+
+<a id="static-analysis"></a>
+## Static-Analysis Scanner
+
+`make project-static-analysis PROJECT=<slug>` runs `scripts/static_analysis.py`
+and writes the project's `docs/reverse_engineering/STATIC_ANALYSIS.md` (direct
+form: `python3 scripts/static_analysis.py <asm> --doc-out <md> [--title T]
+[--json J] [--print]` — the script is not marked executable, so invoke it via
+`python3`). It assembles the source with xasm and reads the JSON listing — never
+regex over source text — so instruction identity, addressing mode, and operand
+values are the assembled truth. It builds a control-flow graph keyed by ROM
+**output offset** (globally unique, unlike CPU addresses, which repeat across
+mapper banks), resolves relative branches by offset arithmetic, and runs backward
+liveness of registers {A,X,Y} and flags {Z,N,C,V}. Every finding is verified
+against liveness on every path.
+
+The generated doc groups findings into four sections:
+
+- **A. Correctness / latent bugs** — two wrong-register symptoms.
+  (1) *Uninitialised-index overrun*: an index register *live-in* to a tight
+  fixed-count copy/fill loop (read before the routine writes it) overruns its
+  buffer. The scan proves only that the index is unset *inside* the routine, so
+  findings split by confidence: a **wrong-register init** (`LDX` where `LDY` was
+  meant) is a confirmed defect regardless of caller, while a no-typo case is a
+  **call-contract review candidate** — the index is an input register, and the
+  tool checks the direct `JSR` callers to report whether they establish it.
+  (2) *Suspected wrong-register load/store*: a **dead `LD? #imm` immediately
+  before a `ST?` that reads a different register** is the fingerprint of a
+  load/store register mismatch — the immediate lands in one register but the store
+  writes another, so `#imm` is discarded and a stale register is stored (e.g. a
+  leftover `$F4` reaching `PPUSCROLL` because `LDY #0` sat before `STA`, or a
+  `LDA #imm` sitting before an `STX`). Fix is either `LD<store-reg> #imm` or
+  `ST<load-reg>`.
+  (3) *Suspected shift/carry confusion*: a **dead carry-setter (`CLC`/`SEC`/`CMP`)
+  discarded by a following accumulator `ASL`/`LSR`** — the shift folds a `0` into
+  the vacated bit, not the carry, so `ROL`/`ROR` was likely meant (harmless where
+  the carry was never needed, a real bug where the carry-dependent path is now
+  dead). (2) and (3) are promoted out of the dead-instruction category.
+- **B. Dead instructions** — every register/flag the instruction defines is dead
+  on exit and it has no side effect.
+- **C. Micro-optimizations** — `AND #$80` collapsible to `BMI`/`BPL` (only when
+  **both A and Z** are dead after the branch, since dropping the `AND` changes
+  Z), a redundant `CMP #$00` after a flag-setting op, and a register→A transfer
+  before a compare replaceable with `CPX`/`CPY`. The doc splits the **bit-7** case:
+  a **fixed-bit-7 register** test (`LDA PPUSTATUS` — bit 7 = vblank, or `$4015` —
+  bit 7 = DMC IRQ) is the idiomatic wait, a clean win that needs no comment; a
+  **software-flag** test is a trade-off — `BMI`/`BPL` hard-codes bit 7 (it breaks
+  if the flag's layout moves) and drops the named mask, so it needs a comment
+  naming the bit. This fixed-bit-7 set is distinct from the side-effect-read set:
+  `$2007`/`$4016`/`$4017` also read with side effects, but their bit 7 is data or
+  open bus, so a bit-7 test there is a software-flag trade-off, not a clean win. The compare-to-zero case splits the same way: a literal `#$00`
+  is a clean drop, but a **named zero-valued sentinel** (`CMP #FOO_END`, `FOO_END
+  == 0`) is a trade-off — only redundant while the constant is `0`, and dropping
+  it loses the name, so it wants a comment. The transfer rewrite carries no such
+  cost.
+- **D. Redundant reload after store** (lower confidence) — only when **both** the
+  store and the reload `LD_` are *unlabeled*, so the pair has a single
+  fall-through entry. A labeled reload may be entered with a different A; a labeled
+  *store* may be entered with N/Z set by another instruction (e.g. via `BNE`),
+  making the reload's `LD_` needed to refresh the flags. Labels come from the
+  listing (their own records), so this is checked structurally. When the stored
+  value's producer is a `JSR` (the finding names the subroutine), removability is
+  **non-local**: it holds only if the callee returns with N/Z set on `A`, so it
+  must be verified against the callee's flag-return contract, not the call site.
+
+Category-C candidates whose affected value liveness could not prove dead on every
+path (e.g. live at an `RTS`, so possibly a return value) are simply not reported —
+they were report noise. They remain in the `--json` output under `excluded` for
+tuning/debugging the liveness only.
+
+Every finding carries an `annotated` flag: true when the finding's **flagged
+instruction** (its own line — the dead instruction, the reload's `LD_`, the
+compare, ...) carries an inline comment (`;`). Only that line is checked, never
+the surrounding context (a comment on a producer/branch is usually unrelated
+prose and must not mask the finding). This is a heuristic proxy for "already
+handled", not a semantic claim, so the report describes the observable ("has an
+inline comment"), not "annotated". The report leads with a **Source-annotation
+status** block that counts the findings with no inline comment and lists them per
+category — the worklist for a source-annotation sweep — and marks the rest
+*(flagged instruction has an inline comment)*. Idiomatic category-A/C forms that
+need no comment (e.g. a fixed-bit-7 vblank wait, a literal compare-to-zero) still
+appear in the worklist until a comment is added or the reviewer judges none is
+warranted.
+
+Conservative by construction, so reported items are a floor rather than guesses:
+`JSR`/`RTS` use all registers and flags, and absolute `JMP`/`JSR` targets plus
+non-ROM-contiguous fall-through (the `.DB $2C` opcode-skip idiom) are treated as
+unresolved (full live-out). Hardware-register read side effects and memory-operand
+shift/rotate flag semantics come from the listing's addressing mode, not a guess.
+Categories B–D are **mod-only**: applying them breaks byte parity, so they serve
+an article on hand-written 6502 and future relocatable mod builds, while the A
+findings are genuine ROM defects. Extend the tool by adding a detector that
+consumes the shared CFG + liveness in `analyze()` / `find_overruns()`, then re-run
+the wrapper to regenerate the doc.
 
 <a id="nesrev-controls"></a>
 ## NESrev Regeneration Controls
@@ -476,6 +571,11 @@ debug-only recipes not big enough to warrant their own section.
 
 - Index patterns, data consumers, data coverage:
   [#data-consumer-analysis](#data-consumer-analysis)
+
+### Static analysis
+
+- Dead code, latent bugs, micro-optimizations
+  (`make project-static-analysis PROJECT=<slug>`): [#static-analysis](#static-analysis)
 
 ### NESrev regeneration
 

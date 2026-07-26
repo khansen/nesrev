@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-finish project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-finish project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -123,6 +123,10 @@ project-comment-audit:
 project-compare:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-compare PROJECT=<slug> [FORMAT=text|json]"; exit 2; fi
 	@bash scripts/project_compare.sh $(PROJECT) $(if $(FORMAT),$(FORMAT),text)
+
+project-static-analysis:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-static-analysis PROJECT=<slug>"; exit 2; fi
+	@bash scripts/project_static_analysis.sh $(PROJECT)
 
 mod-new:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(MOD)" ]; then echo "usage: make mod-new PROJECT=<slug> MOD=<mod_slug>"; exit 2; fi
