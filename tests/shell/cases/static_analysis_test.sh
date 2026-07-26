@@ -21,6 +21,7 @@ ZP_StateA  .EQU $0015
 ZP_StateB  .EQU $0016
 ZP_State2  .EQU $0017
 ZP_State3  .EQU $0018
+ZP_State4  .EQU $0019
 END_SENTINEL .EQU $00
 
 ; Confirmed overrun: wrong-register init (LDX where LDY was needed).
@@ -222,6 +223,21 @@ Cmp0Named:
 c0n_join:
     CLC
     RTS
+
+; A reload whose stored value comes from a JSR return -- removability is non-local
+; (it depends on the subroutine's flag-return contract), so the finding names the
+; subroutine.
+ReloadFromJsr:
+    JSR SomeBcdSub
+    STA ZP_State4
+    LDA ZP_State4
+    BEQ rfj_done
+    STA Out1
+rfj_done:
+    RTS
+SomeBcdSub:
+    LDA #0
+    RTS
 ASM
 }
 
@@ -374,5 +390,24 @@ if not lit or lit[0]["named"]:
 nm = [r for r in cmp0 if "END_SENTINEL" in r["cmp"]]
 if not nm or not nm[0]["named"]:
     raise SystemExit(f"a named zero-sentinel compare must be a trade-off (named=true): {cmp0}")
+PY
+}
+
+test_static_analysis_reload_flags_jsr_contract() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_reljsr.asm"
+  local out="${NESREV_TEST_TMPDIR}/sa_reljsr.json"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${out}" >/dev/null
+  python3 - "${out}" <<'PY'
+import json, sys
+rl = json.load(open(sys.argv[1]))["reload"]
+# A locally-produced reload (value from a nearby LDA) is a local optimization.
+plain = [r for r in rl if "ZP_StateB" in r["store"]]
+if not plain or plain[0]["jsr"] is not None:
+    raise SystemExit(f"a locally-produced reload must have jsr=None: {rl}")
+# A reload whose value came from a JSR names the subroutine (non-local contract).
+viajsr = [r for r in rl if "ZP_State4" in r["store"]]
+if not viajsr or viajsr[0]["jsr"] != "SomeBcdSub":
+    raise SystemExit(f"a JSR-produced reload must name the subroutine: {rl}")
 PY
 }

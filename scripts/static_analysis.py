@@ -444,6 +444,34 @@ def carry_discarded_by_shift(prog, i):
     return None
 
 
+def reload_producer_jsr(prog, sta_i):
+    """Scan back from the store on its sole fall-through chain. If a `JSR` supplies
+    the stored A before any local A-producer does, dropping the reload depends on
+    that subroutine returning with N/Z set on A -- a *non-local* contract, not a
+    local property. Returns the subroutine's name, else None."""
+    a_local = {'LDA', 'TXA', 'TYA', 'PLA', 'AND', 'ORA', 'EOR', 'ADC', 'SBC'}
+    ins = prog.ins
+    j, steps = sta_i - 1, 0
+    while j >= 0 and steps < 6:
+        t, nxt = ins[j], ins[j + 1]
+        if (t['off'] is None or nxt['off'] is None
+                or nxt['off'] != t['off'] + t['nbytes']):
+            return None  # t does not fall through to its successor
+        op = t['op']
+        if op == 'JSR':
+            parts = t['src'].split()
+            return parts[1] if len(parts) > 1 else 'a subroutine'
+        if op in a_local or (op in ('ASL', 'LSR', 'ROL', 'ROR') and t['mode'] == 'implied'):
+            return None  # a local instruction set A -> local optimization
+        # A branch target that is itself the producer (JSR / local load) is handled
+        # above; but to keep walking *past* t we need t to have a single entry.
+        if t['labeled']:
+            return None
+        j -= 1
+        steps += 1
+    return None
+
+
 def analyze(prog):
     ins = prog.ins
     out = {k: [] for k in
@@ -555,7 +583,8 @@ def analyze(prog):
                     and prog.preds[i + 1] == [i]
                     and not t['labeled'] and not n['labeled']):
                 out['reload'].append({'line': t['line'], 'store': t['src'],
-                                      'reload': n['src']})
+                                      'reload': n['src'],
+                                      'jsr': reload_producer_jsr(prog, i)})
     return out
 
 
@@ -740,10 +769,16 @@ def emit(out, title, asm, commit, date):
         doc += "\n## D. Redundant reload after store (lower confidence)\n\n"
         doc += ("`ST_ x` then `LD_ x` at the same location -- A already holds the "
                 "value; the reload only refreshes **N**/**Z**. Removable only if the "
-                "producer already left the flags set (often the shared BCD-subtract "
-                "idiom). Verify the producer.\n\n")
+                "value's producer already left the flags set on it. When that "
+                "producer is a `JSR`, this depends on the subroutine's flag-return "
+                "contract -- a **non-local** property, not a local optimization -- so "
+                "verify the callee, not just the call site.\n\n")
         for r in reload_:
-            doc += f"- **L{r['line']}** -- reload:\n\n"
+            note = ''
+            if r.get('jsr'):
+                note = (f" -- **non-local**: the value comes from `JSR {r['jsr']}`, so "
+                        f"this is safe only if `{r['jsr']}` returns with N/Z set on A")
+            doc += f"- **L{r['line']}** -- reload{note}:\n\n"
             doc += fence(r['store'], r['reload']) + "\n"
     return doc
 

@@ -206,7 +206,10 @@ The generated doc groups findings into four sections:
   fall-through entry. A labeled reload may be entered with a different A; a labeled
   *store* may be entered with N/Z set by another instruction (e.g. via `BNE`),
   making the reload's `LD_` needed to refresh the flags. Labels come from the
-  listing (their own records), so this is checked structurally.
+  listing (their own records), so this is checked structurally. When the stored
+  value's producer is a `JSR` (the finding names the subroutine), removability is
+  **non-local**: it holds only if the callee returns with N/Z set on `A`, so it
+  must be verified against the callee's flag-return contract, not the call site.
 
 Category-C candidates whose affected value liveness could not prove dead on every
 path (e.g. live at an `RTS`, so possibly a return value) are simply not reported —
