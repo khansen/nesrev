@@ -23,6 +23,9 @@ Reports (see the generated STATIC_ANALYSIS.md for prose):
   C micro-opts  : AND #$80 -> BMI/BPL (only when A and Z are both dead after the
                   branch); redundant CMP #$00; TXA/TYA+CMP -> CPX/CPY.
   D reload      : ST_ x ; LD_ x (same location) -> drop reload.
+  E tail-call   : JSR target ; RTS, a parity-preserved tail-call shape. This is a
+                  source-annotation worklist item, not a guaranteed rewrite:
+                  stack-sensitive callees need human review.
   (Category-C candidates whose value is not provably dead are kept in the
   `excluded` bucket for --json/debugging only; they are not in the doc report.)
 
@@ -479,6 +482,45 @@ def reload_producer_jsr(prog, sta_i):
     return None
 
 
+def jsr_target_name(t):
+    """Return the operand text of a direct JSR instruction."""
+    body = (t.get('src') or '').split(';', 1)[0].strip()
+    parts = body.split(None, 1)
+    return parts[1].strip() if len(parts) > 1 else ''
+
+
+def find_tail_calls(prog):
+    """Find assembled `JSR target` immediately followed by a ROM-contiguous `RTS`.
+
+    This uses xasm's instruction records rather than source text matching, so
+    labels, comments, blank lines, and macro/directive formatting cannot create a
+    false adjacency. The finding is an annotation candidate: a normal callee makes
+    `JMP target` semantically equivalent in non-parity builds, but stack-protocol
+    callees may rely on the JSR-created return frame and need reviewer judgment.
+    """
+    out = []
+    ins = prog.ins
+    for i, t in enumerate(ins[:-1]):
+        if t['op'] != 'JSR':
+            continue
+        n = ins[i + 1]
+        if n['op'] != 'RTS':
+            continue
+        if t['off'] is None or n['off'] is None or n['off'] != t['off'] + t['nbytes']:
+            continue
+        out.append({
+            'line': t['line'],
+            'routine': t.get('routine'),
+            'jsr': t['src'],
+            'rts': n['src'],
+            'target': jsr_target_name(t),
+            'rts_labeled': bool(n.get('labeled')),
+            'rts_shared': prog.preds[i + 1] != [i],
+            'annotated': has_inline_comment(t['src']),
+        })
+    return out
+
+
 def has_inline_comment(*srcs):
     """True when a finding's *flagged instruction* carries an inline comment (`;`).
     Callers pass only the flagged line (the dead instruction, the reload's `LD_`,
@@ -493,8 +535,9 @@ def analyze(prog):
     ins = prog.ins
     out = {k: [] for k in
            ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer',
-            'reload', 'excluded')}
+            'reload', 'tailcall', 'excluded')}
     out['bugs'] = find_overruns(prog)
+    out['tailcall'] = find_tail_calls(prog)
     for i, t in enumerate(ins):
         op, mode = t['op'], t['mode']
 
@@ -624,7 +667,8 @@ HEADER = """# Static Analysis -- {title}
 > vs call-site review candidates); **B--D** are **mod-only**: the canonical
 > disassembly must reassemble byte-for-byte, so those rewrites may not be applied
 > to `{asm}` -- they are for an article on hand-written-6502 code and for future
-> *relocatable mod* builds. Method, confidence rules, and the excluded
+> *relocatable mod* builds. **E** is a source-annotation worklist for parity-kept
+> tail-call shapes, not an automatic rewrite. Method, confidence rules, and the excluded
 > false-positive classes are documented once in
 > `agent_playbook/TOOLING.md` (Static-Analysis Scanner), not repeated here.
 
@@ -636,6 +680,7 @@ HEADER = """# Static Analysis -- {title}
 | B | Dead instructions | {dead} | mod-only; -1..3 bytes each |
 | C | Micro-optimizations (bit-7 / compare-0 / transfer) | {micro} | mod-only; bit-7 is a readability/layout trade-off |
 | D | Redundant reload after store | {reload} | mod-only; lower confidence |
+| E | Tail-call candidates | {tailcall} | source annotation; rewrite only after stack-contract review |
 """
 
 def fence(*lines):
@@ -651,17 +696,18 @@ def annot(r):
 
 def emit(out, title, asm, commit, date):
     bugs, wrongreg, carryshift = out['bugs'], out['wrongreg'], out['carryshift']
-    dead, reload_ = out['dead'], out['reload']
+    dead, reload_, tailcall = out['dead'], out['reload'], out['tailcall']
     micro = len(out['bit7']) + len(out['cmp0']) + len(out['xfer'])
     doc = HEADER.format(title=title, asm=asm, commit=commit, date=date,
                         bugs=len(bugs) + len(wrongreg) + len(carryshift),
-                        dead=len(dead), micro=micro, reload=len(reload_))
+                        dead=len(dead), micro=micro, reload=len(reload_),
+                        tailcall=len(tailcall))
     total = (len(bugs) + len(wrongreg) + len(carryshift) + len(dead) + micro
-             + len(reload_))
+             + len(reload_) + len(tailcall))
     if total == 0:
-        doc += ("\nNo correctness, dead-instruction, optimization, or redundancy "
-                "findings under the patterns scanned. The hand-written code here is "
-                "already tight.\n")
+        doc += ("\nNo correctness, dead-instruction, optimization, redundancy, or "
+                "tail-call findings under the patterns scanned. The hand-written code "
+                "here is already tight.\n")
 
     # Source-annotation status: a finding is treated as "handled" when its flagged
     # instruction already carries an inline comment. That is a heuristic (the
@@ -671,7 +717,8 @@ def emit(out, title, asm, commit, date):
     all_findings = ([('A', r) for r in bugs + wrongreg + carryshift]
                     + [('B', r) for r in dead]
                     + [('C', r) for r in out['bit7'] + out['cmp0'] + out['xfer']]
-                    + [('D', r) for r in reload_])
+                    + [('D', r) for r in reload_]
+                    + [('E', r) for r in tailcall])
     todo = [(c, r) for c, r in all_findings if not r.get('annotated')]
     if all_findings:
         done = len(all_findings) - len(todo)
@@ -686,7 +733,7 @@ def emit(out, title, asm, commit, date):
         by_cat = {}
         for c, r in todo:
             by_cat.setdefault(c, []).append(r['line'])
-        for c in ('A', 'B', 'C', 'D'):
+        for c in ('A', 'B', 'C', 'D', 'E'):
             if by_cat.get(c):
                 nums = ', '.join(f"L{n}" for n in sorted(by_cat[c]))
                 doc += f"- **{c}:** {nums}\n"
@@ -838,6 +885,23 @@ def emit(out, title, asm, commit, date):
                         f"this is safe only if `{r['jsr']}` returns with N/Z set on A")
             doc += f"- **L{r['line']}**{annot(r)} -- reload{note}:\n\n"
             doc += fence(r['store'], r['reload']) + "\n"
+
+    if tailcall:
+        doc += "\n## E. Tail-call candidates\n\n"
+        doc += ("`JSR target` immediately followed by `RTS` is the parity-preserved "
+                "shape of a tail call. In a non-parity build, a normal callee could "
+                "usually be reached with `JMP target`; do not rewrite blindly when "
+                "the callee uses stack or return-address protocol. The finding marks "
+                "source sites that should carry the standard parity note or a more "
+                "specific stack-contract comment.\n\n")
+        for r in tailcall:
+            routine = f" `{r['routine']}`" if r.get('routine') else ''
+            extra = ''
+            if r.get('rts_labeled') or r.get('rts_shared'):
+                extra = (" The `RTS` is also a labeled/shared return site, so only "
+                         "the call path is a tail-call shape.")
+            doc += (f"- **L{r['line']}{routine}**{annot(r)} -- `{r['jsr']}` falls "
+                    f"through to `RTS`.{extra}\n\n")
     return doc
 
 
@@ -864,7 +928,8 @@ def main():
         with open(args.doc_out, 'w', encoding='utf-8') as f:
             f.write(doc)
     if args.do_print or not (args.json or args.doc_out):
-        order = ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer', 'reload', 'excluded')
+        order = ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer',
+                 'reload', 'tailcall', 'excluded')
         print(f"{args.asm_file}: {len(prog.ins)} instrs  "
               + "  ".join(f"{k}={counts[k]}" for k in order))
 

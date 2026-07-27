@@ -165,7 +165,7 @@ mapper banks), resolves relative branches by offset arithmetic, and runs backwar
 liveness of registers {A,X,Y} and flags {Z,N,C,V}. Every finding is verified
 against liveness on every path.
 
-The generated doc groups findings into four sections:
+The generated doc groups findings into five sections:
 
 - **A. Correctness / latent bugs** — two wrong-register symptoms.
   (1) *Uninitialised-index overrun*: an index register *live-in* to a tight
@@ -213,6 +213,14 @@ The generated doc groups findings into four sections:
   value's producer is a `JSR` (the finding names the subroutine), removability is
   **non-local**: it holds only if the callee returns with N/Z set on `A`, so it
   must be verified against the callee's flag-return contract, not the call site.
+- **E. Tail-call candidates** — an assembled `JSR target` immediately followed by
+  a ROM-contiguous `RTS`. This is detected from xasm instruction records and
+  output offsets, not source-text matching, so comments, labels, blank lines, and
+  formatting cannot create false adjacency. It is a source-annotation worklist:
+  the parity source keeps `JSR`/`RTS`, while a non-parity build could usually use
+  `JMP target` only after the callee's stack/return-address contract is reviewed.
+  If the `RTS` is itself labeled or shared, the report notes that only the call
+  path is a tail-call shape.
 
 Category-C candidates whose affected value liveness could not prove dead on every
 path (e.g. live at an `RTS`, so possibly a return value) are simply not reported —
