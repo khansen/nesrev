@@ -205,10 +205,10 @@ The generated doc groups findings into five sections:
   it loses the name, so it wants a comment. The transfer rewrite carries no such
   cost.
 - **D. Redundant reload after store** (lower confidence) — only when **both** the
-  store and the reload `LD_` are *unlabeled*, so the pair has a single
+  store and the reload instruction are *unlabeled*, so the pair has a single
   fall-through entry. A labeled reload may be entered with a different A; a labeled
   *store* may be entered with N/Z set by another instruction (e.g. via `BNE`),
-  making the reload's `LD_` needed to refresh the flags. Labels come from the
+  making the reload needed to refresh the flags. Labels come from the
   listing (their own records), so this is checked structurally. When the stored
   value's producer is a `JSR` (the finding names the subroutine), removability is
   **non-local**: it holds only if the callee returns with N/Z set on `A`, so it
@@ -228,7 +228,7 @@ they were report noise. They remain in the `--json` output under `excluded` for
 tuning/debugging the liveness only.
 
 Every finding carries an `annotated` flag: true when the finding's **flagged
-instruction** (its own line — the dead instruction, the reload's `LD_`, the
+instruction** (its own line — the dead instruction, the reload instruction, the
 compare, ...) carries an inline comment (`;`). Only that line is checked, never
 the surrounding context (a comment on a producer/branch is usually unrelated
 prose and must not mask the finding). This is a heuristic proxy for "already
