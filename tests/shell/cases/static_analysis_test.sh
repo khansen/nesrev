@@ -543,4 +543,6 @@ PY
     || { echo "doc missing annotation-status section" >&2; return 1; }
   grep -q "have no inline comment at the flagged instruction" "${doc}" \
     || { echo "doc missing un-annotated count" >&2; return 1; }
+  ! grep -Fq '`LD_`' "${doc}" \
+    || { echo "doc contains symbol-looking pseudo mnemonic LD_" >&2; return 1; }
 }

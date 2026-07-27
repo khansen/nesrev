@@ -726,7 +726,7 @@ def emit(out, title, asm, commit, date):
                 f"**{len(todo)} of {len(all_findings)} findings have no inline comment "
                 f"at the flagged instruction** ({done} already carry one). The flagged "
                 "instruction is the finding's own line (the dead instruction, the "
-                "reload's `LD_`, the compare, ...), not the surrounding context; a "
+                "reload instruction, the compare, ...), not the surrounding context; a "
                 "comment there is treated as the finding already being handled and is "
                 "marked *(flagged instruction has an inline comment)* below. The rest "
                 "are the annotation worklist:\n\n")
@@ -872,7 +872,7 @@ def emit(out, title, asm, commit, date):
 
     if reload_:
         doc += "\n## D. Redundant reload after store (lower confidence)\n\n"
-        doc += ("`ST_ x` then `LD_ x` at the same location -- A already holds the "
+        doc += ("A store followed by a reload at the same location -- A already holds the "
                 "value; the reload only refreshes **N**/**Z**. Removable only if the "
                 "value's producer already left the flags set on it. When that "
                 "producer is a `JSR`, this depends on the subroutine's flag-return "
