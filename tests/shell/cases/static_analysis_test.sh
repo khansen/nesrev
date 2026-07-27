@@ -274,6 +274,31 @@ rfj_done:
 SomeBcdSub:
     LDA #0
     RTS
+
+; Plain tail-call candidate with no inline comment.
+TailCallPlain:
+    JSR SomeBcdSub
+    RTS
+
+; Already annotated tail-call candidate.
+TailCallAnnotated:
+    JSR SomeBcdSub ; tail-call candidate; could use `JMP` when ROM parity is not required
+    RTS
+
+; Not a tail call: there is an intervening instruction.
+TailCallInterveningControl:
+    JSR SomeBcdSub
+    LDA #0
+    RTS
+
+; A labeled RTS still reports as a tail-call shape, but the finding records that
+; the return site has its own label.
+TailCallLabeledRts:
+    JSR SomeBcdSub
+SharedTailReturn:
+    RTS
+JumpToSharedTailReturn:
+    JMP SharedTailReturn
 ASM
 }
 
@@ -451,6 +476,38 @@ viajsr = [r for r in rl if "ZP_State4" in r["store"]]
 if not viajsr or viajsr[0]["jsr"] != "SomeBcdSub":
     raise SystemExit(f"a JSR-produced reload must name the subroutine: {rl}")
 PY
+}
+
+test_static_analysis_flags_tail_call_candidates() {
+  local asm="${NESREV_TEST_TMPDIR}/sa_tail.asm"
+  local json="${NESREV_TEST_TMPDIR}/sa_tail.json"
+  local doc="${NESREV_TEST_TMPDIR}/sa_tail.md"
+  _write_static_analysis_fixture "${asm}"
+  python3 "${STATIC_ANALYSIS}" "${asm}" --json "${json}" --doc-out "${doc}" \
+    --title Fixture --commit test --date 2026-07-26 >/dev/null
+  python3 - "${json}" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+tc = d["tailcall"]
+by = {r["routine"]: r for r in tc}
+expected = {"CallerSetsIndex", "TailCallPlain", "TailCallAnnotated", "TailCallLabeledRts"}
+if set(by) != expected:
+    raise SystemExit(f"expected tail-call routines {expected}, got {set(by)}: {tc}")
+if by["TailCallPlain"]["annotated"]:
+    raise SystemExit(f"plain tail call should be unannotated: {tc}")
+if not by["TailCallAnnotated"]["annotated"]:
+    raise SystemExit(f"commented tail call should be annotated: {tc}")
+if not by["TailCallLabeledRts"]["rts_labeled"]:
+    raise SystemExit(f"labeled RTS tail call should carry rts_labeled: {tc}")
+if "TailCallInterveningControl" in by:
+    raise SystemExit("intervening instruction must not be a tail-call candidate")
+if by["TailCallPlain"]["target"] != "SomeBcdSub":
+    raise SystemExit(f"tail-call target should be parsed from assembled JSR source: {tc}")
+PY
+  grep -q "Tail-call candidates" "${doc}" \
+    || { echo "doc missing tail-call section" >&2; return 1; }
+  grep -Fq "**E:**" "${doc}" \
+    || { echo "doc missing Category E annotation worklist" >&2; return 1; }
 }
 
 test_static_analysis_flags_already_annotated_findings() {

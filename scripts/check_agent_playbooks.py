@@ -142,8 +142,8 @@ ROOT_WORD_CEILING = 6000
 # TOOLING.md, and the new-project ceilings from 3650/26650 to 3660/26720 for the
 # matching root routing row ("Audit for dead code, latent bugs, or
 # micro-optimizations"). The tool documents a novel CFG+liveness analysis and its
-# four finding categories; the ceilings carry that prose at readable length with
-# the same modest headroom the other ceilings hold, rather than compressing it.
+# finding categories; the ceilings carry that prose at readable length with the
+# same modest headroom the other ceilings hold, rather than compressing it.
 # The default ceiling was raised from 2650/19100 to 2700/19260 when the
 # Static-Analysis Scanner section documented the per-finding `annotated` flag and
 # the report's Source-annotation status / worklist block (which findings still
@@ -154,9 +154,14 @@ ROOT_WORD_CEILING = 6000
 # finding's flagged instruction (not context lines), the report describes the
 # observable ("has an inline comment") rather than overclaiming, and the fixed-
 # bit-7 register set was documented as distinct from the side-effect-read set.
+# The static-analysis tail-call category later added a listing-backed source-
+# annotation worklist for `JSR target` / `RTS` shapes. The default and
+# data-recovery word ceilings were raised narrowly to preserve that distinction
+# between parity-kept annotation and non-parity rewrites without shortening the
+# scanner contract into ambiguous shorthand.
 ROUTE_BUDGETS = {
-    "default": (2700, 19260),
-    "data-recovery": (2585, 19140),
+    "default": (2700, 19360),
+    "data-recovery": (2585, 19180),
     "new-project": (3660, 26720),
 }
 
