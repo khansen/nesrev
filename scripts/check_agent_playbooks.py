@@ -159,10 +159,15 @@ ROOT_WORD_CEILING = 6000
 # data-recovery word ceilings were raised narrowly to preserve that distinction
 # between parity-kept annotation and non-parity rewrites without shortening the
 # scanner contract into ambiguous shorthand.
+# Orientation-sensitive naming later added an explicit ASM_STYLE confidence rule
+# for axes, byte order, row/column, direction, class/zone, and field order, plus
+# a root reviewer-checklist pointer. The affected route ceilings were raised to
+# keep the defining-evidence examples readable instead of compressing a subtle
+# semantic-safety rule.
 ROUTE_BUDGETS = {
-    "default": (2700, 19360),
-    "data-recovery": (2585, 19180),
-    "new-project": (3660, 26720),
+    "default": (2700, 19560),
+    "data-recovery": (2595, 19400),
+    "new-project": (3675, 26920),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

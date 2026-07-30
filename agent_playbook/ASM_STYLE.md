@@ -63,6 +63,18 @@ canonical wording from `AGENTS.md` for use during in-depth work:
   variants for cross-project standards. When uncertainty exists, keep
   neutral but semantically scoped names plus `inferred` notes, then
   promote confidence as evidence improves.
+- **Orientation-sensitive names require authoritative evidence.** Before
+  promoting axis (`X`/`Y`), byte-order (`Lo`/`Hi`), row/column,
+  direction, class, zone, or structured-field-order names to high
+  confidence, prove them against a producer or sink whose format defines
+  that orientation. Examples include OAM field stores for sprite
+  coordinates, PPU address write order for VRAM addresses, hardware-defined
+  register or button bit order, and record/table fields whose producer and
+  consumer agree on byte order. Nearby arithmetic, thresholds, or repeated
+  local use are not enough by themselves. If the orientation is still
+  unresolved, keep a neutral structural name and record the revisit
+  condition in `WORKING_NOTES.md` or a trace plan; do not build later
+  semantic names on that unresolved assumption.
 - **Localize branch-only labels when scope permits** — see [Local label
   cleanup](#naming-conventions) below.
 
