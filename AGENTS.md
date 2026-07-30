@@ -92,6 +92,9 @@ code review to the user. Fix or explicitly defer each issue found:
   raw hex suffixes where semantics are now known
 - hardcoded offsets, pointer bytes, or table sizes that can be expressed with
   field symbols, labels, or label math
+- orientation-sensitive aliases that have not met
+  [ASM_STYLE.md#naming-conventions](agent_playbook/ASM_STYLE.md#naming-conventions)
+  evidence rules; verify or defer them before closeout
 - selector/request `.DB $NN` offsets to known row/record/stream boundaries
   that should be `TargetLabel-BaseLabel`
 - unclassified NOP/padding oddities as defined in
