@@ -137,6 +137,10 @@ families unless the new game contradicts them. Required comparison domains:
 - actor/object slot layouts, state machines, collision boxes, motion streams
 - score/HUD packet and BCD pipelines
 
+Use `projects/PROGRAMMING_STYLE_COMPARISON.md` as the mature-architecture
+index, then inspect referenced asm/docs before applying conventions. Naming and
+classification rules stay in task-specific playbooks.
+
 If a subsystem appears Nintendo-common or already solved elsewhere, a pass is
 incomplete until the comparison is either applied or the scorecard states why
 the pattern does not fit.

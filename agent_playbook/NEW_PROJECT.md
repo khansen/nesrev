@@ -431,7 +431,9 @@ blocked:
 - **Prior-project analogue:** choose the analogue by evidence — same
   publisher or early Nintendo engine family first, then similar
   subsystem signatures (audio driver shape, PPU packet parser,
-  OAM/metasprite layout), then genre/era. Record the chosen analogue
+  OAM/metasprite layout), then genre/era. Use
+  `projects/PROGRAMMING_STYLE_COMPARISON.md` as the architecture index, then
+  inspect analogous asm/docs before applying assumptions. Record the chosen analogue
   in the first semantic pass's scorecard notes using
   `Analogue: <project_slug> (<applied pattern or reason it did not fit>)`.
 - **Codepointers:** begin discovery without assuming controls are

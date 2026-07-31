@@ -154,35 +154,41 @@ reviewer must inspect the touched regions and ledgers.
    on queued findings, and prune it before claiming maturity. A larger
    configured budget is acceptable only with a scorecard rationale that the
    remaining notes are active forward-pass hazards or unresolved evidence gaps.
-11. **Known parity-preserved bugs are documented both inline and in
+11. **The project is covered in the cross-project comparison.**
+    `projects/PROGRAMMING_STYLE_COMPARISON.md` includes the project's mature
+    architecture, structural family, and useful contrasts with existing
+    projects. The comparison file remains descriptive prior art only; naming
+    rules, scanner classification, and cleanup procedure belong in
+    task-specific playbooks.
+12. **Known parity-preserved bugs are documented both inline and in
     docs.** Inline-comment format at
     [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);
     registry at [#parity-bug-registry](#parity-bug-registry).
-12. **If `PARITY_GAPS.md` exists, it reflects the actual next
+13. **If `PARITY_GAPS.md` exists, it reflects the actual next
     highest-value item.** No stale completed priorities.
-13. **No avoidable hardcoded pointer low/high literals** where
+14. **No avoidable hardcoded pointer low/high literals** where
     `#<Symbol` / `#>Symbol` would work.
-14. **No avoidable hardcoded indirect-address operands** where
+15. **No avoidable hardcoded indirect-address operands** where
     symbolic pointer names exist.
-15. **No avoidable raw structured-field offsets** in executable
+16. **No avoidable raw structured-field offsets** in executable
     logic when pointer shape is known (`LDY #$NN` near slot/record
     pointers, adjacent `INY` field walks without field-name comments,
     etc.). Prefer symbolic fields and readable structure; when byte-saving
     `INY` replaces a symbolic `LDY`, comment the field reached after each
     meaningful increment because the instruction has no symbolic operand.
-16. **No stale raw-address comments** when a stable symbol exists.
+17. **No stale raw-address comments** when a stable symbol exists.
     Prefer symbol names over raw-address prose unless the numeric address
     itself is the semantic fact; canonical examples live at
     [DOCUMENTATION.md#raw-address-prohibition](DOCUMENTATION.md#raw-address-prohibition).
-17. **No address-coded or value-coded placeholder labels** when a
+18. **No address-coded or value-coded placeholder labels** when a
     semantic name is known. Names like `...Page0480...`,
     `...AddrC000...`, or `...Field10...` are acceptable only when
     the address/value identity is the durable meaning or the
     placeholder is explicitly recorded as future debt.
-18. **No obvious derivable counts/bounds or table offsets**
+19. **No obvious derivable counts/bounds or table offsets**
     remain raw when label math is clearer. This includes selector/request
     `.DB $NN` offsets to known labels; use `TargetLabel-BaseLabel`.
-19. **Systems-overview promotion and abstraction are correct.**
+20. **Systems-overview promotion and abstraction are correct.**
     `*_DX_Systems.md` remains minimal until stable names, ownership, control
     flow, and format boundaries exist. A promoted overview contains no
     unresolved `LXXXX`, raw RAM/ZP inventory, boot-step walkthrough,
@@ -195,7 +201,7 @@ reviewer must inspect the touched regions and ledgers.
     dedicated format docs or an explicit not-applicable/disposition note.
 ### Final readability sweep
 
-20. Run a final readability audit using targeted searches plus
+21. Run a final readability audit using targeted searches plus
     local review of surrounding code, not only generated KPI
     output. Source the project config first so `${ASM_FILE}` and
     `${DOC_ROOT}` resolve to the active project:
@@ -217,12 +223,12 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
     Treat findings as cleanup candidates, not automatic
     replacements.
 
-21. Before any gold claim, run the positive procedure-contract audit: use
+22. Before any gold claim, run the positive procedure-contract audit: use
     `project-pass-prep`, inspect `xref_summary_all.json` high-fanout callables
     and jump targets, and compare with the procedure/global-label KPI reports.
     If no mature-project headers result, the scorecard must name what was
     reviewed and why names/callers were sufficient.
-22. Before any claim that static work is "done" or exhausted, run the
+23. Before any claim that static work is "done" or exhausted, run the
     [core data-format coverage audit](REVIEW_AUDITS.md#core-data-format-coverage-audit)
     and
     [static readability debt audit](REVIEW_AUDITS.md#static-readability-debt-audit),
