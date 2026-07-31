@@ -140,6 +140,29 @@ canonical wording from `AGENTS.md` for use during in-depth work:
 
 See [Naming Conventions → Local label cleanup](#naming-conventions) above.
 
+<a id="declaration-grouping"></a>
+## Declaration Grouping and Symbol-Family Layout
+
+Treat related declarations as symbol families. Group `.EQU`, RAM/ZP aliases,
+structured-field constants, state/action values, bit masks, pointer/record
+constants, and format constants contiguously by subsystem role, record or
+stream format, overlay owner, public ABI/interface, or producer/consumer
+relationship.
+
+- Keep canonical hardware, joypad, OAM, PPU, and APU aliases with their
+  standard family unless a scoped overlay needs a narrower local block.
+- Keep project-local masks with their source bit constants and derived clear or
+  composite masks. Do not scatter one named bit away from the source or derived
+  masks that are reviewed with it.
+- Separate unrelated families with a blank line. Use a concise declaration-site
+  group header when the shared relationship is not obvious from the symbols
+  alone. Comment admission rules live in
+  [DOCUMENTATION.md#declaration-comments](DOCUMENTATION.md#declaration-comments).
+- Do not leave long mixed declaration runs that interleave unrelated hardware
+  aliases, input masks, RAM/ZP overlays, table fields, data-format constants,
+  state/action values, or bit-mask families when grouping would make ownership
+  and review scope clearer.
+
 <a id="placeholder-policy"></a>
 ## Placeholder Name Policy
 

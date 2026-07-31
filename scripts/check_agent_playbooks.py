@@ -174,10 +174,16 @@ ROOT_WORD_CEILING = 6000
 # rename-only label pass and a raw-RAM symbol pass. Those examples intentionally
 # spell out commands, ledger rows, verification, closeout, and staged artifacts
 # so new operators can follow the process mechanically.
+# Declaration-symbol review later made non-obvious symbol comments and related
+# symbol-family grouping explicit across QUALITY_REVIEW.md, DOCUMENTATION.md,
+# and ASM_STYLE.md. The default-budgeted mod route and the new-project route
+# cross their previous word ceilings because they include the affected playbook
+# bundles, so their ceilings preserve readable rule text instead of compressing
+# a review criterion into shorthand.
 ROUTE_BUDGETS = {
-    "default": (2810, 20050),
+    "default": (2810, 20250),
     "data-recovery": (2625, 19600),
-    "new-project": (3810, 27400),
+    "new-project": (3810, 27700),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
