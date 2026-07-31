@@ -101,18 +101,28 @@ reviewer must inspect the touched regions and ledgers.
    translations, raw-address prose, or tautological headers were added to make
    a KPI green. Review the changed comments manually against
    [DOCUMENTATION.md#comment-quality](DOCUMENTATION.md#comment-quality).
-6. **No remaining placeholder `Data_XXXX` labels** (unless
+6. **Non-obvious declaration symbols are grouped and commented.** Review
+   touched declaration blocks as symbol families, not isolated names.
+   Grouping and layout are governed by
+   [ASM_STYLE.md#declaration-grouping](ASM_STYLE.md#declaration-grouping);
+   declaration-site comment admission is governed by
+   [DOCUMENTATION.md#declaration-comments](DOCUMENTATION.md#declaration-comments).
+   Reject long mixed declaration runs, isolated unexplained overlays or ABI
+   blocks, unexplained packed masks/sentinels, and repetitive per-symbol
+   boilerplate that duplicates symbol values instead of complementing the
+   definitions.
+7. **No remaining placeholder `Data_XXXX` labels** (unless
    intentionally unresolved and explicitly documented). No KPI
    script currently flags placeholder data-label names, so grep
    the inventory and asm manually.
-7. **High-impact runtime routines expose useful contracts where needed.**
+8. **High-impact runtime routines expose useful contracts where needed.**
    Comments are not required when semantic names and callers already make the
    contract clear. Any retained header must add non-obvious purpose, side
    effects, inputs/outputs, ordering, or public-entry semantics; walkthroughs
    and KPI filler fail this item. Review high-fanout callables and public
    jump/dispatch targets from `xref_summary_all.json`; localize,
    rename/structure, add a concise header, or record why none is needed.
-8. **Major data regions have dedicated format coverage.** Inline `Format:`
+9. **Major data regions have dedicated format coverage.** Inline `Format:`
    comments are not enough for core editable systems. If the game has
    levels/stages/rooms/maps, objects/actors/enemies/hazards,
    items/pickups, projectiles, metasprites/animation, PPU packet/update
@@ -134,7 +144,7 @@ reviewer must inspect the touched regions and ledgers.
    `data_blob_dispositions.csv` with the exact consumer evidence, pointer-field
    search result, extent proof, and reflow status; this is the maturity proof
    that the bytes are understood, not merely labeled.
-9. **Onboarding docs are complete and cross-linked**
+10. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    dedicated format/state-machine docs, and promoted subsystem
    `*_DX_Systems.md`). A not-yet-promoted systems
@@ -144,35 +154,35 @@ reviewer must inspect the touched regions and ledgers.
    on queued findings, and prune it before claiming maturity. A larger
    configured budget is acceptable only with a scorecard rationale that the
    remaining notes are active forward-pass hazards or unresolved evidence gaps.
-10. **Known parity-preserved bugs are documented both inline and in
+11. **Known parity-preserved bugs are documented both inline and in
     docs.** Inline-comment format at
     [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);
     registry at [#parity-bug-registry](#parity-bug-registry).
-11. **If `PARITY_GAPS.md` exists, it reflects the actual next
+12. **If `PARITY_GAPS.md` exists, it reflects the actual next
     highest-value item.** No stale completed priorities.
-12. **No avoidable hardcoded pointer low/high literals** where
+13. **No avoidable hardcoded pointer low/high literals** where
     `#<Symbol` / `#>Symbol` would work.
-13. **No avoidable hardcoded indirect-address operands** where
+14. **No avoidable hardcoded indirect-address operands** where
     symbolic pointer names exist.
-14. **No avoidable raw structured-field offsets** in executable
+15. **No avoidable raw structured-field offsets** in executable
     logic when pointer shape is known (`LDY #$NN` near slot/record
     pointers, adjacent `INY` field walks without field-name comments,
     etc.). Prefer symbolic fields and readable structure; when byte-saving
     `INY` replaces a symbolic `LDY`, comment the field reached after each
     meaningful increment because the instruction has no symbolic operand.
-15. **No stale raw-address comments** when a stable symbol exists.
+16. **No stale raw-address comments** when a stable symbol exists.
     Prefer symbol names over raw-address prose unless the numeric address
     itself is the semantic fact; canonical examples live at
     [DOCUMENTATION.md#raw-address-prohibition](DOCUMENTATION.md#raw-address-prohibition).
-16. **No address-coded or value-coded placeholder labels** when a
+17. **No address-coded or value-coded placeholder labels** when a
     semantic name is known. Names like `...Page0480...`,
     `...AddrC000...`, or `...Field10...` are acceptable only when
     the address/value identity is the durable meaning or the
     placeholder is explicitly recorded as future debt.
-17. **No obvious derivable counts/bounds or table offsets**
+18. **No obvious derivable counts/bounds or table offsets**
     remain raw when label math is clearer. This includes selector/request
     `.DB $NN` offsets to known labels; use `TargetLabel-BaseLabel`.
-18. **Systems-overview promotion and abstraction are correct.**
+19. **Systems-overview promotion and abstraction are correct.**
     `*_DX_Systems.md` remains minimal until stable names, ownership, control
     flow, and format boundaries exist. A promoted overview contains no
     unresolved `LXXXX`, raw RAM/ZP inventory, boot-step walkthrough,
@@ -185,7 +195,7 @@ reviewer must inspect the touched regions and ledgers.
     dedicated format docs or an explicit not-applicable/disposition note.
 ### Final readability sweep
 
-19. Run a final readability audit using targeted searches plus
+20. Run a final readability audit using targeted searches plus
     local review of surrounding code, not only generated KPI
     output. Source the project config first so `${ASM_FILE}` and
     `${DOC_ROOT}` resolve to the active project:
@@ -207,12 +217,12 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
     Treat findings as cleanup candidates, not automatic
     replacements.
 
-20. Before any gold claim, run the positive procedure-contract audit: use
+21. Before any gold claim, run the positive procedure-contract audit: use
     `project-pass-prep`, inspect `xref_summary_all.json` high-fanout callables
     and jump targets, and compare with the procedure/global-label KPI reports.
     If no mature-project headers result, the scorecard must name what was
     reviewed and why names/callers were sufficient.
-21. Before any claim that static work is "done" or exhausted, run the
+22. Before any claim that static work is "done" or exhausted, run the
     [core data-format coverage audit](REVIEW_AUDITS.md#core-data-format-coverage-audit)
     and
     [static readability debt audit](REVIEW_AUDITS.md#static-readability-debt-audit),

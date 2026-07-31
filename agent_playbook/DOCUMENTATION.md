@@ -129,6 +129,10 @@ lists, addressing-mode paraphrases, mnemonic restatements, and tautological
 
 A semantic rename does not automatically permit or require a comment. Apply
 [#comment-quality](#comment-quality) to public symbols and locals alike.
+Declaration comments must complement the definition, not duplicate it. Do not
+write prose whose only durable fact is the symbol's value, address, expression,
+or bit pattern. If changing the definition would automatically make the comment
+stale, the comment belongs in the definition itself or should be omitted.
 
 - For procedures: add a short contract header only when purpose, side effects,
   inputs/outputs, ordering, or public-entry role are not clear from the name
@@ -137,6 +141,15 @@ A semantic rename does not automatically permit or require a comment. Apply
   block required by [#data-label-format](#data-label-format). Scalars,
   self-explanatory constants, and obvious flat tables do not need prose merely
   because they were renamed.
+- For declaration blocks (`.EQU`, RAM/ZP aliases, field constants, state/action
+  values, bit masks, pointer/record constants, and format constants): add
+  concise context when the symbol or contiguous family is non-obvious. Useful
+  declaration context includes shared role, ownership, overlay relationships,
+  ABI/interface contracts, packed-bit or sentinel semantics, orientation
+  evidence, producer/consumer relationships, and constraints a name alone
+  cannot carry. Prefer one group header for a related family over repetitive
+  per-symbol comments. Self-explanatory standard aliases, obvious scalars, and
+  obvious members of an already-commented group remain uncommented.
 - If a useful claim is partial, state only the proven subset and mark the
   uncertain semantic claim `inferred`. Otherwise leave documentation debt and
   record durable evidence gaps in `WORKING_NOTES.md`.
