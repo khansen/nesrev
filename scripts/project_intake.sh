@@ -151,7 +151,6 @@ resume = f"""## Resuming Work
 Run from the repository root:
 
 ```sh
-make project-pass-prep PROJECT={slug}
 make project-next-pass PROJECT={slug}
 make project-pass-start PROJECT={slug}
 ```

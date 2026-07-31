@@ -19,9 +19,29 @@ pass_dir="${DOC_ROOT}/inventory/pass"
 next_pass_json="${pass_dir}/next_pass.json"
 
 if [[ ! -f "${next_pass_json}" ]]; then
-  echo "error: ${next_pass_json} missing; run make project-pass-prep PROJECT=$1 && make project-next-pass PROJECT=$1 first" >&2
+  echo "error: ${next_pass_json} missing; run make project-next-pass PROJECT=$1 first" >&2
   exit 2
 fi
+
+stale_inputs=(
+  "${ASM_FILE}"
+  "${WARN_BASELINE_FILE}"
+  "${PROGRESS_SCORECARD_FILE}"
+  "${DOC_ROOT}/inventory/unknowns.md"
+  "${DOC_ROOT}/inventory/raw_ram_review.csv"
+  "${DOC_ROOT}/WORKING_NOTES.md"
+  "${pass_dir}/baseline_status.json"
+  "${pass_dir}/xref_summary_all.json"
+  "${pass_dir}/xref_summary_generic.json"
+  "${pass_dir}/xref_with_data.json"
+  "${pass_dir}/data_consumers.json"
+)
+for stale_input in "${stale_inputs[@]}"; do
+  if [[ -e "${stale_input}" && "${stale_input}" -nt "${next_pass_json}" ]]; then
+    echo "error: ${next_pass_json} is stale relative to ${stale_input}; run make project-next-pass PROJECT=$1 first" >&2
+    exit 2
+  fi
+done
 
 python3 - "${1}" "${PASS_ID}" "${TARGET_SYMBOL}" "${next_pass_json}" "${PROGRESS_SCORECARD_FILE}" "${pass_dir}" "${pass_dir}/xref_with_data.json" <<'PY'
 import json

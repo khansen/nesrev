@@ -40,7 +40,7 @@ disposition per candidate class in the scorecard or `WORKING_NOTES.md`:
 **runtime-gated** with trace question. Unexamined candidates forbid "static
 done."
 
-Run `project-pass-prep` / `project-next-pass`, then targeted scans:
+Run `project-next-pass`, then targeted scans:
 
 ```sh
 source scripts/project_common.sh && load_project_conf <slug>

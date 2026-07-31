@@ -168,9 +168,9 @@ Two universal constraints stay at root:
 <a id="resuming-an-existing-project"></a>
 ### Resuming an Existing Project
 
-The resume sequence (`project-pass-prep` → `project-next-pass` →
-working-notes review → `project-pass-start`), the wrapper-first
-evidence rule, and the owner-field rule live at
+The resume sequence (`project-next-pass` → working-notes review →
+`project-pass-start`), the wrapper-first evidence rule, and the
+owner-field rule live at
 [agent_playbook/PASS_WORKFLOW.md#session-resume](agent_playbook/PASS_WORKFLOW.md#session-resume).
 Closeout (`project-pass-closeout`, scorecard sync, gates) lives at
 [agent_playbook/PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
@@ -252,11 +252,10 @@ Treat these as the canonical process entry points; do not rely on remembered ad-
 
 9. **Pass-Mechanism Rule (Mandatory):** For starting or resuming a pass, use:
 ```sh
-make project-pass-prep PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 ```
-`project-next-pass` emits candidate evidence (hot labels, tables, raw bytes, red gates), not an authoritative pass choice; treat it as advisory. Before substantial edits the operator must select and record an explicit corridor objective — pass `TARGET=<corridor_anchor>` (optional `PASS=<id>`) to `project-pass-start`; without `TARGET` the wrapper warns and uses the first evidence bucket as fallback. Objective fields live at [PASS_WORKFLOW.md#corridor-objective](agent_playbook/PASS_WORKFLOW.md#corridor-objective). Manual `rg`/`sed` rescans are fallback behavior, not the default pass-selection method.
+`project-next-pass` auto-refreshes generated pass-prep cache when the cache is missing or stale, then emits candidate evidence (hot labels, tables, raw bytes, red gates), not an authoritative pass choice; treat it as advisory. Before substantial edits the operator must select and record an explicit corridor objective — pass `TARGET=<corridor_anchor>` (optional `PASS=<id>`) to `project-pass-start`; without `TARGET` the wrapper warns and uses the first evidence bucket as fallback. `project-pass-start` rejects missing or stale `next_pass.json` and tells the operator to rerun `project-next-pass`, preserving the read-evidence-before-selecting step. `project-pass-prep` remains an explicit cache/debug refresh helper, not a normal start step. Objective fields live at [PASS_WORKFLOW.md#corridor-objective](agent_playbook/PASS_WORKFLOW.md#corridor-objective). Manual `rg`/`sed` rescans are fallback behavior, not the default pass-selection method.
 If recent passes are low-yield, run the [strategy checkpoint](agent_playbook/PASS_WORKFLOW.md#low-yield-checkpoint) before continuing.
 
 10. **Mod Commit Rule (Mandatory):** Treat `projects/*/mods/` as local experiment space. Do not commit mods, relocatability probes, or other mod artifacts unless the user explicitly asks for that mod to be committed.

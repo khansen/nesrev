@@ -164,10 +164,20 @@ ROOT_WORD_CEILING = 6000
 # a root reviewer-checklist pointer. The affected route ceilings were raised to
 # keep the defining-evidence examples readable instead of compressing a subtle
 # semantic-safety rule.
+# Mechanical pass-start hardening later made `project-next-pass` the normal
+# operator entry point, kept `project-pass-prep` as an explicit cache/debug
+# helper, and documented that `project-pass-start` rejects missing or stale
+# `next_pass.json` instead of silently choosing from old evidence. The word
+# ceilings carry that sequencing rule at readable length with the same modest
+# measured-plus-headroom convention.
+# PASS_WORKFLOW.md later gained two worked end-to-end pass examples: a
+# rename-only label pass and a raw-RAM symbol pass. Those examples intentionally
+# spell out commands, ledger rows, verification, closeout, and staged artifacts
+# so new operators can follow the process mechanically.
 ROUTE_BUDGETS = {
-    "default": (2700, 19560),
-    "data-recovery": (2595, 19400),
-    "new-project": (3675, 26920),
+    "default": (2810, 20050),
+    "data-recovery": (2625, 19600),
+    "new-project": (3810, 27400),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

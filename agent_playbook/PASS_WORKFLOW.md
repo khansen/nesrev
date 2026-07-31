@@ -1,13 +1,13 @@
 # PASS_WORKFLOW Playbook
 
-This playbook is the canonical home for the operational pass lifecycle — resume/warm-up, `project-pass-prep`/`-next-pass`/`-pass-start`, current-pass plan handling, scorecard synchronization, raw-RAM review queue operation, closeout and verification, generated cache vs. authored artifact distinctions, batching/rework/commit boundaries, and RAM-symbolization prioritization. Naming and structured-field conventions stay in [`ASM_STYLE.md`](ASM_STYLE.md).
+This playbook is the canonical home for the operational pass lifecycle — resume/warm-up, generated pass cache, `project-next-pass`/`project-pass-start`, current-pass plan handling, scorecard synchronization, raw-RAM review queue operation, closeout and verification, generated cache vs. authored artifact distinctions, batching/rework/commit boundaries, and RAM-symbolization prioritization. Naming and structured-field conventions stay in [`ASM_STYLE.md`](ASM_STYLE.md).
 
 ## Ownership
 
 This playbook owns the operational pass lifecycle:
 
 - resume/warm-up sequence
-- `project-pass-prep`, `project-next-pass`, `project-pass-start`
+- generated pass cache, `project-next-pass`, and `project-pass-start`
 - candidate-evidence framing, operator-selected corridor objective,
   pass-versus-commit, and the low-yield strategy checkpoint
 - current-pass plan handling
@@ -42,22 +42,23 @@ When resuming an existing project, run the wrappers in this order:
 
 1. **Identify the active project.** Check `projects/` for the slug or
    ask the user if multiple candidates exist.
-2. **Prepare pass artifacts** — see [#pass-prep](#pass-prep).
-3. **Read the status brief** — see [#next-pass](#next-pass).
-4. **Read working notes if present.** If
+2. **Read the status brief** — run `make project-next-pass PROJECT=<slug>`;
+   it auto-refreshes generated pass cache when needed. See
+   [#next-pass](#next-pass).
+3. **Read working notes if present.** If
    `docs/reverse_engineering/WORKING_NOTES.md` exists for the project,
    read it before substantial edits. Use it only for durable
    project-specific insights, invariants, heuristics, and other
    agent-facing facts that are likely to help future passes and do not
    fit the systems doc, memory map, or scorecard.
-5. **Select the corridor objective.** Treat the generated briefing as
+4. **Select the corridor objective.** Treat the generated briefing as
    candidate evidence and choose the corridor per
    [#corridor-objective](#corridor-objective) (interpret "high-value" via
    [AGENTS.md#guiding-pass-philosophy](../AGENTS.md#guiding-pass-philosophy)).
    If the briefing has no strong corridor, apply the
    [AGENTS.md#reviewer-simulation-checklist](../AGENTS.md#reviewer-simulation-checklist)
    before deciding that only doc closure remains.
-6. **Persist the pass plan** — record the choice via
+5. **Persist the pass plan** — record the choice via
    `make project-pass-start PROJECT=<slug> TARGET=<corridor_anchor_or_notes_plan>`;
    see [#pass-start](#pass-start).
 
@@ -79,22 +80,23 @@ owners from raw symbol definitions.
 <a id="pass-prep"></a>
 ## Pass Prep
 
-`make project-pass-prep PROJECT=<slug>` is the de facto start-of-pass
-command. It refreshes inventories and generates the machine-readable
-pass inputs under
+`make project-pass-prep PROJECT=<slug>` is an explicit cache refresh/debug
+helper. It refreshes inventories and generates the machine-readable pass inputs under
 `docs/reverse_engineering/inventory/pass/` —
 see [#generated-vs-authored-artifacts](#generated-vs-authored-artifacts)
 for the cache-vs-source-of-truth contract.
-`project-pass-prep` refreshes inventories; do not manually re-derive
-the same pass inputs unless the prep artifacts are missing or stale.
+The normal operator entry point is `project-next-pass`, which invokes
+`project-pass-prep` when generated inputs are missing or stale. Do not manually
+re-derive the same pass inputs unless the prep artifacts are missing or stale.
 For the full project gate, use `make project-ci PROJECT=<slug>` only
 when the complete CI sequence is needed — not as the default warm-up
 command.
 <a id="next-pass"></a>
 ## Next Pass Selection
 
-`make project-next-pass PROJECT=<slug>` emits evidence buckets. It ranks
-hotspots, not strategy; select the corridor objective
+`make project-next-pass PROJECT=<slug>` refreshes missing or stale generated
+pass cache, then emits evidence buckets. It ranks hotspots, not strategy;
+select the corridor objective
 ([#corridor-objective](#corridor-objective)).
 Its persisted output (`next_pass.json`) may include:
 
@@ -116,6 +118,10 @@ Pass `TARGET=<corridor_anchor_or_notes_plan>` (optional
 `PASS=<id>`) to record the operator's choice
 ([#corridor-objective](#corridor-objective)); without `TARGET` the wrapper
 warns and uses the first evidence bucket only as a mechanical fallback.
+If `next_pass.json` is missing or stale relative to its inputs, the wrapper
+fails and tells the operator to rerun `project-next-pass`; it does not silently
+generate evidence because the operator must read that evidence before selecting
+a corridor.
 Generated and notes-driven corridors are accepted. Treat
 `current_pass_plan.json` / `.md` as the compaction resume point.
 
@@ -145,6 +151,101 @@ make project-pass-start PROJECT=<slug> TARGET=<corridor_anchor> \
 ```
 
 Keep rationale in `WORKING_NOTES.md`, not chat.
+
+<a id="worked-examples"></a>
+## Worked Examples
+
+These examples show the smallest complete pass shape. Real passes should broaden
+the corridor when nearby RAM, constants, tables, or comments are proven by the
+same evidence.
+
+### Rename-only label pass
+
+1. Read the generated evidence and choose the corridor:
+
+```sh
+make project-next-pass PROJECT=<slug>
+make project-pass-start PROJECT=<slug> PASS=12 TARGET=L8123 \
+  CORRIDOR="input polling routine naming" \
+  WHY_NOW="next-pass shows L8123 as a high-fanout callable" \
+  BOUNDARIES="L8123 body and direct callsites only" \
+  EVIDENCE="xref callsites and local control flow" \
+  OUT_OF_SCOPE="unrelated controller state bytes"
+```
+
+2. Rename the declaration and every callsite in `asm/<slug>.asm`, for example
+   `L8123` to `PollControllerInput`.
+3. Add one row to `docs/reverse_engineering/inventory/renames.csv`:
+
+```csv
+L8123,PollControllerInput,input polling routine proven by callsites,high,12
+```
+
+4. Run parity after the source edit:
+
+```sh
+make project-verify PROJECT=<slug>
+```
+
+5. Close the pass. Use `VERIFY_MODE=relaxed` while unresolved `LXXXX` labels
+   remain; use `strict` once the project is strict-ready.
+
+```sh
+make project-pass-closeout PROJECT=<slug> PASS=12 VERIFY_MODE=relaxed \
+  FOCUS="Named input polling routine" \
+  NOTES="Input polling callsites now use PollControllerInput."
+```
+
+6. Inspect the diff, stage the asm, `renames.csv`, and closeout-updated docs or
+   inventory files, then commit.
+
+### Raw RAM symbol pass
+
+1. Read the evidence and start from the raw-RAM candidate. Quote `$` targets so
+   the shell does not expand them:
+
+```sh
+make project-next-pass PROJECT=<slug>
+make project-pass-start PROJECT=<slug> PASS=13 TARGET='raw_$0010' \
+  CORRIDOR="frame counter RAM byte" \
+  WHY_NOW="raw-RAM review shows one writer and multiple readers" \
+  BOUNDARIES="all executable 0x0010 operands and owning routines" \
+  EVIDENCE="raw_ram_review owner counts plus xref reads/writes" \
+  OUT_OF_SCOPE="other bytes in the same zero-page window"
+```
+
+2. Add the symbol and replace every executable operand for that byte:
+
+```asm
+ZP_FrameCounter .EQU $10
+
+  INC ZP_FrameCounter
+  LDA ZP_FrameCounter
+```
+
+3. Record the rename and flush the queue status:
+
+```csv
+raw_$0010,ZP_FrameCounter,frame counter ownership proven by reader and writer sites,high,13
+```
+
+```sh
+make project-raw-ram-review PROJECT=<slug> ADDR=0x0010 \
+  STATUS=symbolized SYMBOL=ZP_FrameCounter \
+  NOTES="Single frame-counter role proven by reader and writer sites." PASS=13
+```
+
+4. Update `MEMORY_MAP.md` with the new `ZP_FrameCounter` role, then run:
+
+```sh
+make project-verify PROJECT=<slug>
+make project-pass-closeout PROJECT=<slug> PASS=13 VERIFY_MODE=relaxed \
+  FOCUS="Named frame counter RAM byte" \
+  NOTES="Frame-counter operands now use ZP_FrameCounter."
+```
+
+5. Inspect the diff, stage the asm, `renames.csv`, `MEMORY_MAP.md`, the
+   queue row, and closeout-updated docs or inventory files, then commit.
 
 <a id="low-yield-checkpoint"></a>
 ## Low-Yield Strategy Checkpoint
@@ -183,7 +284,7 @@ such as `bank|$addr` in prose form (`bank 1 $A64C`) instead. New clean-room
 projects also set `SCORECARD_LIFECYCLE_REQUIRED=1`, making process-check reject
 duplicate or out-of-order pass IDs and historical rows whose `verify` or
 `docs_check` cell is blank/`pending`. The latest row may stay pending while
-`project-pass-finish` is still running. Legacy/imported scorecards can opt in
+`project-pass-closeout` is still running. Legacy/imported scorecards can opt in
 after a normalization pass.
 
 1. **Pass count.** Mature project target: `<= 12` major passes to
@@ -320,23 +421,23 @@ this section governs queue review and overlay introduction.
 <a id="pass-closeout"></a>
 ## Pass Closeout and Verification
 
-`make project-pass-closeout PROJECT=<slug>` (optional `PASS=<id>`) is the
-residue/materialization gate: it must confirm project changes and a scorecard
-row. Run it after the edit batch; sequencing lives at
-[#batching-and-commit-boundaries](#batching-and-commit-boundaries).
-
-`make project-pass-finish PROJECT=<slug>` is the preferred full-closeout
-wrapper. It materializes the scorecard row, refreshes inventory, runs
-closeout, docs/process checks, verification (`VERIFY_MODE=strict|relaxed`),
-updates `verify` / `docs_check`, and reruns docs check. Closeout remains the
-residue gate.
+`make project-pass-closeout PROJECT=<slug>` is the full mechanical pass-end
+wrapper. It materializes the scorecard row when needed, refreshes generated
+inventory, runs the residue/stale-symbol sweep, runs docs/process checks,
+performs verification (`VERIFY_MODE=strict|relaxed`), updates `verify` /
+`docs_check`, and reruns docs/process checks. Optional arguments are `PASS=<id>`,
+`FOCUS=<text>`, and `NOTES=<text>`.
 
 The scorecard row summarizes closed and remaining work. Closeout
-echoes `current_pass_plan.json` and warns if the objective is
-incomplete, stale, or missing. It auto-syncs derived KPI cells in the highest
-numeric `pass_id` row; do not hand-type them. Current-pass `raw_$NNNN` renames
-must have no remaining executable numeric operands; scoped overlays are reported
-without forcing unrelated uses of the same byte to change.
+requires `current_pass_plan.json` when `PASS=<id>` is omitted, so it cannot
+silently infer a new pass from a missing plan. It also rejects an inferred pass
+whose scorecard row is already closed; pass `PASS=<id>` explicitly only when
+intentionally rechecking an existing pass. During the residue sweep it echoes
+the persisted objective and warns if that objective is incomplete, stale, or
+missing. It auto-syncs derived KPI cells in the highest numeric `pass_id` row;
+do not hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
+executable numeric operands; scoped overlays are reported without forcing
+unrelated uses of the same byte to change.
 Parity verification mechanics (run `make project-verify`
 sequentially after every batch; never run assemble and parity
 compare concurrently; mandatory verification gate after every
@@ -560,9 +661,10 @@ After closeout succeeds, use this to pick the shape of the next pass:
 pass inputs under `docs/reverse_engineering/inventory/pass/`. These
 files are generated cache, not authored documentation. They exist to
 drive the next-pass briefing and reduce manual warm-up work.
-Regenerate them whenever you start or resume a pass; do not treat
-them as reviewable project artifacts or source-of-truth
-documentation.
+`project-next-pass` regenerates them via `project-pass-prep` when needed; run
+`project-pass-prep` directly only for an explicit cache refresh or tooling
+debug. Do not treat these files as reviewable project artifacts or
+source-of-truth documentation.
 Cache contents and consumer guidance:
 
 - `xref_with_data.json` is owner-enriched by default
@@ -626,10 +728,11 @@ Every batch must conclude with:
    such as an inline return table consumed by `DispatchInlineJumpTable` or
    terminal CPU vector words. Remove the label and let the real owner be the
    callsite or fixed ROM address.
-2. **Parity verification** (`make project-verify PROJECT=<slug>`).
-3. **Inventory refresh** (`make project-inventory PROJECT=<slug>`).
-4. **Scorecard update** (`PROGRESS_SCORECARD.md`).
-5. **Reviewer simulation and readability self-audit** on the touched
+2. **Parity verification** (`make project-verify PROJECT=<slug>`) after
+   source-affecting edit batches. `project-pass-closeout` reruns final
+   verification but does not replace the mandatory post-symbolic-shift
+   verification cadence.
+3. **Reviewer simulation and readability self-audit** on the touched
    corridor. Apply
    [AGENTS.md#reviewer-simulation-checklist](../AGENTS.md#reviewer-simulation-checklist)
    and
@@ -641,29 +744,27 @@ Every batch must conclude with:
    comment bypassed that gate and review pre-existing touched comments for
    staleness. This is a safety net, not an authoring strategy. Documentation
    coverage gains do not justify filler.
-6. **Related documentation updates** — terminology crosswalk, memory
+4. **Related documentation updates** — terminology crosswalk, memory
    map, inventories, proven format docs, or `WORKING_NOTES.md`; see
    [DOCUMENTATION.md](DOCUMENTATION.md). Do not update `*_DX_Systems.md`
    merely because the pass touched a subsystem. Promote or revise that overview
    only when the subsystem clears
    [DOCUMENTATION.md#dx-systems-scope](DOCUMENTATION.md#dx-systems-scope).
-7. **Closeout residue / lint gate**
-   (`make project-pass-closeout PROJECT=<slug>`, optional `PASS=<id>`). Treat
-   this as the authoritative stale-symbol sweep for authored ledgers
-   too (`raw_ram_review.csv`, `WORKING_NOTES.md`, scorecard rows),
-   not just Markdown docs.
-8. **Final docs and process gates:**
-   - `make project-docs-check PROJECT=<slug>`
-   - `make project-process-check PROJECT=<slug>`
+5. **Full mechanical closeout**
+   (`make project-pass-closeout PROJECT=<slug>`, optional `PASS=<id>`,
+   `VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`, `NOTES=<text>`). Treat
+   this as the authoritative inventory refresh, stale-symbol sweep for authored
+   ledgers (`raw_ram_review.csv`, `WORKING_NOTES.md`, scorecard rows), docs
+   checks, process checks, final verification, and scorecard status update.
    - Ordinary batches stop here. Approaching **full project maturity**
      (every applicable dimension at
      [#project-maturity-dimensions](#project-maturity-dimensions)
      closed) additionally runs
      `make project-maturity-check PROJECT=<slug>`. The script is a
-    hard-gate subset: it enforces zero raw-address debt
-    (`strict_active_raw_lowaddr`, `strict_active_raw_absrom`), zero
-    noncompliant data labels, and any reviewed table-span assertions in
-    `data_extent_assertions.csv`. It reports no comment-quality conclusion;
+     hard-gate subset: it enforces zero raw-address debt
+     (`strict_active_raw_lowaddr`, `strict_active_raw_absrom`), zero
+     noncompliant data labels, and any reviewed table-span assertions in
+     `data_extent_assertions.csv`. It reports no comment-quality conclusion;
      procedure/global-label coverage remains a human review inventory because
      a zero target rewards filler. It does not check `LXXXX`, parity, warning
      baseline, reviewer simulation, or confidence closure — those remain owned
@@ -676,9 +777,7 @@ Every batch must conclude with:
      when a project-maturity exit + docs/process sequence is needed
      in one invocation.
 
-For ordinary semantic passes, steps 7 and 8 may be replaced by
-`make project-pass-finish PROJECT=<slug> PASS=<id> VERIFY_MODE=relaxed
-FOCUS=<text> NOTES=<text>` while unresolved `LXXXX` labels remain. Use
+Use `VERIFY_MODE=relaxed` while unresolved `LXXXX` labels remain. Use
 `VERIFY_MODE=strict` once the project is ready for strict verification.
 ### Mass symbolization decision tree
 
@@ -724,17 +823,11 @@ the minimum required closeout is:
 1. parity verification (`make project-verify`)
 2. `renames.csv` update
 3. `PROGRESS_SCORECARD.md` update
-4. `make project-pass-closeout PROJECT=<slug>` (optional `PASS=<id>`)
-5. `make project-docs-check PROJECT=<slug>`
-6. `make project-process-check PROJECT=<slug>`
+4. `make project-pass-closeout PROJECT=<slug>` (optional `PASS=<id>`,
+   `VERIFY_MODE=strict|relaxed`)
 
-In this narrow case, `make project-inventory` is optional rather than
-mandatory.
-Exception: if generated inventory artifacts would otherwise retain
-stale symbol names (for example `constants_catalog.csv` or other
-name-bearing ledgers), run `make project-inventory PROJECT=<slug>`
-before closing the batch even when the change was otherwise
-rename-only.
+Closeout refreshes generated inventory even for rename-only batches, so stale
+symbol names in name-bearing ledgers are handled mechanically.
 ### Review-fix commit protocol
 
 When addressing reviewer findings after a closed pass, keep the fix
@@ -745,9 +838,9 @@ bulk inventory while making a targeted review fix, inspect the
 generated diff and choose one of two outcomes: include the refresh only
 when it is necessary to make the reviewed state accurate, and mention it
 in the commit message; otherwise revert the unrelated generated drift
-and land the reviewer fix alone. Rerun `project-pass-closeout`,
-`project-docs-check`, and `project-process-check` after the final
-review-fix edit, not before.
+and land the reviewer fix alone. Rerun `project-pass-closeout` after
+the final review-fix edit, not before; it includes the late docs and
+process checks.
 ### Scorecard metric accuracy
 
 Do not write estimated KPI counts in new scorecard rows. After the

@@ -198,7 +198,6 @@ variables that some targets accept are listed under
 
 - \`make project-regenerate-asm PROJECT=${slug}\`
 - \`make project-intake PROJECT=${slug}\`
-- \`make project-pass-prep PROJECT=${slug}\`
 - \`make project-next-pass PROJECT=${slug}\`
 - \`make project-pass-start PROJECT=${slug}\`
 - \`make project-pass-closeout PROJECT=${slug}\`
@@ -229,8 +228,9 @@ they are not part of the command syntax.
   set the pass id and record the selected corridor objective; omitting
   \`TARGET=<corridor_anchor>\` warns and uses the first generated evidence
   bucket only as a mechanical fallback.
-- \`project-pass-closeout\`: \`PASS=<id>\` — close out a specific pass
-  id rather than the latest.
+- \`project-pass-closeout\`: \`PASS=<id>\`, \`VERIFY_MODE=strict|relaxed\`,
+  \`FOCUS=<text>\`, \`NOTES=<text>\` — close out a specific pass id rather
+  than the latest and control verification/scorecard text.
 - \`project-next-pass\`, \`project-audit\`, \`project-compare\`,
   \`project-comment-audit\`: \`FORMAT=text|json\` — change output mode
   (default \`text\`). The Core Commands list above invokes
@@ -239,6 +239,9 @@ they are not part of the command syntax.
 
 ## Pass Artifacts
 
+- \`project-next-pass\` refreshes generated pass cache as needed before
+  emitting candidate evidence. Run \`project-pass-prep\` directly only for an
+  explicit cache refresh or tooling debug.
 - \`project-pass-prep\` generates owner-enriched xref JSON in
   \`docs/reverse_engineering/inventory/pass/xref_with_data.json\`
 - wrappers and helper scripts should prefer emitted \`owner_routine\` fields over

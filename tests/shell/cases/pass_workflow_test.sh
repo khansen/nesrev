@@ -3,7 +3,7 @@
 
 PASS_START="${REPO_ROOT}/scripts/project_pass_start.sh"
 PASS_CLOSEOUT="${REPO_ROOT}/scripts/project_pass_closeout.sh"
-PASS_FINISH="${REPO_ROOT}/scripts/project_pass_finish.sh"
+PASS_RESIDUE="${REPO_ROOT}/scripts/project_pass_residue_check.sh"
 NEXT_PASS="${REPO_ROOT}/scripts/project_next_pass.sh"
 PROCESS_CHECK="${REPO_ROOT}/scripts/project_process_check.sh"
 MATURITY_SUMMARY="${REPO_ROOT}/scripts/project_maturity_summary.sh"
@@ -1020,19 +1020,70 @@ PY
     || fail "project-next-pass must invoke prep when a required cache input is missing"
 }
 
-test_project_pass_finish_creates_row_runs_gates_and_marks_scorecard() {
-  local slug; slug="$(unique_slug pass_finish)"
+test_pass_start_rejects_missing_next_pass_with_next_pass_instruction() {
+  local slug; slug="$(unique_slug pass_start_missing_next)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_START}" "${slug}" 1 Reset 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "pass-start must fail when next_pass.json is missing"
+  assert_match "missing" "${output}"
+  assert_match "make project-next-pass PROJECT=${slug}" "${output}"
+  if [[ "${output}" == *"project-pass-prep"* ]]; then
+    fail "pass-start missing-briefing error should point to project-next-pass, not pass-prep"
+  fi
+}
+
+test_pass_start_rejects_stale_next_pass_after_source_edit() {
+  local slug; slug="$(unique_slug pass_start_stale_next)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_reset_next_pass "${slug}"
+
+  python3 - \
+    "projects/${slug}/asm/${slug}.asm" \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
+import os
+import sys
+
+asm_path, next_pass_path = sys.argv[1:]
+newer = os.stat(next_pass_path).st_mtime + 60
+os.utime(asm_path, (newer, newer))
+PY
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_START}" "${slug}" 1 Reset 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "pass-start must fail when next_pass.json is stale"
+  assert_match "stale relative" "${output}"
+  assert_match "asm/${slug}.asm" "${output}"
+  assert_match "make project-next-pass PROJECT=${slug}" "${output}"
+  if [[ -e "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" ]]; then
+    fail "pass-start must not write a current pass plan from stale next-pass evidence"
+  fi
+}
+
+test_project_pass_closeout_creates_row_runs_gates_and_marks_scorecard() {
+  local slug; slug="$(unique_slug pass_closeout_full)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
   _write_pass_zero_scorecard "${slug}"
 
-  local stubdir="projects/${slug}/finish_stubs"
-  local log="projects/${slug}/finish.log"
+  local stubdir="projects/${slug}/closeout_stubs"
+  local log="projects/${slug}/closeout.log"
   mkdir -p "${stubdir}"
-  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+  cat > "${stubdir}/project_pass_residue_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'closeout %s %s\n' "$1" "$2" >> "${STUB_LOG}"
+printf 'residue %s %s\n' "$1" "$2" >> "${STUB_LOG}"
 SH
   cat > "${stubdir}/refresh_inventory.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1059,21 +1110,22 @@ fi
 printf 'verify %s %s\n' "$1" "${ALLOW_UNRESOLVED_LXXXX:-}" >> "${STUB_LOG}"
 SH
 
-  STUB_LOG="${log}" EXPECT_RELAXED=1 PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
-    FOCUS="Finish wrapper corridor" \
-    NOTES="Closed the finish wrapper corridor." \
-    bash "${PASS_FINISH}" "${slug}" 1 relaxed >/dev/null
+  STUB_LOG="${log}" EXPECT_RELAXED=1 PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    FOCUS="Closeout wrapper corridor" \
+    NOTES="Closed the closeout wrapper corridor." \
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null
 
-  cat > "projects/${slug}/expected_finish.log" <<EOF
+  cat > "projects/${slug}/expected_closeout.log" <<EOF
 inventory ${slug}
-closeout ${slug} 1
+residue ${slug} 1
 docs ${slug}
 process ${slug}
 verify ${slug} 1
 docs ${slug}
+process ${slug}
 EOF
-  cmp -s "projects/${slug}/expected_finish.log" "${log}" \
-    || fail "project-pass-finish must run inventory, closeout, docs, process, verify, final docs in order"
+  cmp -s "projects/${slug}/expected_closeout.log" "${log}" \
+    || fail "project-pass-closeout must run inventory, residue, docs, process, verify, final docs/process in order"
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1090,18 +1142,18 @@ for raw in path.read_text(encoding="utf-8").splitlines():
         rows.append(cells)
 row = next((r for r in rows if r[0] == "1"), None)
 if row is None:
-    raise SystemExit("project-pass-finish did not create pass 1 scorecard row")
-if row[1] != "Finish wrapper corridor":
+    raise SystemExit("project-pass-closeout did not create pass 1 scorecard row")
+if row[1] != "Closeout wrapper corridor":
     raise SystemExit(f"unexpected focus: {row[1]!r}")
 if row[8] != "pass (LXXXX allowed)" or row[9] != "pass":
-    raise SystemExit(f"gate cells not marked after successful finish: {row!r}")
-if row[11] != "Closed the finish wrapper corridor.":
+    raise SystemExit(f"gate cells not marked after successful closeout: {row!r}")
+if row[11] != "Closed the closeout wrapper corridor.":
     raise SystemExit(f"notes were not preserved: {row[11]!r}")
 PY
 }
 
-test_project_pass_finish_marks_scorecard_by_header_name() {
-  local slug; slug="$(unique_slug pass_finish_header)"
+test_project_pass_closeout_marks_scorecard_by_header_name() {
+  local slug; slug="$(unique_slug pass_closeout_header)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
 
@@ -1109,12 +1161,12 @@ test_project_pass_finish_marks_scorecard_by_header_name() {
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | review_state | verify | docs_check | rework_items | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---:|---|
 | 0 | Existing setup row | 0 / 0 | 0 | not measured | 0 | 0 | 0 | keep-zero | pass | pass | 0 | pass_id |
-| 1 | Existing finish row | 0 / 0 | 0 | not measured | 0 | 0 | 0 | keep-me | pending | pending | pending | Existing row should be marked in place. |
+| 1 | Existing closeout row | 0 / 0 | 0 | not measured | 0 | 0 | 0 | keep-me | pending | pending | pending | Existing row should be marked in place. |
 EOF
 
-  local stubdir="projects/${slug}/finish_stubs"
+  local stubdir="projects/${slug}/closeout_stubs"
   mkdir -p "${stubdir}"
-  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+  cat > "${stubdir}/project_pass_residue_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -1135,8 +1187,8 @@ SH
 set -euo pipefail
 SH
 
-  PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
-    bash "${PASS_FINISH}" "${slug}" 1 strict >/dev/null
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 strict >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1172,8 +1224,8 @@ if row[cols["rework_items"]] != "0":
 PY
 }
 
-test_project_pass_finish_materializes_missing_row_from_existing_header() {
-  local slug; slug="$(unique_slug pass_finish_materialize)"
+test_project_pass_closeout_materializes_missing_row_from_existing_header() {
+  local slug; slug="$(unique_slug pass_closeout_materialize)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
 
@@ -1183,9 +1235,9 @@ test_project_pass_finish_materializes_missing_row_from_existing_header() {
 | Existing setup row | 0 | keep-zero | pass_id | pass | pass | 0 | 0 / 0 | 0 | not measured | 0 | 0 | 0 |
 EOF
 
-  local stubdir="projects/${slug}/finish_stubs"
+  local stubdir="projects/${slug}/closeout_stubs"
   mkdir -p "${stubdir}"
-  cat > "${stubdir}/project_pass_closeout.sh" <<'SH'
+  cat > "${stubdir}/project_pass_residue_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -1206,10 +1258,10 @@ SH
 set -euo pipefail
 SH
 
-  PROJECT_PASS_FINISH_SCRIPT_DIR="${stubdir}" \
-    FOCUS="Materialized finish row" \
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    FOCUS="Materialized closeout row" \
     NOTES="Created from a reordered scorecard header." \
-    bash "${PASS_FINISH}" "${slug}" 1 strict >/dev/null
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 strict >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1243,7 +1295,7 @@ if len(row) != len(header):
 cols = {name: i for i, name in enumerate(header)}
 expected = {
     "pass_id": "1",
-    "focus": "Materialized finish row",
+    "focus": "Materialized closeout row",
     "review_state": "",
     "notes": "Created from a reordered scorecard header.",
     "verify": "pass",
@@ -1336,7 +1388,50 @@ _write_pass_plan_objective() {
 EOF
 }
 
-test_pass_closeout_reports_complete_corridor_objective_without_warning() {
+test_project_pass_closeout_rejects_missing_plan_without_explicit_pass() {
+  local slug; slug="$(unique_slug closeout_missing_plan_full)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "closeout must reject inferred pass without current_pass_plan.json"
+  assert_match "current_pass_plan.json missing" "${output}"
+  assert_match "project-next-pass" "${output}"
+  assert_match "project-pass-start" "${output}"
+  if [[ -e "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" ]]; then
+    fail "closeout must not create a pass plan when the operator skipped pass-start"
+  fi
+}
+
+test_project_pass_closeout_rejects_inferred_already_closed_pass() {
+  local slug; slug="$(unique_slug closeout_closed_plan_full)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Closed the reset corridor."
+  _write_pass_plan_objective "${slug}" 1 \
+    "Reset corridor" "boot path unnamed" "Reset..NMI" "cluster Reset" "audio driver"
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "closeout must not infer and restamp an already-closed pass"
+  assert_match "pass 1" "${output}"
+  assert_match "already closed" "${output}"
+  assert_match "project-next-pass" "${output}"
+  assert_match "project-pass-start" "${output}"
+  assert_match "PASS=1" "${output}"
+}
+
+test_pass_residue_check_reports_complete_corridor_objective_without_warning() {
   local slug; slug="$(unique_slug closeout_obj_complete)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1350,7 +1445,7 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1372,7 +1467,7 @@ test_pass_closeout_reports_complete_corridor_objective_without_warning() {
   fi
 }
 
-test_pass_closeout_warns_on_incomplete_objective_but_does_not_fail() {
+test_pass_residue_check_warns_on_incomplete_objective_but_does_not_fail() {
   local slug; slug="$(unique_slug closeout_obj_incomplete)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1381,7 +1476,7 @@ test_pass_closeout_warns_on_incomplete_objective_but_does_not_fail() {
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1392,7 +1487,7 @@ test_pass_closeout_warns_on_incomplete_objective_but_does_not_fail() {
     "closeout summary must report the incomplete objective status"
 }
 
-test_pass_closeout_warns_when_objective_missing_but_does_not_fail() {
+test_pass_residue_check_warns_when_objective_missing_but_does_not_fail() {
   local slug; slug="$(unique_slug closeout_obj_missing)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1401,7 +1496,7 @@ test_pass_closeout_warns_when_objective_missing_but_does_not_fail() {
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1412,7 +1507,7 @@ test_pass_closeout_warns_when_objective_missing_but_does_not_fail() {
     "closeout summary must report the missing objective status"
 }
 
-test_pass_closeout_warns_on_stale_plan_objective_but_does_not_fail() {
+test_pass_residue_check_warns_on_stale_plan_objective_but_does_not_fail() {
   local slug; slug="$(unique_slug closeout_obj_stale)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1423,7 +1518,7 @@ test_pass_closeout_warns_on_stale_plan_objective_but_does_not_fail() {
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1434,7 +1529,7 @@ test_pass_closeout_warns_on_stale_plan_objective_but_does_not_fail() {
     "closeout summary must report the stale_plan objective status"
 }
 
-test_pass_closeout_warns_on_unparseable_plan_but_does_not_fail() {
+test_pass_residue_check_warns_on_unparseable_plan_but_does_not_fail() {
   local slug; slug="$(unique_slug closeout_obj_invalid)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1444,7 +1539,7 @@ test_pass_closeout_warns_on_unparseable_plan_but_does_not_fail() {
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1791,7 +1886,7 @@ EOF
   fi
 }
 
-test_pass_closeout_reconciles_every_raw_ram_review_row_from_the_pass() {
+test_pass_residue_check_reconciles_every_raw_ram_review_row_from_the_pass() {
   local slug; slug="$(unique_slug closeout_raw_rows)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1817,7 +1912,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0011,unreviewed,ZP_SecondField,,,,1,1,1,0,Reset,
 EOF
 
-  bash "${PASS_CLOSEOUT}" "${slug}" 1 >/dev/null
+  bash "${PASS_RESIDUE}" "${slug}" 1 >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -1839,7 +1934,7 @@ for addr in ("0x0010", "0x0011"):
 PY
 }
 
-test_pass_closeout_rewrites_raw_ram_review_owner_columns_for_renamed_routines() {
+test_pass_residue_check_rewrites_raw_ram_review_owner_columns_for_renamed_routines() {
   local slug; slug="$(unique_slug closeout_raw_owner_rewrite)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1866,7 +1961,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0012,unreviewed,,,,yes,1,1,1,0," @@_oldLoop: 1 ",
 EOF
 
-  bash "${PASS_CLOSEOUT}" "${slug}" 1 >/dev/null
+  bash "${PASS_RESIDUE}" "${slug}" 1 >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -1892,7 +1987,7 @@ if rows["0x0012"]["top_readers"] != "NewOwner:1":
 PY
 }
 
-test_pass_closeout_rejects_duplicate_local_owner_names() {
+test_pass_residue_check_rejects_duplicate_local_owner_names() {
   local slug; slug="$(unique_slug closeout_duplicate_local_owner)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1921,7 +2016,7 @@ EOF
 
   local out rc
   set +e
-  out="$(bash "${PASS_CLOSEOUT}" "${slug}" 1)"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
   rc=$?
   set -e
 
@@ -1947,7 +2042,7 @@ if "NewOwner" in reader or "UnrelatedOwner" in reader:
 PY
 }
 
-test_pass_closeout_rejects_residual_raw_operand_for_new_ram_symbol() {
+test_pass_residue_check_rejects_residual_raw_operand_for_new_ram_symbol() {
   local slug; slug="$(unique_slug closeout_raw_residue)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -1968,7 +2063,7 @@ EOF
 
   local output rc
   set +e
-  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  output="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -1978,7 +2073,7 @@ EOF
   assert_match "\"line\": 6" "${output}"
 }
 
-test_pass_closeout_allows_scoped_overlay_with_residual_raw_operands() {
+test_pass_residue_check_allows_scoped_overlay_with_residual_raw_operands() {
   local slug; slug="$(unique_slug closeout_scoped_overlay)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -2006,7 +2101,7 @@ EOF
 
   local output rc
   set +e
-  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  output="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -2029,7 +2124,7 @@ if row["active"] != "yes":
 PY
 }
 
-test_pass_closeout_rejects_bare_raw_address_rename_old_name() {
+test_pass_residue_check_rejects_bare_raw_address_rename_old_name() {
   local slug; slug="$(unique_slug closeout_bare_raw_old)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -2049,7 +2144,7 @@ EOF
 
   local output rc
   set +e
-  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  output="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
@@ -2058,7 +2153,7 @@ EOF
   assert_match 'raw_\$0019' "${output}"
 }
 
-test_pass_closeout_rejects_generic_lowercase_rename_old_name() {
+test_pass_residue_check_rejects_generic_lowercase_rename_old_name() {
   local slug; slug="$(unique_slug closeout_generic_old)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -2070,7 +2165,7 @@ EOF
 
   local output rc
   set +e
-  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 2>&1)"
+  output="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
   rc=$?
   set -e
 
