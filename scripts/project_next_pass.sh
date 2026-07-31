@@ -1534,7 +1534,7 @@ raw_ram_clusters = build_raw_ram_clusters(
 notes = []
 working_notes_path = Path(pass_dir).parent.parent / "WORKING_NOTES.md"
 if baseline is None:
-    notes.append("baseline status cache missing; run make project-pass-prep PROJECT=<slug> for full resume data")
+    notes.append("baseline status cache missing; rerun make project-next-pass PROJECT=<slug> with auto-prep enabled for full resume data")
 if all_summary is None:
     notes.append("xref summary cache missing; candidate evidence is inventory-only")
 if working_notes_path.exists():

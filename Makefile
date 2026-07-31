@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-finish project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -94,15 +94,11 @@ project-pass-start:
 	target="$$(python3 -c 'import re, sys; t=sys.argv[1]; m=re.fullmatch(r"raw_\$$*([0-9A-Fa-f]{1,4})", t); print(f"raw_$${int(m.group(1), 16):04X}" if m else t)' "$$target")"; \
 	bash scripts/project_pass_start.sh "$(PROJECT)" "$(PASS)" "$$target"
 
+project-pass-closeout: export FOCUS := $(FOCUS)
+project-pass-closeout: export NOTES := $(NOTES)
 project-pass-closeout:
-	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>]"; exit 2; fi
-	@bash scripts/project_pass_closeout.sh $(PROJECT) $(PASS)
-
-project-pass-finish: export FOCUS := $(FOCUS)
-project-pass-finish: export NOTES := $(NOTES)
-project-pass-finish:
-	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-finish PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>]"; exit 2; fi
-	@bash scripts/project_pass_finish.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>]"; exit 2; fi
+	@bash scripts/project_pass_closeout.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
 
 project-raw-ram-review:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(ADDR)" ] || [ -z "$(STATUS)" ]; then echo "usage: make project-raw-ram-review PROJECT=<slug> ADDR=<0x00bf|\\$$00BF> STATUS=<candidate|unreviewed|deferred|revisit|not_semantic_yet|symbolized> [SYMBOL=<name>] [NOTES=<text>] [PASS=<id>]"; exit 2; fi

@@ -51,11 +51,9 @@ commands are for debugging only.
 
 ```sh
 make project-regenerate-asm PROJECT=<slug>
-make project-pass-prep PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 make project-pass-closeout PROJECT=<slug>
-make project-pass-finish PROJECT=<slug>
 ```
 
 Optional `KEY=value` arguments (append to the same line):
@@ -63,12 +61,14 @@ Optional `KEY=value` arguments (append to the same line):
 [#nesrev-controls](#nesrev-controls) plus `ALLOW_TRAILING_BYTES=1`
 (audited trailer override); `project-pass-start` accepts `PASS=<id>`
 and `TARGET=<corridor_anchor_or_notes_plan>`; `project-pass-closeout`
-accepts `PASS=<id>`; `project-pass-finish` accepts `PASS=<id>`,
-`VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`, and `NOTES=<text>`.
-`project-next-pass` refreshes stale cache before emitting evidence buckets;
-prep output goes to stderr so `FORMAT=json` stays clean. The
-top bucket is not a pass decision; `project-pass-start` records the operator's
-selected corridor objective.
+accepts `PASS=<id>`, `VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`,
+and `NOTES=<text>`.
+`project-next-pass` invokes `project-pass-prep` when generated pass cache is
+missing or stale; prep output goes to stderr so `FORMAT=json` stays clean.
+Run `make project-pass-prep PROJECT=<slug>` directly only for an explicit cache
+refresh or tooling debug. The top bucket is not a pass decision;
+`project-pass-start` records the operator's selected corridor objective and
+rejects missing or stale `next_pass.json`.
 
 ### Evidence Order (Mandatory)
 
