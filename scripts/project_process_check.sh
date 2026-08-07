@@ -145,15 +145,16 @@ python3 "${SCRIPT_DIR}/data_extent_missing_scan.py" \
 
 if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
   echo "[data-format] Checking data-format target inventory"
-  data_format_required_args=()
+  data_format_args=(
+    "${DATA_FORMAT_TARGETS_FILE}"
+    --doc-root "${DOC_ROOT}"
+    --mode process
+  )
   if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" ]]; then
-    data_format_required_args=(--required)
+    data_format_args+=(--required)
   fi
   python3 "${SCRIPT_DIR}/data_format_targets_check.py" \
-    "${DATA_FORMAT_TARGETS_FILE}" \
-    --doc-root "${DOC_ROOT}" \
-    --mode process \
-    "${data_format_required_args[@]}"
+    "${data_format_args[@]}"
 fi
 
 if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then

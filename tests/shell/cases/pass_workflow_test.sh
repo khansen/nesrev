@@ -257,6 +257,27 @@ test_project_process_check_rejects_stale_generated_inventory() {
   assert_match "unknowns.md" "${output}"
 }
 
+test_project_process_check_accepts_optional_data_format_inventory_under_set_u() {
+  local slug; slug="$(unique_slug process_optional_data_format)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "legacy"
+  _write_pass_zero_scorecard "${slug}"
+
+  # DATA_FORMAT_TARGETS_REQUIRED is intentionally unset here. On bash 3.2,
+  # expanding an empty optional-args array under set -u aborts before the checker
+  # runs; this fixture pins the optional-file path that triggered that failure.
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/data_format_targets.csv" <<'CSV'
+family,disposition,artifact,evidence
+levels_rooms_maps,not_yet_reviewed,,test fixture exercises optional process-time data-format inventory
+CSV
+
+  local output
+  output="$(bash "${PROCESS_CHECK}" "${slug}")"
+
+  assert_match "\[data-format\] Checking data-format target inventory" "${output}"
+  assert_match "OK: project process checks passed" "${output}"
+}
+
 test_project_process_check_rejects_stale_raw_ram_review_owner() {
   local slug; slug="$(unique_slug process_stale_raw_owner)"
   trap "cleanup_project ${slug}" EXIT
