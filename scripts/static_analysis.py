@@ -926,7 +926,7 @@ def main():
         title = args.title or os.path.splitext(os.path.basename(args.asm_file))[0]
         doc = emit(out, title, args.asm_file, args.commit, args.date)
         with open(args.doc_out, 'w', encoding='utf-8') as f:
-            f.write(doc)
+            f.write(doc.rstrip() + '\n')
     if args.do_print or not (args.json or args.doc_out):
         order = ('bugs', 'wrongreg', 'carryshift', 'dead', 'bit7', 'cmp0', 'xfer',
                  'reload', 'tailcall', 'excluded')

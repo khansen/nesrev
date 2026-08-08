@@ -545,4 +545,12 @@ PY
     || { echo "doc missing un-annotated count" >&2; return 1; }
   ! grep -Fq '`LD_`' "${doc}" \
     || { echo "doc contains symbol-looking pseudo mnemonic LD_" >&2; return 1; }
+  python3 - "${doc}" <<'PY'
+from pathlib import Path
+import sys
+
+data = Path(sys.argv[1]).read_bytes()
+if not data.endswith(b"\n") or data.endswith(b"\n\n"):
+    raise SystemExit("doc-out must end with exactly one newline")
+PY
 }
