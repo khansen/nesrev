@@ -74,6 +74,7 @@ REQUIRED_ROOT_ANCHORS = [
     "common-nes-ppu-packet-stream-pattern",
     "confidence-protocol",
     "core-naming",
+    "executable-rom-to-ram-image-recovery",
     "guiding-pass-philosophy",
     "high-value-pass-contract",
     "intermediate-artifacts",
@@ -180,10 +181,16 @@ ROOT_WORD_CEILING = 6000
 # cross their previous word ceilings because they include the affected playbook
 # bundles, so their ceilings preserve readable rule text instead of compressing
 # a review criterion into shorthand.
+# Executable ROM-to-RAM image recovery later added a mandatory fresh-intake
+# smell check, source/destination translation formula, iterative intra-image
+# rescan rule, operand-parity trap, `codeentries.txt` representation rule,
+# warning-baseline rationale, and root specialized-index entry. The root index
+# affects every default route, so these ceilings preserve measured-plus-headroom
+# instead of compressing the recovery rule into shorthand.
 ROUTE_BUDGETS = {
-    "default": (2810, 20250),
-    "data-recovery": (2625, 19600),
-    "new-project": (3810, 27700),
+    "default": (2860, 20350),
+    "data-recovery": (2705, 20050),
+    "new-project": (3895, 28170),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

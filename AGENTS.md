@@ -449,6 +449,7 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - <a id="pointer-table-conversion-rules"></a>**Pointer table conversion rules** — [DATA_RECOVERY.md#pointer-table-conversion](agent_playbook/DATA_RECOVERY.md#pointer-table-conversion).
 - <a id="scanning-for-code-pointers-in-data"></a>**Scanning for code pointers in data** — [DATA_RECOVERY.md#code-pointer-recovery → General code-pointer scan procedure](agent_playbook/DATA_RECOVERY.md#code-pointer-recovery).
 - <a id="orphan-opcode-blob-decode-sweep"></a>**Orphan opcode-blob decode sweep** — [DATA_RECOVERY.md#orphan-opcode-decode](agent_playbook/DATA_RECOVERY.md#orphan-opcode-decode).
+- <a id="executable-rom-to-ram-image-recovery"></a>**Executable ROM-to-RAM image recovery** — [DATA_RECOVERY.md#executable-rom-to-ram-images](agent_playbook/DATA_RECOVERY.md#executable-rom-to-ram-images).
 - <a id="blob-decode-kpi-pre-assessment"></a>**Blob-decode KPI pre-assessment** — [DATA_RECOVERY.md#orphan-opcode-decode](agent_playbook/DATA_RECOVERY.md#orphan-opcode-decode).
 - <a id="review-quality-bar"></a>**Review quality bar** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).
 - <a id="success-evaluation-criteria"></a>**Success evaluation criteria** — [agent_playbook/QUALITY_REVIEW.md#quality-review](agent_playbook/QUALITY_REVIEW.md#quality-review).

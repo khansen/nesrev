@@ -15,6 +15,7 @@ This playbook owns code- and data-recovery mechanics:
 - listing-assisted pointer-blob audits
 - computed-pointer consumer recovery
 - orphan opcode-blob detection
+- executable ROM-to-RAM image recovery
 - pointer-table conversion
 - consumer-driven discovery of table boundaries, embedded offsets, and
   conversion opportunities
@@ -448,6 +449,7 @@ code bytes: `$A5`/`$A9`/`$8D`/`$85`/`$20`/`$60`).
   or future recovery and curate the warning baseline with concrete rationale.
   Do not add filler comments merely because the helper lacks a static caller.
 - **Parity-safe decode protocol:** capture pre-edit byte windows (`od -An -tx1`); preserve exact branch-anchor addresses; keep target labels on exact original opcode bytes. If parity fails, roll back and keep placeholder label.
+
 ### Blob-decode KPI pre-assessment
 
 Converting `.DB` to instructions triggers cascading KPI failures. Run
@@ -464,6 +466,48 @@ this checklist BEFORE the first `make project-verify`:
 5. **WARNING_BASELINE.txt:** remove entries for labels now referenced by newly-visible instructions.
 
 Only after all five steps, run `make project-verify`.
+
+<a id="executable-rom-to-ram-images"></a>
+## Executable ROM-to-RAM Images
+
+Some games copy a ROM byte range into CPU RAM or PRG-RAM, then execute the
+runtime RAM address. NESrev cannot infer that a `JSR $7xxx` or `JMP $6xxx`
+should decode bytes from a banked ROM source range, so handle the image as an
+explicit recovery loop. Use [Orphan Opcode-Blob Detection](#orphan-opcode-decode)
+for opcode-smell and parity-safe decode rules; this section owns the
+ROM-source/runtime-address translation.
+
+Before accepting a fresh project's first green intake as stable, check large
+`.DB` spans and ROM-to-RAM copy loops. If a copy writes ROM bytes to
+`$0000-$07FF`, `$6000-$7FFF`, or another RAM range later reached by
+`JSR`/`JMP`/pointer operands, prove source start, destination start, and copied
+range. Translate runtime entries back to source with
+`source_addr = copy_source + (runtime_addr - copy_destination)`.
+
+Add only translated ROM-source entries to `codeentries.txt`, using `bank|addr`
+rows for banked projects. Do not add runtime RAM addresses there; they are
+execution addresses, not source locations NESrev can trace from the ROM image.
+Document the source range, destination range, and translation rule in comments
+above the entry block.
+
+Recovery is iterative. After each regeneration, rescan newly decoded image code
+for absolute `JSR`/`JMP` operands and pointer entries that still target the
+runtime destination range. Translate those targets, add source entries, and
+regenerate again until a full image rescan finds no new runtime-address
+control-flow targets. Keep real data/table islands as `.DB`, add coherent
+fallthrough chunks that NESrev still leaves as bytes, reject data-context or
+illegal-opcode false positives, curate `WARNING_BASELINE.txt` with a
+copied-image rationale, and rerun intake.
+
+Absolute operands inside the copied image encode runtime RAM addresses. Do not
+rewrite `JSR $71A0`, `JMP $71A0`, or `.DW $71A0` to the ROM-source label; that
+changes the assembled operand bytes. Leave the runtime value raw with rationale,
+or use a runtime-address symbol only when it preserves the same value. The
+Raw-absrom item in the blob-decode KPI pre-assessment above does not apply to
+copied-image runtime-RAM operands. Relative branches may still display
+ROM-source labels because the copied image preserves intra-image offsets; do
+not treat those labels as absolute runtime entry addresses.
+
 <a id="pointer-table-conversion"></a>
 ## Pointer-Table Conversion
 

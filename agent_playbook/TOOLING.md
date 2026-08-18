@@ -291,6 +291,8 @@ fails to recover inline-call payloads.
 # MMC1 switched-window entries. # and ; start comments. Use for SCATTERED code
 # entry points reached via indirect dispatch where the pointer is loaded from
 # individual `LDA #imm / STA ZP_PTR` pairs rather than a contiguous table.
+# For executable ROM-source images copied into RAM/PRG-RAM, add translated ROM
+# source addresses here, not runtime RAM execution addresses.
 # $C22F   ; channel 0 command handler (reached via JMP [$00EB])
 # $D187
 # bank|addr
