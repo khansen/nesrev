@@ -371,6 +371,15 @@ reproducible build inputs.
   bank-qualified `codeentries.txt` rows, pointer evidence from within the
   same switched bank, or an explicitly configured code-pointer table whose
   ambiguous entries should be probed across all non-final PRG banks.
+- `inlinecalls.csv` resolves `ptr16(code)` targets in the callsite's bank
+  context. It cannot currently express a fixed-bank inline payload whose
+  `$8000-$BFFF` targets belong to a bank selected immediately before the
+  dispatcher call. The failure is a hard ConfigException: `adjusted pointer
+  target $XXXX is outside canonical ROM space`. Recover the target routines
+  with bank-qualified `codeentries.txt` rows (`bank|addr`); only the inline
+  payload's pointer bytes stay unsymbolized. Use `dataranges.csv` plus
+  warning-baseline rationale until NESrev supports a target-bank override for
+  inline payload pointers.
 - Pick the right hint:
   - contiguous table → code routines: `codepointers.csv`
   - contiguous table → fixed-size data records: `datapointers.csv`

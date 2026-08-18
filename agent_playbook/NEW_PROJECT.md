@@ -213,11 +213,17 @@ The loop steps in order of typical failure:
    After a control change, review warning-baseline additions/removals
    on the next intake; do not accept drift silently.
 4. **Audit hidden-code smells before accepting green intake.** On fresh
-   projects, inspect large `.DB` spans and ROM-to-RAM copy loops before
-   treating the first green intake as stable. If copied ROM bytes are reached
-   through runtime RAM `JSR`/`JMP`/pointer operands, recover them with
-   [DATA_RECOVERY.md#executable-rom-to-ram-images](DATA_RECOVERY.md#executable-rom-to-ram-images),
-   update tracked controls, regenerate, and repeat this loop.
+   projects, inspect warning-baselined opaque data labels, large `.DB` spans,
+   and ROM-to-RAM copy loops before treating the first green intake as stable.
+   Any unused-symbol warning still carrying the intake placeholder rationale
+   `REVIEW REQUIRED: intake auto-seed; replace with symbol-specific rationale`
+   is a hidden-code/data-format candidate, not a permanent waiver.
+   Run [DATA_RECOVERY.md#orphan-opcode-decode](DATA_RECOVERY.md#orphan-opcode-decode)
+   against opcode-like `.DB` labels; recover copied ROM bytes reached through
+   runtime RAM `JSR`/`JMP`/pointer operands with
+   [DATA_RECOVERY.md#executable-rom-to-ram-images](DATA_RECOVERY.md#executable-rom-to-ram-images).
+   Update tracked controls, regenerate, refresh warning/inventory rationale, and
+   repeat until the regenerated asm has no new opcode-like orphan blobs.
 5. **Rerun intake.** Repeat from step 1 until intake exits zero with
    the tracked control configuration.
 6. **Only after intake parity is green and hidden-code smells are

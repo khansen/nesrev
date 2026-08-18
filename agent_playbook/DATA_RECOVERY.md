@@ -441,13 +441,31 @@ symbolization has stabilized that the recipes match cleanly.
 <a id="orphan-opcode-decode"></a>
 ## Orphan Opcode-Blob Detection
 
-After pointer-table recovery, scan for opcode-like `.DB` blobs (frequent
-code bytes: `$A5`/`$A9`/`$8D`/`$85`/`$20`/`$60`).
+After pointer-table recovery, scan unused-symbol warnings and large `.DB` spans
+for opcode-like byte runs (frequent code bytes:
+`$A5`/`$A9`/`$8D`/`$85`/`$20`/`$60`). Treat any `WARNING_BASELINE.txt` row still
+carrying the intake placeholder rationale
+`REVIEW REQUIRED: intake auto-seed; replace with symbol-specific rationale` as
+an input worklist item, not as settled data.
 
-- Convert to instructions only if decoding is coherent through `RTS`/`RTI`/`JMP`. Keep behavior identical.
+Run recovery as an explicit disposition loop:
+
+1. Decode only if control flow is coherent through `RTS`/`RTI`/`JMP`; keep behavior identical.
+2. Classify the exact range as `codeentries.txt`, `inlinecalls.csv`,
+   `dataranges.csv`, true data, or a mixed code/data boundary that needs split
+   labels.
+3. Regenerate, then rescan newly visible labels and updated warnings for more
+   opcode-like orphan blobs. Stop only when a full regenerated-asm rescan finds
+   no new candidates.
+
+Throughout the loop:
+
 - If decoded helpers are unreferenced, keep only labels required by structure
   or future recovery and curate the warning baseline with concrete rationale.
   Do not add filler comments merely because the helper lacks a static caller.
+- Exposing real code can increase `LXXXX`, raw-RAM, or magic-immediate KPI
+  counts. Preserve parity and update inventories/scorecards rather than hiding
+  executable bytes to keep old counts low.
 - **Parity-safe decode protocol:** capture pre-edit byte windows (`od -An -tx1`); preserve exact branch-anchor addresses; keep target labels on exact original opcode bytes. If parity fails, roll back and keep placeholder label.
 
 ### Blob-decode KPI pre-assessment
@@ -463,7 +481,7 @@ this checklist BEFORE the first `make project-verify`:
    Localize internal labels where possible; add only useful non-obvious
    contract headers, never KPI filler or body narration.
 4. **New data labels:** add `Format:`/`Used by:` blocks for all data labels in the decoded region.
-5. **WARNING_BASELINE.txt:** remove entries for labels now referenced by newly-visible instructions.
+5. **WARNING_BASELINE.txt:** remove entries for labels now referenced by newly-visible instructions, and revise/add concrete rationale for any retained warnings.
 
 Only after all five steps, run `make project-verify`.
 

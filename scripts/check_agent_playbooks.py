@@ -187,10 +187,15 @@ ROOT_WORD_CEILING = 6000
 # warning-baseline rationale, and root specialized-index entry. The root index
 # affects every default route, so these ceilings preserve measured-plus-headroom
 # instead of compressing the recovery rule into shorthand.
+# Hidden-code intake hardening later connected auto-seeded unused-symbol warning
+# rows to orphan-opcode recovery, documented the disposition/rescan loop, and
+# spelled out the MMC1 inline-call bank-context failure plus direct `bank|addr`
+# codeentries recovery path. The affected ceilings keep that rule readable with
+# the same measured-plus-headroom convention.
 ROUTE_BUDGETS = {
-    "default": (2860, 20350),
-    "data-recovery": (2705, 20050),
-    "new-project": (3895, 28170),
+    "default": (2869, 20382),
+    "data-recovery": (2736, 20236),
+    "new-project": (3922, 28319),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
