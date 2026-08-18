@@ -180,7 +180,8 @@ Code-pointer recovery mechanics live at
 <a id="nesrev-intake-sanity-gate"></a>
 ## NESrev Intake Sanity Gate
 
-**Precondition:** step 5 enforces the iNES header and container length.
+**Precondition:** intake checklist step 5 enforces the iNES header and
+container length.
 Resolve any failure, including the audited
 [#trailing-byte-override](#trailing-byte-override), before this loop.
 
