@@ -450,6 +450,23 @@ code bytes: `$A5`/`$A9`/`$8D`/`$85`/`$20`/`$60`).
   Do not add filler comments merely because the helper lacks a static caller.
 - **Parity-safe decode protocol:** capture pre-edit byte windows (`od -An -tx1`); preserve exact branch-anchor addresses; keep target labels on exact original opcode bytes. If parity fails, roll back and keep placeholder label.
 
+### Blob-decode KPI pre-assessment
+
+Converting `.DB` to instructions triggers cascading KPI failures. Run
+this checklist BEFORE the first `make project-verify`:
+
+1. **Raw-absrom:** replace `JSR`/`JMP $XXXX` with labels where they exist; add mid-routine labels at exact target bytes.
+2. **Magic immediates:** replace `#$NN` with existing constants where applicable. Do not invent low-value constants for standard NES idioms already immediately readable to an NES developer (e.g. palette-area high byte `$3F`) unless a named constant materially improves editability or repeated semantics. Raise MAX_* only if needed.
+3. **New callable procedures:** review every `JSR` target in the decoded
+   region under
+   [DOCUMENTATION.md#procedure-comments](DOCUMENTATION.md#procedure-comments).
+   Localize internal labels where possible; add only useful non-obvious
+   contract headers, never KPI filler or body narration.
+4. **New data labels:** add `Format:`/`Used by:` blocks for all data labels in the decoded region.
+5. **WARNING_BASELINE.txt:** remove entries for labels now referenced by newly-visible instructions.
+
+Only after all five steps, run `make project-verify`.
+
 <a id="executable-rom-to-ram-images"></a>
 ## Executable ROM-to-RAM Images
 
@@ -486,27 +503,11 @@ Absolute operands inside the copied image encode runtime RAM addresses. Do not
 rewrite `JSR $71A0`, `JMP $71A0`, or `.DW $71A0` to the ROM-source label; that
 changes the assembled operand bytes. Leave the runtime value raw with rationale,
 or use a runtime-address symbol only when it preserves the same value. The
-Raw-absrom item in the blob-decode KPI pre-assessment below does not apply to
+Raw-absrom item in the blob-decode KPI pre-assessment above does not apply to
 copied-image runtime-RAM operands. Relative branches may still display
 ROM-source labels because the copied image preserves intra-image offsets; do
 not treat those labels as absolute runtime entry addresses.
 
-### Blob-decode KPI pre-assessment
-
-Converting `.DB` to instructions triggers cascading KPI failures. Run
-this checklist BEFORE the first `make project-verify`:
-
-1. **Raw-absrom:** replace `JSR`/`JMP $XXXX` with labels where they exist; add mid-routine labels at exact target bytes.
-2. **Magic immediates:** replace `#$NN` with existing constants where applicable. Do not invent low-value constants for standard NES idioms already immediately readable to an NES developer (e.g. palette-area high byte `$3F`) unless a named constant materially improves editability or repeated semantics. Raise MAX_* only if needed.
-3. **New callable procedures:** review every `JSR` target in the decoded
-   region under
-   [DOCUMENTATION.md#procedure-comments](DOCUMENTATION.md#procedure-comments).
-   Localize internal labels where possible; add only useful non-obvious
-   contract headers, never KPI filler or body narration.
-4. **New data labels:** add `Format:`/`Used by:` blocks for all data labels in the decoded region.
-5. **WARNING_BASELINE.txt:** remove entries for labels now referenced by newly-visible instructions.
-
-Only after all five steps, run `make project-verify`.
 <a id="pointer-table-conversion"></a>
 ## Pointer-Table Conversion
 

@@ -184,13 +184,13 @@ ROOT_WORD_CEILING = 6000
 # Executable ROM-to-RAM image recovery later added a mandatory fresh-intake
 # smell check, source/destination translation formula, iterative intra-image
 # rescan rule, operand-parity trap, `codeentries.txt` representation rule,
-# warning-baseline rationale, and root specialized-index entry. The affected
-# ceilings are raised to measured-plus-headroom so this failure mode stays
-# explicit instead of being compressed into shorthand.
+# warning-baseline rationale, and root specialized-index entry. The root index
+# affects every default route, so these ceilings preserve measured-plus-headroom
+# instead of compressing the recovery rule into shorthand.
 ROUTE_BUDGETS = {
-    "default": (2810, 20250),
-    "data-recovery": (2705, 19950),
-    "new-project": (3895, 28070),
+    "default": (2860, 20350),
+    "data-recovery": (2705, 20050),
+    "new-project": (3895, 28170),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
