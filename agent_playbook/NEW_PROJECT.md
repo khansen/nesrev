@@ -211,10 +211,16 @@ The loop steps in order of typical failure:
    ```
    After a control change, review warning-baseline additions/removals
    on the next intake; do not accept drift silently.
-4. **Rerun intake.** Repeat from step 1 until intake exits zero with
+4. **Audit hidden-code smells before accepting green intake.** On fresh
+   projects, inspect large `.DB` spans and ROM-to-RAM copy loops before
+   treating the first green intake as stable. If copied ROM bytes are reached
+   through runtime RAM `JSR`/`JMP`/pointer operands, recover them with
+   [DATA_RECOVERY.md#executable-rom-to-ram-images](DATA_RECOVERY.md#executable-rom-to-ram-images),
+   update tracked controls, regenerate, and repeat this loop.
+5. **Rerun intake.** Repeat from step 1 until intake exits zero with
    the tracked control configuration.
-5. **Only after intake parity is green** start naming, label, or
-   constant passes.
+6. **Only after intake parity is green and hidden-code smells are
+   resolved** start naming, label, or constant passes.
 
 <a id="trailing-byte-override"></a>
 ### Trailing-byte override

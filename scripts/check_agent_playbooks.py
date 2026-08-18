@@ -180,10 +180,15 @@ ROOT_WORD_CEILING = 6000
 # cross their previous word ceilings because they include the affected playbook
 # bundles, so their ceilings preserve readable rule text instead of compressing
 # a review criterion into shorthand.
+# Executable ROM-to-RAM image recovery later added a mandatory fresh-intake
+# smell check, source/destination translation formula, `codeentries.txt`
+# representation rule, and warning-baseline rationale. The data-recovery and
+# new-project ceilings are raised to measured-plus-headroom so this failure mode
+# stays explicit instead of being compressed into shorthand.
 ROUTE_BUDGETS = {
     "default": (2810, 20250),
-    "data-recovery": (2625, 19600),
-    "new-project": (3810, 27700),
+    "data-recovery": (2705, 19950),
+    "new-project": (3895, 28070),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

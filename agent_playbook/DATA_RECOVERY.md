@@ -15,6 +15,7 @@ This playbook owns code- and data-recovery mechanics:
 - listing-assisted pointer-blob audits
 - computed-pointer consumer recovery
 - orphan opcode-blob detection
+- executable ROM-to-RAM image recovery
 - pointer-table conversion
 - consumer-driven discovery of table boundaries, embedded offsets, and
   conversion opportunities
@@ -162,6 +163,44 @@ exact-target placement, byte-count preservation, mixed-region handling,
 boundary labels, and discovery-confidence documentation) live at
 [Pointer-Table Conversion](#pointer-table-conversion) and apply to every
 recovered pointer table.
+
+<a id="executable-rom-to-ram-images"></a>
+## Executable ROM-to-RAM Images
+
+Some games copy a ROM byte range into CPU RAM or PRG-RAM, then execute the
+runtime RAM address. NESrev cannot infer that a `JSR $7xxx` or `JMP $6xxx`
+should decode bytes from a banked ROM source range, so this pattern must be
+handled explicitly during intake and code recovery.
+
+Before accepting a fresh project's first green intake as stable, scan for this
+pattern when either smell appears:
+
+- a large `.DB` span, especially after padding, contains coherent opcode-like
+  runs (`$A5`/`$A9`/`$85`/`$8D`/`$20`/`$4C`/`$60`);
+- code copies from a ROM address range into `$0000-$07FF`, `$6000-$7FFF`, or
+  another RAM range that later appears in `JSR`, `JMP`, indirect dispatch, or
+  pointer-table operands.
+
+Use the copy loop to prove the image before adding controls:
+
+1. Identify the source start, destination start, and copied byte count/range.
+2. Search for direct or table-driven control-flow operands that target the
+   copied destination range.
+3. Translate each runtime entry back to the ROM source:
+   `source_addr = copy_source + (runtime_addr - copy_destination)`.
+4. Inspect each translated source byte for coherent 6502 flow through
+   `RTS`/`RTI`/`JMP` or a known tail call.
+
+Add only the translated ROM-source entries to `codeentries.txt`, using
+`bank|addr` rows for banked projects. Do not add the runtime RAM addresses
+themselves; they are execution addresses, not source locations NESrev can trace
+from the ROM image. Document the source range, destination range, and
+translation rule in comments above the entry block.
+
+After regeneration, keep real data/table islands as `.DB`, add additional
+entry rows for coherent fallthrough chunks still left as bytes, reject
+data-context or illegal-opcode false positives, curate `WARNING_BASELINE.txt`
+with a copied-image rationale, and rerun intake.
 
 <a id="inline-call-recovery"></a>
 ## Inline-Call Recovery
