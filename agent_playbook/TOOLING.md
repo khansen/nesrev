@@ -272,11 +272,38 @@ instruction runs at candidate offsets inside each span, then joins project
 context from `WARNING_BASELINE.txt`,
 `codeentries.txt`, `dataranges.csv`, `inlinecalls.csv`, and
 `data_blob_dispositions.csv` when present. It may emit multiple rows for one
-span; `is_best=yes` marks the highest-scoring offset, while lower-scoring
-table-tail stubs can still appear. Review each row manually: text, PPU packets,
-CHR/tile data, pointer tables, padding, and mixed code/data overlays can all
-score as opcode-like. Durable conclusions belong in NESrev recovery controls,
+span; `is_best=yes` marks the best offset, while lower-scoring table-tail stubs
+can still appear. Review each row manually: text, PPU packets, CHR/tile data,
+pointer tables, padding, and mixed code/data overlays can all score as
+opcode-like. Durable conclusions belong in NESrev recovery controls,
 `WARNING_BASELINE.txt`, or data-disposition ledgers.
+
+### Control-flow target validation
+
+Byte identity proves provenance, not executability. A candidate is only
+executable where its own absolute `JSR`/`JMP` operands land on instruction
+starts in the bank mapped at run time, so the scanner resolves every such
+operand against the listing before treating a run as strong evidence: for a
+candidate in bank N, `$8000-$BFFF` resolves in bank N and `$C000-$FFFF` in the
+fixed bank. For non-banked mapper-0 images, `$8000-$FFFF` resolves through the
+single PRG image; 16 KiB NROM mirrors `$8000-$BFFF` to the same offsets as
+`$C000-$FFFF`. Without mapper context, banked target validation can remain
+unknown. `target_valid` reports the outcome.
+
+- `yes` — every target resolves to an instruction start.
+- `no` — at least one target lands on a `.DB`/`.DW` record or inside another
+  instruction. Such runs are disqualified from score-based filtering however
+  clean the decode looks; `--all` still lists them.
+- `unknown` — nothing resolved invalid but something could not be resolved: a
+  RAM destination (normal for a copied ROM-to-RAM image), a fixed-bank
+  candidate calling the switched window, `JMP (indirect)`, or no absolute
+  target at all. Unknown is unproven, never treated as valid.
+
+`resolved_targets` counts validated targets, `invalid_targets` names each
+failure as `$ADDR:reason@bankN`, and `target_validation_notes` explains
+anything unresolved. `score` still measures decode coherence alone; validity is
+the separate axis, and `is_best` prefers a validated run over a higher-scoring
+unvalidated one. Sort by `target_valid` then `score` when triaging.
 
 <a id="nesrev-controls"></a>
 ## NESrev Regeneration Controls

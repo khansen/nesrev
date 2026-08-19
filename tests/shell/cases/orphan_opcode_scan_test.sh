@@ -175,3 +175,181 @@ test_project_hidden_code_scan_wrapper_allows_missing_reference_rom() {
 
   cleanup_project "${slug}"
 }
+
+# Target-validation fixture. Three 16 KiB banks so bank-relative resolution is
+# exercised: banks 0 and 1 are switched windows, bank 2 is the fixed bank.
+# Bank 0 holds a real veneer at $8000; bank 1 holds data at the same address,
+# so identical candidate bytes are executable in one bank and not the other.
+_write_target_validation_asm() {
+  python3 - "$1" <<'PY'
+import sys
+
+BANK = 0x4000
+# Fixed-bank layout is deterministic: JMP occupies $C000-$C002 and the pointer
+# word occupies $C003-$C004, so these two addresses are always interior bytes.
+head = [
+    "FIXED_MID_INSTR .EQU $C001",
+    "FIXED_PTR_MID .EQU $C004",
+]
+bank0 = [
+    ".ORG $8000",
+    "VeneerBank0:",
+    "    JMP VeneerBodyBank0",
+    "VeneerBodyBank0:",
+    "    RTS",
+    "CandidateValidTargetBank0:",
+    "    .DB $20,<VeneerBank0,>VeneerBank0,$60",
+    "CandidateRamTargetBank0:",
+    "    .DB $20,$00,$07,$60",
+    "CandidateMidInstrTargetBank0:",
+    "    .DB $4C,<FIXED_MID_INSTR,>FIXED_MID_INSTR",
+    "CandidateMidDataTargetBank0:",
+    "    .DB $4C,<FIXED_PTR_MID,>FIXED_PTR_MID",
+]
+bank0_bytes = 3 + 1 + 4 + 4 + 3 + 3
+bank1 = [
+    "DataWhereBank0HasVeneer:",
+    "    .DB $FF,$FF,$FF,$FF",
+    "CandidateCopiedBytesBank1:",
+    "    .DB $20,<VeneerBank0,>VeneerBank0,$60",
+]
+bank1_bytes = 4 + 4
+fixed = [
+    "FixedEntry:",
+    "    JMP FixedEntry",
+    "FixedPtrTable:",
+    "    .DW FixedEntry",
+]
+fixed_bytes = 3 + 2
+
+
+def filler(label, count):
+    lines = [f"{label}:"]
+    while count > 0:
+        chunk = min(count, 16)
+        lines.append("    .DB " + ",".join(["$FF"] * chunk))
+        count -= chunk
+    return lines
+
+
+lines = head + bank0 + filler("FillerBank0", BANK - bank0_bytes)
+lines += [".ORG $8000"] + bank1 + filler("FillerBank1", BANK - bank1_bytes)
+lines += [".ORG $C000"] + fixed + filler("FillerFixedBank", BANK - fixed_bytes)
+open(sys.argv[1], "w", encoding="utf-8").write("\n".join(lines) + "\n")
+PY
+}
+
+_write_nrom_mirror_target_validation_asm() {
+  cat > "$1" <<'ASM'
+.ORG $C000
+MirrorTarget:
+    RTS
+CandidateMirrorTarget:
+    .DB $20,$00,$80,$60
+ASM
+}
+
+# Reads one column of the offset-0 row for a span, so assertions name the
+# column instead of counting commas.
+_orphan_scan_field() {
+  python3 - "$1" "$2" "$3" <<'PY'
+import csv
+import sys
+
+path, label, column = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path, newline="", encoding="utf-8") as handle:
+    for row in csv.DictReader(handle):
+        if row["span_label"] == label and row["candidate_offset"] == "0":
+            print(row[column])
+            break
+PY
+}
+
+test_orphan_opcode_scan_validates_nrom_16k_mirror_targets() {
+  local asm="${NESREV_TEST_TMPDIR}/nrom_mirror_target.asm"
+  local out="${NESREV_TEST_TMPDIR}/nrom_mirror_target.csv"
+  _write_nrom_mirror_target_validation_asm "${asm}"
+
+  python3 "${ORPHAN_SCAN}" \
+    --asm "${asm}" \
+    --mapper 0 \
+    --min-size 1 \
+    --threshold 10 \
+    --all > "${out}"
+
+  assert_eq "yes" "$(_orphan_scan_field "${out}" CandidateMirrorTarget target_valid)" \
+    "16 KiB NROM should resolve the \$8000 mirror to the single PRG image"
+  assert_eq "1/1" "$(_orphan_scan_field "${out}" CandidateMirrorTarget resolved_targets)" \
+    "NROM mirror resolution should count as a validated target"
+}
+
+test_orphan_opcode_scan_validates_absolute_control_flow_targets() {
+  local asm="${NESREV_TEST_TMPDIR}/target_validation.asm"
+  local out="${NESREV_TEST_TMPDIR}/target_validation.csv"
+  _write_target_validation_asm "${asm}"
+
+  # --all so rejected runs are still emitted; the filtering behaviour has its
+  # own test below.
+  python3 "${ORPHAN_SCAN}" \
+    --asm "${asm}" \
+    --mapper 1 \
+    --min-size 1 \
+    --threshold 10 \
+    --all > "${out}"
+
+  # Positive control: the call resolves to an instruction start in the
+  # candidate's own bank.
+  assert_eq "yes" "$(_orphan_scan_field "${out}" CandidateValidTargetBank0 target_valid)" \
+    "targets resolving to instruction starts should validate"
+  assert_eq "1/1" "$(_orphan_scan_field "${out}" CandidateValidTargetBank0 resolved_targets)" \
+    "resolved_targets should count validated targets"
+
+  # Copied bytes: identical to the bank-0 candidate, but bank 1 holds data at
+  # the called address. Byte identity proves provenance, not executability.
+  assert_eq "no" "$(_orphan_scan_field "${out}" CandidateCopiedBytesBank1 target_valid)" \
+    "a copied run whose target is data in its own bank must not validate"
+  assert_match "data@b1" "$(_orphan_scan_field "${out}" CandidateCopiedBytesBank1 invalid_targets)" \
+    "invalid_targets should name the resolved bank"
+
+  # Jump into the middle of a fixed-bank instruction.
+  assert_eq "no" "$(_orphan_scan_field "${out}" CandidateMidInstrTargetBank0 target_valid)" \
+    "a jump into an instruction body must not validate"
+  assert_match "mid-instr" "$(_orphan_scan_field "${out}" CandidateMidInstrTargetBank0 invalid_targets)" \
+    "invalid_targets should report the mid-instruction landing"
+
+  # Jump into a fixed-bank pointer word, the shape a decoded run takes when it
+  # lands in inline-call payload or table bytes.
+  assert_eq "no" "$(_orphan_scan_field "${out}" CandidateMidDataTargetBank0 target_valid)" \
+    "a jump into pointer-word bytes must not validate"
+  assert_match "mid-data" "$(_orphan_scan_field "${out}" CandidateMidDataTargetBank0 invalid_targets)" \
+    "invalid_targets should report the mid-data landing"
+
+  # RAM destinations stay unknown: copied ROM-to-RAM images legitimately call
+  # their runtime addresses, and rejecting them would hide that pattern.
+  assert_eq "unknown" "$(_orphan_scan_field "${out}" CandidateRamTargetBank0 target_valid)" \
+    "an unresolvable RAM target must stay unknown rather than valid or invalid"
+  assert_match "ram target" "$(_orphan_scan_field "${out}" CandidateRamTargetBank0 target_validation_notes)" \
+    "notes should explain why the target was unresolved"
+}
+
+test_orphan_opcode_scan_invalid_targets_lose_strong_filtering() {
+  local asm="${NESREV_TEST_TMPDIR}/target_validation_filter.asm"
+  local out="${NESREV_TEST_TMPDIR}/target_validation_filter.csv"
+  _write_target_validation_asm "${asm}"
+
+  # Default filtering: a proven-invalid run must not qualify on score alone.
+  python3 "${ORPHAN_SCAN}" \
+    --asm "${asm}" \
+    --mapper 1 \
+    --min-size 1 \
+    --threshold 10 > "${out}"
+
+  if grep -q "^[0-9]*,CandidateMidInstrTargetBank0,.*,no," "${out}"; then
+    fail "a target_valid=no run must not survive strong filtering"
+  fi
+  grep -q "CandidateValidTargetBank0" "${out}" \
+    || fail "a validated run must still be reported"
+  python3 "${ORPHAN_SCAN}" --asm "${asm}" --mapper 1 --min-size 1 --threshold 10 --all \
+    | grep -q "CandidateMidInstrTargetBank0" \
+    || fail "--all must still expose rejected runs for review"
+}

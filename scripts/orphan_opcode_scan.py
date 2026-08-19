@@ -23,6 +23,7 @@ from typing import Any, TextIO
 
 
 BANK_SIZE = 0x4000
+NROM_MAPPER = 0
 MMC1_MAPPER = 1
 
 GLOBAL_LABEL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -60,6 +61,16 @@ REVIEW_MARKERS = (
     "REVIEW REQUIRED: intake auto-seed",
 )
 
+# Absolute control-flow opcodes whose operands can be checked against the
+# listing. `JMP (indirect)` reads its destination at run time, so it stays
+# unresolvable.
+ABSOLUTE_FLOW_OPS = {0x20, 0x4C}
+INDIRECT_FLOW_OP = 0x6C
+
+TARGET_VALID = "yes"
+TARGET_INVALID = "no"
+TARGET_UNKNOWN = "unknown"
+
 
 @dataclass(frozen=True)
 class Span:
@@ -86,6 +97,17 @@ class DataRange:
 
 
 @dataclass(frozen=True)
+class RunShape:
+    length: int
+    instruction_count: int
+    terminated: bool
+    codelike_count: int
+    brk_count: int
+    targets: tuple[int, ...]
+    indirect_count: int
+
+
+@dataclass(frozen=True)
 class DecodeRun:
     score: int
     offset: int
@@ -94,6 +116,10 @@ class DecodeRun:
     instruction_count: int
     codelike_count: int
     brk_count: int
+    target_valid: str
+    resolved_targets: str
+    invalid_targets: tuple[str, ...]
+    target_notes: str
 
 
 def parse_listing_int(value: Any) -> int | None:
@@ -206,6 +232,121 @@ def record_bytes(record: dict[str, Any]) -> list[int]:
     return values
 
 
+class TargetIndex:
+    """Maps CPU addresses back to listing records, per bank context.
+
+    A candidate run is only executable where its own `JSR`/`JMP` operands land on
+    instruction starts in the bank that would be mapped at run time. Byte identity
+    with code decoded in another bank proves provenance, not executability: the
+    call targets are bank-relative, so a copy can point into data in its own bank.
+    """
+
+    def __init__(self, records: list[dict[str, Any]], mapper: int | None) -> None:
+        self.mapper = mapper
+        self.owner: dict[int, tuple[int, bool]] = {}
+        size = 0
+        cpus: list[int] = []
+        for record in records:
+            start = record_output_offset(record)
+            values = record.get("bytes_hex") or []
+            if start is None or not values:
+                continue
+            cpu = record_cpu(record)
+            if cpu is not None:
+                cpus.append(cpu)
+            op = record.get("directive_or_opcode") or ""
+            is_instruction = not op.startswith(".") and not record.get("continuation_of_record")
+            for index in range(len(values)):
+                self.owner[start + index] = (start, is_instruction)
+            size = max(size, start + len(values))
+        self.size = size
+        self.banks = (size + BANK_SIZE - 1) // BANK_SIZE
+        self.fixed_bank = self.banks - 1 if self.banks else 0
+        self.cpu_base = min(cpus) if cpus else (max(0x8000, 0x10000 - size) if size else 0x8000)
+
+    def resolve_bank(self, bank: int | None, cpu: int) -> int | None:
+        if self.mapper != MMC1_MAPPER:
+            return None
+        if cpu >= 0xC000:
+            return self.fixed_bank
+        if bank is None or bank == self.fixed_bank:
+            # Fixed-bank code may call into whichever bank is mapped; a static
+            # scan cannot pick one.
+            return None
+        return bank
+
+    def check(self, bank: int | None, cpu: int) -> tuple[str, str, int | None]:
+        """Classifies one absolute control-flow target as valid/invalid/unknown."""
+        if cpu < 0x8000:
+            return TARGET_UNKNOWN, "ram target", None
+        if self.mapper == MMC1_MAPPER:
+            resolved = self.resolve_bank(bank, cpu)
+            if resolved is None:
+                return TARGET_UNKNOWN, "unresolved bank", None
+            base = cpu - (0xC000 if cpu >= 0xC000 else 0x8000)
+            offset = resolved * BANK_SIZE + base
+        else:
+            resolved = None
+            if self.mapper is None and self.size > 0x8000:
+                return TARGET_UNKNOWN, "no mapper context", None
+            if self.mapper not in (None, NROM_MAPPER):
+                return TARGET_UNKNOWN, "unsupported mapper", None
+            if self.size <= BANK_SIZE and self.cpu_base >= 0xC000:
+                offset = cpu & 0x3FFF
+            else:
+                if cpu < self.cpu_base:
+                    return TARGET_UNKNOWN, "outside image", None
+                offset = cpu - self.cpu_base
+        if offset >= self.size:
+            return TARGET_UNKNOWN, "outside image", resolved
+        start, is_instruction = self.owner.get(offset, (None, False))
+        if start is None:
+            return TARGET_UNKNOWN, "outside image", resolved
+        if start == offset:
+            if is_instruction:
+                return TARGET_VALID, "", resolved
+            return TARGET_INVALID, "data", resolved
+        kind = "mid-instr" if is_instruction else "mid-data"
+        return TARGET_INVALID, f"{kind}(+{offset - start})", resolved
+
+
+def validate_targets(
+    shape: RunShape, bank: int | None, index: TargetIndex | None
+) -> tuple[str, str, tuple[str, ...], str]:
+    """Returns (verdict, resolved_count, invalid_target_details, notes).
+
+    `unknown` is deliberately distinct from `yes`: a run whose targets cannot be
+    resolved (RAM destinations in a copied image, fixed-bank calls into the
+    switched window) is unproven, not proven good.
+    """
+    if index is None:
+        return TARGET_UNKNOWN, "0/0", (), "no listing index"
+    valid = 0
+    invalid: list[str] = []
+    unresolved: dict[str, int] = {}
+    for cpu in shape.targets:
+        verdict, detail, resolved_bank = index.check(bank, cpu)
+        if verdict == TARGET_VALID:
+            valid += 1
+        elif verdict == TARGET_INVALID:
+            where = "" if resolved_bank is None else f"@b{resolved_bank}"
+            invalid.append(f"${cpu:04X}:{detail}{where}")
+        else:
+            unresolved[detail] = unresolved.get(detail, 0) + 1
+    notes = [f"{count} {reason}" for reason, count in sorted(unresolved.items())]
+    if shape.indirect_count:
+        notes.append(f"{shape.indirect_count} indirect jmp")
+    if not shape.targets and not shape.indirect_count:
+        notes.append("no absolute targets")
+    if invalid:
+        verdict = TARGET_INVALID
+    elif shape.targets and valid == len(shape.targets) and not notes:
+        verdict = TARGET_VALID
+    else:
+        verdict = TARGET_UNKNOWN
+    return verdict, f"{valid}/{len(shape.targets)}", tuple(invalid), "; ".join(notes)
+
+
 def label_address(label: str) -> tuple[int | None, int | None]:
     banked = L_BANKED_LABEL_RE.match(label)
     if banked:
@@ -233,8 +374,7 @@ def label_for(bank: int | None, cpu: int | None) -> str:
     return f"L{bank:X}{cpu:04X}"
 
 
-def parse_spans(path: Path, mapper: int | None) -> list[Span]:
-    records = run_xasm_listing(path)
+def parse_spans(records: list[dict[str, Any]], mapper: int | None) -> list[Span]:
     spans: list[Span] = []
     current_label: str | None = None
     current_span: Span | None = None
@@ -442,12 +582,14 @@ def disposition_for(dispositions: dict[str, str], label: str) -> str:
     return ""
 
 
-def decode_run(data: tuple[int, ...], start: int) -> tuple[int, int, bool, int, int]:
+def decode_run(data: tuple[int, ...], start: int) -> RunShape:
     pos = start
     instruction_count = 0
     codelike_count = 0
     brk_count = 0
+    indirect_count = 0
     terminated = False
+    targets: list[int] = []
     while pos < len(data):
         op = data[pos]
         size = OPCODE_SIZE.get(op)
@@ -456,6 +598,10 @@ def decode_run(data: tuple[int, ...], start: int) -> tuple[int, int, bool, int, 
         instruction_count += 1
         if op in CODELIKE_OPS:
             codelike_count += 1
+        if op in ABSOLUTE_FLOW_OPS:
+            targets.append(data[pos + 1] | (data[pos + 2] << 8))
+        elif op == INDIRECT_FLOW_OP:
+            indirect_count += 1
         if op == 0x00:
             brk_count += 1
             if instruction_count > 1:
@@ -464,32 +610,49 @@ def decode_run(data: tuple[int, ...], start: int) -> tuple[int, int, bool, int, 
         if op in TERMINATORS:
             terminated = True
             break
-    return pos - start, instruction_count, terminated, codelike_count, brk_count
+    return RunShape(
+        length=pos - start,
+        instruction_count=instruction_count,
+        terminated=terminated,
+        codelike_count=codelike_count,
+        brk_count=brk_count,
+        targets=tuple(targets),
+        indirect_count=indirect_count,
+    )
 
 
-def score_run(
-    length: int,
-    instruction_count: int,
-    terminated: bool,
-    codelike_count: int,
-    brk_count: int,
-) -> int:
-    return length + instruction_count + codelike_count * 2 + (8 if terminated else 0) - brk_count * 6
+def score_run(shape: RunShape) -> int:
+    """Decode coherence only. Target validity is a separate axis, so a copied
+    byte run cannot buy rank with a long clean decode."""
+    return (
+        shape.length
+        + shape.instruction_count
+        + shape.codelike_count * 2
+        + (8 if shape.terminated else 0)
+        - shape.brk_count * 6
+    )
 
 
-def decode_candidates(span: Span, max_start_offset: int) -> list[DecodeRun]:
+def decode_candidates(
+    span: Span, max_start_offset: int, index: TargetIndex | None
+) -> list[DecodeRun]:
     runs: list[DecodeRun] = []
     for offset in range(min(len(span.data), max_start_offset + 1)):
-        length, instruction_count, terminated, codelike_count, brk_count = decode_run(span.data, offset)
+        shape = decode_run(span.data, offset)
+        verdict, resolved, invalid, notes = validate_targets(shape, span.bank, index)
         runs.append(
             DecodeRun(
-                score_run(length, instruction_count, terminated, codelike_count, brk_count),
+                score_run(shape),
                 offset,
-                length,
-                terminated,
-                instruction_count,
-                codelike_count,
-                brk_count,
+                shape.length,
+                shape.terminated,
+                shape.instruction_count,
+                shape.codelike_count,
+                shape.brk_count,
+                verdict,
+                resolved,
+                invalid,
+                notes,
             )
         )
     return runs
@@ -508,6 +671,10 @@ def candidate_is_interesting(
         return True
     if force_marker and any(marker in rationale for marker in REVIEW_MARKERS):
         return True
+    if run.target_valid == TARGET_INVALID:
+        # Control flow proven to land on data or mid-instruction bytes. However
+        # clean the decode looks, the run cannot execute where it sits.
+        return False
     if run.score >= threshold:
         return True
     return run.terminated and run.length >= 6 and run.codelike_count >= 2
@@ -516,6 +683,7 @@ def candidate_is_interesting(
 def write_csv(
     handle: TextIO,
     spans: list[Span],
+    index: TargetIndex | None,
     warnings: dict[str, str],
     codeentries: set[EntryKey],
     dataranges: list[DataRange],
@@ -549,6 +717,10 @@ def write_csv(
             "instruction_count",
             "codelike_count",
             "brk_count",
+            "target_valid",
+            "resolved_targets",
+            "invalid_targets",
+            "target_validation_notes",
             "bytes",
         ]
     )
@@ -556,8 +728,14 @@ def write_csv(
     for span in spans:
         if len(span.data) < min_size:
             continue
-        candidates = decode_candidates(span, max_start_offset)
-        best = max(candidates, key=lambda run: run.score, default=None)
+        candidates = decode_candidates(span, max_start_offset, index)
+        # Rank validated control flow above a merely coherent decode, so a span's
+        # best row is a run whose targets resolve when it has one.
+        best = max(
+            candidates,
+            key=lambda run: (run.target_valid == TARGET_VALID, run.score),
+            default=None,
+        )
         for run in candidates:
             candidate_cpu = span.cpu + run.offset if span.cpu is not None else None
             candidate_label = label_for(span.bank, candidate_cpu)
@@ -599,6 +777,10 @@ def write_csv(
                     run.instruction_count,
                     run.codelike_count,
                     run.brk_count,
+                    run.target_valid,
+                    run.resolved_targets,
+                    " ".join(run.invalid_targets),
+                    run.target_notes,
                     byte_preview,
                 ]
             )
@@ -642,7 +824,9 @@ def main(argv: list[str]) -> int:
         except ValueError as exc:
             parser.error(str(exc))
 
-    spans = parse_spans(args.asm, mapper)
+    records = run_xasm_listing(args.asm)
+    spans = parse_spans(records, mapper)
+    index = TargetIndex(records, mapper)
     warnings = read_warning_rationale(args.warnings)
     codeentries = read_code_entries(args.codeentries)
     dataranges = read_data_ranges(args.dataranges)
@@ -653,6 +837,7 @@ def main(argv: list[str]) -> int:
         write_csv(
             sys.stdout,
             spans,
+            index,
             warnings,
             codeentries,
             dataranges,
@@ -670,6 +855,7 @@ def main(argv: list[str]) -> int:
         count = write_csv(
             handle,
             spans,
+            index,
             warnings,
             codeentries,
             dataranges,
