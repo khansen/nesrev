@@ -197,9 +197,14 @@ ROOT_WORD_CEILING = 6000
 # recalculated ceilings keep measured-plus-headroom across bundled routes
 # instead of compressing the false-positive cautions that keep the scanner from
 # becoming a misleading gate.
+# Control-flow target validation later documented the scanner's per-bank
+# resolution rule, the yes/no/unknown contract, and the four validation columns.
+# That distinction is what keeps a copied byte run from reading as recovered
+# code, so the affected ceilings carry it at measured-plus-headroom instead of
+# compressing it into shorthand.
 ROUTE_BUDGETS = {
-    "default": (2897, 20563),
-    "data-recovery": (2767, 20434),
+    "default": (2925, 20798),
+    "data-recovery": (2795, 20669),
     "new-project": (3925, 28336),
 }
 
