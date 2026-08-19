@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -123,6 +123,10 @@ project-compare:
 project-static-analysis:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-static-analysis PROJECT=<slug>"; exit 2; fi
 	@bash scripts/project_static_analysis.sh $(PROJECT)
+
+project-hidden-code-scan:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-hidden-code-scan PROJECT=<slug> [MIN_SIZE=12] [THRESHOLD=22] [MAX_START_OFFSET=64]"; exit 2; fi
+	@MIN_SIZE="$(MIN_SIZE)" THRESHOLD="$(THRESHOLD)" MAX_START_OFFSET="$(MAX_START_OFFSET)" bash scripts/project_hidden_code_scan.sh "$(PROJECT)"
 
 mod-new:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(MOD)" ]; then echo "usage: make mod-new PROJECT=<slug> MOD=<mod_slug>"; exit 2; fi

@@ -447,6 +447,9 @@ for opcode-like byte runs (frequent code bytes:
 carrying the intake placeholder rationale
 `REVIEW REQUIRED: intake auto-seed; replace with symbol-specific rationale` as
 an input worklist item, not as settled data.
+Use `make project-hidden-code-scan PROJECT=<slug>` for the advisory project-wide
+sweep; command options and output semantics live at
+[TOOLING.md#orphan-opcode-scan](TOOLING.md#orphan-opcode-scan).
 
 Run recovery as an explicit disposition loop:
 

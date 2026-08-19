@@ -192,10 +192,15 @@ ROOT_WORD_CEILING = 6000
 # spelled out the MMC1 inline-call bank-context failure plus direct `bank|addr`
 # codeentries recovery path. The affected ceilings keep that rule readable with
 # the same measured-plus-headroom convention.
+# Orphan-opcode scanner promotion later added the project-hidden-code-scan
+# wrapper and advisory output semantics to the default/hidden-code routes. The
+# recalculated ceilings keep measured-plus-headroom across bundled routes
+# instead of compressing the false-positive cautions that keep the scanner from
+# becoming a misleading gate.
 ROUTE_BUDGETS = {
-    "default": (2869, 20382),
-    "data-recovery": (2736, 20236),
-    "new-project": (3922, 28319),
+    "default": (2897, 20563),
+    "data-recovery": (2767, 20434),
+    "new-project": (3925, 28336),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

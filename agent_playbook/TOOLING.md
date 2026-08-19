@@ -9,6 +9,7 @@ This playbook owns commands, tool options, and diagnostic procedures:
 - xasm listings and xref options
 - data-consumer, data-coverage, and index-pattern analysis
 - the static-analysis scanner (dead code, latent bugs, micro-optimizations)
+- the orphan-opcode hidden-code scanner
 - NESrev regeneration controls
 - inventory commands
 - parity-drift diagnostics
@@ -251,6 +252,31 @@ an article on hand-written 6502 and future relocatable mod builds, while the A
 findings are genuine ROM defects. Extend the tool by adding a detector that
 consumes the shared CFG + liveness in `analyze()` / `find_overruns()`, then re-run
 the wrapper to regenerate the doc.
+
+<a id="orphan-opcode-scan"></a>
+## Orphan Opcode Hidden-Code Scan
+
+`make project-hidden-code-scan PROJECT=<slug>` runs
+`scripts/orphan_opcode_scan.py` and writes
+`docs/reverse_engineering/inventory/pass/orphan_opcode_candidates.csv`. The
+output is ignored generated evidence, not a gate or committed report. Optional
+knobs are `MIN_SIZE=12`, `THRESHOLD=22`, and `MAX_START_OFFSET=64`; use
+`MIN_SIZE=1` when auditing short table-tail stubs.
+
+The scanner assembles with xasm and reads `.DB` bytes, CPU addresses, and output
+offsets from the JSON listing. Symbolic `.DB` operands and semantically named
+labels therefore keep their assembled address context. The wrapper passes the
+reference ROM for mapper-aware candidate labels when the ROM is present; direct
+script runs can use `--ref-nes` or `--mapper`. It tries official 6502
+instruction runs at candidate offsets inside each span, then joins project
+context from `WARNING_BASELINE.txt`,
+`codeentries.txt`, `dataranges.csv`, `inlinecalls.csv`, and
+`data_blob_dispositions.csv` when present. It may emit multiple rows for one
+span; `is_best=yes` marks the highest-scoring offset, while lower-scoring
+table-tail stubs can still appear. Review each row manually: text, PPU packets,
+CHR/tile data, pointer tables, padding, and mixed code/data overlays can all
+score as opcode-like. Durable conclusions belong in NESrev recovery controls,
+`WARNING_BASELINE.txt`, or data-disposition ledgers.
 
 <a id="nesrev-controls"></a>
 ## NESrev Regeneration Controls
@@ -595,6 +621,9 @@ debug-only recipes not big enough to warrant their own section.
 
 - Dead code, latent bugs, micro-optimizations
   (`make project-static-analysis PROJECT=<slug>`): [#static-analysis](#static-analysis)
+- Orphan opcode hidden-code candidates
+  (`make project-hidden-code-scan PROJECT=<slug>`):
+  [#orphan-opcode-scan](#orphan-opcode-scan)
 
 ### NESrev regeneration
 
