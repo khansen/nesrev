@@ -244,9 +244,21 @@ would close the gap, so the next pass to reach the same edge starts from nothing
 and defers again.
 
 The operator already writes the deferral, in the closeout notes. Closeout reads
-its own `NOTES` and appends rows to `inventory/deferrals.csv` (`pass_id,corridor,subject,kind,deferral,revisit_condition,status`).
-`revisit_condition` starts empty and is the operator's to fill; proof debt
+`DEFERRALS`, or failing that its own `NOTES`, and appends rows to
+`inventory/deferrals.csv` (`pass_id,corridor,subject,kind,deferral,revisit_condition,status`).
+
+Which path is taken decides whether `revisit_condition` is answered at capture
+time. `DEFERRALS="subject :: what would close it"` fills it immediately and is
+the contract. The prose fallback cannot: it recovers a subject from a sentence
+written for a human reader, but nothing in that sentence states a closing
+condition, so the field starts empty and is the operator's to fill. Proof debt
 raises it until they do.
+
+This distinction is not cosmetic — it decides whether `deferrals_unclosed` fires
+at all, since that signal counts open rows *lacking* a revisit condition rather
+than open rows in general. A project using the explicit form can hold many open
+deferrals at 0% unclosed, which is the intended behaviour: an open gap with a
+stated path to closure is tracked work, not debt.
 
 **One row per gap, not per sentence.** A closeout note is mostly a list of work
 done with the gap as a trailing clause — *"Reflowed the touched tables, added
@@ -632,12 +644,22 @@ operator who reads the signal does better work than one who does not, because
 nobody in that corpus ever read it. Only a live pass produces that evidence.
 
 Beyond the general condition, individual signals may need more.
-`deferrals_unclosed` is the nearest candidate and is not ready. Capture writes
-`revisit_condition` empty by construction, so the unclosed ratio starts at 100%
-and the signal fires on the very first captured pass. As an advisory that is the
-intended nag; as a hard gate it would block closeout the moment a project adopts
-capture, and the ratio threshold gives no protection because the denominator is
-one or two rows.
+`deferrals_unclosed` is the nearest candidate and is not ready, though for a
+narrower reason than this section first claimed.
+
+The original text said capture writes `revisit_condition` empty by construction,
+so the ratio starts at 100% and the signal fires on the first captured pass.
+Live operation disproved that. Under the explicit `DEFERRALS` contract the field
+is populated at capture, and the first project to opt in ran four open deferrals
+across three passes at 0% unclosed, with the signal correctly silent. The
+predicted failure belongs to the prose fallback, not to capture itself.
+
+The caution therefore narrows rather than disappears. A fallback-heavy project —
+one whose operator never sets `DEFERRALS` — does start near 100%, and a
+low-ledger project gets no protection from a ratio whose denominator is one or
+two rows. Hard-gating would punish both while leaving a disciplined project
+untouched, which is the wrong incentive: it penalises the operator who writes
+less rather than the one who defers more.
 
 Promotion therefore needs a minimum ledger size or a grace window on top of the
 general condition above. The honest sequence is to run a project with capture
