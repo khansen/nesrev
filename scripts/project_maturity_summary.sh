@@ -221,8 +221,39 @@ if not shown:
     print("- none recorded")
 print()
 
-print(
-    "Reminder: callable/global-label counts are review inventories, not zero-target "
-    "KPIs. This summary is candidate evidence; the operator selects the corridor objective."
-)
 PY
+
+# --- Vocabulary and data-format drift -------------------------------------
+# These read authored ledgers rather than KPI scripts. They are the signals
+# that otherwise only surface at the maturity gate, which is too late to steer
+# a pass, so the dashboard reports them on every run.
+echo "Vocabulary and data-format drift (advisory):"
+
+if [[ -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
+  python3 "${SCRIPT_DIR}/data_format_targets_summary.py" "${DATA_FORMAT_TARGETS_FILE}"
+else
+  echo "- data-format families: no ledger present"
+fi
+
+if [[ -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then
+  blob_rows="$(( $(wc -l < "${DATA_BLOB_DISPOSITIONS_FILE}") - 1 ))"
+  if (( blob_rows < 0 )); then blob_rows=0; fi
+  echo "- data-blob dispositions: ${blob_rows} rows"
+else
+  echo "- data-blob dispositions: no ledger present"
+fi
+
+if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
+  python3 "${SCRIPT_DIR}/proof_debt.py" \
+    "${DOC_ROOT}" "${CROSSWALK_FILE}" 2>/dev/null | sed 's/^/- /' || true
+  python3 "${SCRIPT_DIR}/proof_debt.py" \
+    "${DOC_ROOT}" "${CROSSWALK_FILE}" --coverage 2>/dev/null | sed 's/^/  /' || true
+  python3 "${SCRIPT_DIR}/symbol_vocabulary_check.py" \
+    "${ASM_FILE}" "${CROSSWALK_FILE}" 2>/dev/null | sed 's/^/- /' || true
+else
+  echo "- proof debt: not enabled (set PROOF_DEBT_REQUIRED=1 in project.conf)"
+fi
+
+echo
+
+echo "Reminder: callable/global-label counts are review inventories, not zero-target KPIs. This summary is candidate evidence; the operator selects the corridor objective."
