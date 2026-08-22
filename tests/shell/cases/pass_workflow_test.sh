@@ -1240,8 +1240,8 @@ if row[cols["verify"]] != "pass":
     raise SystemExit(f"verify column was not marked by name: {row!r}")
 if row[cols["docs_check"]] != "pass":
     raise SystemExit(f"docs_check column was not marked by name: {row!r}")
-if row[cols["rework_items"]] != "0":
-    raise SystemExit(f"rework_items column was not normalized by name: {row!r}")
+if row[cols["rework_items"]] != "pending":
+    raise SystemExit(f"rework_items column was not preserved by name: {row!r}")
 PY
 }
 
@@ -1321,7 +1321,7 @@ expected = {
     "notes": "Created from a reordered scorecard header.",
     "verify": "pass",
     "docs_check": "pass",
-    "rework_items": "0",
+    "rework_items": "pending",
     "labels_remaining": "0 / 0",
 }
 for name, value in expected.items():

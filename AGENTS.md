@@ -199,6 +199,7 @@ Every active project uses this fixed set; process gates validate it.
 | `docs/reverse_engineering/inventory/data_format_targets.csv` | core data-format family disposition worklist for new projects |
 | `docs/reverse_engineering/inventory/data_blob_dispositions.csv` | blob worklist |
 | `docs/reverse_engineering/inventory/raw_ram_review.csv` | raw-RAM review queue (once project enters raw-RAM mode) |
+| `docs/reverse_engineering/inventory/deferrals.csv` | deferrals captured at closeout, one row per gap (schema-checked) |
 Optional support docs: `WORKING_NOTES.md` (rules at
 [DOCUMENTATION.md#working-notes](agent_playbook/DOCUMENTATION.md#working-notes)),
 `PARITY_GAPS.md`, `ACTOR_ENUMS.md` or equivalent enum docs, trace
@@ -217,6 +218,10 @@ Given `Game.asm` (disassembly) and `GameReference.nes` (reference ROM in iNES fo
 - **Semantic priority:** high-confidence semantic naming over mechanical KPI reduction. Do not perform placeholder alias sweeps whose main effect is KPI score movement without readability gain.
 - **Parity:** preserve binary identity for refactor/documentation passes unless a non-parity change is explicitly requested.
 - **Docs:** produce implementation-linked docs so a new developer can modify gameplay confidently.
+- **Vocabulary:** the finished disassembly should read as a description of *this
+  game*. Take names from the reference material wherever the code proves the
+  mapping; where it does not, the crosswalk records what stays unmapped and why.
+  A codebase that could describe any game in its genre has not finished naming.
 
 
 <a id="safety-rules"></a>
@@ -288,7 +293,10 @@ sequence of repository-wide work types.
    [PASS_WORKFLOW.md#session-resume](agent_playbook/PASS_WORKFLOW.md#session-resume).
 2. **Establish the corridor boundary.** Identify owning routines, data
    producers/consumers, RAM/ZP fields, and external interfaces. Do not expand
-   into unrelated subsystems merely because a token or literal matches.
+   into unrelated subsystems merely because a token or literal matches. The one
+   sanctioned exception is an
+   [identity pass](agent_playbook/PASS_WORKFLOW.md#identity-pass), which fuses
+   evidence across closed corridors to decide what already-named machinery is.
 3. **Close every proven dimension in the corridor.** Apply semantic routine
    and data names, safe local-label cleanup, RAM/ZP names, constants, pointer
    targets, known data formats, hardware aliases, justified comment additions
@@ -407,6 +415,9 @@ literals), `constants_catalog.csv` (domain-separated constants),
 `data_blob_dispositions.csv` (blob worklist),
 `data_extent_assertions.csv` (reviewed table-span assertions checked by
 `project-verify` and `project-maturity-check` when present),
+`deferrals.csv` (one row per deferred subject, captured at closeout, with its
+revisit condition),
+`proof_debt_acknowledged.csv` (signals dismissed with a written reason),
 `raw_ram_review.csv` (raw-RAM review queue — operation at
 [#raw-ram-queue](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue)),
 `unknowns.md` (small clustered list of unresolved semantics).
@@ -469,6 +480,9 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - **Mixed tail regions (preserve byte layout, label only when producer/consumer is known)** — [DATA_RECOVERY.md#data-blob-readability](agent_playbook/DATA_RECOVERY.md#data-blob-readability).
 - <a id="new-project-first-semantic-pass-shape"></a>**New-project first semantic pass shape** — [agent_playbook/NEW_PROJECT.md#first-three-pass-architecture](agent_playbook/NEW_PROJECT.md#first-three-pass-architecture).
 - <a id="new-project-autonomy-defaults"></a>**New-project autonomy defaults** — [agent_playbook/NEW_PROJECT.md#new-project-autonomy](agent_playbook/NEW_PROJECT.md#new-project-autonomy).
+- <a id="unattended-session"></a>**Unattended session contract and runtime handoff** — [PASS_WORKFLOW.md#unattended-session-contract](agent_playbook/PASS_WORKFLOW.md#unattended-session-contract).
+- <a id="proof-debt-signals"></a>**Proof-debt operator signals** — [PASS_WORKFLOW.md#proof-debt](agent_playbook/PASS_WORKFLOW.md#proof-debt).
+- <a id="identity-pass-shape"></a>**Cross-corridor identity pass** — [PASS_WORKFLOW.md#identity-pass](agent_playbook/PASS_WORKFLOW.md#identity-pass); vocabulary-drift detectors at [TOOLING.md#vocabulary-drift](agent_playbook/TOOLING.md#vocabulary-drift).
 - <a id="generated-pass-artifacts"></a>**Generated pass artifacts (cache, not source of truth)** — [agent_playbook/PASS_WORKFLOW.md#generated-vs-authored-artifacts](agent_playbook/PASS_WORKFLOW.md#generated-vs-authored-artifacts).
 - <a id="persistent-raw-ram-review-queue"></a>**Persistent raw-RAM review queue** — [agent_playbook/PASS_WORKFLOW.md#raw-ram-queue](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue).
 - <a id="unused-symbol-closure-gate"></a>**Unused-symbol closure gate** — [agent_playbook/PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).

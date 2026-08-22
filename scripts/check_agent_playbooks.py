@@ -202,10 +202,29 @@ ROOT_WORD_CEILING = 6000
 # That distinction is what keeps a copied byte run from reading as recovered
 # code, so the affected ceilings carry it at measured-plus-headroom instead of
 # compressing it into shorthand.
+# The cross-corridor identity pass and the two vocabulary-drift detectors added
+# a genuinely new pass shape plus its tooling entry, not more prose about
+# existing rules. Corridor passes cannot justify identity naming from local
+# evidence, so without a named shape for it the deferral repeats indefinitely;
+# compressing that into shorthand is what produced the gap. The section was cut
+# twice before recalibrating, and the three affected ceilings now carry it at
+# measured-plus-headroom.
+# Proof-debt signals and deferral capture added the operator-facing half of
+# the same work: the detectors are useless if the contract for dismissing and
+# for capturing a deferral is not written down where the operator reads it.
+# Raised again rather than compressing the prose further. Squeezing rules into
+# telegraphese to fit a ceiling trades a measurable number for an unmeasurable
+# loss, and the earlier round had already cost one paragraph its antecedent.
+# PASS_WORKFLOW.md and TOOLING.md are now the two largest playbooks by a wide
+# Raised again for the REWORK_ITEMS and DEFERRALS wrapper arguments, which are
+# operator-facing inputs: an argument nobody can find is an argument nobody
+# uses, and both exist to replace something the tool used to decide silently.
+# margin; if they keep growing, the answer is splitting an ownership cluster
+# into its own file per README.md#adding-a-playbook, not further compression.
 ROUTE_BUDGETS = {
-    "default": (2925, 20798),
-    "data-recovery": (2795, 20669),
-    "new-project": (3925, 28336),
+    "default": (3110, 22300),
+    "data-recovery": (2850, 21290),
+    "new-project": (4050, 29400),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

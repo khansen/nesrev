@@ -17,6 +17,32 @@ make project-init PROJECT=<project_slug>
 See `projects/README.md` for the standard layout, and
 `agent_playbook/NEW_PROJECT.md` for the end-to-end intake flow.
 
+### Kicking off an operator
+
+The process carries the working rules, so the prompt does not need to restate
+them. A suggested starting prompt, in full:
+
+> Work on `<slug>` until you need runtime traces that only I can run. End with a
+> trace plan I can execute. State each gap you defer as `DEFERRALS="subject ::
+> what would close it"` at closeout, adding `:: runtime` for the ones only a
+> trace can settle. Commit each pass and record friction in
+> `PROCESS_FRICTION.md`; otherwise don't stop for feedback.
+
+The third field is how a gap becomes runtime-gated: `subject :: what would
+close it :: runtime` obliges a trace plan, and is the only way a deferral gets
+that status — the tool never infers it from wording.
+
+Everything else is the operator's to read: the outcome standard in
+[AGENTS.md#mission](AGENTS.md#mission), and the rules that replace a reviewer
+during a long unattended run — blocking proof-debt signals, three strikes on a
+repeated deferral, triangulating before declaring a gap runtime-gated, and what
+the closing trace plan must contain — in
+[PASS_WORKFLOW.md#proof-debt](agent_playbook/PASS_WORKFLOW.md#proof-debt).
+
+Adding process detail to the prompt is usually the wrong fix. The prompt sets
+the goal and the exit condition; a rule that belongs to every run belongs in the
+playbooks, where it applies whether or not whoever starts the run remembers it.
+
 Reference ROM/binary files are not tracked. Each user must provide their own
 reference file under `projects/<slug>/reference/`.
 NESrev recovery controls are authored build inputs: keep them under
