@@ -10,6 +10,7 @@ This playbook owns commands, tool options, and diagnostic procedures:
 - data-consumer, data-coverage, and index-pattern analysis
 - the static-analysis scanner (dead code, latent bugs, micro-optimizations)
 - the orphan-opcode hidden-code scanner
+- the vocabulary-drift detectors
 - NESrev regeneration controls
 - inventory commands
 - parity-drift diagnostics
@@ -304,6 +305,53 @@ failure as `$ADDR:reason@bankN`, and `target_validation_notes` explains
 anything unresolved. `score` still measures decode coherence alone; validity is
 the separate axis, and `is_best` prefers a validated run over a higher-scoring
 unvalidated one. Sort by `target_valid` then `score` when triaging.
+
+<a id="vocabulary-drift"></a>
+## Vocabulary-Drift Detectors
+
+Two advisory detectors report a placeholder shape the existing audits cannot
+see. The [stale-placeholder sweep](REVIEW_AUDITS.md#stale-placeholder-audit)
+matches address- and ordinal-coded names such as `State03` or `Page0600`. It
+cannot match a plausible generic noun phrase, which satisfies every naming rule
+while identifying nothing — and reads as resolved, so later passes build on it.
+Both crosswalk header spellings are accepted; matching only the canonical one
+read thirteen projects as empty tables and silently disabled the check.
+
+Both detectors always exit `0`, and both are opt-in: they run only when
+`PROOF_DEBT_REQUIRED="1"` is set in `project.conf`. Legacy projects stay silent,
+because these checks read authored ledgers that postdate most of the corpus and
+would otherwise report a debt the project never had the chance to incur. New
+scaffolds opt in. Both run at `project-next-pass`, before corridor selection,
+and again in `project-maturity-summary` alongside coverage.
+
+```sh
+python3 scripts/proof_debt.py <doc_root> <crosswalk.md> [--crosswalk-only]
+python3 scripts/symbol_vocabulary_check.py <asm> [crosswalk.md] [--dominant N] [--top N]
+```
+
+`symbol_vocabulary_check.py` ranks multi-word noun phrases by distinct symbols
+headed, ignoring leading verbs, connectors, and `LXXXX` labels. A phrase heading
+`--dominant` symbols (default 100) reports only when the crosswalk does not
+account for its words — a large family the crosswalk names is a healthy
+subsystem. Families are annotated `in`, `partly in`, or `not in crosswalk`.
+
+Neither result is a defect alone; read them as the trigger for
+[PASS_WORKFLOW.md#identity-pass](PASS_WORKFLOW.md#identity-pass).
+
+`proof_debt.py` reports the ratio signals described at
+[PASS_WORKFLOW.md#proof-debt](PASS_WORKFLOW.md#proof-debt). `--crosswalk-only`
+narrows the report to crosswalk currency alone.
+
+`--coverage` answers a different question: not whether a ledger exists, but how
+much of the work it accounts for. The KPI suite measures the assembly and never
+the evidence about it, so a named label with no reasoned rename row is a
+decision nobody can trace. Both modes are derived from ledgers that already
+exist and store nothing of their own.
+
+Re-run the corpus backtest before changing the signal set. A detector whose
+fire rate is unknown may be loud enough to train the operator to scroll past
+the region where every other signal appears, which is worse than not having
+it.
 
 <a id="nesrev-controls"></a>
 ## NESrev Regeneration Controls
@@ -651,6 +699,11 @@ debug-only recipes not big enough to warrant their own section.
 - Orphan opcode hidden-code candidates
   (`make project-hidden-code-scan PROJECT=<slug>`):
   [#orphan-opcode-scan](#orphan-opcode-scan)
+
+### Vocabulary drift
+
+- Crosswalk currency and symbol vocabulary:
+  [#vocabulary-drift](#vocabulary-drift)
 
 ### NESrev regeneration
 

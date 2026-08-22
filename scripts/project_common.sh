@@ -33,6 +33,11 @@ load_project_conf() {
   # set WORKING_NOTES_MATURITY_REQUIRED="1" so gold closeout cannot silently
   # accept a large notes file full of promotable findings or stale pass context.
   WORKING_NOTES_MATURITY_REQUIRED="0"
+  # New scaffolds set PROOF_DEBT_REQUIRED="1". Legacy projects stay silent
+  # until they opt in: these signals read authored ledgers that predate most
+  # of the corpus, so firing them on work done under an earlier process
+  # reports a debt the project never had the chance to incur.
+  PROOF_DEBT_REQUIRED="0"
   # Core data-format disposition opt-in (legacy projects default off). New
   # scaffolds set DATA_FORMAT_TARGETS_REQUIRED="1" so gold closeout cannot
   # silently skip map/room/object/item/audio/graphics format disposition.
@@ -118,6 +123,7 @@ load_project_conf() {
   : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
   : "${LEGACY_RETROFIT_REQUIRED:=0}"
   : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
+  : "${PROOF_DEBT_REQUIRED:=0}"
   : "${DATA_FORMAT_TARGETS_REQUIRED:=0}"
   : "${DATA_BLOB_DISPOSITIONS_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"

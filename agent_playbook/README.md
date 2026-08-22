@@ -27,15 +27,15 @@ Everything else belongs in a playbook. If a new rule is topic-specific (style, r
 <a id="ownership"></a>
 ## 2. Canonical ownership
 
-| Playbook | Owns |
-|---|---|
-| `ASM_STYLE.md` | naming conventions, local/global label rules, placeholder-name policy, relocatability, literal-base readability, hardware/OAM/joypad/PPU/APU constants, structured-field offsets and overlays, fixed-point naming, state/action constants, label-math syntax, tail-call and parity-preserved redundant-instruction annotations, RAM/ZP naming evidence |
-| `DATA_RECOVERY.md` | code-pointer and inline-call recovery, recovery artifacts (`codepointers.csv`, etc.), BIT-skip and overlapping-code cleanup, listing-assisted pointer-blob audits, computed-pointer consumer recovery, orphan opcode-blob detection, pointer-table conversion, PPU packet streams, audio/motion/metasprite/script command-stream formatting, data blob readability and boundary rules, hardcoded length and counter elimination in data consumers |
-| `DOCUMENTATION.md` | target-audience/onboarding scope, comment quality and minimality, declaration and procedure comments, raw-address prose prohibition, documentation artifact boundaries, `*_DX_Systems.md` abstraction level, `MEMORY_MAP.md`, terminology crosswalk, data-label format and usage comments, data format documentation (canonical packed-format specification), `WORKING_NOTES.md` inclusion/pruning, optional support-document rules, reference-document use |
-| `NEW_PROJECT.md` | project scaffolding, ROM/header intake and mapper/size derivation, initial assembly generation, reference-document processing and crosswalk seeding, warning-baseline bootstrap, first-three-pass architecture, new-project autonomy defaults |
-| `PASS_WORKFLOW.md` | resume/warm-up, generated pass cache, `project-next-pass`/`project-pass-start`, candidate-evidence framing and operator-selected corridor objective (`project-next-pass` is advisory, not an authoritative recommender), pass-versus-commit, low-yield strategy checkpoint, current-pass plan, scorecard synchronization, raw-RAM review queue operation, closeout and verification, generated cache vs. authored artifact distinctions, batching and commit boundaries, RAM symbolization prioritization |
-| `QUALITY_REVIEW.md` | readability self-audit, gold-standard assessment, KPI interpretation, expanded reviewer simulation, stale-placeholder / symbol-family / residual-magic-number / global-label audits, static readability debt audit, project-wide pointer-byte consolidation audit, optional deep-confidence passes, static-vs-runtime gap classification, semantic-claims ledger (maturity/gold-closeout evidence model) |
-| `TOOLING.md` | xasm listings/xref options, structured-feature workflow, NESrev regeneration controls, inventory commands, parity-drift diagnostics, command reference, exit-code interpretation, auxiliary-script hygiene |
+Each playbook's own `## Ownership` section is the authoritative statement of
+what it owns. Read it there.
+
+This file used to carry a duplicate table of the same fact, which drifted twice
+— it was missing the static-analysis scanner and data-consumer analysis before
+those sections were even the newest, and then missed a further round. A second
+editable copy of a fact is the drift bug [#3](#one-canonical-home) warns about,
+applied to the registry that is supposed to prevent it. Removed rather than
+validated: co-locating ownership with the rules costs nothing to keep current.
 
 <a id="one-canonical-home"></a>
 ## 3. One canonical home

@@ -113,6 +113,7 @@ SCORECARD_LIFECYCLE_REQUIRED="1"
 # New clean-room projects carry an explicit core data-format target inventory.
 # Process checks validate the list while semantic work is in progress; maturity
 # checks require every canonical family to be dispositioned.
+PROOF_DEBT_REQUIRED="1"
 DATA_FORMAT_TARGETS_REQUIRED="1"
 
 # New clean-room projects also carry an explicit per-blob disposition inventory.

@@ -122,7 +122,7 @@ def row_for_header(header, pass_id, focus, notes):
         "warnings_baseline_delta": "0",
         "verify": "pending",
         "docs_check": "pending",
-        "rework_items": "0",
+        "rework_items": "pending",
         "notes": notes,
     }
     return [defaults.get(name, "") for name in header]
@@ -264,13 +264,14 @@ else
   bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
 fi
 
-python3 - "${PROGRESS_SCORECARD_FILE}" "${PASS_ID}" "${VERIFY_MODE}" <<'PY'
+python3 - "${PROGRESS_SCORECARD_FILE}" "${PASS_ID}" "${VERIFY_MODE}" "${REWORK_ITEMS:-}" <<'PY'
 import sys
 from pathlib import Path
 
 scorecard_path = Path(sys.argv[1])
 pass_id = sys.argv[2]
 verify_mode = sys.argv[3]
+rework_input = (sys.argv[4] if len(sys.argv) > 4 else "").strip()
 verify_text = "pass (LXXXX allowed)" if verify_mode == "relaxed" else "pass"
 HEADER_REQUIRED = {"pass_id", "notes", "verify", "docs_check", "rework_items"}
 
@@ -280,6 +281,7 @@ def is_scorecard_header(cells):
 
 lines = scorecard_path.read_text(encoding="utf-8").splitlines()
 changed = False
+rework_pending = False
 header = None
 for idx, raw in enumerate(lines):
     stripped = raw.strip()
@@ -307,8 +309,12 @@ for idx, raw in enumerate(lines):
     cells[header_index["verify"]] = verify_text
     cells[header_index["docs_check"]] = "pass"
     rework_col = header_index["rework_items"]
-    if not cells[rework_col] or cells[rework_col].lower() in {"pending", "n/a"}:
-        cells[rework_col] = "0"
+    if rework_input:
+        cells[rework_col] = rework_input
+    elif not cells[rework_col]:
+        cells[rework_col] = "pending"
+    if cells[rework_col].lower() == "pending":
+        rework_pending = True
     lines[idx] = "| " + " | ".join(cells) + " |"
     changed = True
     break
@@ -318,7 +324,26 @@ if not changed:
 
 scorecard_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(f"project-pass-closeout: marked pass {pass_id} verify='{verify_text}', docs_check='pass'")
+if rework_pending:
+    print(
+        f"project-pass-closeout: rework_items is 'pending' for pass {pass_id}; "
+        "pass REWORK_ITEMS=<count> to record the late fixes caused by missed "
+        "required sweeps (0 is a valid answer, but it must be the operator's)"
+    )
 PY
+
+# Capture this pass's deferrals while the operator's own wording is at hand.
+# A deferral with no recorded revisit condition is how a placeholder fossilises.
+if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
+  # DEFERRALS is the contract; NOTES prose is the fallback for when the
+  # operator did not state the gaps directly.
+  python3 "${RUN_SCRIPT_DIR}/deferral_capture.py" \
+    "${DOC_ROOT}/inventory/deferrals.csv" \
+    --pass-id "${PASS_ID}" \
+    --corridor "${FOCUS:-}" \
+    --explicit "${DEFERRALS:-}" \
+    --notes "${NOTES:-}"
+fi
 
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"

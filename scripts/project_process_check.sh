@@ -40,6 +40,48 @@ if [[ "${SCORECARD_LIFECYCLE_REQUIRED}" == "1" ]]; then
   python3 "${SCRIPT_DIR}/scorecard_lifecycle_check.py" "${PROGRESS_SCORECARD_FILE}"
 fi
 
+# The proof-debt ledgers are authored artifacts; validate their shape here
+# alongside the others rather than discovering a malformed row a pass later.
+for _pd_ledger in \
+  "${DOC_ROOT}/inventory/deferrals.csv:pass_id,corridor,subject,kind,deferral,revisit_condition,status" \
+  "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv:signal,reason,pass_id"; do
+  _pd_path="${_pd_ledger%%:*}"
+  _pd_want="${_pd_ledger#*:}"
+  if [[ -f "${_pd_path}" ]]; then
+    _pd_have="$(head -n 1 "${_pd_path}" || true)"
+    if [[ "${_pd_have}" != "${_pd_want}" ]]; then
+      echo "invalid header in ${_pd_path}" >&2
+      echo "expected: ${_pd_want}" >&2
+      exit 1
+    fi
+    python3 - "${_pd_path}" "${_pd_want}" <<'PDPY'
+import csv, sys
+from pathlib import Path
+path, header = Path(sys.argv[1]), sys.argv[2].split(",")
+with path.open(newline="", encoding="utf-8") as fh:
+    for i, row in enumerate(csv.reader(fh), start=1):
+        if i == 1:
+            continue
+        if len(row) != len(header):
+            print(f"{path}:{i}: expected {len(header)} fields, found {len(row)}", file=sys.stderr)
+            raise SystemExit(1)
+        # Enum columns, because a typo that lands outside the set is read as
+        # "not runtime" / "not open" and silently suppresses a signal.
+        cells = dict(zip(header, row))
+        for column, allowed in (("kind", {"static", "runtime"}),
+                                ("status", {"open", "closed"})):
+            value = (cells.get(column) or "").strip()
+            if column in header and value not in allowed:
+                print(
+                    f"{path}:{i}: {column}={value!r} is not one of "
+                    f"{sorted(allowed)}",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+PDPY
+  fi
+done
+
 renames_header="$(head -n 1 "${RENAMES_FILE}" || true)"
 if [[ "${renames_header}" != "old_name,new_name,reason,confidence,pass_id" ]]; then
   echo "invalid renames.csv header in ${RENAMES_FILE}" >&2
