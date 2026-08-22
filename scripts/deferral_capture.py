@@ -255,7 +255,7 @@ def main(argv: list[str]) -> int:
 
     ledger.parent.mkdir(parents=True, exist_ok=True)
     with ledger.open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=HEADER)
+        writer = csv.DictWriter(fh, fieldnames=HEADER, lineterminator="\n")
         writer.writeheader()
         for r in rows:
             writer.writerow({k: r.get(k, "") for k in HEADER})
