@@ -205,6 +205,23 @@ test_deferral_capture_records_the_operators_own_words() {
   assert_match "open" "${body}" "a fresh capture must be open"
 }
 
+test_deferral_capture_writes_lf_headers_for_process_check() {
+  # project_process_check compares the header read by `head -n 1` literally.
+  # csv.DictWriter's default CRLF terminator makes the generated ledger fail
+  # that check on a live closeout.
+  local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
+  python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor "audio corridor" \
+    --explicit "cue identities :: capture the cue request byte" >/dev/null
+
+  if LC_ALL=C grep -q $'\r' "${ledger}"; then
+    fail "generated deferrals.csv must not contain CRLF line endings"
+  fi
+  local header
+  header="$(head -n 1 "${ledger}")"
+  assert_eq "${header}" "pass_id,corridor,subject,kind,deferral,revisit_condition,status" \
+    "generated deferrals.csv header must match process-check exactly"
+}
+
 test_deferral_capture_is_idempotent() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   local args=(--pass-id 12 --corridor c --notes "Left cue identities out of scope.")

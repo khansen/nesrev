@@ -694,7 +694,7 @@ def write_csv(
     max_start_offset: int,
     show_all: bool,
 ) -> int:
-    writer = csv.writer(handle)
+    writer = csv.writer(handle, lineterminator="\n")
     writer.writerow(
         [
             "score",
