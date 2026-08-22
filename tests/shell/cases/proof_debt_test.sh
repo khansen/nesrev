@@ -213,13 +213,13 @@ test_deferral_capture_writes_lf_headers_for_process_check() {
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor "audio corridor" \
     --explicit "cue identities :: capture the cue request byte" >/dev/null
 
+  if LC_ALL=C grep -q $'\r' "${ledger}"; then
+    fail "generated deferrals.csv must not contain CRLF line endings"
+  fi
   local header
   header="$(head -n 1 "${ledger}")"
   assert_eq "${header}" "pass_id,corridor,subject,kind,deferral,revisit_condition,status" \
     "generated deferrals.csv header must match process-check exactly"
-  if LC_ALL=C grep -q $'\r' "${ledger}"; then
-    fail "generated deferrals.csv must not contain CRLF line endings"
-  fi
 }
 
 test_deferral_capture_is_idempotent() {
