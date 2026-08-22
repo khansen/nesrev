@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 
-REQUIRED_COLUMNS = {"pass_id", "verify", "docs_check"}
+REQUIRED_COLUMNS = {"pass_id", "verify", "docs_check", "rework_items"}
 
 
 def markdown_cells(raw: str) -> list[str] | None:
@@ -87,10 +87,31 @@ def main() -> int:
         latest_pass = max(pass_id for _lineno, pass_id, _cells in rows)
         verify_col = header_index["verify"]
         docs_col = header_index["docs_check"]
+        # rework_items is an operator judgement. Closeout no longer fills it in,
+        # so without this it just becomes a permanent 'pending' — the same false
+        # signal as the auto-zero, one word longer.
+        rework_col = header_index["rework_items"]
         for lineno, pass_id, cells in rows:
             if pass_id == latest_pass:
+                # The latest row may hold pending cells while its pass is still
+                # running. Once closeout has marked verify and docs_check, the
+                # pass is done and an unanswered rework_items is the same false
+                # cleanliness as the auto-zero it replaced.
+                verify_done = cells[verify_col].strip().lower() not in ("", "pending")
+                docs_done = cells[docs_col].strip().lower() not in ("", "pending")
+                rework = cells[rework_col].strip().lower()
+                if verify_done and docs_done and rework in ("", "pending"):
+                    errors.append(
+                        f"{path}:{lineno}: pass {pass_id} is closed "
+                        f"(verify and docs_check marked) but rework_items is "
+                        f"'{cells[rework_col].strip() or 'blank'}'"
+                    )
                 continue
-            for col_name, col_idx in (("verify", verify_col), ("docs_check", docs_col)):
+            for col_name, col_idx in (
+                ("verify", verify_col),
+                ("docs_check", docs_col),
+                ("rework_items", rework_col),
+            ):
                 value = cells[col_idx].strip().lower()
                 if value in {"", "pending"}:
                     errors.append(

@@ -118,7 +118,8 @@ fi
 
 if [[ "${WORKING_NOTES_MATURITY_REQUIRED}" == "1" ]]; then
   if ! bash "${SCRIPT_DIR}/working_notes_maturity_check.sh" \
-      "${WORKING_NOTES_FILE}" "${MAX_MATURITY_WORKING_NOTES_LINES}"; then
+      "${WORKING_NOTES_FILE}" "${MAX_MATURITY_WORKING_NOTES_LINES}" \
+      "${PROGRESS_SCORECARD_FILE}"; then
     echo "maturity gate failed: working-notes pruning check failed" >&2
     fail=1
   fi
