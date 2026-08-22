@@ -29,20 +29,60 @@ if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
     "xref_with_data.json"
     "data_consumers.json"
   )
+  # Freshness is not just the asm. The cached baseline records gate status, and
+  # a commit that fixes a gate without touching the asm used to leave the cache
+  # looking fresh while reporting the old red status — which steers the
+  # recommender from the very chokepoint that is supposed to be authoritative.
+  # Any input that can change what the brief says must invalidate it.
+  # Commit identity is compared by SHA, not by file mtime: `.git` is a file in
+  # a linked worktree so `.git/HEAD` may not exist, and a same-branch commit
+  # updates the branch ref rather than HEAD, leaving HEAD's mtime untouched.
+  # `.git/index` is excluded for the opposite reason — any `git status` moves
+  # it, which would force a refresh on every run.
+  PASS_CACHE_SOURCES=(
+    "${ASM_FILE}"
+    "${PROGRESS_SCORECARD_FILE}"
+    "${WARN_BASELINE_FILE}"
+    "${RENAMES_FILE}"
+    "${CROSSWALK_FILE}"
+    "projects/$1/project.conf"
+  )
+  # raw_ram_review.csv is deliberately absent: prep rewrites its factual owner
+  # and count columns, so treating it as an input makes every run stale.
+  for extra in "${DOC_ROOT}/inventory/deferrals.csv" \
+               "${DOC_ROOT}/SEMANTIC_CLAIMS.md"; do
+    [[ -e "${extra}" ]] && PASS_CACHE_SOURCES+=("${extra}")
+  done
+  HEAD_MARKER="${PASS_CACHE_DIR}/.head"
+  CURRENT_HEAD="$(git rev-parse HEAD 2>/dev/null || true)"
+  if [[ -n "${CURRENT_HEAD}" ]]; then
+    if [[ ! -f "${HEAD_MARKER}" ]] || [[ "$(cat "${HEAD_MARKER}")" != "${CURRENT_HEAD}" ]]; then
+      NEEDS_PREP=1
+    fi
+  fi
   for cache_name in "${PASS_CACHE_INPUTS[@]}"; do
     cache_path="${PASS_CACHE_DIR}/${cache_name}"
-    if [[ ! -e "${cache_path}" || ! -s "${cache_path}" || "${ASM_FILE}" -nt "${cache_path}" ]]; then
+    if [[ ! -e "${cache_path}" || ! -s "${cache_path}" ]]; then
       NEEDS_PREP=1
       break
     fi
+    for src in "${PASS_CACHE_SOURCES[@]}"; do
+      if [[ -e "${src}" && "${src}" -nt "${cache_path}" ]]; then
+        NEEDS_PREP=1
+        break 2
+      fi
+    done
   done
   if [[ "${NEEDS_PREP}" == "1" ]]; then
     echo "project-next-pass: refreshing missing, partial, or stale pass cache via project-pass-prep" >&2
     bash "${PREP_SCRIPT}" "$1" >&2
+    if [[ -n "${CURRENT_HEAD}" ]]; then
+      printf '%s\n' "${CURRENT_HEAD}" > "${HEAD_MARKER}"
+    fi
   fi
 fi
 
-python3 - "$1" "${FORMAT}" "${ASM_FILE}" "${WARN_BASELINE_FILE}" "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/unknowns.md" "${DOC_ROOT}/inventory/pass" "${DOC_ROOT}/inventory/raw_ram_review.csv" <<'PY'
+python3 - "$1" "${FORMAT}" "${ASM_FILE}" "${WARN_BASELINE_FILE}" "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/unknowns.md" "${DOC_ROOT}/inventory/pass" "${DOC_ROOT}/inventory/raw_ram_review.csv" "${SCRIPT_DIR}" "${CROSSWALK_FILE}" "${DOC_ROOT}/SEMANTIC_CLAIMS.md" "${RENAMES_FILE}" "${WORKING_NOTES_FILE}" "${DOC_ROOT}/inventory/deferrals.csv" "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv" "${PROOF_DEBT_REQUIRED}" <<'PY'
 import csv
 import json
 import os
@@ -51,7 +91,14 @@ import sys
 from bisect import bisect_right
 from pathlib import Path
 
-slug, out_format, asm_file, warn_file, scorecard_file, unknowns_file, pass_dir, raw_ram_review_path = sys.argv[1:]
+(
+    slug, out_format, asm_file, warn_file, scorecard_file, unknowns_file,
+    pass_dir, raw_ram_review_path, script_dir, crosswalk_file,
+    semantic_claims_file, renames_file, working_notes_file,
+    deferrals_file, proof_debt_ack_file, proof_debt_required,
+) = sys.argv[1:]
+sys.path.insert(0, script_dir)
+import proof_debt
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
 GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4,5}):\s*$")
 DATA_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|DW|BYTE|WORD|DS|INCBIN)\b", re.IGNORECASE)
@@ -1043,7 +1090,7 @@ def recommended_open_range(def_line):
     end = int(def_line) + 40
     return {"start_line": start, "end_line": end}
 
-def choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters):
+def choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters, identity_evidence=None):
     parity = status_from_baseline(baseline, "parity")
     docs = status_from_baseline(baseline, "docs_check")
     process = status_from_baseline(baseline, "process_check")
@@ -1061,6 +1108,21 @@ def choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_r
             "type": "doc_closure",
             "summary": "Process or docs gates are failing; close that gap before starting the next semantic pass.",
             "reason": "Agents should not build new naming work on top of a red documentation/process baseline.",
+        }
+    if identity_evidence and identity_evidence.get("urgent"):
+        # PASS_WORKFLOW's three-strikes rule says to stop deferring and decide.
+        # Ranking that below local cleanup would have the recommender override
+        # an imperative the playbook issues, with the cheapest bucket to hand.
+        #
+        # This deliberately preempts raw_ram_symbolization too, which only
+        # appears once label naming is finished. A subject deferred three times
+        # through a raw-RAM corridor is the fossilisation case exactly: the
+        # cheap corridors were already tried on it and did not close it, so
+        # ranking it behind another attempt at one repeats the loop.
+        return {
+            "type": "identity_pass",
+            "summary": identity_evidence["summary"],
+            "reason": identity_evidence["reason"],
         }
     if l_defs == 0 and raw_lowaddr and raw_lowaddr > 0 and raw_ram_clusters:
         top = raw_ram_clusters[0]
@@ -1106,11 +1168,54 @@ def choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_r
             "summary": f"Candidate local-cleanup corridor starts at {top['label']}.",
             "reason": f"Highest-fanout unresolved jump/branch target with {top.get('total_ref_count', 0)} refs.",
         }
+    if identity_evidence:
+        return {
+            "type": "identity_pass",
+            "summary": identity_evidence["summary"],
+            "reason": identity_evidence["reason"],
+        }
     return {
         "type": "doc_closure",
         "summary": "No strong unresolved high-fanout targets remain; prioritize documentation closure.",
         "reason": "The structured analyzer outputs did not surface a stronger corridor-level semantic pass.",
     }
+
+CORRIDOR_BUCKETS = {"procedure_naming", "table_first", "local_cleanup", "raw_ram_symbolization"}
+
+
+def apply_identity_interception(recommended, vocabulary_families, identity_evidence):
+    """Refuse to recommend deeper work inside a family proof debt has flagged.
+
+    A signal saying "this family has fossilised" and a top bucket pointing into
+    that same family cannot both stand: in unattended operation the visible top
+    bucket wins, and the operator goes deeper into the vocabulary the signal
+    just flagged.
+
+    Deliberately narrow. Identity does not outrank unresolved labels in
+    general — only when the recommended corridor is anchored inside the flagged
+    family.
+    """
+    if not (vocabulary_families and identity_evidence):
+        return recommended
+    if recommended.get("type") not in CORRIDOR_BUCKETS:
+        return recommended
+    anchor = f"{recommended.get('summary', '')} {recommended.get('reason', '')}".lower()
+    hit = next((f for f in vocabulary_families if f.lower() in anchor), None)
+    if not hit:
+        return recommended
+    return {
+        "type": "identity_pass",
+        "summary": (
+            f"The top corridor is inside {hit}, the family proof debt reports as "
+            "unmatched by any reference term; decide what it is before naming more of it."
+        ),
+        "reason": (
+            f"{recommended['type']} anchored in {hit}. Recommending deeper work in a "
+            "flagged family is the drift this signal exists to catch; acknowledge the "
+            "signal with a reason to proceed anyway."
+        ),
+    }
+
 
 def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, symbol_defs, ref_map, file_symbol_index, owner_ref_map, globals_by_file):
     by_owner = {}
@@ -1531,6 +1636,61 @@ raw_ram_clusters = build_raw_ram_clusters(
     owner_ref_map,
     globals_by_file,
 )
+
+vocabulary_drift = []
+vocabulary_families = []
+if proof_debt_required == "1":
+    import subprocess as _sp
+    _r = _sp.run(
+        ["python3", os.path.join(script_dir, "symbol_vocabulary_check.py"),
+         asm_file, crosswalk_file],
+        capture_output=True, text=True,
+    )
+    vocabulary_drift = [
+        ln[len("warn: "):] if ln.startswith("warn: ") else ln
+        for ln in _r.stdout.splitlines()
+        if ln.startswith("warn:")
+    ]
+    # the family names themselves, for the contradiction check below
+    vocabulary_families = re.findall(
+        r"^warn:\s+([A-Za-z][A-Za-z0-9]*): \d+ symbols", _r.stdout, re.M
+    )
+proof_debt_signals = [] if proof_debt_required != "1" else proof_debt.collect(
+    scorecard=Path(scorecard_file),
+    crosswalk=Path(crosswalk_file),
+    semantic_claims=Path(semantic_claims_file),
+    renames=Path(renames_file),
+    working_notes=Path(working_notes_file),
+    deferrals=Path(deferrals_file),
+    doc_root=Path(semantic_claims_file).parent,
+    acknowledgements=Path(proof_debt_ack_file),
+)
+
+# An identity corridor is rankable when proof debt says the vocabulary has
+# drifted or a subject keeps being deferred. Without this the shape exists in
+# prose, the trigger exists as a warning, and the recommender — which is what
+# an unattended operator actually reads — can never suggest it.
+identity_evidence = None
+if proof_debt_required == "1":
+    _ids = {s["id"] for s in proof_debt_signals}
+    _repeat = next((s for s in proof_debt_signals if s["id"] == "deferral_repeat"), None)
+    if _repeat:
+        identity_evidence = {
+            "summary": "A single subject has been deferred repeatedly; fuse the evidence later passes produced and decide it.",
+            "reason": _repeat["text"],
+            # Three strikes means the cheap corridors have been tried and did
+            # not close this, so it outranks them rather than queueing behind.
+            "urgent": True,
+        }
+    elif "crosswalk_unmapped" in _ids and vocabulary_drift:
+        identity_evidence = {
+            "summary": "A dominant symbol family has no reference-term match while the crosswalk stays unmapped; an identity pass can close both.",
+            "reason": vocabulary_drift[0],
+        }
+recommended = choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters, identity_evidence)
+
+recommended = apply_identity_interception(recommended, vocabulary_families, identity_evidence)
+
 notes = []
 working_notes_path = Path(pass_dir).parent.parent / "WORKING_NOTES.md"
 if baseline is None:
@@ -1583,7 +1743,6 @@ CONFIDENCE_CAVEAT = (
 next_pass_path = Path(pass_dir) / "next_pass.json"
 previous_next_pass = load_json(next_pass_path)
 
-recommended = choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters)
 recommended["role"] = "generated_evidence_bucket"
 recommended["operator_action"] = "Select, broaden, or reject this bucket before project-pass-start."
 cluster_candidates = make_cluster_candidates(
@@ -1606,7 +1765,17 @@ cluster_candidates = make_cluster_candidates(
     raw_ram_clusters,
 )
 follow_up = make_follow_up(recommended["type"], cluster_candidates)
+
 operator_signals = extract_operator_signals(scorecard_file, working_notes_path, last_pass)
+if proof_debt_required == "1":
+    # Proof debt reports deferrals from the ledger, with a rate and a subject.
+    # Leaving the prose-derived latest-pass note in place would print the same
+    # condition twice in adjacent blocks under two different definitions. It is
+    # not redundant in general: for a project that has not opted in, this is
+    # the only deferral signal there is.
+    operator_signals = [
+        s for s in operator_signals if s.get("kind") != "latest_pass_note"
+    ]
 previous_recommended = (previous_next_pass or {}).get("recommended_pass") or {}
 plateau_signal = None
 if recommended["type"] == "doc_closure" and previous_recommended.get("type") == "doc_closure":
@@ -1668,6 +1837,8 @@ payload = {
         "selection_contract": "Run project-pass-start with TARGET plus CORRIDOR, WHY_NOW, BOUNDARIES, EVIDENCE, OUT_OF_SCOPE after choosing a corridor.",
     },
     "operator_signals": operator_signals,
+    "proof_debt": proof_debt_signals,
+    "vocabulary_drift": vocabulary_drift,
     "plateau_signal": plateau_signal,
     "cluster_candidates": cluster_candidates,
     "alternative_candidates": alternative_candidates,
@@ -1710,6 +1881,21 @@ if payload.get("operator_signals"):
     print("Work-based operator signals:")
     for signal in payload["operator_signals"]:
         print(f"- {signal['text']} ({signal['source']})")
+    print()
+if payload.get("vocabulary_drift"):
+    print("Vocabulary drift:")
+    for line in payload["vocabulary_drift"]:
+        print(f"- {line}")
+    print()
+if payload.get("proof_debt"):
+    print("Proof debt (transformation recorded without evidence recorded):")
+    for signal in payload["proof_debt"]:
+        print(f"- {signal['text']}")
+        print(f"  -> {signal['action']}")
+    print(
+        "  Dismiss a signal that does not apply by adding a row with its reason to "
+        "inventory/proof_debt_acknowledged.csv; it will not be raised again."
+    )
     print()
 if payload.get("plateau_signal"):
     print("Static plateau signal:")
