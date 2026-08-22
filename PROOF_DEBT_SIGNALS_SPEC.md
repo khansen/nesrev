@@ -20,8 +20,9 @@ extending it:
    for one at the right moment; whether running one produces good names is
    unproven, and only a real pass answers it.
 
-Promoting any signal to a hard gate means revisiting all three. §5.1 records
-what the nearest candidate would need first.
+Promoting any signal to a hard gate means revisiting all three. §5.1 states the
+condition that binds every signal before any such promotion, and what the
+nearest candidate would additionally need.
 
 ## 1. Problem statement
 
@@ -608,6 +609,29 @@ the reliance on prose parsing.
 
 ### 5.1 Before promoting any signal to a hard gate
 
+No proof-debt signal may be promoted from advisory or recommender behaviour to a
+hard gate until `PROOF_DEBT_REQUIRED=1` has been run through at least one real
+opted-in project pass — including pass start, closeout, and review of the
+resulting recommendations. Backtests and fixtures establish regressions and
+noise bounds; they do not prove that a signal improves live pass work.
+
+This is a condition on the whole mechanism, not on any one signal. It covers all
+six proof-debt signals — `crosswalk_unmapped`, `semantic_claims_empty`,
+`deferrals_uncaptured`, `deferrals_unclosed`, `deferral_repeat`,
+`runtime_deferrals_unscheduled` — and equally the surrounding behaviour that
+reads them: vocabulary-family drift in `scripts/symbol_vocabulary_check.py`, the
+identity interception in `apply_identity_interception`, and the `rework_items`
+enforcement in `scripts/scorecard_lifecycle_check.py`. Advisory opt-in operation
+is not covered by this condition and needs no such proof; the condition binds
+only the step that makes something able to fail a build.
+
+The distinction matters because the two kinds of evidence answer different
+questions. A backtest over this corpus can show a signal does not fire wildly on
+projects it was not designed against — a noise bound. It cannot show that an
+operator who reads the signal does better work than one who does not, because
+nobody in that corpus ever read it. Only a live pass produces that evidence.
+
+Beyond the general condition, individual signals may need more.
 `deferrals_unclosed` is the nearest candidate and is not ready. Capture writes
 `revisit_condition` empty by construction, so the unclosed ratio starts at 100%
 and the signal fires on the very first captured pass. As an advisory that is the
@@ -615,10 +639,10 @@ intended nag; as a hard gate it would block closeout the moment a project adopts
 capture, and the ratio threshold gives no protection because the denominator is
 one or two rows.
 
-Promotion therefore needs a minimum ledger size or a grace window on top of
-letting a project accumulate a ledger at all. The honest sequence is to run a
-project with capture enabled for a dozen passes, read the steady-state unclosed
-ratio, and set the floor from that rather than from a guess.
+Promotion therefore needs a minimum ledger size or a grace window on top of the
+general condition above. The honest sequence is to run a project with capture
+enabled for a dozen passes, read the steady-state unclosed ratio, and set the
+floor from that rather than from a guess.
 
 ## 6. Review questions
 
