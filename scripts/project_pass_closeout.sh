@@ -345,6 +345,10 @@ if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
     --notes "${NOTES:-}"
 fi
 
+PROJECT_NEXT_PASS_AUTO_PREP=0 \
+PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1 \
+  bash "${RUN_SCRIPT_DIR}/project_next_pass.sh" "${SLUG}" json >/dev/null
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
 

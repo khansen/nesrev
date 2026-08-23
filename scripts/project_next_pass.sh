@@ -75,7 +75,7 @@ if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
   done
   if [[ "${NEEDS_PREP}" == "1" ]]; then
     echo "project-next-pass: refreshing missing, partial, or stale pass cache via project-pass-prep" >&2
-    bash "${PREP_SCRIPT}" "$1" >&2
+    PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 bash "${PREP_SCRIPT}" "$1" >&2
     if [[ -n "${CURRENT_HEAD}" ]]; then
       printf '%s\n' "${CURRENT_HEAD}" > "${HEAD_MARKER}"
     fi
@@ -1620,12 +1620,24 @@ symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
     xref,
     parse_lowaddr_ram_equ_symbols(asm_file),
 )
-merged_raw_ram_review = merge_raw_ram_review(
+merged_raw_ram_review_rows = merge_raw_ram_review(
     all_raw_ram_candidates,
     raw_ram_review,
     symbolized_raw_ram_candidates,
 )
-write_raw_ram_review(raw_ram_review_path, merged_raw_ram_review)
+raw_ram_review = {
+    (row.get("addr_hex") or "").strip().lower(): row
+    for row in merged_raw_ram_review_rows
+    if (row.get("addr_hex") or "").strip()
+}
+write_raw_ram_review_file = (
+    os.environ.get("PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW") == "1"
+    or os.environ.get("PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY") == "1"
+)
+if write_raw_ram_review_file:
+    write_raw_ram_review(raw_ram_review_path, merged_raw_ram_review_rows)
+if os.environ.get("PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY") == "1":
+    sys.exit(0)
 raw_ram_clusters = build_raw_ram_clusters(
     all_raw_ram_candidates,
     raw_ram_review,
