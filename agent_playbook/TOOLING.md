@@ -71,6 +71,11 @@ Run `make project-pass-prep PROJECT=<slug>` directly only for an explicit cache
 refresh or tooling debug. The top bucket is not a pass decision;
 `project-pass-start` records the operator's selected corridor objective and
 rejects missing or stale `next_pass.json`.
+Direct `project-pass-prep` runs and closeout refresh the factual columns in
+`raw_ram_review.csv`; closeout uses the raw-RAM refresh-only path rather than a
+full prep rerun. Ordinary `project-next-pass` is read-only for that tracked
+ledger, including its auto-prep path, so a clean closeout commit does not become
+dirty just because the next briefing was generated.
 
 ### Evidence Order (Mandatory)
 

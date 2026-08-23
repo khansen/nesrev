@@ -477,8 +477,12 @@ them.
 
 Use `docs/reverse_engineering/inventory/raw_ram_review.csv` as the
 persistent review queue for unnamed raw RAM bytes and windows. It is
-a working ledger (not cache); `project-next-pass` refreshes factual
-owner/count fields while preserving review fields.
+a working ledger (not cache); direct `project-pass-prep` runs and closeout
+refresh factual owner/count fields while preserving review fields. Closeout
+uses the raw-RAM refresh-only path, not a full prep run, so it does not rewrite
+the pass-start baseline before final gates. Normal `project-next-pass` consumes
+refreshed facts in memory and leaves the tracked queue file unchanged,
+including when it auto-preps stale candidate evidence.
 **Status values:** `candidate`, `unreviewed`, `deferred`, `revisit`,
 `not_semantic_yet`, `symbolized`.
 **Immediate flush.** As soon as you inspect a byte and reach a
@@ -541,7 +545,8 @@ this section governs queue review and overlay introduction.
 wrapper. It materializes the scorecard row when needed, refreshes generated
 inventory, runs the residue/stale-symbol sweep, runs docs/process checks,
 performs verification (`VERIFY_MODE=strict|relaxed`), updates `verify` /
-`docs_check`, and reruns docs/process checks. Optional arguments are `PASS=<id>`,
+`docs_check`, refreshes the raw-RAM queue through the refresh-only path, and
+reruns docs/process checks. Optional arguments are `PASS=<id>`,
 `FOCUS=<text>`, `NOTES=<text>`, `DEFERRALS=<...>` and `REWORK_ITEMS=<count>`.
 The last is the operator's own count of late fixes caused by missed sweeps;
 a closed row that never answers it fails the lifecycle check, because an

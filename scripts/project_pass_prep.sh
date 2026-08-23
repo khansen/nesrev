@@ -60,7 +60,7 @@ run_status() {
   status_json "$status" "$exit_code" "$stdout_file" "$stderr_file"
 }
 
-echo "[1/4] Refreshing inventory"
+echo "[1/5] Refreshing inventory"
 bash "${SCRIPT_DIR}/refresh_inventory.sh" "${slug}"
 
 compare_stdout_file="${pass_dir}/compare.stdout"
@@ -95,7 +95,7 @@ primary_artifacts=(
   "${pass_dir}/data_coverage.json"
 )
 
-echo "[2/4] Generating primary xasm analysis/compare bundle"
+echo "[2/5] Generating primary xasm analysis/compare bundle"
 bundle_cmd=("${XASM_BIN}" --pure-binary -o "${OUT_BIN}")
 if (( ${#compare_args[@]} > 0 )); then
   bundle_cmd+=("${compare_args[@]}")
@@ -146,7 +146,7 @@ if (( bundle_exit_code != 0 )); then
   fi
 fi
 
-echo "[3/4] Generating xref summary (generic labels)"
+echo "[3/5] Generating xref summary (generic labels)"
 "${XASM_BIN}" --pure-binary -o "${OUT_BIN}" \
   --xref-summary \
   --xref-summary-output="${pass_dir}/xref_summary_generic.json" \
@@ -154,7 +154,17 @@ echo "[3/4] Generating xref summary (generic labels)"
   --xref-summary-include='^L[0-9A-F]{4,5}$' \
   "${ASM_FILE}" >/dev/null
 
-echo "[4/4] Capturing baseline status"
+if [[ "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-1}" == "1" ]]; then
+  echo "[4/5] Refreshing raw-RAM review queue"
+  PROJECT_NEXT_PASS_AUTO_PREP=0 \
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+  PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1 \
+    bash "${SCRIPT_DIR}/project_next_pass.sh" "${slug}" json >/dev/null
+else
+  echo "[4/5] Skipping raw-RAM review queue refresh"
+fi
+
+echo "[5/5] Capturing baseline status"
 compare_status_json="$(status_json "${compare_status}" "${compare_exit_code}" "${compare_stdout_file}" "${compare_stderr_file}")"
 docs_status_json="$(run_status docs_check bash "${SCRIPT_DIR}/project_docs_check.sh" "${slug}")"
 process_status_json="$(run_status process_check bash "${SCRIPT_DIR}/project_process_check.sh" "${slug}")"

@@ -987,7 +987,9 @@ slug="$1"
 root="projects/${slug}/docs/reverse_engineering"
 pass_dir="${root}/inventory/pass"
 mkdir -p "${pass_dir}"
-printf 'prep %s\n' "${slug}" > "${pass_dir}/prep_stub.log"
+printf 'prep %s raw_write=%s\n' \
+  "${slug}" "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-unset}" \
+  > "${pass_dir}/prep_stub.log"
 cat > "${pass_dir}/baseline_status.json" <<'JSON'
 {"checks":{"docs_check":{"status":"pass"},"process_check":{"status":"pass"},"parity":{"status":"pass"}},"metrics":{"lxxxx_definitions":0,"lxxxx_occurrences":0,"strict_active_raw_lowaddr":0}}
 JSON
@@ -1017,7 +1019,7 @@ SH
 
   rg -q "refreshing missing, partial, or stale pass cache" "${err}" \
     || fail "project-next-pass must report automatic pass-cache refresh on stderr"
-  rg -q "prep ${slug}" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
+  rg -q "prep ${slug} raw_write=0" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
     || fail "project-next-pass must invoke the prep wrapper when cache files are missing"
   python3 - "${out}" "${slug}" <<'PY'
 import json
@@ -1037,7 +1039,7 @@ PY
 
   rg -q "refreshing missing, partial, or stale pass cache" "${err}" \
     || fail "project-next-pass must report automatic refresh for a partial pass cache"
-  rg -q "prep ${slug}" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
+  rg -q "prep ${slug} raw_write=0" "projects/${slug}/docs/reverse_engineering/inventory/pass/prep_stub.log" \
     || fail "project-next-pass must invoke prep when a required cache input is missing"
 }
 
@@ -1111,6 +1113,23 @@ SH
 set -euo pipefail
 printf 'inventory %s\n' "$1" >> "${STUB_LOG}"
 SH
+  cat > "${stubdir}/project_next_pass.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'raw_refresh %s auto_prep=%s raw_write=%s refresh_only=%s format=%s\n' \
+  "$1" \
+  "${PROJECT_NEXT_PASS_AUTO_PREP:-unset}" \
+  "${PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW:-unset}" \
+  "${PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY:-unset}" \
+  "${2:-unset}" \
+  >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_pass_prep.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "project-pass-closeout must not run full project-pass-prep for raw-RAM refresh" >&2
+exit 99
+SH
   cat > "${stubdir}/project_docs_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -1142,11 +1161,12 @@ residue ${slug} 1
 docs ${slug}
 process ${slug}
 verify ${slug} 1
+raw_refresh ${slug} auto_prep=0 raw_write=1 refresh_only=1 format=json
 docs ${slug}
 process ${slug}
 EOF
   cmp -s "projects/${slug}/expected_closeout.log" "${log}" \
-    || fail "project-pass-closeout must run inventory, residue, docs, process, verify, final docs/process in order"
+    || fail "project-pass-closeout must run inventory, residue, docs, process, verify, raw refresh, final docs/process in order"
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1192,6 +1212,10 @@ EOF
 set -euo pipefail
 SH
   cat > "${stubdir}/refresh_inventory.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_next_pass.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -1263,6 +1287,10 @@ EOF
 set -euo pipefail
 SH
   cat > "${stubdir}/refresh_inventory.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+  cat > "${stubdir}/project_next_pass.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
 SH
@@ -2250,7 +2278,8 @@ ASM
 }
 EOF
 
-  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -2328,7 +2357,8 @@ ASM
 }
 EOF
 
-  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -2399,7 +2429,8 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0010,symbolized,ZP_FrameCounter,,5,no,2,1,1,1,OldOwner:1,OldOwner:1
 EOF
 
-  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
 import csv
@@ -2831,7 +2862,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0010,deferred,ZP_ExistingReview,keep review fields stable,7,yes,99,88,77,66,OldReader:7,OldWriter:6
 EOF
 
-  bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   local order
   order="$(awk -F, 'NR>1 {print $1}' "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" | paste -sd ' ' -)"
@@ -2862,6 +2893,33 @@ for key, value in expected.items():
     if row.get(key) != value:
         raise SystemExit(f"existing raw-RAM review row field {key} mismatch: {row.get(key)!r}")
 PY
+}
+
+test_next_pass_does_not_rewrite_raw_ram_review_without_write_mode() {
+  local slug; slug="$(unique_slug raw_readonly)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared raw-RAM read-only fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+Reset:
+  LDA $10
+  STA $10
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,revisit,ZP_ExistingReview,explicit refresh should stabilize this row,7,yes,99,88,77,66,OldReader:7,OldWriter:6
+EOF
+
+  local before="${NESREV_TEST_TMPDIR}/${slug}_raw_before.csv"
+  cp "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" "${before}"
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  cmp -s "${before}" "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" \
+    || fail "project-next-pass must not rewrite raw_ram_review.csv without explicit write mode"
 }
 
 test_project_raw_ram_review_preserves_existing_row_order() {
