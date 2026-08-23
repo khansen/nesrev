@@ -44,6 +44,8 @@ REJECTED_PREFIXES = (
 )
 REJECTED_EXACT = {"AGENTS.md", "Makefile"}
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+PROJECT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+PASS_ID_RE = re.compile(r"^[0-9]+$")
 PACKET_REVIEW_HEAD_RE = re.compile(
     r"(?im)^-\s*Review head SHA:\s*`?([0-9a-f]{40})`?\s*$"
 )
@@ -109,6 +111,16 @@ def resolve_path(root: Path, value: str) -> Path:
     return path
 
 
+def ensure_repo_contained(root: Path, path: Path, label: str) -> Path:
+    root_resolved = root.resolve()
+    path_resolved = path.resolve()
+    try:
+        path_resolved.relative_to(root_resolved)
+    except ValueError as exc:
+        raise UserError(f"{label} must stay inside repository: {path}") from exc
+    return path
+
+
 def script_command(root: Path) -> str:
     script = Path(sys.argv[0])
     if script.is_absolute():
@@ -131,6 +143,11 @@ def read_state(root: Path) -> dict[str, Any]:
     run_id = data.get("run_id")
     if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
         raise UserError(f"invalid run_id in current.json: {run_id!r}")
+    project = data.get("project")
+    if project is not None and (
+        not isinstance(project, str) or not PROJECT_RE.fullmatch(project)
+    ):
+        raise UserError(f"invalid project in current.json: {project!r}")
     return data
 
 
@@ -163,6 +180,21 @@ def ensure_runtime_excludes(root: Path) -> None:
 
 def run_dir(root: Path, state: dict[str, Any]) -> Path:
     return root / ".agents" / "runs" / state["run_id"]
+
+
+def project_review_archive_path(root: Path, state: dict[str, Any], pass_id: str) -> Path:
+    project = state.get("project")
+    if not project:
+        raise UserError("archive requires a project in state")
+    return (
+        root
+        / "projects"
+        / project
+        / "docs"
+        / "reverse_engineering"
+        / "reviews"
+        / f"pass-{pass_id}.md"
+    )
 
 
 def reject_path(path: str) -> bool:
@@ -393,6 +425,8 @@ def command_init(args: argparse.Namespace) -> int:
     root = repo_root()
     if not RUN_ID_RE.fullmatch(args.run_id):
         raise UserError("run id may contain only letters, digits, dot, underscore, and dash")
+    if not PROJECT_RE.fullmatch(args.project):
+        raise UserError("project may contain only letters, digits, underscore, and dash")
     base_sha = git_commit(args.base, root)
     head_sha = git_commit(args.head, root)
     rejected = rejected_paths_for_range(root, base_sha, head_sha)
@@ -561,6 +595,75 @@ def run_notify(root: Path, args: argparse.Namespace, state: dict[str, Any], role
         raise UserError(f"notify command failed with exit {result.returncode}")
 
 
+def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[tuple[str, str]]:
+    artifacts: list[tuple[str, str]] = []
+    for path in sorted(run_dir(root, state).glob(pattern)):
+        if path.is_file():
+            artifacts.append((rel(root, path), path.read_text().rstrip()))
+    return artifacts
+
+
+def render_archive(state: dict[str, Any], pass_id: str) -> str:
+    root = repo_root()
+    reviews = read_run_artifacts(root, state, "review-*.md")
+    responses = read_run_artifacts(root, state, "response-*.md")
+    if not reviews:
+        raise UserError("archive requires at least one review artifact")
+
+    lines = [
+        f"# Pass {pass_id} External Review",
+        "",
+        f"Project: `{state['project']}`",
+        f"Run: `{state['run_id']}`",
+        f"Final status: `{state['status']}`",
+        f"Range: `{state['review_base']}..{state['review_head']}`",
+        f"Rounds: `{state['round']} / {state['max_rounds']}`",
+        "",
+        "Packets, prompts, worker state, and notification markers are intentionally",
+        "not archived here; regenerate packets from the recorded range when needed.",
+        "",
+        "## Review Artifacts",
+        "",
+    ]
+    for source, text in reviews:
+        lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
+
+    lines.extend(["## Implementer Responses", ""])
+    if responses:
+        for source, text in responses:
+            lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
+    else:
+        lines.extend(["_None._", ""])
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def command_archive(args: argparse.Namespace) -> int:
+    root = repo_root()
+    state = read_state(root)
+    if state["status"] != "APPROVED":
+        raise UserError(f"archive requires APPROVED, got {state['status']}")
+    if not PASS_ID_RE.fullmatch(args.pass_id):
+        raise UserError("pass id must be numeric")
+    ensure_clean_tracked(root)
+
+    out_path = (
+        ensure_repo_contained(root, resolve_path(root, args.out), "archive output")
+        if args.out
+        else ensure_repo_contained(
+            root,
+            project_review_archive_path(root, state, args.pass_id),
+            "archive output",
+        )
+    )
+    if out_path.exists() and not args.force:
+        raise UserError(f"archive already exists: {rel(root, out_path)}")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(render_archive(state, args.pass_id))
+    print(f"archived review artifacts to {rel(root, out_path)}")
+    return 0
+
+
 def command_watch(args: argparse.Namespace) -> int:
     root = repo_root()
     deadline = time.time() + args.timeout if args.timeout is not None else None
@@ -634,6 +737,12 @@ def build_parser() -> argparse.ArgumentParser:
     approve = sub.add_parser("approve", help="record approval")
     approve.add_argument("--review", required=True)
     approve.set_defaults(func=command_approve)
+
+    archive = sub.add_parser("archive", help="archive durable review artifacts")
+    archive.add_argument("--pass-id", required=True)
+    archive.add_argument("--out")
+    archive.add_argument("--force", action="store_true")
+    archive.set_defaults(func=command_archive)
 
     reready = sub.add_parser("reready", help="mark fixes ready for rereview")
     reready.add_argument("--response", required=True)
