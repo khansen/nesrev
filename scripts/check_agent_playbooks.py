@@ -228,9 +228,12 @@ ROOT_WORD_CEILING = 6000
 # packet workflow in TOOLING.md. The hidden-code and default routes carry that
 # tooling prose, so their ceilings preserve measured-plus-headroom rather than
 # shortening the operator-facing command sequence.
+# Review-artifact archiving later added the durable-versus-regenerable split
+# for worker-loop artifacts. The additional TOOLING prose keeps review verdicts
+# and implementer responses from being lost while leaving packet bodies ignored.
 ROUTE_BUDGETS = {
-    "default": (3182, 22711),
-    "data-recovery": (2922, 21542),
+    "default": (3200, 22869),
+    "data-recovery": (2940, 21700),
     "new-project": (4050, 29400),
 }
 
