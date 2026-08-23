@@ -270,10 +270,12 @@ owns it (`raw_ram_review.csv` or `WORKING_NOTES.md`), not as a full claim. Use
 structure and links only: unique headings, required fields, allowed Kind and
 Confidence, real (or `External/reference-only`) subjects, and resolving local
 doc links. It does not prove claims; evidence quality stays reviewer judgment.
-The pass-time check allows a sparse (zero-claim) ledger. `project-maturity-check`
-runs it in maturity mode for opted-in projects (`SEMANTIC_CLAIMS_REQUIRED=1`),
-which additionally requires at least one claim at gold closeout; legacy projects
-are advisory.
+`project-docs-check` runs the pass-time strict structural check for existing
+ledgers and for projects with `SEMANTIC_CLAIMS_REQUIRED=1`, so closeout and CI
+catch malformed claims even before maturity. The pass-time check allows a
+sparse (zero-claim) ledger. `project-maturity-check` runs the checker in
+maturity mode for opted-in projects, which additionally requires at least one
+claim at gold closeout; legacy projects with no ledger remain outside the gate.
 <a id="kpi-interpretation"></a>
 ## KPI Interpretation and Limitations
 

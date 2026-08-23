@@ -47,6 +47,13 @@ Legacy fixture: Initial intake; run `project-inventory` and KPI scripts to seed 
 EOF
 }
 
+_drop_docs_check_fixture_scorecard_placeholder() {
+  local slug="$1"
+  sed -i.bak '/Initial intake; run `project-inventory` and KPI scripts to seed values\./d' \
+    "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md"
+  rm -f "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md.bak"
+}
+
 _run_intake_expect_recovery_error() {
   local slug="$1"
   set +e
@@ -471,6 +478,57 @@ test_docs_check_rejects_warning_baseline_review_required() {
   assert_eq "${rc}" "2" "docs-check must reject uncurated warning-baseline placeholders"
   assert_match "warning baseline still has auto-seed rationale" \
     "$(cat "${NESREV_TEST_TMPDIR}/docs.stderr")"
+}
+
+test_docs_check_rejects_invalid_semantic_claim_kind() {
+  local slug; slug="$(unique_slug docs_claim_kind)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  _prepare_docs_check_fixture "${slug}"
+  _drop_docs_check_fixture_scorecard_placeholder "${slug}"
+
+  cat > "projects/${slug}/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'MD'
+# Semantic Claims
+
+## Claim: fixture-invalid-kind
+
+Subject: External/reference-only
+Kind: data contract
+Subsystem: fixture
+Claim: fixture claim used to exercise docs-check validation.
+Confidence: high
+Evidence:
+- Fixture evidence.
+Caveats:
+- None.
+Canonical docs:
+- MEMORY_MAP.md
+MD
+
+  set +e
+  make project-docs-check "PROJECT=${slug}" \
+    >"${NESREV_TEST_TMPDIR}/docs.stdout" 2>"${NESREV_TEST_TMPDIR}/docs.stderr"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "docs-check must reject invalid semantic-claim kinds"
+  assert_match "invalid Kind 'data contract'" "$(cat "${NESREV_TEST_TMPDIR}/docs.stderr")"
+}
+
+test_docs_check_allows_missing_legacy_semantic_claims_file() {
+  local slug; slug="$(unique_slug docs_claim_legacy)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  _prepare_docs_check_fixture "${slug}"
+  _drop_docs_check_fixture_scorecard_placeholder "${slug}"
+
+  sed -i.bak 's/SEMANTIC_CLAIMS_REQUIRED="1"/SEMANTIC_CLAIMS_REQUIRED="0"/' \
+    "projects/${slug}/project.conf"
+  rm -f "projects/${slug}/project.conf.bak"
+  rm -f "projects/${slug}/docs/reverse_engineering/SEMANTIC_CLAIMS.md"
+
+  make project-docs-check "PROJECT=${slug}" >/dev/null \
+    || fail "legacy docs-check must allow a missing SEMANTIC_CLAIMS.md"
 }
 
 test_valid_scaffold_creates_required_files() {
