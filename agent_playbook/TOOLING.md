@@ -77,6 +77,22 @@ full prep rerun. Ordinary `project-next-pass` is read-only for that tracked
 ledger, including its auto-prep path, so a clean closeout commit does not become
 dirty just because the next briefing was generated.
 
+### Project-Pass Review Packet
+
+`make project-pass-review-packet PROJECT=<slug> BASE=<base> HEAD=<head>`
+emits a Markdown packet for external project-pass review. Run it from a clean
+worktree checked out at `HEAD`; the wrapper refuses tracked dirty state or a
+different checkout so gate evidence cannot describe the wrong commit. Redirect
+stdout to an ignored path or pass `OUT=<packet.md>`. The packet contract lives
+in [`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](../PROJECT_PASS_REVIEW_PACKET_SPEC.md).
+
+The packet includes range-level rename and unresolved-label deltas, the
+complete `BASE..HEAD` commit list, project diff, authored-ledger deltas,
+proof-debt and crosswalk output, `project-next-pass`, and the
+verify/process/docs gates, with each command labelled by the exact SHA it
+describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
+relaxed semantic-pass verification mode.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.
@@ -708,6 +724,9 @@ debug-only recipes not big enough to warrant their own section.
 
 - Index patterns, data consumers, data coverage:
   [#data-consumer-analysis](#data-consumer-analysis)
+- Project-pass review packet (`make project-pass-review-packet PROJECT=<slug>
+  BASE=<base> HEAD=<head>`):
+  [#xasm-structured-analysis → Project-Pass Review Packet](#xasm-structured-analysis)
 
 ### Static analysis
 
