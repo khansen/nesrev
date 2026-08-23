@@ -18,3 +18,13 @@ bash "${SCRIPT_DIR}/check_docs.sh" \
   "${SYSTEMS_DOC}" \
   "${WARN_BASELINE_FILE}" \
   "${NESREV_RECOVERY_STATUS}"
+
+echo "[semantic-claims] Checking semantic claims structure"
+if [[ -f "${SEMANTIC_CLAIMS_FILE}" || "${SEMANTIC_CLAIMS_REQUIRED}" == "1" ]]; then
+  python3 "${SCRIPT_DIR}/project_semantic_claims_check.py" \
+    "${ASM_FILE}" \
+    "${SEMANTIC_CLAIMS_FILE}" \
+    --mode strict
+else
+  echo "OK: SEMANTIC_CLAIMS.md not present for this legacy project"
+fi

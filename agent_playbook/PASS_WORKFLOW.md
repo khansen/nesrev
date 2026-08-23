@@ -684,9 +684,10 @@ touches; project-wide assessment runs against all four at maturity.
   scorecard refreshed, no half-populated rows, no indefinite `TBD` debt.
 
 Semantic-claims maturity (`SEMANTIC_CLAIMS.md`) is a gold-closeout artifact, not
-per-pass work: `project-maturity-check` runs `project-semantic-claims-check`
-(strict on `SEMANTIC_CLAIMS_REQUIRED=1`, advisory for legacy). Update claims only
-when a pass matures a subsystem — model and checker at
+per-pass work: `project-docs-check` validates existing ledgers structurally at
+closeout, while `project-maturity-check` requires at least one claim only for
+opted-in projects. Update claims only when a pass matures a subsystem — model
+and checker at
 [QUALITY_REVIEW.md#semantic-claims](QUALITY_REVIEW.md#semantic-claims).
 
 Framing rules:
