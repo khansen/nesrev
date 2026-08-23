@@ -224,9 +224,13 @@ ROOT_WORD_CEILING = 6000
 # Project-pass review packet generation later added TOOLING prose for the
 # external review handoff packet. The default route carries TOOLING, so the
 # ceiling preserves the same measured-plus-headroom convention.
+# Agent-review handoff later added the local worker-loop contract beside the
+# packet workflow in TOOLING.md. The hidden-code and default routes carry that
+# tooling prose, so their ceilings preserve measured-plus-headroom rather than
+# shortening the operator-facing command sequence.
 ROUTE_BUDGETS = {
-    "default": (3156, 22556),
-    "data-recovery": (2850, 21290),
+    "default": (3182, 22711),
+    "data-recovery": (2922, 21542),
     "new-project": (4050, 29400),
 }
 
