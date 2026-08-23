@@ -166,6 +166,103 @@ print(f"{defs} {occ}")
 PY
 }
 
+lxxxx_reconciliation_for_range() {
+  local base_sha="$1"
+  local head_sha="$2"
+  local asm_path="$3"
+  local renames_path="$4"
+  python3 - "${base_sha}" "${head_sha}" "${asm_path}" "${renames_path}" <<'PY'
+import collections
+import csv
+import io
+import re
+import subprocess
+import sys
+
+base_sha, head_sha, asm_path, renames_path = sys.argv[1:]
+lxxxx_def_re = re.compile(r"^L[0-9A-F]{4,5}:", re.M)
+lxxxx_name_re = re.compile(r"L[0-9A-F]{4,5}$")
+
+
+def git_show(sha, path):
+    try:
+        return subprocess.check_output(
+            ["git", "show", f"{sha}:{path}"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+
+
+def lxxxx_defs(text):
+    return {match.group(0)[:-1] for match in lxxxx_def_re.finditer(text)}
+
+
+def data_rows(sha, path):
+    text = git_show(sha, path)
+    if text is None:
+        return []
+    rows = list(csv.reader(io.StringIO(text)))
+    return [
+        tuple(row)
+        for row in rows[1:]
+        if any(cell.strip() for cell in row)
+    ]
+
+
+base_rows = collections.Counter(data_rows(base_sha, renames_path))
+head_rows = collections.Counter(data_rows(head_sha, renames_path))
+added_rows = head_rows - base_rows
+lxxxx_source_rows = []
+for row, count in added_rows.items():
+    old_name = row[0].strip() if row else ""
+    if lxxxx_name_re.fullmatch(old_name):
+        new_name = row[1].strip() if len(row) > 1 else ""
+        lxxxx_source_rows.extend([(old_name, new_name)] * count)
+
+print(f"+{len(lxxxx_source_rows)} this range")
+
+base_asm = git_show(base_sha, asm_path)
+head_asm = git_show(head_sha, asm_path)
+if base_asm is None or head_asm is None:
+    print("not available")
+    print("not available")
+    print("not available")
+    raise SystemExit(0)
+
+removed_defs = sorted(lxxxx_defs(base_asm) - lxxxx_defs(head_asm))
+unmatched_removed = set(removed_defs)
+unmatched_source_rows = []
+matched_count = 0
+for old_name, new_name in lxxxx_source_rows:
+    if old_name in unmatched_removed:
+        unmatched_removed.remove(old_name)
+        matched_count += 1
+    else:
+        unmatched_source_rows.append((old_name, new_name))
+
+unmatched_removed_text = (
+    "none" if not unmatched_removed else " ".join(sorted(unmatched_removed))
+)
+unmatched_source_text = "none"
+if unmatched_source_rows:
+    row_text = " ".join(
+        f"{old}->{new or '(blank)'}"
+        for old, new in unmatched_source_rows
+    )
+    unmatched_source_text = f"{len(unmatched_source_rows)} ({row_text})"
+
+print(
+    f"{len(removed_defs)} removed; "
+    f"{matched_count} matched to LXXXX-sourced rename rows; "
+    f"{len(unmatched_removed)} without rename row"
+)
+print(unmatched_removed_text)
+print(unmatched_source_text)
+PY
+}
+
 signed_delta() {
   local value="$1"
   if (( value >= 0 )); then
@@ -215,6 +312,19 @@ RENAME_ROW_SUMMARY="$(signed_delta "${RENAME_ROW_DELTA}") this range (${BASE_REN
 BASE_LXXXX_TEXT="$(format_lxxxx_count "${BASE_LXXXX_DEFS}" "${BASE_LXXXX_OCC}")"
 HEAD_LXXXX_TEXT="$(format_lxxxx_count "${HEAD_LXXXX_DEFS}" "${HEAD_LXXXX_OCC}")"
 LXXXX_SUMMARY="${BASE_LXXXX_TEXT} -> ${HEAD_LXXXX_TEXT}${LXXXX_DELTA_TEXT}"
+LXXXX_RECONCILIATION="$(
+  lxxxx_reconciliation_for_range \
+    "${BASE_SHA}" \
+    "${HEAD_SHA}" \
+    "${ASM_FILE}" \
+    "${RENAMES_FILE}"
+)"
+LXXXX_SOURCE_RENAME_SUMMARY="${LXXXX_RECONCILIATION%%$'\n'*}"
+LXXXX_RECONCILIATION_REST="${LXXXX_RECONCILIATION#*$'\n'}"
+LXXXX_REMOVAL_SUMMARY="${LXXXX_RECONCILIATION_REST%%$'\n'*}"
+LXXXX_RECONCILIATION_REST="${LXXXX_RECONCILIATION_REST#*$'\n'}"
+LXXXX_UNMATCHED_REMOVALS="${LXXXX_RECONCILIATION_REST%%$'\n'*}"
+LXXXX_UNMATCHED_SOURCE_RENAMES="${LXXXX_RECONCILIATION_REST#*$'\n'}"
 
 VERIFY_CMD="$(
   if [[ -n "${ALLOW_UNRESOLVED_LXXXX:-}" ]]; then
@@ -254,6 +364,10 @@ section says otherwise.
 - Project commits in range: \`${PROJECT_COMMIT_COUNT}\`
 - Rename ledger rows: \`${RENAME_ROW_SUMMARY}\`
 - Unresolved LXXXX labels: \`${LXXXX_SUMMARY}\`
+- LXXXX-sourced rename rows: \`${LXXXX_SOURCE_RENAME_SUMMARY}\`
+- LXXXX definition removals: \`${LXXXX_REMOVAL_SUMMARY}\`
+- LXXXX removals without rename row: \`${LXXXX_UNMATCHED_REMOVALS}\`
+- LXXXX rename rows without definition removal: \`${LXXXX_UNMATCHED_SOURCE_RENAMES}\`
 
 EOF
 

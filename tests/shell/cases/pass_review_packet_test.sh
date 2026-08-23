@@ -31,6 +31,8 @@ EOF
 L1234:
   JSR L1234
   JMP L1234
+L1235:
+  RTS
 EOF
   : > "${repo}/projects/${slug}/reference/${slug}.nes"
   : > "${repo}/projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt"
@@ -77,6 +79,8 @@ EOF
 RunWidget:
   JSR RunWidget
   JMP RunWidget
+@@done:
+  RTS
 EOF
   cat >> "${repo}/projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
 L1234,RunWidget,fixture rename,high,1
@@ -132,8 +136,16 @@ test_project_pass_review_packet_emits_complete_range_and_head_gates() {
     "packet must summarize the number of reviewed project commits"
   assert_match "Rename ledger rows: \`\\+2 this range \\(0 -> 2 total\\)\`" "${out}" \
     "packet must summarize range-level rename ledger growth"
-  assert_match "Unresolved LXXXX labels: \`1 / 3 -> 0 / 0 \\(delta -1 / -3\\)\`" "${out}" \
+  assert_match "Unresolved LXXXX labels: \`2 / 4 -> 0 / 0 \\(delta -2 / -4\\)\`" "${out}" \
     "packet must summarize unresolved-label movement across the range"
+  assert_match "LXXXX-sourced rename rows: \`\\+2 this range\`" "${out}" \
+    "packet must count added rename rows that started from LXXXX labels"
+  assert_match "LXXXX definition removals: \`2 removed; 1 matched to LXXXX-sourced rename rows; 1 without rename row\`" "${out}" \
+    "packet must reconcile LXXXX removals against LXXXX-sourced rename rows"
+  assert_match "LXXXX removals without rename row: \`L1235\`" "${out}" \
+    "packet must identify removed LXXXX definitions not explained by rename rows"
+  assert_match "LXXXX rename rows without definition removal: \`1 \\(L1234->MissingWidgetHelper\\)\`" "${out}" \
+    "packet must identify LXXXX-sourced rename rows not explained by removed definitions"
   assert_match "State: \`review_head ${head}\`" "${out}" \
     "gate evidence must be labelled with the reviewed SHA"
   assert_match "stub make project-verify PROJECT=${slug}" "${out}" \

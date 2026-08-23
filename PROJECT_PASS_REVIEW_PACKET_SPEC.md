@@ -96,11 +96,23 @@ without comparing against another packet:
 
 - project commits in range;
 - rename-ledger row delta and before/after totals;
-- unresolved `LXXXX` definition/reference before/after counts and deltas.
+- unresolved `LXXXX` definition/reference before/after counts and deltas;
+- added rename rows whose old name is an `LXXXX` label;
+- removed `LXXXX` definitions reconciled against those `LXXXX`-sourced
+  rename rows, including any removed labels that have no rename row and any
+  `LXXXX`-sourced rename rows that have no matching definition removal.
 
 The unresolved-label count must match the scorecard-sync definition:
 `^L[0-9A-F]{4,5}:` for definitions and
 `\bL[0-9A-F]{4,5}\b|^L[0-9A-F]{4,5}:` for occurrences.
+
+The reconciliation uses distinct removed definitions and row-level rename
+entries, not the total rename-row count. Each removed definition can match at
+most one added `LXXXX`-sourced rename row, so duplicate rows, phantom rows, or
+name-to-name refinements cannot hide a deleted or localized generic label. A
+removed `LXXXX` definition without a rename row, or a rename row without a
+definition removal, is not automatically wrong; it is review-relevant
+arithmetic that the packet must make visible.
 
 ### Complete Commit List And Diffstat
 
