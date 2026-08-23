@@ -93,14 +93,14 @@ verify/process/docs gates, with each command labelled by the exact SHA it
 describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
 relaxed semantic-pass verification mode.
 
-### Agent Review Handoff Spike
+### Agent Review Handoff
 
-`python3 scripts/agent_review.py` is a local spike for pass-by-pass handoff
-between already-running agent sessions. The user still starts Codex, Claude,
-and any worker loops manually; the script only records `.agents/current.json`,
-points each role at the packet/review artifacts, and lets a watcher notify the
-next role after `READY_FOR_REVIEW`, `CHANGES_REQUESTED`,
-`READY_FOR_REREVIEW`, or `APPROVED`.
+`python3 scripts/agent_review.py` is the local v1 path for pass-by-pass
+handoff between already-running agent sessions. The user still starts Codex,
+Claude, and any worker loops manually; the script records
+`.agents/current.json`, points each role at the packet/review artifacts, and
+lets a watcher notify the next role after `READY_FOR_REVIEW`,
+`CHANGES_REQUESTED`, `READY_FOR_REREVIEW`, or `APPROVED`.
 
 Minimal flow:
 ```sh

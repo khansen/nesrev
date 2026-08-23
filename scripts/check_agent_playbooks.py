@@ -240,12 +240,15 @@ ROOT_WORD_CEILING = 6000
 # prompts can point at AGENTS.md instead of carrying a duplicate playbook bundle.
 # That route intentionally combines review procedures, review criteria, pass
 # mechanics, ASM naming/style, and packet/gate/handoff tooling; the ceiling
-# preserves measured-plus-headroom for that review surface.
+# preserves measured-plus-headroom for that review surface. The protocol design
+# record later added process-change routing pointers and operational context to
+# REVIEW_AUDITS.md, QUALITY_REVIEW.md, and TOOLING.md; the project-pass-review
+# word ceiling carries that shared review surface without shortening the rules.
 ROUTE_BUDGETS = {
     "default": (3225, 23040),
     "data-recovery": (2965, 21870),
     "new-project": (4050, 29400),
-    "project-pass-review": (4170, 29050),
+    "project-pass-review": (4170, 29350),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -20,14 +20,21 @@ This playbook owns post-pass and project-level review criteria:
 
 The audit procedures those criteria invoke (readability self-audit, reviewer
 simulation, stale-placeholder / symbol-family / residual-magic / global-label
-audits, static readability debt audit, pointer-byte consolidation, deep-confidence
-passes) live in [REVIEW_AUDITS.md](REVIEW_AUDITS.md). Quality checks may link to
-rules in other playbooks but do not redefine them.
+audits, static readability debt audit, pointer-byte consolidation,
+process-change sanity checks, deep-confidence passes) live in
+[REVIEW_AUDITS.md](REVIEW_AUDITS.md). Quality checks may link to rules in other
+playbooks but do not redefine them.
 
 ## Playbook Sections
 
 <a id="quality-review"></a>
 ## Review Quality Bar (Overview)
+
+Process/tooling reviews use ordinary branch or PR review, not the
+project-pass handoff protocol. When reviewing scripts, gates, wrappers,
+playbooks, specs, or tooling, apply the bad-direction proof and cross-project
+blast-radius procedure at
+[REVIEW_AUDITS.md](REVIEW_AUDITS.md#process-change-review-sanity-checks).
 
 Completion semantics are strict. Green process gates mean the
 project is mechanically mature; they do not mean the project is
