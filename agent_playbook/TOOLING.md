@@ -93,6 +93,41 @@ verify/process/docs gates, with each command labelled by the exact SHA it
 describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
 relaxed semantic-pass verification mode.
 
+### Agent Review Handoff Spike
+
+`python3 scripts/agent_review.py` is a local spike for pass-by-pass handoff
+between already-running agent sessions. The user still starts Codex, Claude,
+and any worker loops manually; the script only records `.agents/current.json`,
+points each role at the packet/review artifacts, and lets a watcher notify the
+next role after `READY_FOR_REVIEW`, `CHANGES_REQUESTED`,
+`READY_FOR_REREVIEW`, or `APPROVED`.
+
+Minimal flow:
+```sh
+python3 scripts/agent_review.py init --project <slug> --base <base> --head <head> --run-id <id>
+python3 scripts/agent_review.py ready --note <implementation.md> --generate-packet
+python3 scripts/agent_review.py watch --role reviewer --notify <notifier> --once
+python3 scripts/agent_review.py request-changes --review <review.md>
+python3 scripts/agent_review.py reready --response <response.md> --head HEAD --generate-packet
+python3 scripts/agent_review.py approve --review <review.md>
+```
+
+`init` writes the runtime-state patterns to `.git/info/exclude`, because the
+review head may predate the branch's tracked `.gitignore`. Long-running
+`watch` processes may be started before `init`; they wait for state instead of
+exiting. If the worker script is invoked from outside the checked-out tree, the
+generated prompts use that external script path instead of assuming
+`scripts/agent_review.py` exists at the review head. `ready` and `reready`
+validate the packet before handoff: the packet must name the current review
+head and its Project Verify Gate must report exit status 0. If parity evidence
+is missing or red, fix the local project inputs or regenerate from a worktree
+with the required untracked reference files before notifying the reviewer.
+
+The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
+`AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
+agent-specific worker can be layered on that contract; the state file remains
+authoritative and the watcher must not infer verdicts from chat text.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.

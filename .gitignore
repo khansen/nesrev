@@ -27,3 +27,9 @@ projects/*/mods/
 # Exclude all third-party/external reference material. Authored terminology
 # extraction and crosswalk analysis belong in tracked docs/crosswalk/.
 projects/*/docs/game_reference/
+
+# Local agent-review handoff runtime state. Tracked role docs may be added under
+# .agents/ later; only mutable state is ignored here.
+.agents/current.json
+.agents/runs/
+.agents/logs/
