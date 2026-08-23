@@ -141,6 +141,25 @@ The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
 agent-specific worker can be layered on that contract; the state file remains
 authoritative and the watcher must not infer verdicts from chat text.
 
+For tmux handoff, put the already-running implementation and reviewer agents
+in tmux panes, find their pane ids, and run one watcher per role:
+```sh
+tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
+export AGENT_REVIEW_TMUX_REVIEWER=%12
+export AGENT_REVIEW_TMUX_IMPLEMENTER=%13
+python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
+python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
+```
+
+`scripts/agent_review_tmux_notify.sh` loads the prompt file into a tmux buffer,
+uses tmux bracketed paste, and sends Enter by default. This is intended for
+paste-aware agent TUIs that enable bracketed paste; do not target an ordinary
+shell or other non-paste-aware program with a multi-line prompt. Set
+`AGENT_REVIEW_TMUX_SUBMIT=0` to paste without the final submit Enter during
+dry runs. The adapter does not start, supervise, or detect readiness of agent
+sessions; keep target panes idle at the agent prompt before enabling automatic
+submission.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.

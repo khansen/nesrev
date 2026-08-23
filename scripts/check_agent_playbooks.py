@@ -231,9 +231,13 @@ ROOT_WORD_CEILING = 6000
 # Review-artifact archiving later added the durable-versus-regenerable split
 # for worker-loop artifacts. The additional TOOLING prose keeps review verdicts
 # and implementer responses from being lost while leaving packet bodies ignored.
+# The tmux notifier later made the first concrete transport explicit: pane
+# discovery, role target variables, watcher commands, and the idle-at-prompt
+# safety boundary. Those commands are operator-facing; shortening them would
+# reintroduce the copy/paste ambiguity the transport exists to remove.
 ROUTE_BUDGETS = {
-    "default": (3200, 22869),
-    "data-recovery": (2940, 21700),
+    "default": (3225, 23040),
+    "data-recovery": (2965, 21870),
     "new-project": (4050, 29400),
 }
 
