@@ -83,6 +83,18 @@ dirty just because the next briefing was generated.
 2. **Structured xasm outputs** (JSON/NDJSON listing, xref, audit) — use when pass cache lacks the needed fact.
 3. **Raw asm source** — only for final edits, scope checks, declaration-site comments, and control-flow confirmation.
 Do not use broad `rg` sweeps or ad-hoc KPI scripts when pass artifacts already provide the information. If you must fall back, report what was missing and why.
+
+When the pass cache lacks assembled facts, materialize a temporary JSON listing
+before opening broad source regions. Keep it outside tracked project files or
+under an ignored scratch path, query it for CPU/output offsets, emitted bytes,
+record boundaries, directives/opcodes, continuation records, and source-line
+coordinates, then open only the source ranges identified by those records.
+```sh
+xasm --pure-binary -o "${TMPDIR:-/tmp}/<slug>-analysis.o" \
+  --listing="${TMPDIR:-/tmp}/<slug>-listing.json" --listing-format=json \
+  projects/<slug>/asm/<slug>.asm
+```
+
 ### xasm Feature Summary
 
 - `--compare`: fast first-mismatch diagnosis with source mapping; use before full `make project-verify`.

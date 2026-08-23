@@ -75,6 +75,10 @@ Treat the generated pass artifacts as the primary evidence source for
 target selection and structural analysis. Do not fall back to broad
 asm greps, ad-hoc counting scripts, or manual KPI re-derivation unless
 the needed fact is absent from the prep outputs.
+If the missing fact depends on assembled CPU addresses, output offsets, emitted
+bytes, instruction/data boundaries, or continuation records, create and query a
+temporary JSON listing first; the concrete workflow lives at
+[TOOLING.md#xasm-structured-analysis](TOOLING.md#xasm-structured-analysis).
 ### Owner-field rule
 
 When `xref_with_data.json` is available, prefer the emitted
