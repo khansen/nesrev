@@ -221,8 +221,11 @@ ROOT_WORD_CEILING = 6000
 # uses, and both exist to replace something the tool used to decide silently.
 # margin; if they keep growing, the answer is splitting an ownership cluster
 # into its own file per README.md#adding-a-playbook, not further compression.
+# Project-pass review packet generation later added TOOLING prose for the
+# external review handoff packet. The default route carries TOOLING, so the
+# ceiling preserves the same measured-plus-headroom convention.
 ROUTE_BUDGETS = {
-    "default": (3110, 22300),
+    "default": (3156, 22556),
     "data-recovery": (2850, 21290),
     "new-project": (4050, 29400),
 }
