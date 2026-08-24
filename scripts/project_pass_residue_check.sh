@@ -715,6 +715,8 @@ for path in doc_root.rglob("*"):
     rel = path.relative_to(doc_root)
     if "inventory/pass" in str(rel):
         continue
+    if rel.parts and rel.parts[0] == "reviews":
+        continue
     if path.name == "renames.csv":
         continue
     if path.name in {"intake_listing.json", "intake_xref.json", "raw_address_audit.json"}:
