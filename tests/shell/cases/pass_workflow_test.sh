@@ -1599,6 +1599,68 @@ test_pass_residue_check_warns_on_unparseable_plan_but_does_not_fail() {
     "closeout summary must report the invalid_plan objective status"
 }
 
+test_pass_residue_check_ignores_archived_review_history() {
+  local slug; slug="$(unique_slug closeout_review_archive)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Named the reset helper."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+RunResetHelper:
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+L1234,RunResetHelper,named reset helper,medium,1
+EOF
+  mkdir -p "projects/${slug}/docs/reverse_engineering/reviews"
+  cat > "projects/${slug}/docs/reverse_engineering/reviews/pass-0.md" <<'EOF'
+Verdict: APPROVED
+
+Historical review text named `L1234` before the next pass renamed it.
+EOF
+
+  local out rc
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "0" "archived review provenance must not block later closeout residue checks"
+  if [[ "${out}" == *"\"file\": \"projects/${slug}/docs/reverse_engineering/reviews/pass-0.md\""* ]]; then
+    fail "residue check must skip archived pass review records"
+  fi
+}
+
+test_pass_residue_check_rejects_stale_old_symbols_in_normal_docs() {
+  local slug; slug="$(unique_slug closeout_doc_residue)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Named the reset helper."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+RunResetHelper:
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+L1234,RunResetHelper,named reset helper,medium,1
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/ONBOARDING.md" <<'EOF'
+This normal project doc still mentions `L1234`.
+EOF
+
+  local out rc
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "4" "normal docs must still reject stale old-symbol residue"
+  assert_match "ONBOARDING.md" "${out}"
+  assert_match "L1234" "${out}"
+}
+
 test_project_maturity_summary_reports_blockers_inventory_and_clusters() {
   local slug; slug="$(unique_slug maturity_summary)"
   trap "cleanup_project ${slug}" EXIT
