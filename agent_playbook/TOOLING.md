@@ -123,8 +123,11 @@ checkout that has the project sources and required untracked reference files;
 when that checkout predates the worker script, invoke the script by absolute
 path from a tool-bearing worktree. `ready` and `reready` validate the packet
 before handoff: the packet must name the current review head and its Project
-Verify Gate must report exit status 0. If parity evidence is missing or red,
-fix the local project inputs or regenerate from a worktree with the required
+Verify Gate must report exit status 0. When a generated strict packet fails
+only because unresolved `LXXXX` labels are still expected for the project,
+the worker regenerates it once with `ALLOW_UNRESOLVED_LXXXX=1` and records
+that relaxed mode for later rounds. If parity evidence is missing or red, fix
+the local project inputs or regenerate from a worktree with the required
 untracked reference files before notifying the reviewer.
 
 After approval, `archive --pass-id <id>` writes the durable judgement record to

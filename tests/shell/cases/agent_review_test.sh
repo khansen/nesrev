@@ -58,6 +58,98 @@ Exit status: \`${verify_status}\`
 EOF
 }
 
+_write_agent_review_make_stub() {
+  local path="$1" mode="$2" counter="$3"
+  cat > "${path}" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="__MODE__"
+counter="__COUNTER__"
+printf 'x\n' >> "${counter}"
+
+head=""
+out=""
+allow=0
+for arg in "$@"; do
+  case "${arg}" in
+    HEAD=*) head="${arg#HEAD=}" ;;
+    OUT=*) out="${arg#OUT=}" ;;
+    ALLOW_UNRESOLVED_LXXXX=1) allow=1 ;;
+  esac
+done
+
+mkdir -p "$(dirname "${out}")"
+if [[ "${mode}" == "lxxxx" && "${allow}" == "0" ]]; then
+  cat > "${out}" <<PACKET
+# Packet
+
+## Reviewed State
+
+- Review head SHA: \`${head}\`
+
+### Project Verify Gate
+
+State: \`review_head ${head}\`
+
+Command:
+
+\`\`\`sh
+make project-verify PROJECT=demo
+\`\`\`
+
+Exit status: \`2\`
+
+Output:
+
+\`\`\`text
+FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)
+\`\`\`
+PACKET
+else
+  command="make project-verify PROJECT=demo"
+  output="FAIL: reference iNES file not found"
+  status=2
+  if [[ "${mode}" == "lxxxx" ]]; then
+    command="ALLOW_UNRESOLVED_LXXXX=1 make project-verify PROJECT=demo"
+    output="WARN: 491 distinct LXXXX/LXXXXX labels (1000 refs); allowed by ALLOW_UNRESOLVED_LXXXX=1"
+    status=0
+  fi
+  cat > "${out}" <<PACKET
+# Packet
+
+## Reviewed State
+
+- Review head SHA: \`${head}\`
+
+### Project Verify Gate
+
+State: \`review_head ${head}\`
+
+Command:
+
+\`\`\`sh
+${command}
+\`\`\`
+
+Exit status: \`${status}\`
+
+Output:
+
+\`\`\`text
+${output}
+\`\`\`
+PACKET
+fi
+EOF
+  sed -i.bak \
+    -e "s|__MODE__|${mode}|g" \
+    -e "s|__COUNTER__|${counter}|g" \
+    "${path}"
+  rm -f "${path}.bak"
+  chmod +x "${path}"
+}
+
 _json_field() {
   local repo="$1" field="$2"
   python3 - "${repo}" "${field}" <<'PY'
@@ -691,6 +783,150 @@ test_agent_review_ready_rejects_packet_with_failed_verify_gate() {
   set -e
   assert_eq "${rc}" "2" "ready must reject packets with failed verify evidence"
   assert_match "packet Project Verify Gate exit status is nonzero: 2" "${output}"
+}
+
+test_agent_review_ready_does_not_auto_relax_explicit_lxxxx_packet() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_explicit_lxxxx_packet_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output rc
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-explicit-lxxxx"
+
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    printf 'Implemented demo pass with an explicit packet.\n' > ".agents/runs/${run_id}/implementation.md"
+    cat > ".agents/runs/${run_id}/packet.md" <<EOF
+# Packet
+
+## Reviewed State
+
+- Review head SHA: \`${head}\`
+
+### Project Verify Gate
+
+State: \`review_head ${head}\`
+
+Exit status: \`2\`
+
+Output:
+
+\`\`\`text
+FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)
+\`\`\`
+EOF
+  )
+
+  set +e
+  output="$(cd "${repo}" && python3 scripts/agent_review.py ready \
+    --note ".agents/runs/${run_id}/implementation.md" \
+    --packet ".agents/runs/${run_id}/packet.md" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "explicit LXXXX-failed packets must not auto-relax"
+  assert_match "packet Project Verify Gate exit status is nonzero: 2" "${output}"
+  assert_eq "$(_json_field "${repo}" "status")" "IMPLEMENTING" \
+    "explicit failed packet must not advance state"
+  assert_eq "$(_json_field "${repo}" "allow_unresolved_lxxxx")" "False" \
+    "explicit failed packet must not enable relaxed verify state"
+  if [[ "${output}" =~ strict\ packet\ verify\ failed\ on\ unresolved\ LXXXX\ labels ]]; then
+    fail "explicit packet path must not emit generated-packet retry diagnostics"
+  fi
+}
+
+test_agent_review_ready_auto_relaxes_generated_lxxxx_packet() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_auto_lxxxx_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output counter packet
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-auto-lxxxx"
+  counter="${NESREV_TEST_TMPDIR}/auto-lxxxx-make-count"
+  mkdir -p "${NESREV_TEST_TMPDIR}/auto-lxxxx-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/auto-lxxxx-bin/make" \
+    lxxxx \
+    "${counter}"
+
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    printf 'Implemented demo pass with relaxed verify.\n' > ".agents/runs/${run_id}/implementation.md"
+  )
+
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/auto-lxxxx-bin:${PATH}" \
+      python3 scripts/agent_review.py ready \
+        --note ".agents/runs/${run_id}/implementation.md" \
+        --generate-packet 2>&1
+  )"
+
+  assert_match "strict packet verify failed on unresolved LXXXX labels" "${output}" \
+    "generated strict LXXXX failure should trigger a relaxed retry"
+  assert_eq "$(_json_field "${repo}" "status")" "READY_FOR_REVIEW" \
+    "auto-relaxed packet should still hand off for review"
+  assert_eq "$(_json_field "${repo}" "allow_unresolved_lxxxx")" "True" \
+    "auto-relaxed packet mode must persist in state for reready"
+  assert_eq "$(wc -l <"${counter}" | tr -d ' ')" "2" \
+    "ready should generate once strict, then once relaxed"
+
+  packet="${repo}/.agents/runs/${run_id}/packet-round-01.md"
+  output="$(<"${packet}")"
+  assert_match "ALLOW_UNRESOLVED_LXXXX=1 make project-verify PROJECT=demo" "${output}" \
+    "final packet must show the relaxed verify command"
+  assert_match "Exit status: \`0\`" "${output}" \
+    "final packet must pass verify preflight"
+}
+
+test_agent_review_ready_does_not_auto_relax_other_generated_verify_failures() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_no_auto_relax_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output rc counter
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-no-auto-relax"
+  counter="${NESREV_TEST_TMPDIR}/no-auto-relax-make-count"
+  mkdir -p "${NESREV_TEST_TMPDIR}/no-auto-relax-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/no-auto-relax-bin/make" \
+    missing_ref \
+    "${counter}"
+
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    printf 'Implemented demo pass.\n' > ".agents/runs/${run_id}/implementation.md"
+  )
+
+  set +e
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/no-auto-relax-bin:${PATH}" \
+      python3 scripts/agent_review.py ready \
+        --note ".agents/runs/${run_id}/implementation.md" \
+        --generate-packet 2>&1
+  )"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "non-LXXXX verify failures must still block handoff"
+  assert_match "packet Project Verify Gate exit status is nonzero: 2" "${output}"
+  assert_eq "$(_json_field "${repo}" "status")" "IMPLEMENTING" \
+    "failed generated packet must not advance state"
+  assert_eq "$(_json_field "${repo}" "allow_unresolved_lxxxx")" "False" \
+    "non-LXXXX failures must not enable relaxed verify state"
+  assert_eq "$(wc -l <"${counter}" | tr -d ' ')" "1" \
+    "ready should not retry unrelated verify failures"
 }
 
 test_agent_review_ready_rejects_packet_without_verify_gate() {
