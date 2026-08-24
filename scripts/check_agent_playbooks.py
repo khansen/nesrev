@@ -56,6 +56,7 @@ EXPECTED_ROUTING_TASKS = [
     "Review or rewrite comments/docs",
     "Assess gold-standard maturity",
     "Run a project-level review audit",
+    "Review a committed project pass",
     "Change NESrev, xasm, wrappers, or quality gates",
     "Create or review a mod",
     "Audit for dead code, latent bugs, or micro-optimizations",
@@ -235,14 +236,21 @@ ROOT_WORD_CEILING = 6000
 # discovery, role target variables, watcher commands, and the idle-at-prompt
 # safety boundary. Those commands are operator-facing; shortening them would
 # reintroduce the copy/paste ambiguity the transport exists to remove.
+# Committed project-pass review later gained its own routing row so reviewer
+# prompts can point at AGENTS.md instead of carrying a duplicate playbook bundle.
+# That route intentionally combines review procedures, review criteria, pass
+# mechanics, ASM naming/style, and packet/gate/handoff tooling; the ceiling
+# preserves measured-plus-headroom for that review surface.
 ROUTE_BUDGETS = {
     "default": (3225, 23040),
     "data-recovery": (2965, 21870),
     "new-project": (4050, 29400),
+    "project-pass-review": (4170, 29050),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
 NEW_PROJECT_ROUTE_KEY = "NEW_PROJECT.md"
+PROJECT_PASS_REVIEW_TASK = "Review a committed project pass"
 
 STALE_REF_PATTERNS = [
     re.compile(r"AGENTS\.md[\\`'\"\s]{0,4}§"),
@@ -525,7 +533,9 @@ def check_route_budgets(rows: list[tuple[str, list[str]]], root_stats: tuple[int
             pl, pw = file_stats(path)
             total_lines += pl
             total_words += pw
-        if NEW_PROJECT_ROUTE_KEY in playbooks:
+        if task == PROJECT_PASS_REVIEW_TASK:
+            budget_key = "project-pass-review"
+        elif NEW_PROJECT_ROUTE_KEY in playbooks:
             budget_key = "new-project"
         elif DATA_RECOVERY_ROUTE_KEY in playbooks:
             budget_key = "data-recovery"

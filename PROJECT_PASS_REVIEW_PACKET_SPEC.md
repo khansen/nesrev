@@ -149,9 +149,11 @@ set `ALLOW_UNRESOLVED_LXXXX=1`; the packet must show that mode explicitly.
 
 ### Reviewer Instructions
 
-Tell the reviewer to review the explicit range, inspect the aggregate signals,
-read ledger deltas, and return either `APPROVED` or `CHANGES_REQUESTED` with
-findings ordered by severity.
+Tell the reviewer to read `AGENTS.md` and follow the
+`Review a committed project pass` row in its Mandatory Routing Table before
+judging the pass. Then tell the reviewer to review the explicit range, inspect
+the aggregate signals, read ledger deltas, and return either `APPROVED` or
+`CHANGES_REQUESTED` with findings ordered by severity.
 
 ## 7. Reviewer Use
 

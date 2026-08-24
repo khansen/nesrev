@@ -140,6 +140,11 @@ The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
 `AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
 agent-specific worker can be layered on that contract; the state file remains
 authoritative and the watcher must not infer verdicts from chat text.
+Reviewer prompts route the reviewer through the `Review a committed project
+pass` row in `AGENTS.md` before asking for a verdict, so the handoff does not
+rely on ambient session memory of the repository rules. That route includes
+`TOOLING.md` because packets, gates, and handoff commands are part of the review
+surface.
 
 For tmux handoff, put the already-running implementation and reviewer agents
 in tmux panes, find their pane ids, and run one watcher per role:
