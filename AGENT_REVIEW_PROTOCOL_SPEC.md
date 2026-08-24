@@ -300,7 +300,9 @@ remain canonical.
 Durable review judgements are not stored under `.agents/`. After approval,
 `archive --pass-id <id>` writes the review and response history to
 `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`, keyed by pass
-id rather than SHA so routine project rebases do not orphan the record.
+id rather than SHA so routine project rebases do not orphan the record. The
+archive still records review-time SHAs as provenance, but labels them as
+review-time identifiers that may become unreachable after a rebase.
 
 V1 did not add tracked `.agents/` role files. Agent-facing workflow
 instructions live in `agent_playbook/TOOLING.md`; the generated prompt files in
@@ -471,7 +473,8 @@ Implemented subcommands:
 - `approve` - validate a review file, set `APPROVED`, and notify the
   implementation agent through state.
 - `archive` - after approval, write durable review and response artifacts to
-  the project docs tree.
+  the project docs tree, keyed by project/pass id while preserving review-time
+  SHAs as non-durable provenance.
 - `reready` - after the implementation agent fixes or responds, bump the
   round, set `READY_FOR_REREVIEW`, optionally regenerate and validate the
   packet, and point the reviewer at the next prompt.
@@ -731,7 +734,8 @@ Completed v1 pieces:
   `request-changes`, `approve`, `reready`, `status`, and `watch`.
 - `archive --pass-id` landed separately after the durability decision: commit
   only irreproducible review judgements and implementer responses; keep
-  packets and runtime state ignored.
+  packets and runtime state ignored; identify the durable record by
+  project/pass id while treating recorded SHAs as review-time provenance.
 - `scripts/agent_review_tmux_notify.sh` landed as the v1 transport for
   already-running tmux panes.
 - `agent_playbook/TOOLING.md` documents the packet, state machine, archive
@@ -821,7 +825,8 @@ Resolved for v1:
    `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`.
 3. Review artifacts are keyed by pass id in project history rather than by a
    separate SHA log, because routine project rebases can orphan SHA-keyed
-   runtime artifacts.
+   runtime artifacts. Review-time SHAs are still recorded as provenance, but
+   the archive labels them as non-durable identifiers.
 4. `REVIEW_ROUNDS_EXHAUSTED` is a first-class terminal state for the current
    run.
 5. The reviewer may write protocol review files under `.agents/runs/`, but

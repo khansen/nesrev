@@ -641,7 +641,7 @@ def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[
     return artifacts
 
 
-def render_archive(state: dict[str, Any], pass_id: str) -> str:
+def render_archive(state: dict[str, Any], pass_id: str, archive_path: str) -> str:
     root = repo_root()
     reviews = read_run_artifacts(root, state, "review-*.md")
     responses = read_run_artifacts(root, state, "response-*.md")
@@ -651,14 +651,23 @@ def render_archive(state: dict[str, Any], pass_id: str) -> str:
     lines = [
         f"# Pass {pass_id} External Review",
         "",
+        f"Pass: `{pass_id}`",
         f"Project: `{state['project']}`",
+        f"Reviewed scorecard row: pass `{pass_id}`",
+        f"Archive path: `{archive_path}`",
         f"Run: `{state['run_id']}`",
         f"Final status: `{state['status']}`",
-        f"Range: `{state['review_base']}..{state['review_head']}`",
+        f"Review-time range: `{state['review_base']}..{state['review_head']}`",
+        f"Review-time head: `{state['review_head']}`",
         f"Rounds: `{state['round']} / {state['max_rounds']}`",
         "",
+        "Review-time SHAs are provenance, not the durable key; routine project",
+        "rebases may orphan them. Use the project, pass id, scorecard row, and",
+        "archive path above to identify the reviewed pass after history rewrites.",
+        "",
         "Packets, prompts, worker state, and notification markers are intentionally",
-        "not archived here; regenerate packets from the recorded range when needed.",
+        "not archived here; regenerate packets from the review-time range only while",
+        "those SHAs remain reachable.",
         "",
         "## Review Artifacts",
         "",
@@ -697,7 +706,7 @@ def command_archive(args: argparse.Namespace) -> int:
     if out_path.exists() and not args.force:
         raise UserError(f"archive already exists: {rel(root, out_path)}")
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(render_archive(state, args.pass_id))
+    out_path.write_text(render_archive(state, args.pass_id, rel(root, out_path)))
     print(f"archived review artifacts to {rel(root, out_path)}")
     return 0
 
