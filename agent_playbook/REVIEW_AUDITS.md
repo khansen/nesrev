@@ -5,14 +5,15 @@ during and near maturity: the static readability debt audit, the readability
 self-audit, the expanded reviewer simulation, the stale-placeholder /
 symbol-family / residual-magic-number / global-label audits, the core
 data-format coverage audit, the project-wide pointer-byte consolidation audit,
-and optional deep-confidence passes. The review
-*criteria* that invoke these audits (quality bar, gold-standard checklist, KPI
-interpretation, semantic-claims, parity registry) live in
-[QUALITY_REVIEW.md](QUALITY_REVIEW.md).
+and optional deep-confidence passes. It also owns process-change sanity checks
+for gates, wrappers, playbooks, and tooling; those checks are not
+maturity-scoped. The review *criteria* that invoke these audits (quality bar,
+gold-standard checklist, KPI interpretation, semantic-claims, parity registry)
+live in [QUALITY_REVIEW.md](QUALITY_REVIEW.md).
 
 ## Ownership
 
-This playbook owns the project-level review audit procedures:
+This playbook owns project-level and process-change review audit procedures:
 
 - static readability debt audit before any static-exhaustion claim
 - readability self-audit
@@ -23,6 +24,7 @@ This playbook owns the project-level review audit procedures:
 - project-wide pointer-byte consolidation audit
 - global-label documentation/localization review
 - core data-format coverage audit
+- process-change sanity checks for gates, wrappers, playbooks, and tooling
 - optional deep-confidence passes
 
 The gold-standard criteria that invoke these audits live in
@@ -30,6 +32,33 @@ The gold-standard criteria that invoke these audits live in
 playbooks but do not redefine them.
 
 ## Playbook Sections
+
+<a id="process-change-review-sanity-checks"></a>
+## Process-Change Review Sanity Checks
+
+For scripts, gates, wrappers, playbooks, specs, and tooling changes, review
+the changed code and also prove the review surface is real.
+
+Required checks:
+
+- **Bad-direction proof for gates and tests.** When a change claims a gate,
+  test, or validation path catches a class of defect, the reviewer should prove
+  the bad direction where practical: temporarily revert the fix, inject the
+  defect, or break the fixture in a disposable worktree and confirm the named
+  check fails with the intended diagnostic. A green test suite only proves the
+  current tree passes; it does not prove the test would catch the regression.
+- **Cross-project blast radius.** When a changed script, wrapper, or playbook
+  can affect more than one project, run the narrowest representative
+  cross-project check that proves the blast radius. Prefer a full-project sweep
+  when the check is cheap; otherwise record which mature, legacy, opted-in, and
+  missing-artifact cases were sampled and why that sample covers the risk.
+
+Record the exact mutation direction, command, exit status, and diagnostic when
+bad-direction proof is run. If the proof is too expensive or unsafe, state that
+explicitly in the review. For blast-radius checks, record which projects stayed
+green, skipped by design, or newly failed. Do not perform mutation tests in the
+implementation worktree; use a disposable worktree or equivalent throwaway
+copy.
 
 <a id="static-readability-debt-audit"></a>
 ## Static Readability Debt Audit
