@@ -222,6 +222,38 @@ EOF
     "request-changes hint must use the external tool path too"
 }
 
+test_agent_review_reviewer_prompt_names_required_playbooks() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_reviewer_prompt_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id prompt_text
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-reviewer-prompt"
+
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    printf 'Implemented demo pass.\n' > ".agents/runs/${run_id}/implementation.md"
+    _write_agent_packet ".agents/runs/${run_id}/packet.md" "${head}" "Packet"
+    python3 scripts/agent_review.py ready \
+      --note ".agents/runs/${run_id}/implementation.md" \
+      --packet ".agents/runs/${run_id}/packet.md"
+  )
+
+  prompt_text="$(<"${repo}/.agents/runs/${run_id}/prompts/01-ready-for-review-reviewer.md")"
+  assert_match 'read `AGENTS.md` and follow the' "${prompt_text}" \
+    "review prompt must route reviewers through AGENTS.md"
+  assert_match 'Review a committed project pass' "${prompt_text}" \
+    "review prompt must name the authoritative AGENTS.md route"
+  assert_match 'Mandatory Routing Table' "${prompt_text}" \
+    "review prompt must point at the routing table"
+  assert_match 'additional routed playbooks' "${prompt_text}" \
+    "review prompt must preserve subsystem-specific routing"
+}
+
 test_agent_review_archive_writes_project_review_artifact() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_archive_repo"
   _init_agent_review_repo "${repo}"

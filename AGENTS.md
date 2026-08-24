@@ -19,6 +19,7 @@ Authoritative bundle map. Load the listed playbooks before substantial work. Cro
 | Review or rewrite comments/docs | `DOCUMENTATION.md`, `QUALITY_REVIEW.md` |
 | Assess gold-standard maturity | `QUALITY_REVIEW.md`, `DOCUMENTATION.md`, `ASM_STYLE.md` |
 | Run a project-level review audit | `REVIEW_AUDITS.md`, `QUALITY_REVIEW.md` |
+| Review a committed project pass | `REVIEW_AUDITS.md`, `QUALITY_REVIEW.md`, `PASS_WORKFLOW.md`, `ASM_STYLE.md`, `TOOLING.md` |
 | Change NESrev, xasm, wrappers, or quality gates | `TOOLING.md`, `QUALITY_REVIEW.md` |
 | Create or review a mod | `ASM_STYLE.md`, `PASS_WORKFLOW.md`, `TOOLING.md` |
 | Audit for dead code, latent bugs, or micro-optimizations | `TOOLING.md` |
