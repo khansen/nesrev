@@ -350,7 +350,7 @@ test_agent_review_archive_writes_project_review_artifact() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_archive_repo"
   _init_agent_review_repo "${repo}"
 
-  local base head run_id archive_path output
+  local base head run_id archive_path output approved_head
   base="$(git -C "${repo}" rev-parse HEAD~1)"
   head="$(git -C "${repo}" rev-parse HEAD)"
   run_id="demo-pass-archive"
@@ -387,9 +387,20 @@ test_agent_review_archive_writes_project_review_artifact() {
     python3 scripts/agent_review.py archive --pass-id 7
   )
 
+  approved_head="$(git -C "${repo}" rev-parse HEAD)"
   output="$(<"${archive_path}")"
   assert_match "# Pass 7 External Review" "${output}"
+  assert_match "Pass: \`7\`" "${output}"
+  assert_match "Project: \`demo\`" "${output}"
+  assert_match "Reviewed scorecard row: pass \`7\`" "${output}"
+  assert_match "Archive path: \`projects/demo/docs/reverse_engineering/reviews/pass-7.md\`" "${output}"
   assert_match "Final status: \`APPROVED\`" "${output}"
+  assert_match "Review-time range: \`${base}..${approved_head}\`" "${output}"
+  assert_match "Review-time head: \`${approved_head}\`" "${output}"
+  assert_match "Review-time SHAs are provenance, not the durable key" "${output}"
+  assert_match "rebases may orphan them" "${output}"
+  assert_match "regenerate packets from the review-time range only while" "${output}"
+  assert_match "those SHAs remain reachable" "${output}"
   assert_match "review-01.md" "${output}"
   assert_match "Verdict: CHANGES_REQUESTED" "${output}"
   assert_match "response-01.md" "${output}"

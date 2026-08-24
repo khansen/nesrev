@@ -244,9 +244,13 @@ ROOT_WORD_CEILING = 6000
 # record later added process-change routing pointers and operational context to
 # REVIEW_AUDITS.md, QUALITY_REVIEW.md, and TOOLING.md; the project-pass-review
 # word ceiling carries that shared review surface without shortening the rules.
+# Review-archive provenance later made archived SHA ranges explicitly
+# review-time-only because routine rebases orphan them; the default and
+# data-recovery routes carry that TOOLING text, so their word ceilings keep
+# measured-plus-headroom instead of leaving unrelated edits with a 3-word margin.
 ROUTE_BUDGETS = {
-    "default": (3225, 23040),
-    "data-recovery": (2965, 21870),
+    "default": (3225, 23100),
+    "data-recovery": (2965, 21930),
     "new-project": (4050, 29400),
     "project-pass-review": (4170, 29350),
 }

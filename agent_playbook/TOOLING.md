@@ -132,12 +132,14 @@ untracked reference files before notifying the reviewer.
 
 After approval, `archive --pass-id <id>` writes the durable judgement record to
 `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`. It archives
-review verdict/findings and implementer responses only. Packets, prompts,
-`.seen` files, and `current.json` stay under ignored `.agents/` because they
-are transient or regenerable from the recorded range. The archive command
-requires a clean tracked tree, then creates the tracked follow-up review
-artifact; commit that artifact before starting the next handoff, because
-`ready` and `reready` also refuse tracked dirty state.
+only review verdict/findings and implementer responses. The archive records
+project, pass id, scorecard row, path, and review-time SHA range; the durable
+key is project plus pass archive path because rebases may orphan SHAs. Packets,
+prompts, `.seen` files, and `current.json` stay ignored under `.agents/`;
+regenerate packets from the review-time range only while those SHAs remain
+reachable. The archive command requires a clean tracked tree, then creates the
+tracked follow-up review artifact; commit that artifact before starting the
+next handoff, because `ready` and `reready` also refuse tracked dirty state.
 
 The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
 `AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
