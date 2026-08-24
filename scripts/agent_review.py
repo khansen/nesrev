@@ -53,6 +53,9 @@ PACKET_VERIFY_GATE_RE = re.compile(
     r"(?ms)^### Project Verify Gate\b(?P<body>.*?)(?=^### |\Z)"
 )
 PACKET_EXIT_STATUS_RE = re.compile(r"(?m)^Exit status:\s*`?([0-9]+)`?\s*$")
+PACKET_LXXXX_FAILURE_RE = re.compile(
+    r"(?m)^FAIL: [0-9]+ distinct LXXXX/LXXXXX labels \([0-9]+ refs\)$"
+)
 RUNTIME_EXCLUDE_PATTERNS = (
     ".agents/current.json",
     ".agents/runs/",
@@ -262,16 +265,29 @@ def validate_packet_head(root: Path, packet: str, expected_head: str) -> None:
         )
 
 
-def validate_packet_verify_gate(root: Path, packet: str) -> None:
+def packet_verify_gate(root: Path, packet: str) -> tuple[str, int]:
     path = resolve_path(root, packet)
     text = path.read_text()
     section = PACKET_VERIFY_GATE_RE.search(text)
     if not section:
         raise UserError(f"packet does not contain Project Verify Gate: {packet}")
-    match = PACKET_EXIT_STATUS_RE.search(section.group("body"))
+    body = section.group("body")
+    match = PACKET_EXIT_STATUS_RE.search(body)
     if not match:
         raise UserError(f"packet Project Verify Gate does not declare Exit status: {packet}")
-    status = int(match.group(1))
+    return body, int(match.group(1))
+
+
+def packet_verify_gate_failed_on_lxxxx(root: Path, packet: str) -> bool:
+    try:
+        body, status = packet_verify_gate(root, packet)
+    except UserError:
+        return False
+    return status != 0 and bool(PACKET_LXXXX_FAILURE_RE.search(body))
+
+
+def validate_packet_verify_gate(root: Path, packet: str) -> None:
+    _body, status = packet_verify_gate(root, packet)
     if status != 0:
         raise UserError(f"packet Project Verify Gate exit status is nonzero: {status}")
 
@@ -407,22 +423,40 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
         raise UserError("--generate-packet requires a project in state")
     packet_path = run_dir(root, state) / f"packet-round-{int(state['round']):02d}.md"
     packet_path.parent.mkdir(parents=True, exist_ok=True)
+    generate_packet(root, state, packet_path)
+    state["packet"] = rel(root, packet_path)
+    try:
+        validate_packet(root, state["packet"], state["review_head"])
+    except UserError:
+        if not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
+            root, state["packet"]
+        ):
+            print(
+                "info: strict packet verify failed on unresolved LXXXX labels; "
+                "regenerating with ALLOW_UNRESOLVED_LXXXX=1",
+                file=sys.stderr,
+            )
+            state["allow_unresolved_lxxxx"] = True
+            generate_packet(root, state, packet_path)
+            validate_packet(root, state["packet"], state["review_head"])
+            return
+        raise
+
+
+def generate_packet(root: Path, state: dict[str, Any], packet_path: Path) -> None:
     cmd = [
         "make",
         "project-pass-review-packet",
-        f"PROJECT={project}",
+        f"PROJECT={state['project']}",
         f"BASE={state['review_base']}",
         f"HEAD={state['review_head']}",
         f"OUT={rel(root, packet_path)}",
     ]
-    env = os.environ.copy()
     if state.get("allow_unresolved_lxxxx"):
         cmd.append("ALLOW_UNRESOLVED_LXXXX=1")
-    result = subprocess.run(cmd, cwd=root, env=env, text=True)
+    result = subprocess.run(cmd, cwd=root, env=os.environ.copy(), text=True)
     if result.returncode != 0:
         raise UserError(f"packet generation failed with exit {result.returncode}")
-    state["packet"] = rel(root, packet_path)
-    validate_packet(root, state["packet"], state["review_head"])
 
 
 def command_init(args: argparse.Namespace) -> int:

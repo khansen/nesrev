@@ -345,6 +345,9 @@ Required fields:
 - `run_id`: filesystem-safe directory name under `.agents/runs/`
 
 Optional fields may record pass id, checks, or session endpoint ids.
+`allow_unresolved_lxxxx` records that generated packets should use relaxed
+semantic-pass verification; it can be set at `init` or inferred after a
+generated strict packet fails on expected unresolved `LXXXX` labels.
 Transport-specific session handles are optional hints, not authoritative state.
 
 ### 5.2 States
@@ -486,7 +489,10 @@ The script should reject:
 - dirty implementation files when moving to `READY_FOR_REVIEW`
 - `round` greater than `max_rounds`
 - packets that do not declare the current review head
-- packets whose Project Verify Gate section is missing or nonzero
+- packets whose Project Verify Gate section is missing or nonzero, except that
+  a generated strict packet may be regenerated once with
+  `ALLOW_UNRESOLVED_LXXXX=1` when the only observed verify failure is expected
+  unresolved `LXXXX` labels
 - review files that omit a verdict
 - attempts to mark approval without a review artifact
 - unsafe run ids, project slugs, or archive output paths
@@ -639,7 +645,9 @@ Stale verification evidence:
   included for context, it must name the SHA it describes and the packet must
   either rerun the gate at `review_head` or state why no current result exists.
 - `ready` and `reready` validate that the packet declares the current review
-  head and that its Project Verify Gate section reports exit status 0.
+  head and that its Project Verify Gate section reports exit status 0. If
+  generated strict packet evidence fails on expected unresolved `LXXXX` labels,
+  they regenerate once with `ALLOW_UNRESOLVED_LXXXX=1` and persist that mode.
 
 Reviewer modifies implementation files:
 
@@ -760,6 +768,9 @@ Automated tests now cover:
 - `ready` rejects dirty tracked state
 - `ready` rejects packets with stale review heads, missing verify-gate
   sections, or nonzero Project Verify Gate status
+- `ready --generate-packet` auto-regenerates expected unresolved-`LXXXX`
+  strict verify failures in relaxed mode, and does not relax other verify
+  failures
 - `request-changes` requires `Verdict: CHANGES_REQUESTED`
 - `approve` requires `Verdict: APPROVED`
 - `reready` advances the review head, increments rounds, rejects stale packets,
