@@ -253,6 +253,64 @@ print(pass_id)
 PY
 )"
 
+if [[ -n "${REWORK_ITEMS:-}" ]]; then
+  python3 - "${PROGRESS_SCORECARD_FILE}" "${PASS_ID}" "${REWORK_ITEMS}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+scorecard_path = Path(sys.argv[1])
+pass_id = sys.argv[2]
+rework_input = re.sub(r"\s+", " ", sys.argv[3].strip())
+HEADER_REQUIRED = {"pass_id", "notes", "verify", "docs_check", "rework_items"}
+
+
+if "|" in rework_input:
+    raise SystemExit(
+        "error: raw '|' is not allowed in REWORK_ITEMS; the scorecard is a "
+        "Markdown-table ledger, so a pipe breaks the row."
+    )
+
+
+def is_scorecard_header(cells):
+    return HEADER_REQUIRED.issubset(set(cells))
+
+
+lines = scorecard_path.read_text(encoding="utf-8").splitlines()
+header = None
+changed = False
+for idx, raw in enumerate(lines):
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if is_scorecard_header(cells):
+        header = cells
+        continue
+    if header is None:
+        continue
+    if len(cells) != len(header):
+        continue
+    header_index = {name: i for i, name in enumerate(header)}
+    if cells[header_index["pass_id"]] != pass_id:
+        continue
+    cells[header_index["rework_items"]] = rework_input
+    lines[idx] = "| " + " | ".join(cells) + " |"
+    changed = True
+    break
+
+if not changed:
+    raise SystemExit(f"scorecard row not found for pass {pass_id}")
+
+scorecard_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+print(
+    f"project-pass-closeout: recorded rework_items='{rework_input}' for pass "
+    f"{pass_id} before process preflight",
+    file=sys.stderr,
+)
+PY
+fi
+
 bash "${RUN_SCRIPT_DIR}/refresh_inventory.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_pass_residue_check.sh" "${SLUG}" "${PASS_ID}"
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
