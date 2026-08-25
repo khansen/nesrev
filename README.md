@@ -53,9 +53,30 @@ restart either agent session.
 Humans still create the implementer and reviewer sessions manually, typically
 in tmux panes left idle at their agent prompts. There is no convenience script
 that launches Codex and Claude together; `scripts/agent_review_tmux_notify.sh`
-is only a notifier for already-running panes. The exact pane setup, watcher
-commands, post-commit handoff command, archive step, and operational caveats
-live in
+is only a notifier for already-running panes. The implementer pane is not
+configured to talk to the reviewer pane directly; the watcher shell wires the
+two panes together with tmux target environment variables.
+
+Minimal setup reminder:
+
+```sh
+tmux new-session -d -s nesrev-review -c /path/to/nesrev
+tmux split-window -h -t nesrev-review -c /path/to/nesrev
+tmux attach -t nesrev-review
+# pane 1: <start implementer agent>
+# pane 2: <start reviewer agent>
+
+tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
+export AGENT_REVIEW_TMUX_REVIEWER=%<reviewer-pane>
+export AGENT_REVIEW_TMUX_IMPLEMENTER=%<implementer-pane>
+
+# Run each watcher in its own shell or tmux pane.
+python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
+python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
+```
+
+The full pane setup, post-commit handoff command, archive step, and operational
+caveats live in
 [TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
 
 Reference ROM/binary files are not tracked. Each user must provide their own
