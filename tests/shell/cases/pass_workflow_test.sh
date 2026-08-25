@@ -1384,6 +1384,109 @@ if row[cols["rework_items"]] != "2":
 PY
 }
 
+test_project_pass_closeout_external_script_uses_declared_repo_root() {
+  local slug; slug="$(unique_slug pass_closeout_external_root)"
+  local target_repo="${NESREV_TEST_TMPDIR}/target_repo"
+  mkdir -p "${target_repo}"
+  git -C "${target_repo}" init -q
+  local target_repo_real
+  target_repo_real="$(cd "${target_repo}" && pwd -P)"
+
+  (
+    cd "${target_repo}"
+    _make_workflow_project "${slug}" "none"
+    printf 'PROOF_DEBT_REQUIRED=1\n' >> "projects/${slug}/project.conf"
+    cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---:|---|
+| 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
+| 1 | Existing closed row | 8 / 16 | 0 | not measured | 0 | 0 | 0 | pass | pass | pending | First closeout stopped after marking gates. |
+EOF
+  )
+
+  local stubdir="${NESREV_TEST_TMPDIR}/external_stubs"
+  local log="${target_repo}/projects/${slug}/external_closeout.log"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/project_pass_residue_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'residue %s %s cwd=%s\n' "$1" "$2" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/refresh_inventory.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'inventory %s cwd=%s\n' "$1" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_next_pass.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'raw_refresh %s cwd=%s\n' "$1" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_docs_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'docs %s cwd=%s\n' "$1" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+python3 - "projects/$1/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = None
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if {"pass_id", "verify", "docs_check", "rework_items"}.issubset(set(cells)):
+        header = cells
+        continue
+    if header is None or len(cells) != len(header):
+        continue
+    cols = {name: i for i, name in enumerate(header)}
+    if cells[cols["pass_id"]] == "1" and cells[cols["rework_items"]].lower() == "pending":
+        raise SystemExit("pending rework reached process check")
+PY
+printf 'process %s cwd=%s\n' "$1" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'verify %s cwd=%s\n' "$1" "$(pwd)" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/deferral_capture.py" <<'PY'
+import os
+import sys
+
+explicit = ""
+if "--explicit" in sys.argv:
+    explicit = sys.argv[sys.argv.index("--explicit") + 1]
+with open(os.environ["STUB_LOG"], "a", encoding="utf-8") as handle:
+    handle.write(f"deferrals {explicit} cwd={os.getcwd()}\n")
+PY
+  chmod +x "${stubdir}"/*.sh
+
+  STUB_LOG="${log}" PROJECT_PASS_CLOSEOUT_REPO_ROOT="${target_repo}" \
+    PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    REWORK_ITEMS=2 DEFERRALS=external_gap:static:revisit \
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null
+
+  local target_scorecard="${target_repo}/projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md"
+  assert_match "cwd=${target_repo_real}" "$(cat "${log}")" \
+    "external closeout helpers must run from the declared target repo root"
+  assert_match "deferrals external_gap:static:revisit" "$(cat "${log}")" \
+    "external closeout must still forward DEFERRALS"
+  assert_match "\\| 1 \\| Existing closed row .*\\| pass \\(LXXXX allowed\\) \\| pass \\| 2 \\|" \
+    "$(cat "${target_scorecard}")" \
+    "external closeout must repair the target repo scorecard"
+  if [[ -e "projects/${slug}" ]]; then
+    fail "external closeout wrote project files in the tool repo"
+  fi
+}
+
 test_project_pass_closeout_materializes_missing_row_from_existing_header() {
   local slug; slug="$(unique_slug pass_closeout_materialize)"
   trap "cleanup_project ${slug}" EXIT
