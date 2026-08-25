@@ -43,7 +43,9 @@ cat > "$root/README.md" <<DOC
 > Makefile). They will fail with "No rule to make target" or
 > "no Makefile found" if invoked from inside \`projects/${slug}/\`.
 
-1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0 NROM or MMC1; see the support matrix).
+1. Place the ROM at \`reference/${slug}.nes\` (supported iNES/NES 2.0
+   NROM or MMC1; see the support matrix). If the ROM is not available
+   yet, stop here and give the user this exact path.
 2. \`make project-regenerate-asm PROJECT=${slug}\` — produces \`asm/${slug}.asm\` with LXXXX placeholders.
 3. Audit hidden-code and indirect-dispatch candidates. Record either
    \`NESREV_RECOVERY_STATUS="none"\` or \`"configured"\` in
@@ -154,7 +156,9 @@ cat > "$root/docs/reverse_engineering/ONBOARDING.md" <<DOC
 > (the directory that contains the top-level Makefile), not from
 > inside this project directory.
 
-1. Place the reference ROM at \`reference/${slug}.nes\`. It must match the
+1. Place the reference ROM at \`reference/${slug}.nes\`. If the ROM is
+   not available yet, stop here and give the user this exact path. Once
+   supplied, it must match the
    [support matrix](../../../../agent_playbook/NEW_PROJECT.md#rom-support-matrix).
 
 2. Generate the assembly. This step also validates the ROM against the

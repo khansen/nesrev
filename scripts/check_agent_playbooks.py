@@ -258,10 +258,14 @@ ROOT_WORD_CEILING = 6000
 # process-learning candidates plus REVIEW_AUDITS triage rules. The affected
 # routes carry that operator/reviewer contract explicitly so friction can be
 # reviewed outside individual passes instead of living only in chat.
+# New-project intake later made the scaffold-before-ROM order explicit after a
+# live startup stalled before the user could place the ROM. The new-project
+# ceiling carries that operator-facing stop condition rather than compressing
+# the handoff rule back into ambiguous shorthand.
 ROUTE_BUDGETS = {
     "default": (3250, 23420),
     "data-recovery": (2965, 22120),
-    "new-project": (4050, 29510),
+    "new-project": (4050, 29620),
     "project-pass-review": (4240, 29760),
 }
 

@@ -27,14 +27,18 @@ is owned by [DOCUMENTATION.md](DOCUMENTATION.md#terminology-crosswalk).
 The end-to-end intake flow for a new game project:
 
 1. Verify the host toolchain — see [#prerequisites](#prerequisites).
-2. Identify the game slug and locate the reference ROM file — see
-   [#rom-intake](#rom-intake). Knowing the support matrix at
+2. Identify the game slug and whether the user can provide the
+   reference ROM — see [#rom-intake](#rom-intake). Do not wait for the
+   ROM before scaffolding; the scaffold creates the directory where the
+   user must place it. Knowing the support matrix at
    [#rom-support-matrix](#rom-support-matrix) up front helps you
    recognize obviously unsupported ROMs early, but the enforcing gate
    runs at step 5.
 3. Scaffold the project — see [#project-scaffolding](#project-scaffolding).
 4. Place the reference ROM inside the scaffold at
-   `projects/<slug>/reference/<slug>.nes`.
+   `projects/<slug>/reference/<slug>.nes`. If the ROM is absent, stop
+   after scaffolding and report that exact expected path to the user;
+   do not skip the scaffold or continue intake under an alternate name.
 5. Generate the initial assembly from the ROM — see
    [#initial-assembly-generation](#initial-assembly-generation). This is
    the gate that validates the ROM against the support matrix; an
@@ -103,11 +107,12 @@ ROM is supported when **all** of these hold against its iNES header:
 [`scripts/project_regenerate_asm.sh`](../scripts/project_regenerate_asm.sh)
 and fails with an explicit message naming the offending field plus a
 pointer back to this anchor. The check runs only after the project is
-scaffolded and the ROM is placed (steps 3-5 of [#starting-a-new-project](#starting-a-new-project)),
-so a quick eyeball of the iNES header before scaffolding can save a
-round trip on obviously unsupported ROMs. If a ROM falls outside the
-matrix, do not proceed with intake — surface the limitation to the
-user and stop; nesrev cannot disassemble it correctly. MMC1 vectors seed
+scaffolded and the ROM is placed (steps 3-5 of [#starting-a-new-project](#starting-a-new-project)).
+If the ROM is not available yet, create the scaffold first and stop
+with the expected `projects/<slug>/reference/<slug>.nes` path. If a ROM
+falls outside the matrix once supplied, do not proceed with intake —
+surface the limitation to the user and stop; nesrev cannot disassemble
+it correctly. MMC1 vectors seed
 final `$C000-$FFFF` automatically; switched `$8000-$BFFF` code needs bank
 evidence: bank-qualified `codeentries.txt`, same-bank pointer tables, or
 configured fixed-bank code-pointer tables probed across all non-final banks.
@@ -120,7 +125,10 @@ Slug identification and ROM placement (steps 2 and 4 of
 support-matrix gate fires at step 5; the slug is needed to scaffold
 the project. At that early stage ask the user only for what cannot be
 discovered locally — normally the intended game/title and whether
-reference docs/ROM will be provided if absent. Derive PRG/CHR size,
+reference docs/ROM will be provided if absent. Missing ROM material is
+a post-scaffold blocker: create `projects/<slug>/` first, then tell the
+user to place the file at `projects/<slug>/reference/<slug>.nes`.
+Derive PRG/CHR size,
 ROM container length, code-pointer state, and prior-project analogue
 from the ROM header and existing artifacts, not the user. Once step 5
 confirms the matrix, no further ROM-identity questions are needed.
@@ -140,7 +148,9 @@ make project-init PROJECT=<slug>
 This is the canonical entry point. The Make target wraps
 [`scripts/new_project.sh`](../scripts/new_project.sh), which creates the
 canonical project directory layout under `projects/<slug>/` plus the
-`docs/reverse_engineering/` shell. See the script for the exact
+`docs/reverse_engineering/` shell. Run it even when the ROM has not yet
+been provided; the generated `reference/` directory gives the user the
+exact placement target. See the script for the exact
 generated paths; this playbook does not duplicate them.
 
 New scaffolds include `SEMANTIC_CLAIMS.md` and set `SEMANTIC_CLAIMS_REQUIRED="1"`
