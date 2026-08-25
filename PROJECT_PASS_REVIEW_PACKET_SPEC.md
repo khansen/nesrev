@@ -3,9 +3,10 @@
 Status: implemented by `scripts/project_pass_review_packet.sh` and
 `make project-pass-review-packet`.
 
-This document defines the review packet used for local semantic project-pass
-review. The packet is useful on its own in the current manual workflow and is
-also the evidence contract future review automation must generate or consume.
+This document defines the review packet used when a committed semantic
+project-pass is handed to external or adversarial review. The packet is useful
+on its own in the current manual workflow and is also the evidence contract
+future review automation must generate or consume.
 
 ## 1. Purpose
 
@@ -15,14 +16,17 @@ reviewer after a committed semantic pass. It turns "review the last pass" into
 
 The packet is not a verdict, a gate, or a new project artifact. It is a
 generated briefing file. Git history, committed project files, and the existing
-project gates remain authoritative.
+project gates remain authoritative. It does not replace the mandatory
+self-review, readability audit, closeout, or project gates, and it is not
+required for ordinary self-review-only passes.
 
 ## 2. Scope
 
-Use a packet for committed semantic disassembly passes on a `projects/*`
-branch. The normal reviewed unit is one pass commit, but the input is an
-explicit local `BASE..HEAD` range so fixup commits and small batches can be
-reviewed without ambiguity.
+Use a packet when a committed semantic disassembly pass on a `projects/*`
+branch is selected for external/adversarial review, review automation handoff,
+or an optional solo post-commit audit. The normal reviewed unit is one pass
+commit, but the input is an explicit local `BASE..HEAD` range so fixup commits
+and small batches can be reviewed without ambiguity.
 
 Do not use this packet format for process, tooling, playbook, test, wrapper,
 or shared-script review. Those changes use ordinary branch or PR-style code
@@ -30,7 +34,7 @@ review.
 
 ## 3. Lifecycle
 
-Packets are intended to be ephemeral:
+For external/adversarial review, packets are intended to be ephemeral:
 
 1. The implementation agent commits the project pass.
 2. The implementation agent generates a packet from a clean worktree checked
@@ -42,9 +46,12 @@ Keeping a copy under an ignored path such as `/private/tmp` or
 `.agents/runs/` is useful for debugging or audit, but packets are not tracked
 source files and are not required to reproduce the codebase.
 
+A sole implementer may generate a packet as an optional review aid, but normal
+self-review-only pass closure does not require one.
+
 In a future automated handoff, a coordinator may generate the packet when the
 review state enters `READY_FOR_REVIEW`. That does not change ownership: the
-packet generator materializes process-required evidence, and the reviewer
+packet generator materializes protocol-required evidence, and the reviewer
 still judges the pass.
 
 ## 4. Inputs

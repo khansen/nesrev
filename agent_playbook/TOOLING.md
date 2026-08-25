@@ -84,11 +84,13 @@ dirty just because the next briefing was generated.
 ### Project-Pass Review Packet
 
 `make project-pass-review-packet PROJECT=<slug> BASE=<base> HEAD=<head>`
-emits a Markdown packet for external project-pass review. Run it from a clean
-worktree checked out at `HEAD`; the wrapper refuses tracked dirty state or a
-different checkout so gate evidence cannot describe the wrong commit. Redirect
-stdout to an ignored path or pass `OUT=<packet.md>`. The packet contract lives
-in [`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](../PROJECT_PASS_REVIEW_PACKET_SPEC.md).
+emits a Markdown packet for external/adversarial project-pass review. A sole
+implementer may generate one for optional post-commit audit; ordinary
+self-review-only passes do not need it. Run it from a clean worktree checked
+out at `HEAD`; the wrapper refuses tracked dirty state or a different checkout
+so gate evidence cannot describe the wrong commit. Redirect stdout to an
+ignored path or pass `OUT=<packet.md>`. The packet contract lives in
+[`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](../PROJECT_PASS_REVIEW_PACKET_SPEC.md).
 
 The packet includes range-level rename and unresolved-label deltas, the
 complete `BASE..HEAD` commit list, project diff, authored-ledger deltas,
@@ -97,10 +99,12 @@ verify/process/docs gates, with each command labelled by the exact SHA it
 describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
 relaxed semantic-pass verification mode.
 
+<a id="agent-review-handoff"></a>
 ### Agent Review Handoff
 
-`python3 scripts/agent_review.py` is the local v1 path for pass-by-pass
-handoff between already-running agent sessions. The user still starts Codex,
+`python3 scripts/agent_review.py` is the optional local v1 handoff path for
+already-running agent sessions after a run opts into external/adversarial
+review. It is not part of mandatory solo closeout. The user still starts Codex,
 Claude, and any worker loops manually; the script records
 `.agents/current.json`, points each role at the packet/review artifacts, and
 lets a watcher notify the next role after `READY_FOR_REVIEW`,

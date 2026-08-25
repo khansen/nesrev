@@ -889,7 +889,8 @@ Every batch must conclude with:
    this as the authoritative inventory refresh, stale-symbol sweep for authored
    ledgers (`raw_ram_review.csv`, `WORKING_NOTES.md`, scorecard rows), docs
    checks, process checks, final verification, and scorecard status update.
-   - Ordinary batches stop here. Approaching **full project maturity**
+   - Solo batches stop here; handoff is opt-in.
+   - Approaching **full project maturity**
      (every applicable dimension at
      [#project-maturity-dimensions](#project-maturity-dimensions)
      closed) additionally runs
@@ -910,8 +911,9 @@ Every batch must conclude with:
      when a project-maturity exit + docs/process sequence is needed
      in one invocation.
 
-Use `VERIFY_MODE=relaxed` while unresolved `LXXXX` labels remain. Use
-`VERIFY_MODE=strict` once the project is ready for strict verification.
+Use `VERIFY_MODE=relaxed` while unresolved `LXXXX` labels remain; use
+`VERIFY_MODE=strict` once the project is strict-ready.
+
 ### Mass symbolization decision tree
 
 **Corridor prerequisite.** Mass replacement is allowed only when the

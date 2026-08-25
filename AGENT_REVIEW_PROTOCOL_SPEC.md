@@ -37,11 +37,13 @@ The remaining weakness is not lack of local rules. It is that a single
 implementation agent can follow locally plausible paths for many passes before
 an outside reviewer notices the aggregate drift. The review of a large
 semantic-pass batch demonstrated that "human self-review" by the operator is
-necessary but not sufficient: the operator is optimized to finish the pass,
-while the reviewer is optimized to attack the evidence and process claims.
+necessary but not sufficient for unattended or high-scrutiny runs: the operator
+is optimized to finish the pass, while the reviewer is optimized to attack the
+evidence and process claims.
 
-External adversarial review has therefore become part of the real process, but
-today it is manual:
+External adversarial review is therefore an opt-in layer over ordinary solo
+closeout, and it has become the chosen workflow for the current automated-pass
+trial. Without the handoff helper, that layer is manual:
 
 - the user asks a reviewer agent to review a commit or branch
 - the user copies the reviewer findings back into the implementation agent
@@ -93,7 +95,10 @@ Non-goals for v1:
 
 ## 3. Scope and Rejected Ranges
 
-Use this protocol for committed semantic disassembly passes.
+Use this protocol when a committed semantic disassembly pass is selected for
+external/adversarial review. A sole implementer may still complete a pass
+through normal self-review, closeout, gates, and commit without invoking this
+protocol.
 
 - The reviewed unit is a local `base..head` commit range, usually one pass
   commit.
@@ -103,8 +108,8 @@ Use this protocol for committed semantic disassembly passes.
   checks, inspect generated artifacts, read aggregate project signals, and
   challenge evidence, but should not mutation-test semantic edits by changing
   project files.
-- Every review consumes a compliant project-pass review packet, including the
-  Required Contents in
+- Every review under this protocol consumes a compliant project-pass review
+  packet, including the Required Contents in
   [`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](PROJECT_PASS_REVIEW_PACKET_SPEC.md).
   The reviewer may inspect the repository directly when the packet raises a
   question or omits needed context.
@@ -142,7 +147,7 @@ correct.
 
 The project-pass review packet contract lives in
 [`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](PROJECT_PASS_REVIEW_PACKET_SPEC.md).
-That packet is the executable form of the process-required review evidence. It
+That packet is the executable form of the protocol-required review evidence. It
 is useful manually and remains orthogonal to coordination: the coordinator may
 run the packet generator, but it must not decide whether the pass is correct.
 
@@ -556,10 +561,10 @@ Implementation-agent instructions:
   action.
 - After a pass commit, run
   `python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id>`
-  for normal single-pass ranges so note creation, initialization, packet
-  generation, and status reporting are one operation. Use lower-level `init`
-  plus `ready --generate-packet` only when a non-default range, run id, or
-  hand-authored implementation note is required.
+  when external/adversarial handoff is enabled for a normal single-pass range
+  so note creation, initialization, packet generation, and status reporting are
+  one operation. Use lower-level `init` plus `ready --generate-packet` only when
+  a non-default range, run id, or hand-authored implementation note is required.
 - If the reviewer requests changes, commit fixes or write a response that
   classifies every finding as `fixed`, `disputed`, or `deferred`; then run
   `reready`.
@@ -587,7 +592,7 @@ Shared instructions:
 
 ## 10. Normal Workflow
 
-One-pass happy path:
+One-pass external-review happy path:
 
 1. The implementation agent runs a semantic pass, verifies, closes out, and
    commits.
@@ -752,6 +757,9 @@ Completed v1 pieces:
 - `AGENTS.md` owns the `Review a committed project pass` route, and generated
   reviewer prompts reference that row instead of carrying a duplicate playbook
   bundle.
+- The protocol is opt-in over ordinary self-review-only pass closeout; it is
+  mandatory only when a run elects external/adversarial review or a future
+  project policy explicitly requires it.
 
 Deliberately not implemented in v1:
 
