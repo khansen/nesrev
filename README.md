@@ -43,6 +43,21 @@ Adding process detail to the prompt is usually the wrong fix. The prompt sets
 the goal and the exit condition; a rule that belongs to every run belongs in the
 playbooks, where it applies whether or not whoever starts the run remembers it.
 
+### Optional tmux review handoff
+
+External/adversarial pass review is opt-in. The local handoff tools automate
+the post-commit back-and-forth between an already-running implementer agent and
+an already-running reviewer agent; they do not start, log in to, supervise, or
+restart either agent session.
+
+Humans still create the implementer and reviewer sessions manually, typically
+in tmux panes left idle at their agent prompts. There is no convenience script
+that launches Codex and Claude together; `scripts/agent_review_tmux_notify.sh`
+is only a notifier for already-running panes. The exact pane setup, watcher
+commands, post-commit handoff command, archive step, and operational caveats
+live in
+[TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
+
 Reference ROM/binary files are not tracked. Each user must provide their own
 reference file under `projects/<slug>/reference/`.
 NESrev recovery controls are authored build inputs: keep them under
