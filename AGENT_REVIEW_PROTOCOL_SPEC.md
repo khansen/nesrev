@@ -17,11 +17,11 @@ third-party coordinator was adopted for v1, and the earlier prior-art spike is
 now optional future comparison rather than a prerequisite. The implementation
 stays deliberately boring: Git remains the source of truth for code and
 commits, `.agents/` stores ignored runtime state, durable review judgements
-are committed under the reviewed project, and a small worker/notifier loop
-coordinates two already-running local agent sessions. The user may start the
-sessions and worker loops manually; v1 automates post-pass handoff, not login
-or session startup. Do not introduce MCP or a custom service in v1 unless the
-file/state approach fails a concrete requirement.
+and learning candidates are committed under the reviewed project, and a small
+worker/notifier loop coordinates two already-running local agent sessions. The
+user may start the sessions and worker loops manually; v1 automates post-pass
+handoff, not login or session startup. Do not introduce MCP or a custom service
+in v1 unless the file/state approach fails a concrete requirement.
 
 ## 1. Context
 
@@ -308,6 +308,11 @@ Durable review judgements are not stored under `.agents/`. After approval,
 id rather than SHA so routine project rebases do not orphan the record. The
 archive still records review-time SHAs as provenance, but labels them as
 review-time identifiers that may become unreachable after a rebase.
+Non-empty `## Learning Candidates` sections from the implementation note,
+review artifacts, and response artifacts are copied to
+`projects/<slug>/PROCESS_FRICTION.md` as raw process-learning candidates for
+later triage. `_None._` is the explicit no-op marker. Promotion from that queue
+to playbooks or scripts uses process review, not the project-pass review round.
 
 V1 did not add tracked `.agents/` role files. Agent-facing workflow
 instructions live in `agent_playbook/TOOLING.md`; the generated prompt files in
@@ -443,6 +448,7 @@ The implementation note should include:
 - files intentionally changed
 - known advisory warnings
 - any process friction recorded
+- process, harness, or tooling learning candidates, or `_None._`
 - any explicit non-goals or deferred work
 
 The review output should include:
@@ -453,6 +459,7 @@ The review output should include:
 - file/line references or commit/range references
 - verification gaps or false-green concerns
 - process issues
+- process, harness, or tooling learning candidates, or `_None._`
 - aggregate drift or proof-debt concerns
 - baseline or allowlist delta concerns
 - questions that block approval, if any
@@ -471,7 +478,7 @@ Implemented subcommands:
 - `start-pass` - normal post-commit handoff entry point: infer the default
   `HEAD~1..HEAD` range, create the implementation note, initialize state,
   generate and validate the packet, write the reviewer prompt, and print
-  status.
+  status. It accepts optional learning-candidate text for the generated note.
 - `init` - create `.agents/current.json` and `.agents/runs/<run_id>/`
   for the current branch and commit range.
 - `ready` - validate clean committed state, write/update the implementation
@@ -483,7 +490,8 @@ Implemented subcommands:
   implementation agent through state.
 - `archive` - after approval, write durable review and response artifacts to
   the project docs tree, keyed by project/pass id while preserving review-time
-  SHAs as non-durable provenance.
+  SHAs as non-durable provenance. It also copies non-empty learning candidates
+  to the project's process-friction queue.
 - `reready` - after the implementation agent fixes or responds, bump the
   round, set `READY_FOR_REREVIEW`, optionally regenerate and validate the
   packet, and point the reviewer at the next prompt.
@@ -760,6 +768,9 @@ Completed v1 pieces:
 - The protocol is opt-in over ordinary self-review-only pass closeout; it is
   mandatory only when a run elects external/adversarial review or a future
   project policy explicitly requires it.
+- Generated prompts and archives now support a learning loop: reviewers and
+  implementers can record `## Learning Candidates`; archive copies non-empty
+  sections to `projects/<slug>/PROCESS_FRICTION.md` for later process triage.
 
 Deliberately not implemented in v1:
 
@@ -802,6 +813,9 @@ Automated tests now cover:
 - tampered `run_id` and project slug values are rejected on state read
 - archive requires `APPROVED`, records reviews and responses, excludes packets
   and prompts, and rejects paths outside the repository
+- archive copies non-empty `## Learning Candidates` sections from the
+  implementation note, reviews, and responses to the project's
+  `PROCESS_FRICTION.md`, while `_None._` sections are ignored
 - long-running `watch` can start before `init`, waits for state, and does not
   repeat the same notification after `.seen`
 - reviewer prompts route through the `Review a committed project pass` row in

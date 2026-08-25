@@ -254,11 +254,15 @@ ROOT_WORD_CEILING = 6000
 # and the design record carry that workflow explicitly, so the affected route
 # ceilings preserve measured-plus-headroom rather than compressing the safety
 # rule back into an easy-to-misorder checklist.
+# The agent-review learning loop later added prompt/archive capture for raw
+# process-learning candidates plus REVIEW_AUDITS triage rules. The affected
+# routes carry that operator/reviewer contract explicitly so friction can be
+# reviewed outside individual passes instead of living only in chat.
 ROUTE_BUDGETS = {
-    "default": (3225, 23210),
-    "data-recovery": (2965, 22020),
-    "new-project": (4050, 29400),
-    "project-pass-review": (4190, 29430),
+    "default": (3250, 23420),
+    "data-recovery": (2965, 22120),
+    "new-project": (4050, 29510),
+    "project-pass-review": (4240, 29760),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

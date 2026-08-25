@@ -108,7 +108,7 @@ project-pass-review-packet:
 	@if [ -n "$(OUT)" ]; then bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)" > "$(OUT)"; else bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)"; fi
 
 project-pass-review-start:
-	@if [ -z "$(PROJECT)" ] || [ -z "$(PASS)" ]; then echo "usage: make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<base-ref>] [HEAD=<head-ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [ALLOW_UNRESOLVED_LXXXX=1]"; exit 2; fi
+	@if [ -z "$(PROJECT)" ] || [ -z "$(PASS)" ]; then echo "usage: make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<base-ref>] [HEAD=<head-ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [ALLOW_UNRESOLVED_LXXXX=1] [LEARNING=<text>]"; exit 2; fi
 	@set -- \
 	  --project "$(PROJECT)" \
 	  --pass-id "$(PASS)" \
@@ -117,6 +117,7 @@ project-pass-review-start:
 	if [ -n "$(RUN_ID)" ]; then set -- "$$@" --run-id "$(RUN_ID)"; fi; \
 	if [ -n "$(MAX_ROUNDS)" ]; then set -- "$$@" --max-rounds "$(MAX_ROUNDS)"; fi; \
 	if [ -n "$(filter 1 true yes,$(ALLOW_UNRESOLVED_LXXXX))" ]; then set -- "$$@" --allow-unresolved-lxxxx; fi; \
+	if [ -n "$${LEARNING:-}" ]; then set -- "$$@" --learning "$$LEARNING"; fi; \
 	python3 scripts/agent_review.py start-pass "$$@"
 
 project-raw-ram-review:

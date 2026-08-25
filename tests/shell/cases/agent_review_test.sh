@@ -284,7 +284,10 @@ test_agent_review_start_pass_creates_note_packet_and_prompt() {
 
   output="$(
     cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/start-pass-bin:${PATH}" \
-      python3 scripts/agent_review.py start-pass --project demo --pass-id 1 2>&1
+      python3 scripts/agent_review.py start-pass \
+        --project demo \
+        --pass-id 1 \
+        --learning "Process friction: generated note capture exercised." 2>&1
   )"
 
   assert_match "implementation note: .agents/runs/${run_id}/implementation.md" "${output}" \
@@ -312,10 +315,16 @@ test_agent_review_start_pass_creates_note_packet_and_prompt() {
     "generated implementation note must name the reviewed pass"
   assert_match "Demo pass" "$(<"${note}")" \
     "generated implementation note must include the commit summary"
+  assert_match "## Learning Candidates" "$(<"${note}")" \
+    "generated implementation note must carry the learning-candidate section"
+  assert_match "generated note capture exercised" "$(<"${note}")" \
+    "start-pass must record explicit implementation learning candidates"
   assert_match "Exit status: \`0\`" "$(<"${packet}")" \
     "start-pass must generate a packet that passed verify preflight"
   assert_match "Implementation note: .agents/runs/${run_id}/implementation.md" "$(<"${prompt}")" \
     "reviewer prompt must point at the generated note"
+  assert_match "## Learning Candidates" "$(<"${prompt}")" \
+    "reviewer prompt must ask reviewers to record process learning candidates"
   assert_eq "$(wc -l <"${counter}" | tr -d ' ')" "1" \
     "start-pass should generate exactly one packet when strict verify passes"
   if [[ -e "${repo}/.agents/runs/${run_id}/state.json" ]]; then
@@ -510,6 +519,212 @@ test_agent_review_archive_writes_project_review_artifact() {
   output="$(git -C "${repo}" status --short -- .agents)"
   if [[ "${output}" =~ \.agents/ ]]; then
     fail "transient agent state must remain ignored"
+  fi
+}
+
+test_agent_review_archive_records_learning_candidates() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_learning_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output friction_path
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-learning"
+  friction_path="${repo}/projects/demo/PROCESS_FRICTION.md"
+
+  output="$(
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    cat > ".agents/runs/${run_id}/implementation.md" <<'EOF'
+Implemented demo pass.
+
+## Learning Candidates
+
+- Closeout friction should become a wrapper preflight.
+EOF
+    _write_agent_packet ".agents/runs/${run_id}/packet.md" "${head}" "Packet"
+    python3 scripts/agent_review.py ready \
+      --note ".agents/runs/${run_id}/implementation.md" \
+      --packet ".agents/runs/${run_id}/packet.md"
+    cat > ".agents/runs/${run_id}/review-01.md" <<'EOF'
+Verdict: CHANGES_REQUESTED
+
+Finding: tighten one name.
+
+## Learning Candidates
+
+- Reviewer had to reconstruct aggregate state manually.
+EOF
+    python3 scripts/agent_review.py request-changes --review ".agents/runs/${run_id}/review-01.md"
+    printf '\n; fix\n' >> "projects/demo/asm/demo.asm"
+    git add projects/demo/asm/demo.asm
+    git commit -q -m "Fix demo pass"
+    local fix_head
+    fix_head="$(git rev-parse HEAD)"
+    cat > ".agents/runs/${run_id}/response-01.md" <<'EOF'
+Disposition: fixed the name.
+
+## Learning Candidates
+
+- Response handoff needed one command instead of manual init plus ready.
+EOF
+    _write_agent_packet ".agents/runs/${run_id}/packet-r2.md" "${fix_head}" "Packet r2"
+    python3 scripts/agent_review.py reready \
+      --response ".agents/runs/${run_id}/response-01.md" \
+      --head HEAD \
+      --packet ".agents/runs/${run_id}/packet-r2.md"
+    cat > ".agents/runs/${run_id}/review-02.md" <<'EOF'
+Verdict: APPROVED
+
+No findings.
+
+## Learning Candidates
+
+_None._
+EOF
+    python3 scripts/agent_review.py approve --review ".agents/runs/${run_id}/review-02.md"
+    python3 scripts/agent_review.py archive --pass-id 8
+  )"
+
+  assert_match "recorded learning candidates in projects/demo/PROCESS_FRICTION.md" "${output}" \
+    "archive must report the durable learning-candidate queue when it writes one"
+
+  output="$(<"${friction_path}")"
+  assert_match "# Process Friction" "${output}"
+  assert_match "## Agent Review Learning Candidates" "${output}"
+  assert_match "Pass 8 - ${run_id}" "${output}"
+  assert_match "Archive: \`projects/demo/docs/reverse_engineering/reviews/pass-8.md\`" "${output}"
+  assert_match "implementation.md" "${output}"
+  assert_match "Closeout friction should become a wrapper preflight" "${output}"
+  assert_match "review-01.md" "${output}"
+  assert_match "aggregate state manually" "${output}"
+  assert_match "response-01.md" "${output}"
+  assert_match "one command instead of manual init plus ready" "${output}"
+  if [[ "${output}" =~ review-02.md ]]; then
+    fail "_None._ learning sections must not create process-friction entries"
+  fi
+
+  output="$(git -C "${repo}" status --short --untracked-files=all)"
+  assert_match "\\?\\? projects/demo/docs/reverse_engineering/reviews/pass-8.md" "${output}" \
+    "review archive must remain a tracked project artifact"
+  assert_match "\\?\\? projects/demo/PROCESS_FRICTION.md" "${output}" \
+    "learning candidates must land in a tracked project queue"
+}
+
+test_agent_review_archive_updates_existing_learning_block() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_learning_update_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output friction_path marker_count
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-learning-update"
+  friction_path="${repo}/projects/demo/PROCESS_FRICTION.md"
+
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    cat > ".agents/runs/${run_id}/implementation.md" <<'EOF'
+Implemented demo pass.
+
+## Learning Candidates
+
+- Old friction text.
+EOF
+    _write_agent_packet ".agents/runs/${run_id}/packet.md" "${head}" "Packet"
+    python3 scripts/agent_review.py ready \
+      --note ".agents/runs/${run_id}/implementation.md" \
+      --packet ".agents/runs/${run_id}/packet.md"
+    cat > ".agents/runs/${run_id}/review-01.md" <<'EOF'
+Verdict: APPROVED
+
+## Learning Candidates
+
+_None._
+EOF
+    python3 scripts/agent_review.py approve --review ".agents/runs/${run_id}/review-01.md"
+    python3 scripts/agent_review.py archive --pass-id 10
+    git add \
+      projects/demo/docs/reverse_engineering/reviews/pass-10.md \
+      projects/demo/PROCESS_FRICTION.md
+    git commit -q -m "Archive pass 10"
+    cat > ".agents/runs/${run_id}/implementation.md" <<'EOF'
+Implemented demo pass.
+
+## Learning Candidates
+
+- Replacement friction text.
+- regex example: \1 backreference.
+- path C:\temp\new\file.
+EOF
+    python3 scripts/agent_review.py archive --pass-id 10 --force
+  )
+
+  output="$(<"${friction_path}")"
+  assert_match "Replacement friction text" "${output}" \
+    "force archive must update the existing generated learning block"
+  if [[ "${output}" != *'regex example: \1 backreference.'* ]]; then
+    fail "force archive must preserve regex-style backslashes literally"
+  fi
+  if [[ "${output}" != *'path C:\temp\new\file.'* ]]; then
+    fail "force archive must preserve path-style backslashes literally"
+  fi
+  if [[ "${output}" =~ Old\ friction\ text ]]; then
+    fail "force archive must not leave stale learning text in the generated block"
+  fi
+  marker_count="$(
+    grep -c 'agent-review-learning:demo-pass-learning-update:pass-10:start' \
+      "${friction_path}"
+  )"
+  assert_eq "${marker_count}" "1" \
+    "force archive must replace the generated learning block instead of duplicating it"
+}
+
+test_agent_review_archive_skips_empty_learning_candidates() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_empty_learning_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-empty-learning"
+
+  output="$(
+    cd "${repo}"
+    python3 scripts/agent_review.py init \
+      --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
+    mkdir -p ".agents/runs/${run_id}"
+    cat > ".agents/runs/${run_id}/implementation.md" <<'EOF'
+Implemented demo pass.
+
+## Learning Candidates
+
+_None._
+EOF
+    _write_agent_packet ".agents/runs/${run_id}/packet.md" "${head}" "Packet"
+    python3 scripts/agent_review.py ready \
+      --note ".agents/runs/${run_id}/implementation.md" \
+      --packet ".agents/runs/${run_id}/packet.md"
+    cat > ".agents/runs/${run_id}/review-01.md" <<'EOF'
+Verdict: APPROVED
+
+## Learning Candidates
+
+- _None._
+EOF
+    python3 scripts/agent_review.py approve --review ".agents/runs/${run_id}/review-01.md"
+    python3 scripts/agent_review.py archive --pass-id 9
+  )"
+
+  if [[ "${output}" =~ recorded\ learning\ candidates ]]; then
+    fail "archive must stay quiet when all learning-candidate sections are empty"
+  fi
+  if [[ -e "${repo}/projects/demo/PROCESS_FRICTION.md" ]]; then
+    fail "_None._ learning sections must not create PROCESS_FRICTION.md"
   fi
 }
 
@@ -938,6 +1153,34 @@ EOF
   if [[ "${output}" =~ strict\ packet\ verify\ failed\ on\ unresolved\ LXXXX\ labels ]]; then
     fail "explicit packet path must not emit generated-packet retry diagnostics"
   fi
+}
+
+test_make_project_pass_review_start_forwards_learning_text() {
+  local repo="${NESREV_TEST_TMPDIR}/make_agent_review_start_repo"
+  _init_agent_review_repo "${repo}"
+  cp "${REPO_ROOT}/Makefile" "${repo}/Makefile"
+
+  local run_id="demo-pass-1"
+  local counter="${NESREV_TEST_TMPDIR}/make-agent-review-start-count"
+  local make_bin output note
+  mkdir -p "${NESREV_TEST_TMPDIR}/make-agent-review-start-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/make-agent-review-start-bin/make" \
+    ok \
+    "${counter}"
+  make_bin="$(command -v make)"
+
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/make-agent-review-start-bin:${PATH}" \
+      "${make_bin}" project-pass-review-start PROJECT=demo PASS=1 \
+        'LEARNING=Process friction kept $$44 literal.' 2>&1
+  )"
+
+  note="${repo}/.agents/runs/${run_id}/implementation.md"
+  assert_match "READY_FOR_REVIEW ${run_id} round 1" "${output}" \
+    "make wrapper must drive start-pass through ready"
+  assert_match 'Process friction kept [$]44 literal' "$(<"${note}")" \
+    "make wrapper must preserve learning text for generated implementation notes"
 }
 
 test_agent_review_ready_auto_relaxes_generated_lxxxx_packet() {

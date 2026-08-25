@@ -570,6 +570,11 @@ missing. It auto-syncs derived KPI cells in the highest numeric `pass_id` row;
 do not hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
 executable numeric operands; scoped overlays are reported without forcing
 unrelated uses of the same byte to change.
+If closeout or handoff exposes process, harness, or tooling friction, record it
+as a raw learning candidate: agent-review handoffs use `## Learning Candidates`
+sections, while solo passes may add concise entries to the project's
+`PROCESS_FRICTION.md`. Triage and promotion rules live at
+[REVIEW_AUDITS.md#process-learning-triage](REVIEW_AUDITS.md#process-learning-triage).
 Parity verification mechanics (run `make project-verify`
 sequentially after every batch; never run assemble and parity
 compare concurrently; mandatory verification gate after every
