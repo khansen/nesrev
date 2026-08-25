@@ -99,6 +99,33 @@ test_make_project_init_scaffolds_a_project() {
     || fail "data_format_targets.csv must include an explicit SFX disposition row"
 }
 
+test_new_project_playbook_requires_scaffold_before_rom() {
+  grep -qF "Do not wait for the" "${ROOT_NEW_PROJECT_DOC}" \
+    || fail "NEW_PROJECT.md must say not to wait for the ROM before scaffolding"
+  perl -0ne 'exit(/stop\s+after scaffolding/ ? 0 : 1)' "${ROOT_NEW_PROJECT_DOC}" \
+    || fail "NEW_PROJECT.md must tell operators to stop after scaffolding when the ROM is absent"
+  grep -qF "report that exact expected path" \
+    "${ROOT_NEW_PROJECT_DOC}" \
+    || fail "NEW_PROJECT.md must tell operators to report the expected path"
+  grep -qF "projects/<slug>/reference/<slug>.nes" "${ROOT_NEW_PROJECT_DOC}" \
+    || fail "NEW_PROJECT.md must name the post-scaffold ROM placement path"
+}
+
+test_scaffolded_docs_name_missing_rom_stop_path() {
+  local slug; slug="$(unique_slug scaffold_rom_stop)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+
+  _run_scaffold "${slug}" >/dev/null
+
+  perl -0ne 'exit(/If the ROM is\s+not available\s+yet, stop here and give the user this exact path\./ ? 0 : 1)' \
+    "projects/${slug}/README.md" \
+    || fail "project README.md must tell operators to stop at the ROM placement step"
+  perl -0ne 'exit(/If the ROM is\s+not available yet, stop here and give the user this exact path\./ ? 0 : 1)' \
+    "projects/${slug}/docs/reverse_engineering/ONBOARDING.md" \
+    || fail "ONBOARDING.md must tell operators to stop at the ROM placement step"
+}
+
 test_failed_xasm_leaves_warning_baseline_empty() {
   # Regression test for warning-baseline atomicity. If xasm emits
   # warnings then exits non-zero during the seed step, WARN_BASELINE

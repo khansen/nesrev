@@ -14,7 +14,10 @@ Create a new isolated project scaffold with:
 make project-init PROJECT=<project_slug>
 ```
 
-See `projects/README.md` for the standard layout, and
+Run this before asking the user to place the ROM. The scaffold creates
+`projects/<project_slug>/reference/`; if the ROM is not present yet,
+stop after scaffolding and ask the user to put it at
+`projects/<project_slug>/reference/<project_slug>.nes`. See
 `agent_playbook/NEW_PROJECT.md` for the end-to-end intake flow.
 
 ### Kicking off an operator
