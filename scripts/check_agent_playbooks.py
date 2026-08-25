@@ -248,11 +248,17 @@ ROOT_WORD_CEILING = 6000
 # review-time-only because routine rebases orphan them; the default and
 # data-recovery routes carry that TOOLING text, so their word ceilings keep
 # measured-plus-headroom instead of leaving unrelated edits with a 3-word margin.
+# The agent-review start-pass command later replaced the manual init/note/ready
+# ritual with one operator-facing command after live loop friction showed that
+# manual artifact probing could stop handoff before packet generation. TOOLING
+# and the design record carry that workflow explicitly, so the affected route
+# ceilings preserve measured-plus-headroom rather than compressing the safety
+# rule back into an easy-to-misorder checklist.
 ROUTE_BUDGETS = {
-    "default": (3225, 23100),
-    "data-recovery": (2965, 21930),
+    "default": (3225, 23210),
+    "data-recovery": (2965, 22020),
     "new-project": (4050, 29400),
-    "project-pass-review": (4170, 29350),
+    "project-pass-review": (4190, 29430),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

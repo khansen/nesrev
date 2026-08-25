@@ -108,8 +108,7 @@ lets a watcher notify the next role after `READY_FOR_REVIEW`,
 
 Minimal flow:
 ```sh
-python3 scripts/agent_review.py init --project <slug> --base <base> --head <head> --run-id <id>
-python3 scripts/agent_review.py ready --note <implementation.md> --generate-packet
+python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id>
 python3 scripts/agent_review.py watch --role reviewer --notify <notifier> --once
 python3 scripts/agent_review.py request-changes --review <review.md>
 python3 scripts/agent_review.py reready --response <response.md> --head HEAD --generate-packet
@@ -117,22 +116,33 @@ python3 scripts/agent_review.py approve --review <review.md>
 python3 scripts/agent_review.py archive --pass-id <id>
 ```
 
-`init` writes the runtime-state patterns to `.git/info/exclude`, because the
-review head may predate the branch's tracked `.gitignore`. Long-running
-`watch` processes may be started before `init`; they wait for state instead of
-exiting. If the worker script is invoked from outside the checked-out tree, the
-generated prompts use that external script path instead of assuming
-`scripts/agent_review.py` exists at the review head. Run the loop from a
-checkout that has the project sources and required untracked reference files;
-when that checkout predates the worker script, invoke the script by absolute
-path from a tool-bearing worktree. `ready` and `reready` validate the packet
-before handoff: the packet must name the current review head and its Project
-Verify Gate must report exit status 0. When a generated strict packet fails
-only because unresolved `LXXXX` labels are still expected for the project,
-the worker regenerates it once with `ALLOW_UNRESOLVED_LXXXX=1` and records
-that relaxed mode for later rounds. If parity evidence is missing or red, fix
-the local project inputs or regenerate from a worktree with the required
-untracked reference files before notifying the reviewer.
+`start-pass` is the normal post-commit handoff entry point. It defaults to
+`BASE=HEAD~1`, `HEAD=HEAD`, and `RUN_ID=<project>-pass-<id>`, creates
+`.agents/runs/<run_id>/implementation.md`, initializes state, generates and
+validates the packet, writes the reviewer prompt, and prints status. The Make
+wrapper is equivalent:
+```sh
+make project-pass-review-start PROJECT=<slug> PASS=<id>
+```
+
+Use lower-level `init` plus `ready --generate-packet` only when a non-default
+range, run id, or hand-authored implementation note is required. `init` writes
+the runtime-state patterns to `.git/info/exclude`, because the review head may
+predate the branch's tracked `.gitignore`. Long-running `watch` processes may
+be started before `init`; they wait for state instead of exiting. If the worker
+script is invoked from outside the checked-out tree, the generated prompts use
+that external script path instead of assuming `scripts/agent_review.py` exists
+at the review head. Run the loop from a checkout that has the project sources
+and required untracked reference files; when that checkout predates the worker
+script, invoke the script by absolute path from a tool-bearing worktree.
+`start-pass`, `ready`, and `reready` validate the packet before handoff: the
+packet must name the current review head and its Project Verify Gate must
+report exit status 0. When a generated strict packet fails only because
+unresolved `LXXXX` labels are still expected for the project, the worker
+regenerates it once with `ALLOW_UNRESOLVED_LXXXX=1` and records that relaxed
+mode for later rounds. If parity evidence is missing or red, fix the local
+project inputs or regenerate from a worktree with the required untracked
+reference files before notifying the reviewer.
 
 After approval, `archive --pass-id <id>` writes the durable judgement record to
 `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`. It archives

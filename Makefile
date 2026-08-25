@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -106,6 +106,18 @@ project-pass-review-packet: export ALLOW_UNRESOLVED_LXXXX := $(ALLOW_UNRESOLVED_
 project-pass-review-packet:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(BASE)" ] || [ -z "$(HEAD)" ]; then echo "usage: make project-pass-review-packet PROJECT=<slug> BASE=<base-ref> HEAD=<head-ref> [ALLOW_UNRESOLVED_LXXXX=1] [OUT=<packet.md>]"; exit 2; fi
 	@if [ -n "$(OUT)" ]; then bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)" > "$(OUT)"; else bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)"; fi
+
+project-pass-review-start:
+	@if [ -z "$(PROJECT)" ] || [ -z "$(PASS)" ]; then echo "usage: make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<base-ref>] [HEAD=<head-ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [ALLOW_UNRESOLVED_LXXXX=1]"; exit 2; fi
+	@set -- \
+	  --project "$(PROJECT)" \
+	  --pass-id "$(PASS)" \
+	  --base "$(if $(BASE),$(BASE),HEAD~1)" \
+	  --head "$(if $(HEAD),$(HEAD),HEAD)"; \
+	if [ -n "$(RUN_ID)" ]; then set -- "$$@" --run-id "$(RUN_ID)"; fi; \
+	if [ -n "$(MAX_ROUNDS)" ]; then set -- "$$@" --max-rounds "$(MAX_ROUNDS)"; fi; \
+	if [ -n "$(filter 1 true yes,$(ALLOW_UNRESOLVED_LXXXX))" ]; then set -- "$$@" --allow-unresolved-lxxxx; fi; \
+	python3 scripts/agent_review.py start-pass "$$@"
 
 project-raw-ram-review:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(ADDR)" ] || [ -z "$(STATUS)" ]; then echo "usage: make project-raw-ram-review PROJECT=<slug> ADDR=<0x00bf|\\$$00BF> STATUS=<candidate|unreviewed|deferred|revisit|not_semantic_yet|symbolized> [SYMBOL=<name>] [NOTES=<text>] [PASS=<id>]"; exit 2; fi
