@@ -151,8 +151,8 @@ Implemented v1 pieces:
 - `scripts/project_pass_review_packet.sh` and
   `make project-pass-review-packet` generate the review packet.
 - `scripts/agent_review.py` implements the file-backed state machine,
-  packet validation, review/rereview transitions, watcher contract, and
-  durable review archive command.
+  one-command pass handoff, packet validation, review/rereview transitions,
+  watcher contract, and durable review archive command.
 - `scripts/agent_review_tmux_notify.sh` implements the v1 tmux notifier for
   already-running, bracketed-paste-aware agent panes.
 - `agent_playbook/TOOLING.md` documents the operational flow.
@@ -463,6 +463,10 @@ python3 scripts/agent_review.py <subcommand> [options]
 
 Implemented subcommands:
 
+- `start-pass` - normal post-commit handoff entry point: infer the default
+  `HEAD~1..HEAD` range, create the implementation note, initialize state,
+  generate and validate the packet, write the reviewer prompt, and print
+  status.
 - `init` - create `.agents/current.json` and `.agents/runs/<run_id>/`
   for the current branch and commit range.
 - `ready` - validate clean committed state, write/update the implementation
@@ -550,8 +554,12 @@ Implementation-agent instructions:
 - Do not continue when status is `READY_FOR_REVIEW`, `CHANGES_REQUESTED`, or
   `READY_FOR_REREVIEW` unless the transition says the implementer owns the next
   action.
-- After a pass commit, run `python3 scripts/agent_review.py init`, then
-  `ready --generate-packet` with the implementation note.
+- After a pass commit, run
+  `python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id>`
+  for normal single-pass ranges so note creation, initialization, packet
+  generation, and status reporting are one operation. Use lower-level `init`
+  plus `ready --generate-packet` only when a non-default range, run id, or
+  hand-authored implementation note is required.
 - If the reviewer requests changes, commit fixes or write a response that
   classifies every finding as `fixed`, `disputed`, or `deferred`; then run
   `reready`.
@@ -586,15 +594,14 @@ One-pass happy path:
 2. The implementation agent runs:
 
    ```sh
-   python3 scripts/agent_review.py init \
-     --project <slug> \
-     --base HEAD~1 \
-     --head HEAD \
-     --run-id <slug>-pass-105
-   python3 scripts/agent_review.py ready \
-     --note .agents/runs/<slug>-pass-105/implementation.md \
-     --generate-packet
+   python3 scripts/agent_review.py start-pass --project <slug> --pass-id 105
    ```
+
+   This creates `.agents/runs/<slug>-pass-105/implementation.md`, initializes
+   `.agents/current.json`, generates and validates
+   `.agents/runs/<slug>-pass-105/packet-round-01.md`, and writes the reviewer
+   prompt. Use lower-level `init` and `ready --generate-packet` only for
+   non-default ranges or hand-authored implementation notes.
 
 3. The manually started worker loop or transport wakes the reviewer.
 4. The reviewer reviews `HEAD~1..HEAD`, writes
@@ -731,7 +738,9 @@ Completed v1 pieces:
   showed that phantom rename rows and benign label deletions need different
   packet signals.
 - `scripts/agent_review.py` landed with `init`, `ready`,
-  `request-changes`, `approve`, `reready`, `status`, and `watch`.
+  `request-changes`, `approve`, `reready`, `status`, and `watch`; `start-pass`
+  was added after live loop friction showed manual note/init/ready setup was
+  too easy to perform out of order.
 - `archive --pass-id` landed separately after the durability decision: commit
   only irreproducible review judgements and implementer responses; keep
   packets and runtime state ignored; identify the durable record by
@@ -767,6 +776,8 @@ Remaining rollout work:
 
 Automated tests now cover:
 
+- `start-pass` creates the implementation note, initializes state, generates
+  and validates a packet, writes the reviewer prompt, and prints status
 - `init` creates a valid run directory and state file
 - `init` rejects process/tooling ranges
 - `ready` rejects dirty tracked state

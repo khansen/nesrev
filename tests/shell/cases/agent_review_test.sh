@@ -110,7 +110,10 @@ else
   command="make project-verify PROJECT=demo"
   output="FAIL: reference iNES file not found"
   status=2
-  if [[ "${mode}" == "lxxxx" ]]; then
+  if [[ "${mode}" == "ok" ]]; then
+    output="OK: binary identity preserved"
+    status=0
+  elif [[ "${mode}" == "lxxxx" ]]; then
     command="ALLOW_UNRESOLVED_LXXXX=1 make project-verify PROJECT=demo"
     output="WARN: 491 distinct LXXXX/LXXXXX labels (1000 refs); allowed by ALLOW_UNRESOLVED_LXXXX=1"
     status=0
@@ -262,6 +265,93 @@ test_agent_review_relay_round_trip_between_roles() {
     "state should terminate at APPROVED"
   assert_eq "$(_json_field "${repo}" "round")" "2" \
     "rereview should increment the round"
+}
+
+test_agent_review_start_pass_creates_note_packet_and_prompt() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_start_pass_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base head run_id output counter note packet prompt
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-1"
+  counter="${NESREV_TEST_TMPDIR}/start-pass-make-count"
+  mkdir -p "${NESREV_TEST_TMPDIR}/start-pass-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/start-pass-bin/make" \
+    ok \
+    "${counter}"
+
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/start-pass-bin:${PATH}" \
+      python3 scripts/agent_review.py start-pass --project demo --pass-id 1 2>&1
+  )"
+
+  assert_match "implementation note: .agents/runs/${run_id}/implementation.md" "${output}" \
+    "start-pass must create the implementation note instead of expecting it to preexist"
+  assert_match "READY_FOR_REVIEW ${run_id} round 1" "${output}" \
+    "start-pass must complete the ready transition"
+  assert_match "status: READY_FOR_REVIEW" "${output}" \
+    "start-pass must print the final state"
+  assert_match "prompt: .agents/runs/${run_id}/prompts/01-ready-for-review-reviewer.md" "${output}" \
+    "start-pass must point at the reviewer prompt"
+
+  assert_eq "$(_json_field "${repo}" "status")" "READY_FOR_REVIEW" \
+    "start-pass must leave the run ready for review"
+  assert_eq "$(_json_field "${repo}" "run_id")" "${run_id}" \
+    "default run id must be project-pass-id"
+  assert_eq "$(_json_field "${repo}" "review_base")" "${base}" \
+    "start-pass must default BASE to HEAD~1"
+  assert_eq "$(_json_field "${repo}" "review_head")" "${head}" \
+    "start-pass must default HEAD to HEAD"
+
+  note="${repo}/.agents/runs/${run_id}/implementation.md"
+  packet="${repo}/.agents/runs/${run_id}/packet-round-01.md"
+  prompt="${repo}/.agents/runs/${run_id}/prompts/01-ready-for-review-reviewer.md"
+  assert_match "Implemented demo pass 1" "$(<"${note}")" \
+    "generated implementation note must name the reviewed pass"
+  assert_match "Demo pass" "$(<"${note}")" \
+    "generated implementation note must include the commit summary"
+  assert_match "Exit status: \`0\`" "$(<"${packet}")" \
+    "start-pass must generate a packet that passed verify preflight"
+  assert_match "Implementation note: .agents/runs/${run_id}/implementation.md" "$(<"${prompt}")" \
+    "reviewer prompt must point at the generated note"
+  assert_eq "$(wc -l <"${counter}" | tr -d ' ')" "1" \
+    "start-pass should generate exactly one packet when strict verify passes"
+  if [[ -e "${repo}/.agents/runs/${run_id}/state.json" ]]; then
+    fail "start-pass must not create an invented per-run state.json"
+  fi
+}
+
+test_agent_review_start_pass_rejects_process_ranges_before_note() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_start_process_repo"
+  mkdir -p "${repo}/scripts"
+  cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+
+  git -C "${repo}" init -q
+  git -C "${repo}" config user.email "tests@example.invalid"
+  git -C "${repo}" config user.name "Tests"
+  git -C "${repo}" config commit.gpgsign false
+  printf 'base\n' > "${repo}/README.md"
+  git -C "${repo}" add .
+  git -C "${repo}" commit -q -m "Base"
+  printf '#!/usr/bin/env bash\n' > "${repo}/scripts/process_tool.sh"
+  git -C "${repo}" add .
+  git -C "${repo}" commit -q -m "Process change"
+
+  local output rc
+  set +e
+  output="$(cd "${repo}" && python3 scripts/agent_review.py start-pass \
+    --project demo --pass-id 2 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "start-pass must reject process ranges like init"
+  assert_match "range touches process/tooling paths" "${output}"
+  assert_match "scripts/process_tool.sh" "${output}"
+  if [[ -e "${repo}/.agents/runs/demo-pass-2/implementation.md" ]]; then
+    fail "start-pass must not create a handoff note for a rejected process range"
+  fi
 }
 
 test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
