@@ -96,8 +96,10 @@ project-pass-start:
 
 project-pass-closeout: export FOCUS := $(FOCUS)
 project-pass-closeout: export NOTES := $(NOTES)
+project-pass-closeout: export DEFERRALS := $(DEFERRALS)
+project-pass-closeout: export REWORK_ITEMS := $(REWORK_ITEMS)
 project-pass-closeout:
-	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>]"; exit 2; fi
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>] [DEFERRALS=<...>] [REWORK_ITEMS=<count>]"; exit 2; fi
 	@bash scripts/project_pass_closeout.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
 
 project-pass-review-packet: export ALLOW_UNRESOLVED_LXXXX := $(ALLOW_UNRESOLVED_LXXXX)

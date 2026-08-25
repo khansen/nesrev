@@ -1269,6 +1269,121 @@ if row[cols["rework_items"]] != "pending":
 PY
 }
 
+test_make_pass_closeout_rerun_repairs_pending_rework_before_process_check() {
+  local slug; slug="$(unique_slug pass_closeout_rework_rerun)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  printf 'PROOF_DEBT_REQUIRED=1\n' >> "projects/${slug}/project.conf"
+
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---:|---|
+| 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
+| 1 | Existing closed row | 8 / 16 | 0 | not measured | 0 | 0 | 0 | pass | pass | pending | First closeout stopped after marking gates. |
+EOF
+
+  local stubdir="projects/${slug}/closeout_stubs"
+  local log="projects/${slug}/closeout.log"
+  mkdir -p "${stubdir}"
+  cat > "${stubdir}/project_pass_residue_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'residue %s %s\n' "$1" "$2" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/refresh_inventory.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'inventory %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_next_pass.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'raw_refresh %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_docs_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'docs %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+python3 - "projects/$1/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = None
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if {"pass_id", "verify", "docs_check", "rework_items"}.issubset(set(cells)):
+        header = cells
+        continue
+    if header is None or len(cells) != len(header):
+        continue
+    cols = {name: i for i, name in enumerate(header)}
+    if cells[cols["pass_id"]] == "1" and cells[cols["rework_items"]].lower() == "pending":
+        raise SystemExit("pending rework reached process check")
+PY
+printf 'process %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'verify %s\n' "$1" >> "${STUB_LOG}"
+SH
+  cat > "${stubdir}/deferral_capture.py" <<'PY'
+import os
+import sys
+
+explicit = ""
+if "--explicit" in sys.argv:
+    explicit = sys.argv[sys.argv.index("--explicit") + 1]
+with open(os.environ["STUB_LOG"], "a", encoding="utf-8") as handle:
+    handle.write(f"deferrals {explicit}\n")
+PY
+
+  STUB_LOG="${log}" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1 \
+      REWORK_ITEMS=2 DEFERRALS=fixture_gap:static:revisit >/dev/null
+
+  assert_match "deferrals fixture_gap:static:revisit" "$(cat "${log}")" \
+    "Makefile must forward DEFERRALS to project-pass-closeout"
+
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+header = None
+row = None
+for raw in path.read_text(encoding="utf-8").splitlines():
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [c.strip() for c in stripped.strip("|").split("|")]
+    if {"pass_id", "verify", "docs_check", "rework_items"}.issubset(set(cells)):
+        header = cells
+        continue
+    if header is None or len(cells) != len(header):
+        continue
+    cols = {name: i for i, name in enumerate(header)}
+    if cells[cols["pass_id"]] == "1":
+        row = cells
+        break
+if row is None:
+    raise SystemExit("pass 1 row missing after closeout rerun")
+cols = {name: i for i, name in enumerate(header)}
+if row[cols["verify"]] != "pass" or row[cols["docs_check"]] != "pass":
+    raise SystemExit(f"gate cells were not preserved as closed: {row!r}")
+if row[cols["rework_items"]] != "2":
+    raise SystemExit(f"REWORK_ITEMS was not repaired before process check: {row!r}")
+PY
+}
+
 test_project_pass_closeout_materializes_missing_row_from_existing_header() {
   local slug; slug="$(unique_slug pass_closeout_materialize)"
   trap "cleanup_project ${slug}" EXIT

@@ -555,7 +555,10 @@ reruns docs/process checks. Optional arguments are `PASS=<id>`,
 The last is the operator's own count of late fixes caused by missed sweeps;
 a closed row that never answers it fails the lifecycle check, because an
 unanswered judgement cell is the same false cleanliness as one the tool
-filled in.
+filled in. If closeout stops after marking `verify` and `docs_check` but
+before recording rework, rerun it with explicit `PASS=<id>` and
+`REWORK_ITEMS=<count>`; closeout records that judgement before the preflight
+process check.
 
 The scorecard row summarizes closed and remaining work. Closeout
 requires `current_pass_plan.json` when `PASS=<id>` is omitted, so it cannot
