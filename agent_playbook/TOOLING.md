@@ -100,6 +100,12 @@ describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
 relaxed semantic-pass verification mode.
 
 <a id="agent-review-handoff"></a>
+
+The packet is not the process-learning log. Record process, harness, or tooling
+lessons in `## Learning Candidates` sections in the implementation note, review,
+or response artifacts so `agent_review.py archive` can copy them to the
+project's `PROCESS_FRICTION.md` queue.
+
 ### Agent Review Handoff
 
 `python3 scripts/agent_review.py` is the optional local v1 handoff path for
@@ -112,7 +118,7 @@ lets a watcher notify the next role after `READY_FOR_REVIEW`,
 
 Minimal flow:
 ```sh
-python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id>
+python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id> [--learning <text>]
 python3 scripts/agent_review.py watch --role reviewer --notify <notifier> --once
 python3 scripts/agent_review.py request-changes --review <review.md>
 python3 scripts/agent_review.py reready --response <response.md> --head HEAD --generate-packet
@@ -126,8 +132,10 @@ python3 scripts/agent_review.py archive --pass-id <id>
 validates the packet, writes the reviewer prompt, and prints status. The Make
 wrapper is equivalent:
 ```sh
-make project-pass-review-start PROJECT=<slug> PASS=<id>
+make project-pass-review-start PROJECT=<slug> PASS=<id> [LEARNING=<text>]
 ```
+When using the Make wrapper, write literal dollar signs as `$$`; use the
+Python command directly when the learning text needs ordinary shell quoting.
 
 Use lower-level `init` plus `ready --generate-packet` only when a non-default
 range, run id, or hand-authored implementation note is required. `init` writes
@@ -158,6 +166,11 @@ regenerate packets from the review-time range only while those SHAs remain
 reachable. The archive command requires a clean tracked tree, then creates the
 tracked follow-up review artifact; commit that artifact before starting the
 next handoff, because `ready` and `reready` also refuse tracked dirty state.
+When artifacts contain non-empty `## Learning Candidates` sections, `archive`
+also appends or updates a generated block in
+`projects/<slug>/PROCESS_FRICTION.md`. `_None._` is the explicit no-op marker.
+Those entries are raw candidates for later process review, not immediate
+playbook rules.
 
 The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
 `AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
@@ -167,7 +180,8 @@ Reviewer prompts route the reviewer through the `Review a committed project
 pass` row in `AGENTS.md` before asking for a verdict, so the handoff does not
 rely on ambient session memory of the repository rules. That route includes
 `TOOLING.md` because packets, gates, and handoff commands are part of the review
-surface.
+surface. Review and response prompts ask for a `## Learning Candidates` section
+so repeated friction can be triaged outside the individual pass.
 
 For tmux handoff, put the already-running implementation and reviewer agents
 in tmux panes, find their pane ids, and run one watcher per role:

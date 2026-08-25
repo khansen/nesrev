@@ -160,7 +160,9 @@ Tell the reviewer to read `AGENTS.md` and follow the
 `Review a committed project pass` row in its Mandatory Routing Table before
 judging the pass. Then tell the reviewer to review the explicit range, inspect
 the aggregate signals, read ledger deltas, and return either `APPROVED` or
-`CHANGES_REQUESTED` with findings ordered by severity.
+`CHANGES_REQUESTED` with findings ordered by severity. The review artifact
+should include `## Learning Candidates` for process, harness, or tooling
+lessons, or `_None._` when there are no candidates.
 
 ## 7. Reviewer Use
 

@@ -22,6 +22,7 @@ This playbook owns project-level and process-change review audit procedures:
 - incomplete symbol-family audits
 - residual magic-number and hardcoded-offset review
 - project-wide pointer-byte consolidation audit
+- process-learning triage
 - global-label documentation/localization review
 - core data-format coverage audit
 - process-change sanity checks for gates, wrappers, playbooks, and tooling
@@ -59,6 +60,31 @@ explicitly in the review. For blast-radius checks, record which projects stayed
 green, skipped by design, or newly failed. Do not perform mutation tests in the
 implementation worktree; use a disposable worktree or equivalent throwaway
 copy.
+
+<a id="process-learning-triage"></a>
+## Process-Learning Triage
+
+Agent-review handoffs may copy `## Learning Candidates` sections into
+`projects/<slug>/PROCESS_FRICTION.md`. Treat that file as a raw triage queue,
+not as canonical process doctrine. A candidate becomes a rule only after a
+process/tooling review decides its disposition.
+
+For each candidate that recurs, blocks automation, exposes a false-green
+signal, or costs meaningful operator time, record one disposition:
+
+- **Script/gate fix** — implement or tighten tooling, with bad-direction proof.
+- **Playbook rule** — move the durable rule to the canonical playbook home and
+  delete or mark the raw candidate as promoted.
+- **Prompt/harness change** — update generated prompts, state transitions, or
+  notification behavior when the issue is operator handoff friction.
+- **Project-local note** — keep it in the project when it reflects one game's
+  data shape or repository state rather than a reusable NESrev rule.
+- **Discarded** — explain why the candidate was one-off, obsolete, or lower
+  value than the process cost it would add.
+
+Do not promote a single raw candidate into a global playbook rule unless it is
+general, repeated, high-risk, or backed by a concrete defect. Prefer a narrow
+script/gate fix when a lesson can be enforced mechanically.
 
 <a id="static-readability-debt-audit"></a>
 ## Static Readability Debt Audit
