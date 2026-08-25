@@ -7,6 +7,21 @@ if [[ $# -lt 1 || $# -gt 3 ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -n "${PROJECT_PASS_CLOSEOUT_REPO_ROOT:-}" ]]; then
+  REPO_ROOT_INPUT="${PROJECT_PASS_CLOSEOUT_REPO_ROOT}"
+else
+  REPO_ROOT_INPUT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+if [[ -z "${REPO_ROOT_INPUT}" ]]; then
+  echo "error: could not determine project repository root; run from the project checkout or set PROJECT_PASS_CLOSEOUT_REPO_ROOT" >&2
+  exit 2
+fi
+if ! REPO_ROOT="$(git -C "${REPO_ROOT_INPUT}" rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "error: PROJECT_PASS_CLOSEOUT_REPO_ROOT is not inside a git worktree: ${REPO_ROOT_INPUT}" >&2
+  exit 2
+fi
+cd "${REPO_ROOT}"
+
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 

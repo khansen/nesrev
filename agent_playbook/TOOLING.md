@@ -65,6 +65,10 @@ Optional `KEY=value` arguments (append to the same line):
 and `TARGET=<corridor_anchor_or_notes_plan>`; `project-pass-closeout`
 accepts `PASS=<id>`, `VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`,
 `NOTES=<text>`, `DEFERRALS=<...>`, and `REWORK_ITEMS=<count>`.
+When invoking a newer closeout script from a tool-bearing worktree against a
+different project checkout, set `PROJECT_PASS_CLOSEOUT_REPO_ROOT` to the
+project checkout so project files resolve there while helpers come from the
+tool location.
 `project-next-pass` invokes `project-pass-prep` when generated pass cache is
 missing or stale; prep output goes to stderr so `FORMAT=json` stays clean.
 Run `make project-pass-prep PROJECT=<slug>` directly only for an explicit cache
