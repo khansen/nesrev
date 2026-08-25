@@ -9,7 +9,22 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
+SCRIPT_REPO = Path(__file__).resolve().parent.parent
+
+
+def current_project_repo() -> Path:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=Path.cwd(),
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return Path(result.stdout.strip()).resolve()
+    return SCRIPT_REPO
+
+
+PROJECT_REPO = current_project_repo()
 DEFINITION_RE = re.compile(
     r"^\s*((?:ZP|RAM)_[A-Za-z0-9_]+)\s+\.EQU\b",
     re.MULTILINE,
@@ -80,7 +95,7 @@ def has_pointer_byte_prefix(payload: str, symbol_start: int) -> bool:
 def tracked_primary_asm() -> list[Path]:
     result = subprocess.run(
         ["git", "ls-files", "projects/*/asm/*.asm"],
-        cwd=REPO,
+        cwd=PROJECT_REPO,
         check=True,
         capture_output=True,
         text=True,
@@ -93,7 +108,7 @@ def tracked_primary_asm() -> list[Path]:
             and relative.parts[0] == "projects"
             and relative.parts[2] == "asm"
         ):
-            paths.append(REPO / relative)
+            paths.append(PROJECT_REPO / relative)
     return paths
 
 
@@ -101,7 +116,7 @@ def validate(path: Path) -> list[str]:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8")
     try:
-        display_path = path.relative_to(REPO)
+        display_path = path.relative_to(PROJECT_REPO)
     except ValueError:
         display_path = path
     for match in DEFINITION_RE.finditer(text):
@@ -173,7 +188,7 @@ def main() -> int:
     if args.tracked_primary:
         paths = tracked_primary_asm()
     else:
-        paths = [path if path.is_absolute() else REPO / path for path in args.paths]
+        paths = [path if path.is_absolute() else PROJECT_REPO / path for path in args.paths]
 
     if not paths and not args.tracked_primary:
         parser.error("provide an asm path or --tracked-primary")

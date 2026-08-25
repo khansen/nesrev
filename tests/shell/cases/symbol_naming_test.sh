@@ -55,6 +55,31 @@ test_tracked_primary_checks_current_tracked_project_asm() {
   assert_match "OK: canonical symbol naming in [0-9]+ asm file" "${output}"
 }
 
+test_external_symbol_checker_uses_current_project_checkout() {
+  local target_repo="${NESREV_TEST_TMPDIR}/symbol_target_repo"
+  local tool_repo="${NESREV_TEST_TMPDIR}/symbol_tool_repo"
+  local external_checker="${tool_repo}/scripts/check_symbol_naming.py"
+  mkdir -p \
+    "${target_repo}/projects/demo/asm" \
+    "${tool_repo}/scripts" \
+    "${tool_repo}/projects/demo/asm"
+  git -C "${target_repo}" init -q
+  cp scripts/check_symbol_naming.py "${external_checker}"
+
+  printf '%s\n' 'ZP_PpuCtrlShadow .EQU $00' > "${target_repo}/projects/demo/asm/demo.asm"
+  printf '%s\n' 'ZP_PPUCTRL_SHADOW .EQU $00' > "${tool_repo}/projects/demo/asm/demo.asm"
+  git -C "${target_repo}" add projects/demo/asm/demo.asm
+
+  local output
+  output="$(cd "${target_repo}" && python3 "${external_checker}" projects/demo/asm/demo.asm)"
+  assert_match "OK: canonical symbol naming in 1 asm file" "${output}" \
+    "external symbol checker must resolve relative project paths from the current checkout"
+
+  output="$(cd "${target_repo}" && python3 "${external_checker}" --tracked-primary)"
+  assert_match "OK: canonical symbol naming in 1 asm file" "${output}" \
+    "external symbol checker must discover tracked asm files from the current checkout"
+}
+
 test_rejects_additional_underscores() {
   local asm="${NESREV_TEST_TMPDIR}/bad_underscore.asm"
   printf '%s\n' 'ZP_PPUCTRL_SHADOW .EQU $00' >"${asm}"
