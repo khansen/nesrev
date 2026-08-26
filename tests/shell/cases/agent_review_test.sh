@@ -332,6 +332,69 @@ test_agent_review_start_pass_creates_note_packet_and_prompt() {
   fi
 }
 
+test_agent_review_start_pass_zero_defaults_to_two_intake_commits() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_pass_zero_repo"
+  _init_agent_review_repo "${repo}"
+
+  printf '\n; Reference preparation\n' >> "${repo}/projects/demo/asm/demo.asm"
+  git -C "${repo}" add .
+  git -C "${repo}" commit -q -m "Reference preparation"
+
+  local base head run_id output counter note
+  base="$(git -C "${repo}" rev-parse HEAD~2)"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  run_id="demo-pass-0"
+  counter="${NESREV_TEST_TMPDIR}/pass-zero-make-count"
+  mkdir -p "${NESREV_TEST_TMPDIR}/pass-zero-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/pass-zero-bin/make" \
+    ok \
+    "${counter}"
+
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/pass-zero-bin:${PATH}" \
+      python3 scripts/agent_review.py start-pass \
+        --project demo --pass-id 0 2>&1
+  )"
+
+  assert_match "READY_FOR_REVIEW ${run_id} round 1" "${output}" \
+    "pass 0 start must complete the review handoff"
+  assert_eq "$(_json_field "${repo}" "review_base")" "${base}" \
+    "pass 0 must default BASE to HEAD~2"
+  assert_eq "$(_json_field "${repo}" "review_head")" "${head}" \
+    "pass 0 must retain HEAD as the default review head"
+  note="${repo}/.agents/runs/${run_id}/implementation.md"
+  assert_match "Demo pass" "$(<"${note}")" \
+    "pass 0 review range must include the intake baseline commit"
+  assert_match "Reference preparation" "$(<"${note}")" \
+    "pass 0 review range must include the reference-preparation commit"
+}
+
+test_agent_review_start_pass_zero_honors_explicit_base() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_pass_zero_override_repo"
+  _init_agent_review_repo "${repo}"
+
+  local base output counter
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  counter="${NESREV_TEST_TMPDIR}/pass-zero-override-make-count"
+  mkdir -p "${NESREV_TEST_TMPDIR}/pass-zero-override-bin"
+  _write_agent_review_make_stub \
+    "${NESREV_TEST_TMPDIR}/pass-zero-override-bin/make" \
+    ok \
+    "${counter}"
+
+  output="$(
+    cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/pass-zero-override-bin:${PATH}" \
+      python3 scripts/agent_review.py start-pass \
+        --project demo --pass-id 0 --base HEAD~1 2>&1
+  )"
+
+  assert_match "READY_FOR_REVIEW demo-pass-0 round 1" "${output}" \
+    "an explicit pass 0 base must complete the review handoff"
+  assert_eq "$(_json_field "${repo}" "review_base")" "${base}" \
+    "an explicit pass 0 BASE must override the HEAD~2 default"
+}
+
 test_agent_review_start_pass_rejects_process_ranges_before_note() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_start_process_repo"
   mkdir -p "${repo}/scripts"
@@ -1160,9 +1223,14 @@ test_make_project_pass_review_start_forwards_learning_text() {
   _init_agent_review_repo "${repo}"
   cp "${REPO_ROOT}/Makefile" "${repo}/Makefile"
 
-  local run_id="demo-pass-1"
+  printf '\n; Reference preparation\n' >> "${repo}/projects/demo/asm/demo.asm"
+  git -C "${repo}" add projects/demo/asm/demo.asm
+  git -C "${repo}" commit -q -m "Reference preparation"
+
+  local run_id="demo-pass-0"
   local counter="${NESREV_TEST_TMPDIR}/make-agent-review-start-count"
-  local make_bin output note
+  local base make_bin output note
+  base="$(git -C "${repo}" rev-parse HEAD~2)"
   mkdir -p "${NESREV_TEST_TMPDIR}/make-agent-review-start-bin"
   _write_agent_review_make_stub \
     "${NESREV_TEST_TMPDIR}/make-agent-review-start-bin/make" \
@@ -1172,7 +1240,7 @@ test_make_project_pass_review_start_forwards_learning_text() {
 
   output="$(
     cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/make-agent-review-start-bin:${PATH}" \
-      "${make_bin}" project-pass-review-start PROJECT=demo PASS=1 \
+      "${make_bin}" project-pass-review-start PROJECT=demo PASS=0 \
         'LEARNING=Process friction kept $$44 literal.' 2>&1
   )"
 
@@ -1181,6 +1249,8 @@ test_make_project_pass_review_start_forwards_learning_text() {
     "make wrapper must drive start-pass through ready"
   assert_match 'Process friction kept [$]44 literal' "$(<"${note}")" \
     "make wrapper must preserve learning text for generated implementation notes"
+  assert_eq "$(_json_field "${repo}" "review_base")" "${base}" \
+    "make wrapper must preserve the pass-aware HEAD~2 default for pass 0"
 }
 
 test_agent_review_ready_auto_relaxes_generated_lxxxx_packet() {

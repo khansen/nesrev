@@ -131,18 +131,21 @@ python3 scripts/agent_review.py archive --pass-id <id>
 ```
 
 `start-pass` is the normal post-commit handoff entry point. It defaults to
-`BASE=HEAD~1`, `HEAD=HEAD`, and `RUN_ID=<project>-pass-<id>`, creates
+`BASE=HEAD~2` for pass 0 (covering both required intake commits) and
+`BASE=HEAD~1` for later passes, with `HEAD=HEAD` and
+`RUN_ID=<project>-pass-<id>`. It creates
 `.agents/runs/<run_id>/implementation.md`, initializes state, generates and
 validates the packet, writes the reviewer prompt, and prints status. The Make
 wrapper is equivalent:
 ```sh
-make project-pass-review-start PROJECT=<slug> PASS=<id> [LEARNING=<text>]
+make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [LEARNING=<text>]
 ```
 When using the Make wrapper, write literal dollar signs as `$$`; use the
 Python command directly when the learning text needs ordinary shell quoting.
 
-Use lower-level `init` plus `ready --generate-packet` only when a non-default
-range, run id, or hand-authored implementation note is required. `init` writes
+Pass `BASE=<ref>` or `HEAD=<ref>` to the wrapper for a non-default range. Use
+lower-level `init` plus `ready --generate-packet` only when a custom run id or
+hand-authored implementation note is required. `init` writes
 the runtime-state patterns to `.git/info/exclude`, because the review head may
 predate the branch's tracked `.gitignore`. Long-running `watch` processes may
 be started before `init`; they wait for state instead of exiting. If the worker
@@ -513,7 +516,13 @@ fails to recover inline-call payloads.
 
 ### Hint file formats
 
-```sh
+In every example below, schema and sample rows shown without `#` are literal
+file content, not explanatory prose. Keep the schema row uncommented. For
+`inlinecalls.csv` and `dataranges.csv`, the selected schema must be the exact
+first nonblank, non-comment line; replace it with an alternate schema rather
+than appending multiple schemas to one file.
+
+```text
 # codepointers.csv — pipe-delimited. Mapper 0 rows use start = raw PRG
 # offset (hex), count = number of pointers. MMC1 rows may instead use
 # bank|addr|count when banked CPU context is clearer. Use for contiguous
@@ -521,9 +530,9 @@ fails to recover inline-call payloads.
 # For MMC1 fixed-bank tables whose entries are $8000-$BFFF addresses, each
 # entry seeds that CPU address in every non-final PRG bank; the table word
 # remains raw because no single label exists.
-# start|count
-# 0x0008|30
-# bank|addr|count
+start|count
+0x0008|30
+# MMC1 alternative header: bank|addr|count
 # 0|$8100|12
 
 # datapointers.csv — same shape as codepointers.csv, but targets are DATA
@@ -531,8 +540,8 @@ fails to recover inline-call payloads.
 # does not trace the bytes at the target as code. Use when a few "lucky"
 # records would otherwise mis-decode as plausible instructions (5-byte audio
 # period/envelope tables, etc.).
-# start|count
-# 0x2813|30
+start|count
+0x2813|30
 
 # codeentries.txt — one canonical ROM CPU address per line, or bank|addr for
 # MMC1 switched-window entries. # and ; start comments. Use for SCATTERED code
@@ -540,8 +549,8 @@ fails to recover inline-call payloads.
 # individual `LDA #imm / STA ZP_PTR` pairs rather than a contiguous table.
 # For executable ROM-source images copied into RAM/PRG-RAM, add translated ROM
 # source addresses here, not runtime RAM execution addresses.
-# $C22F   ; channel 0 command handler (reached via JMP [$00EB])
-# $D187
+$C22F   ; channel 0 command handler (reached via JMP [$00EB])
+$D187
 # bank|addr
 # 0|$8120
 # 7|$C000
@@ -554,24 +563,24 @@ fails to recover inline-call payloads.
 # has variable record lengths. MMC1 rows
 # may use bank|callee|layout for switched-bank callees, or
 # bank|callsite|callee|layout when the JSR site is in a specific bank.
-# callee|layout
-# $C8BB|u8,ptr16(data)
-# $C963|bytes(6)
-# $EA05|counted8
-# callsite|callee|layout
+callee|layout
+$C8BB|u8,ptr16(data)
+$C963|bytes(6)
+$EA05|counted8
+# Alternate header: callsite|callee|layout
 # $C120|$C27C|ptr16(code)*3
-# bank|callee|layout
+# Alternate header: bank|callee|layout
 # 0|$8120|u8
-# bank|callsite|callee|layout
+# Alternate header: bank|callsite|callee|layout
 # 0|$8027|$C27C|ptr16(code)*2
 
 # dataranges.csv — pipe-delimited; explicit data-byte regions NESrev should
 # treat as opaque payload rather than trying to decode as instructions. MMC1
 # rows may use bank|addr|length for switched-bank data.
-# start|length
-# $CD20|14
-# $D5B6|34
-# bank|addr|length
+start|length
+$CD20|14
+$D5B6|34
+# MMC1 alternative header: bank|addr|length
 # 0|$9000|32
 ```
 

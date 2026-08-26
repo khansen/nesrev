@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
 
+test_nesrev_control_examples_keep_literal_schema_headers() {
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+
+  assert_eq "$(grep -c '^start|count$' "${tooling}")" "2" \
+    "code- and data-pointer examples must show literal start|count headers"
+  assert_eq "$(grep -c '^callee|layout$' "${tooling}")" "1" \
+    "inline-call examples must show the required literal header"
+  assert_eq "$(grep -c '^start|length$' "${tooling}")" "1" \
+    "data-range examples must show the required literal header"
+  assert_match "first nonblank, non-comment line" "$(<"${tooling}")" \
+    "recovery-control docs must explain where required schema headers belong"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"
