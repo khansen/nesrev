@@ -2026,6 +2026,63 @@ ASM
     "an allowlisted local composite must not be flagged"
 }
 
+test_hardware_drift_check_flags_ppu_register_bit_near_misses_only() {
+  local asm="${NESREV_TEST_TMPDIR}/ppu_near_miss.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+PPU_NAMETABLE_X_BIT .EQU %00000001
+PPU_NAMETABLE_2400_BIT .EQU %00000001
+PPU_NAMETABLE_2400_CLEAR_MASK .EQU %11111110
+PPU_NAMETABLE_2400_HI .EQU $24
+PPU_NAMETABLE_PAGE_COUNT .EQU 4
+Reset:
+  RTS
+ASM
+
+  local out
+  out="$(python3 "${DRIFT_CHECK}" "${asm}" "${ASM_STYLE_DOC}" "${NESREV_TEST_TMPDIR}/none.txt")"
+  assert_match "warn: 3 project-local" "${out}" \
+    "register-bit near misses must be visible without flagging PPU data constants"
+  assert_match "PPU_NAMETABLE_X_BIT" "${out}"
+  assert_match "PPU_NAMETABLE_2400_BIT" "${out}"
+  assert_match "PPU_NAMETABLE_2400_CLEAR_MASK" "${out}"
+  if [[ "${out}" == *"PPU_NAMETABLE_2400_HI"* || "${out}" == *"PPU_NAMETABLE_PAGE_COUNT"* ]]; then
+    fail "PPU address and quantity constants must remain outside hardware-bit drift"
+  fi
+}
+
+test_hardware_drift_check_accepts_promoted_cross_project_constants() {
+  local asm="${NESREV_TEST_TMPDIR}/promoted_hardware.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+RAM_OamShadowBase .EQU $0200
+OAM_PAGE_HI .EQU >RAM_OamShadowBase
+PPUCTRL_NAMETABLE_2400 .EQU %00000001
+PPUCTRL_NAMETABLE_SELECT_MASK .EQU %00000011
+PPUCTRL_NAMETABLE_CLEAR_MASK .EQU ~PPUCTRL_NAMETABLE_SELECT_MASK
+ZAPPER_TRIGGER_BIT .EQU %00010000
+ZAPPER_LIGHT_BIT .EQU %00001000
+Reset:
+  RTS
+ASM
+
+  local out
+  out="$(python3 "${DRIFT_CHECK}" "${asm}" "${ASM_STYLE_DOC}" "${NESREV_TEST_TMPDIR}/none.txt")"
+  assert_match "OK: no canonical hardware-constant drift" "${out}" \
+    "promoted names must not require project-local allowlist entries"
+
+  local style
+  style="$(cat "${ASM_STYLE_DOC}")"
+  assert_match 'ZAPPER_TRIGGER_BIT.*%00010000' "${style}" \
+    "the shared trigger bit must be in the canonical table"
+  assert_match 'ZAPPER_LIGHT_BIT.*%00001000' "${style}" \
+    "the shared light-sensor bit must be in the canonical table"
+  assert_match 'PPUMASK_HIDE_SPRITES_MASK.*~PPUMASK_SHOW_SPRITES' "${style}" \
+    "single-bit clear masks must derive from their positive bit"
+  assert_match 'PPUMASK_RENDER_DISABLE_MASK.*~PPUMASK_RENDER_ENABLE_MASK' "${style}" \
+    "compound clear masks must derive from their positive mask"
+}
+
 test_hardware_drift_check_strict_mode_exits_nonzero_on_drift() {
   local asm="${NESREV_TEST_TMPDIR}/drift3.asm"
   cat > "${asm}" <<'ASM'
