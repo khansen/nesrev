@@ -208,14 +208,54 @@ PY
 }
 
 test_new_project_process_check_accepts_recorded_pass_one_analogue() {
-  local slug; slug="$(unique_slug analogue_recorded)"
+  local slug analogue_slug
+  slug="$(unique_slug analogue_recorded)"
+  analogue_slug="$(unique_slug analogue_source)"
+  trap "cleanup_project ${slug}; cleanup_project ${analogue_slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _make_workflow_project "${analogue_slug}" "legacy"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: ${analogue_slug} (reused the reset and NMI vocabulary; packet layout differed)."
+  cat > "projects/${analogue_slug}/asm/${analogue_slug}.asm" <<'ASM'
+.ORG $C000
+PAD_STROBE_ON .EQU %00000001
+PAD_BTN_START .EQU %00010000
+Reset:
+  RTS
+ASM
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+PAD_STROBE_ON .EQU %00000001
+ZP_JoypadHeld .EQU $16
+Reset:
+  LDA ZP_JoypadHeld
+  AND #$10
+  RTS
+ASM
+
+  local output
+  output="$(bash "${PROCESS_CHECK}" "${slug}")"
+  assert_match "PAD_BTN_START" "${output}" \
+    "process-check should run the scorecard-selected analogue comparison"
+}
+
+test_new_project_process_check_rejects_unknown_recorded_analogue() {
+  local slug; slug="$(unique_slug analogue_unknown)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
   _write_pass_one_scorecard \
     "${slug}" \
-    "Analogue: prior_project (reused the reset and NMI vocabulary; packet layout differed)."
+    "Analogue: project_that_does_not_exist (claimed reuse without a resolvable project)."
 
-  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "a recorded analogue must resolve through project.conf"
+  assert_match "project config not found" "${output}"
 }
 
 test_new_project_process_check_rejects_missing_pass_one_analogue() {

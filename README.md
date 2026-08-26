@@ -100,6 +100,7 @@ Per-project pass workflow (run from the repository root):
 ```sh
 make project-pass-prep PROJECT=<project_slug>
 make project-next-pass PROJECT=<project_slug>
+make project-prior-reuse-check PROJECT=<project_slug>
 make project-pass-start PROJECT=<project_slug>
 make project-pass-closeout PROJECT=<project_slug>
 ```
@@ -125,6 +126,8 @@ Optional variables:
   `OUT_OF_SCOPE=` to persist the full objective.
 - `project-pass-closeout`: append `PASS=<id>` to close out a specific
   pass id rather than the latest.
+- `project-prior-reuse-check`: append `STRICT=1` only after reviewing and
+  clearing the advisory analogue-constant shortlist.
 
 Use this as the default start/resume workflow for reverse-engineering passes.
 `project-pass-prep` refreshes inventory and generates structured `xasm`

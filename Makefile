@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-regenerate-check project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-regenerate-check project-prior-reuse-check project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
 
 nesrev:
 	javac NESrev.java -Xlint:unchecked
@@ -30,6 +30,10 @@ project-regenerate-asm:
 project-regenerate-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-regenerate-check PROJECT=<slug> [STRICT=1] [REGENERATE_DIFF_MAX_LINES=<count>]"; exit 2; fi
 	bash scripts/project_regenerate_check.sh $(PROJECT)
+
+project-prior-reuse-check:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-prior-reuse-check PROJECT=<slug> [STRICT=1]"; exit 2; fi
+	bash scripts/project_prior_reuse_check.sh $(PROJECT) $(if $(filter 1 true yes,$(STRICT)),--strict,)
 
 project-verify:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-verify PROJECT=<slug>"; exit 2; fi

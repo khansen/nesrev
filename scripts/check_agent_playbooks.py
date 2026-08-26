@@ -271,11 +271,15 @@ ROOT_WORD_CEILING = 6000
 # acceptance semantics. The affected routes carry those safety boundaries at
 # measured-plus-headroom so the advisory/strict distinction and non-mutation
 # guarantee are not compressed away.
+# Scorecard-driven prior-project reuse support adds one advisory command and
+# its evidence/precision boundaries to the root contract and pass/tooling
+# routes. These ceilings retain measured-plus-headroom rather than hiding the
+# contextual and non-authoritative nature of the comparison.
 ROUTE_BUDGETS = {
-    "default": (3275, 23700),
-    "data-recovery": (3010, 22470),
-    "new-project": (4080, 29850),
-    "project-pass-review": (4275, 30100),
+    "default": (3320, 24080),
+    "data-recovery": (3035, 22715),
+    "new-project": (4115, 30150),
+    "project-pass-review": (4320, 30480),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

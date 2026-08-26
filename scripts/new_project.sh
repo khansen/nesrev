@@ -210,6 +210,7 @@ variables that some targets accept are listed under
 - \`make project-regenerate-check PROJECT=${slug}\`
 - \`make project-intake PROJECT=${slug}\`
 - \`make project-next-pass PROJECT=${slug}\`
+- \`make project-prior-reuse-check PROJECT=${slug}\`
 - \`make project-pass-start PROJECT=${slug}\`
 - \`make project-pass-closeout PROJECT=${slug}\`
 - \`make project-verify PROJECT=${slug}\`
@@ -238,6 +239,9 @@ they are not part of the command syntax.
 - \`project-regenerate-check\`: \`STRICT=1\` — fail when the authored assembly
   differs from a fresh base-command regeneration;
   \`REGENERATE_DIFF_MAX_LINES=<count>\` — change the advisory diff preview.
+- \`project-prior-reuse-check\`: \`STRICT=1\` — fail when the scorecard-selected
+  analogue still supplies evidence-backed constant reuse candidates; normal
+  process-check integration remains advisory.
 - \`project-pass-start\`: \`PASS=<id>\`, \`TARGET=<corridor_anchor>\` —
   set the pass id and record the selected corridor objective; omitting
   \`TARGET=<corridor_anchor>\` warns and uses the first generated evidence
