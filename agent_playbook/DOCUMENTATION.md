@@ -566,29 +566,6 @@ but do not belong in `<slug>_DX_Systems.md`, `MEMORY_MAP.md`, or
 - likely subsystem entry points, unresolved consumers, and future-corridor
   hypotheses that are too provisional for `*_DX_Systems.md`
 
-<a id="removed-generator-label-notation"></a>
-### Removed generator-label notation
-
-When base-command regeneration will recreate an intentionally deleted
-NESrev-only label, preserve the exact reapplication hazard in plain text as
-**removed generator label L8123**. The label name in that phrase must not be
-backticked: `project-docs-check` treats backticked symbol-shaped names as live
-asm references. This exact plain-text form is the sanctioned exception to the
-normal preference against exact stale names.
-
-Use the notation only when all of these are true:
-
-- NESrev generated the label; it was not a project API name or a semantic rename
-- removing the label leaves the bytes and behavior unchanged, and a stable
-  symbolic owner or boundary still identifies the site
-- ordinary regeneration is expected to recreate the label
-
-Put a live reapplication hazard in `WORKING_NOTES.md`; a review archive may
-retain it as historical evidence. Name the stable owner/boundary and why label
-removal is safe in the same note. Do not add the deletion to `renames.csv`, do
-not retain a warning-baseline row for the absent label, and do not promote the
-generator name into a systems overview or crosswalk.
-
 ### Allowed properties
 
 - editable and reorganizable when the notes materially improve future work
@@ -604,6 +581,30 @@ intended role.
 
 Do not update it for routine micro-steps, pass-by-pass churn, or facts
 that are already captured adequately in canonical docs or inventories.
+
+<a id="removed-generator-label-notation"></a>
+### Removed generator-label notation
+
+When base-command regeneration will recreate an intentionally deleted
+NESrev-only label, preserve the exact reapplication hazard in plain text as
+**removed generator label L8123**. Here L8123 stands for the actual deleted
+generator label; replace it with that exact name. The label name in that phrase
+must not be backticked: `project-docs-check` treats backticked symbol-shaped
+names as live asm references. This exact plain-text form is the sanctioned
+exception to the normal preference against exact stale names.
+
+Use the notation only when all of these are true:
+
+- NESrev generated the label; it was not a project API name or a semantic rename
+- removing the label leaves the bytes and behavior unchanged, and a stable
+  symbolic owner or boundary still identifies the site
+- ordinary regeneration is expected to recreate the label
+
+Put a live reapplication hazard in `WORKING_NOTES.md`; a review archive may
+retain it as historical evidence. Name the stable owner/boundary and why label
+removal is safe in the same note. Do not add the deletion to `renames.csv`, do
+not retain a warning-baseline row for the absent label, and do not promote the
+generator name into a systems overview or crosswalk.
 
 ### Next-pass plan override
 

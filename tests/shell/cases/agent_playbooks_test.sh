@@ -17,12 +17,10 @@ test_agent_review_protocol_records_pass_aware_default_range() {
   local spec="${REPO_ROOT}/AGENT_REVIEW_PROTOCOL_SPEC.md"
   local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
 
-  assert_match 'HEAD~2\.\.HEAD.*pass 0' "$(<"${spec}")" \
-    "review protocol must record the pass-0 two-commit range"
-  assert_match 'HEAD~1\.\.HEAD.*later passes' "$(<"${spec}")" \
-    "review protocol must retain the later-pass one-commit range"
-  assert_match 'RUN_ID=<id>.*MAX_ROUNDS=<n>' "$(<"${tooling}")" \
-    "Make-wrapper docs must advertise supported review-run overrides"
+  assert_eq "$(grep -cF '`HEAD~2..HEAD` range for pass 0 or `HEAD~1..HEAD` for later passes' "${spec}")" "1" \
+    "review protocol must keep both pass-aware defaults on one unambiguous line"
+  assert_eq "$(grep -cF 'make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [LEARNING=<text>]' "${tooling}")" "1" \
+    "Make-wrapper synopsis must advertise every supported review-run override"
   if grep -q 'non-default range, run id' "${spec}"; then
     fail "review protocol must not route supported start-pass overrides through lower-level init"
   fi
@@ -31,10 +29,10 @@ test_agent_review_protocol_records_pass_aware_default_range() {
 test_removed_generator_label_notation_is_plain_and_scoped() {
   local docs="${REPO_ROOT}/agent_playbook/DOCUMENTATION.md"
   local intake="${REPO_ROOT}/agent_playbook/NEW_PROJECT.md"
-  local notation_line
 
-  notation_line="$(grep -F 'removed generator label L8123' "${docs}")"
-  if [[ "${notation_line}" == *'`'* ]]; then
+  assert_eq "$(grep -cF 'removed generator label L8123' "${docs}")" "1" \
+    "DOCUMENTATION.md must keep exactly one plain-text notation example"
+  if grep -qF 'removed generator label `L8123`' "${docs}"; then
     fail "removed generator-label example must be plain text, not backticked"
   fi
   assert_match 'return-address dispatcher' "$(<"${intake}")" \
