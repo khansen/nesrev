@@ -5,8 +5,8 @@ A project should use the canonical hardware register/bit/field names defined in
 ``agent_playbook/ASM_STYLE.md#hardware-constants``. This check warns when a
 project defines a ``.EQU`` whose name uses a canonical-looking hardware prefix
 (``PPUCTRL_``, ``PPUMASK_``, ``PPUSTATUS_``, ``PAD_``, ``OAM_``, ``APU_``,
-``JOY1_``, ``JOY2_``) but is not one of the canonical names and is not listed in
-the project-local allowlist.
+``JOY1_``, ``JOY2_``), or a legacy ``PPU_NAMETABLE_*_BIT``/``*_CLEAR_MASK``
+shape, but is not canonical or listed in the project-local allowlist.
 
 It is advisory by default: it prints ``warn:`` lines and exits 0 so it can be run
 from ``project-process-check`` without failing the gate. Pass ``--strict`` to make
@@ -39,6 +39,9 @@ TRIGGER_PREFIXES = (
     "APU_",
     "JOY1_",
     "JOY2_",
+)
+PPU_NAMETABLE_NEAR_MISS_RE = re.compile(
+    r"^PPU_NAMETABLE_(?:[XY]_BIT|[0-9A-F]{4}(?:_BIT|_CLEAR_MASK))$"
 )
 
 HARDWARE_ANCHOR = '<a id="hardware-constants"></a>'
@@ -109,7 +112,10 @@ def main() -> int:
 
     drift = []
     for lineno, name in project_equ_names(asm_path):
-        if not name.startswith(TRIGGER_PREFIXES):
+        if not (
+            name.startswith(TRIGGER_PREFIXES)
+            or PPU_NAMETABLE_NEAR_MISS_RE.fullmatch(name)
+        ):
             continue
         if name in canonical or name in allowlist:
             continue

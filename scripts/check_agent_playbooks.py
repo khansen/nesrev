@@ -262,11 +262,15 @@ ROOT_WORD_CEILING = 6000
 # live startup stalled before the user could place the ROM. The new-project
 # ceiling carries that operator-facing stop condition rather than compressing
 # the handoff rule back into ambiguous shorthand.
+# Canonical hardware cleanup later promoted shared PPUCTRL nametable, Zapper,
+# and derived OAM page names and made canonical clear masks derive from their
+# positive masks. The affected ceilings carry those table rows at
+# measured-plus-headroom instead of preserving recurring allowlist churn.
 ROUTE_BUDGETS = {
-    "default": (3250, 23420),
-    "data-recovery": (2965, 22120),
-    "new-project": (4050, 29620),
-    "project-pass-review": (4240, 29760),
+    "default": (3250, 23480),
+    "data-recovery": (2980, 22260),
+    "new-project": (4060, 29680),
+    "project-pass-review": (4250, 29900),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

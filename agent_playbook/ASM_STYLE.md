@@ -341,14 +341,25 @@ When a pass touches hardware-register logic, symbolize the touched register oper
 
 Compound joypad masks (e.g. `PAD_BTN_A_B`, `PAD_DIR_UP_DOWN_MASK`, `PAD_BTN_START_SELECT_MASK`) use `PAD_BTN_` for face-button combos and `PAD_DIR_` for d-pad combos. Clear-masks use suffix `_CLEAR_MASK` (e.g. `PAD_BTN_CLEAR_A_MASK`) and are defined from the bit/mask they clear, not as inverse literals.
 
+**Zapper input bits:**
+
+| Constant | Value | Notes |
+|---|---|---|
+| `ZAPPER_TRIGGER_BIT` | %00010000 | Trigger input from the Zapper controller port |
+| `ZAPPER_LIGHT_BIT` | %00001000 | Light-sensor input from the Zapper controller port |
+
 **PPUCTRL ($2000) bits:**
 
 | Constant | Value | Notes |
 |---|---|---|
 | `PPUCTRL_NMI_ENABLE` | %10000000 | |
 | `PPUCTRL_NMI_DISABLE_MASK` | `~PPUCTRL_NMI_ENABLE` | AND clear-mask |
+| `PPUCTRL_NAMETABLE_2400` | %00000001 | Base nametable bit for $2400 |
 | `PPUCTRL_NAMETABLE_2800` | %00000010 | Base nametable bit for $2800 |
+| `PPUCTRL_NAMETABLE_SELECT_MASK` | `PPUCTRL_NAMETABLE_2400\|PPUCTRL_NAMETABLE_2800` | Both nametable-select bits |
+| `PPUCTRL_NAMETABLE_2400_CLEAR_MASK` | `~PPUCTRL_NAMETABLE_2400` | AND clear-mask |
 | `PPUCTRL_NAMETABLE_2800_CLEAR_MASK` | `~PPUCTRL_NAMETABLE_2800` | AND clear-mask |
+| `PPUCTRL_NAMETABLE_CLEAR_MASK` | `~PPUCTRL_NAMETABLE_SELECT_MASK` | AND clear-mask for both select bits |
 | `PPUCTRL_SPRITE_8X16` | %00100000 | 8x16 sprite size (clear = 8x8) |
 | `PPUCTRL_BG_PT_1000` | %00010000 | Background pattern table at $1000 |
 | `PPUCTRL_SPRITE_PT_1000` | %00001000 | Sprite pattern table at $1000 |
@@ -369,9 +380,9 @@ Composite PPUCTRL init values (e.g. `PPUCTRL_NMI_ENABLE|PPUCTRL_BG_PT_1000`) are
 | `PPUMASK_EMPHASIZE_RED` | %00100000 | |
 | `PPUMASK_EMPHASIZE_GREEN` | %01000000 | |
 | `PPUMASK_EMPHASIZE_BLUE` | %10000000 | |
-| `PPUMASK_HIDE_SPRITES_MASK` | %11101111 | AND clear-mask for sprite rendering |
+| `PPUMASK_HIDE_SPRITES_MASK` | `~PPUMASK_SHOW_SPRITES` | AND clear-mask for sprite rendering |
 | `PPUMASK_RENDER_ENABLE_MASK` | %00011000 | BG + sprite rendering bits |
-| `PPUMASK_RENDER_DISABLE_MASK` | %11100111 | AND clear-mask for BG + sprite rendering |
+| `PPUMASK_RENDER_DISABLE_MASK` | `~PPUMASK_RENDER_ENABLE_MASK` | AND clear-mask for BG + sprite rendering |
 
 **PPUSTATUS ($2002) bits:**
 
@@ -393,6 +404,7 @@ Composite PPUCTRL init values (e.g. `PPUCTRL_NMI_ENABLE|PPUCTRL_BG_PT_1000`) are
 
 | Constant | Value | Notes |
 |---|---|---|
+| `OAM_PAGE_HI` | `>RAM_OamShadowBase` | DMA source page; derive after proving the shadow base |
 | `OAM_SPRITE_STRIDE` | $04 | |
 | `OAM_FIELD_Y` | $00 | |
 | `OAM_FIELD_TILE` | $01 | |
