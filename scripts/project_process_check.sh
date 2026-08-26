@@ -221,8 +221,15 @@ if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITION
     "${DATA_BLOB_DISPOSITIONS_FILE}"
     --doc-root "${DOC_ROOT}"
     --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json"
+    --asm "${ASM_FILE}"
     --mode process
   )
+  if [[ -n "${DATA_BLOB_RENAMED_PASS:-}" ]]; then
+    data_blob_args+=(
+      --renames "${RENAMES_FILE}"
+      --renamed-pass "${DATA_BLOB_RENAMED_PASS}"
+    )
+  fi
   if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" ]]; then
     data_blob_args+=(--required)
   fi

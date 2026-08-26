@@ -550,7 +550,10 @@ wrapper. It materializes the scorecard row when needed, refreshes generated
 inventory, runs the residue/stale-symbol sweep, runs docs/process checks,
 performs verification (`VERIFY_MODE=strict|relaxed`), updates `verify` /
 `docs_check`, refreshes the raw-RAM queue through the refresh-only path, and
-reruns docs/process checks. Optional arguments are `PASS=<id>`,
+reruns docs/process checks. During both process checks it requires every
+`.DB`/`.DW` label renamed in the closing pass and documented with `Format:` to
+have a `data_blob_dispositions.csv` row, including small tables below the
+ordinary generated-candidate threshold. Optional arguments are `PASS=<id>`,
 `FOCUS=<text>`, `NOTES=<text>`, `DEFERRALS=<...>` and `REWORK_ITEMS=<count>`.
 The last is the operator's own count of late fixes caused by missed sweeps;
 a closed row that never answers it fails the lifecycle check, because an
@@ -611,8 +614,9 @@ Before closing a pass, audit:
   `AND #$03 / TAY / LDA Table,Y` must assert size 4, or a later edit can
   silently let the index run past the table. The masked/counted index is the
   bound proof; see [QUALITY_REVIEW.md](QUALITY_REVIEW.md)
-- touched opaque data/blob containers have a structure disposition in
-  `data_blob_dispositions.csv` when present, or a durable scorecard/
+- touched opaque data/blob containers, plus every current-pass renamed
+  `.DB`/`.DW` label with a `Format:` declaration, have a structure disposition
+  in `data_blob_dispositions.csv` when present, or a durable scorecard/
   `WORKING_NOTES.md` note per [REVIEW_AUDITS.md#static-readability-debt-audit](REVIEW_AUDITS.md#static-readability-debt-audit)
 - every remaining semantic literal is symbolized, structurally derived, or
   dispositioned through the canonical allowlist/parity-bug rules; an inline
