@@ -129,6 +129,10 @@ DATA_BLOB_DISPOSITIONS_REQUIRED="1"
 # decimal notation, while machine-oriented bytes stay hex.
 BASE_READABILITY_REQUIRED="1"
 
+# Quantity-suffixed constants (COUNT/INDEX/IDX/RELOAD/FRAMES) are human
+# quantities, not machine tokens; require decimal notation in new projects.
+BASE_READABILITY_EQU_REQUIRED="1"
+
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
 #   none       discovery completed; no controls required
@@ -177,6 +181,7 @@ make project-regenerate-asm PROJECT=${slug}
 
 \`\`\`sh
 make project-regenerate-asm PROJECT=${slug}
+make project-regenerate-check PROJECT=${slug}
 make project-intake PROJECT=${slug}
 \`\`\`
 
@@ -202,6 +207,7 @@ variables that some targets accept are listed under
 [Optional variables](#optional-variables).
 
 - \`make project-regenerate-asm PROJECT=${slug}\`
+- \`make project-regenerate-check PROJECT=${slug}\`
 - \`make project-intake PROJECT=${slug}\`
 - \`make project-next-pass PROJECT=${slug}\`
 - \`make project-pass-start PROJECT=${slug}\`
@@ -229,6 +235,9 @@ they are not part of the command syntax.
   \`ALLOW_TRAILING_BYTES=1\` — proceed past oversized iNES containers
   after a recorded trailing-byte audit (see
   [agent_playbook/NEW_PROJECT.md#trailing-byte-override](../../../../agent_playbook/NEW_PROJECT.md#trailing-byte-override)).
+- \`project-regenerate-check\`: \`STRICT=1\` — fail when the authored assembly
+  differs from a fresh base-command regeneration;
+  \`REGENERATE_DIFF_MAX_LINES=<count>\` — change the advisory diff preview.
 - \`project-pass-start\`: \`PASS=<id>\`, \`TARGET=<corridor_anchor>\` —
   set the pass id and record the selected corridor objective; omitting
   \`TARGET=<corridor_anchor>\` warns and uses the first generated evidence

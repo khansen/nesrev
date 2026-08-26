@@ -266,11 +266,16 @@ ROOT_WORD_CEILING = 6000
 # and derived OAM page names and made canonical clear masks derive from their
 # positive masks. The affected ceilings carry those table rows at
 # measured-plus-headroom instead of preserving recurring allowlist churn.
+# Non-destructive regeneration drift review and quantity-suffixed .EQU
+# enforcement add one operator-facing wrapper contract plus its intake
+# acceptance semantics. The affected routes carry those safety boundaries at
+# measured-plus-headroom so the advisory/strict distinction and non-mutation
+# guarantee are not compressed away.
 ROUTE_BUDGETS = {
-    "default": (3250, 23480),
-    "data-recovery": (2980, 22260),
-    "new-project": (4060, 29680),
-    "project-pass-review": (4250, 29900),
+    "default": (3275, 23700),
+    "data-recovery": (3010, 22470),
+    "new-project": (4080, 29850),
+    "project-pass-review": (4275, 30100),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -6,6 +6,7 @@
 # and stderr message.
 
 REGEN="${REPO_ROOT}/scripts/project_regenerate_asm.sh"
+REGEN_CHECK="${REPO_ROOT}/scripts/project_regenerate_check.sh"
 
 _run_regen() {
   # Echo the exit code on stdout so tests can assert on it independently of
@@ -405,6 +406,63 @@ EOF
   make project-regenerate-asm "PROJECT=${slug}" >/dev/null
   cmp "${NESREV_TEST_TMPDIR}/first.asm" "projects/${slug}/asm/${slug}.asm" \
     || fail "base regeneration with tracked controls is not reproducible"
+}
+
+test_regenerate_check_reports_clean_without_mutating_asm() {
+  local slug; slug="$(unique_slug regen_check_clean)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes"
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+  make project-regenerate-asm "PROJECT=${slug}" >/dev/null
+
+  cp "projects/${slug}/asm/${slug}.asm" "${NESREV_TEST_TMPDIR}/before.asm"
+  local output
+  output="$(make project-regenerate-check "PROJECT=${slug}" 2>/dev/null)"
+
+  assert_match "status=clean diff_lines=0" "${output}" \
+    "regeneration check should report a matching generated baseline"
+  cmp "${NESREV_TEST_TMPDIR}/before.asm" "projects/${slug}/asm/${slug}.asm" \
+    || fail "regeneration check must not replace the committed asm"
+}
+
+test_regenerate_check_reports_drift_advisory_without_mutating_asm() {
+  local slug; slug="$(unique_slug regen_check_drift)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes"
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+  make project-regenerate-asm "PROJECT=${slug}" >/dev/null
+
+  printf '\n; intentional intake normalization\n' >> "projects/${slug}/asm/${slug}.asm"
+  cp "projects/${slug}/asm/${slug}.asm" "${NESREV_TEST_TMPDIR}/normalized.asm"
+  local output rc
+  set +e
+  output="$(bash "${REGEN_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "0" "default regeneration drift must remain advisory"
+  assert_match "status=drift" "${output}" "regeneration check should report drift"
+  assert_match "intentional intake normalization" "${output}" \
+    "regeneration check should preview the committed-only edit"
+  cmp "${NESREV_TEST_TMPDIR}/normalized.asm" "projects/${slug}/asm/${slug}.asm" \
+    || fail "drift reporting must not replace the committed asm"
+}
+
+test_regenerate_check_strict_fails_on_drift_without_mutating_asm() {
+  local slug; slug="$(unique_slug regen_check_strict)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make_ines "${NESREV_TEST_TMPDIR}/rom.nes"
+  scaffold_project "${slug}" "${NESREV_TEST_TMPDIR}/rom.nes"
+  make project-regenerate-asm "PROJECT=${slug}" >/dev/null
+
+  printf '\n; semantic edit\n' >> "projects/${slug}/asm/${slug}.asm"
+  cp "projects/${slug}/asm/${slug}.asm" "${NESREV_TEST_TMPDIR}/edited.asm"
+  assert_exit 69 env STRICT=1 bash "${REGEN_CHECK}" "${slug}"
+  cmp "${NESREV_TEST_TMPDIR}/edited.asm" "projects/${slug}/asm/${slug}.asm" \
+    || fail "strict drift reporting must not replace the committed asm"
 }
 
 test_rejects_bad_magic() {

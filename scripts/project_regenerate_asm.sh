@@ -13,6 +13,9 @@ cd "${REPO_ROOT}"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+# Internal output override used by project-regenerate-check. Normal operator
+# invocations leave this unset and atomically replace the configured ASM_FILE.
+REGENERATE_OUTPUT_ASM="${PROJECT_REGENERATE_OUTPUT_ASM:-${ASM_FILE}}"
 # Command-line paths are explicit one-run overrides. The normal reproducible
 # path comes from tracked project.conf settings.
 CODEPOINTERS_CSV="${2:-${NESREV_CODEPOINTERS_FILE}}"
@@ -176,9 +179,9 @@ if [[ -n "${DATARANGES_CSV}" ]]; then
   cmd+=(-dataranges "${DATARANGES_CSV}")
 fi
 "${cmd[@]}" > "${OUT_ASM}"
-mv "${OUT_ASM}" "${ASM_FILE}"
+mv "${OUT_ASM}" "${REGENERATE_OUTPUT_ASM}"
 
-echo "asm regenerated: ${ASM_FILE}"
+echo "asm regenerated: ${REGENERATE_OUTPUT_ASM}"
 if [[ -n "${CODEPOINTERS_CSV}" ]]; then
   echo "code pointer config: ${CODEPOINTERS_CSV} (raw PRG offsets or bank-qualified rows)"
 fi
