@@ -20,17 +20,24 @@ Precision guards (kept low-noise on real projects):
     ($8000-$FFFF), so headers, sentinels, and misnamed non-pointer tables
     (e.g. packed data whose words are not code/data addresses) are not flagged.
 
-Report mode prints one line per finding and the count, exiting 0. --strict exits
-68 when any finding remains; project-verify uses it for opted-in projects.
+Report mode prints one line per finding and the count, exiting 0. ``--strict``
+exits 68 when any finding remains. ``--strict-whole-body`` preserves the older
+hard-gate boundary: it fails only findings whose whole-body PRG-pointer ratio
+meets the threshold, while prefix-only findings remain advisory.
 """
 import re
 import sys
+from pathlib import Path
 
 NAME_RE = re.compile(r'(PtrTable|PointerTable|PtrTbl|PtrList|PointerList|Pointers|Ptrs)', re.I)
 LABEL_RE = re.compile(r'^([A-Za-z_][A-Za-z0-9_]*):')
 PRG_LO, PRG_HI = 0x8000, 0xFFFF
 MIN_WORDS = 2
 PRG_RATIO = 0.6
+USAGE = (
+    'usage: pointer_table_body_check.py <asm_file> '
+    '[--strict|--strict-whole-body]'
+)
 
 
 def _num(tok):
@@ -70,26 +77,51 @@ def analyze(lines, i):
         for tok in m.group(1).split(';')[0].split(','):
             if tok.strip():
                 nums.append(_num(tok))
-    words = [nums[k] | (nums[k + 1] << 8)
-             for k in range(0, len(nums) - 1, 2)
-             if nums[k] is not None and nums[k + 1] is not None]
+    words = []
+    leading_prg_words = 0
+    in_leading_prefix = True
+    for k in range(0, len(nums) - 1, 2):
+        lo, hi = nums[k], nums[k + 1]
+        if lo is None or hi is None:
+            in_leading_prefix = False
+            continue
+        word = lo | (hi << 8)
+        words.append(word)
+        if in_leading_prefix and PRG_LO <= word <= PRG_HI:
+            leading_prg_words += 1
+        else:
+            in_leading_prefix = False
     prg = [w for w in words if PRG_LO <= w <= PRG_HI]
-    flagged = (not has_symbolic and len(words) >= MIN_WORDS
-               and len(prg) >= PRG_RATIO * len(words))
-    return flagged, len(words), len(prg)
+    ratio_match = (
+        len(words) >= MIN_WORDS and len(prg) >= PRG_RATIO * len(words)
+    )
+    prefix_match = leading_prg_words >= MIN_WORDS
+    flagged = not has_symbolic and (ratio_match or prefix_match)
+    return flagged, len(words), len(prg), leading_prg_words, ratio_match
 
 
 def main(argv):
-    strict = '--strict' in argv
-    paths = [a for a in argv if not a.startswith('-')]
-    if len(paths) != 1:
-        print('usage: pointer_table_body_check.py <asm_file> [--strict]', file=sys.stderr)
+    strict = False
+    strict_whole_body = False
+    paths = []
+    for arg in argv:
+        if arg == '--strict':
+            strict = True
+        elif arg == '--strict-whole-body':
+            strict_whole_body = True
+        elif arg.startswith('-'):
+            print(USAGE, file=sys.stderr)
+            return 64
+        else:
+            paths.append(arg)
+    if len(paths) != 1 or (strict and strict_whole_body):
+        print(USAGE, file=sys.stderr)
         return 64
-    path = paths[0]
+    path = Path(paths[0])
     try:
-        lines = open(path).read().split('\n')
-    except OSError:
-        print(f'error: asm file not found: {path}', file=sys.stderr)
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except (OSError, UnicodeError) as exc:
+        print(f'error: cannot read asm file {path}: {exc}', file=sys.stderr)
         return 65
 
     findings = []
@@ -99,13 +131,21 @@ def main(argv):
             continue
         res = analyze(lines, i)
         if res and res[0]:
-            findings.append((i + 1, m.group(1), res[1], res[2]))
+            findings.append((i + 1, m.group(1), res[1], res[2], res[3], res[4]))
 
-    for ln, name, nw, nprg in findings:
+    for ln, name, nw, nprg, nleading, ratio_match in findings:
+        proof = 'whole-body ratio' if ratio_match else 'leading prefix'
         print(f'advisory: {path}:{ln}  {name} has a raw .DB body '
-              f'({nw} words, {nprg} in $8000-$FFFF) -- relocate to '
+              f'({nw} words, {nprg} in $8000-$FFFF, '
+              f'{nleading} in the leading prefix; proof: {proof}) -- relocate to '
               f'.DW <label> or .DB <label,>label', file=sys.stderr)
     print(f'[pointer-table] raw_pointer_table_bodies={len(findings)}')
+    blocking = findings if strict else [finding for finding in findings if finding[5]]
+    if blocking and strict_whole_body:
+        print(f'FAIL: {len(blocking)} pointer-table label(s) still hold raw .DB pointer '
+              f'bytes by the established whole-body ratio; relocate per '
+              f'agent_playbook/QUALITY_REVIEW.md', file=sys.stderr)
+        return 68
     if findings and strict:
         print(f'FAIL: {len(findings)} pointer-table label(s) still hold raw .DB pointer '
               f'bytes; relocate per agent_playbook/QUALITY_REVIEW.md', file=sys.stderr)
