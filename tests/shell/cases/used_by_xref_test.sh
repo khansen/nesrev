@@ -60,7 +60,28 @@ DataTable:
 .DB $01
 ASM
 
-  python3 "${USED_BY_CHECK}" "${asm}" >/dev/null
+  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
+}
+
+test_used_by_xref_check_accepts_direct_claim_through_derived_equ() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_derived_equ.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+BaseTable:
+.DB $00
+
+; Format: one byte.
+; Used by: Reader.
+DataTable:
+.DB $01
+
+DATA_TABLE_CURSOR .EQU (DataTable-BaseTable)
+Reader:
+  LDX #DATA_TABLE_CURSOR
+  RTS
+ASM
+
+  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
 }
 
 test_used_by_xref_check_rejects_stale_direct_consumer() {
@@ -179,6 +200,57 @@ Payload:
 ASM
 
   python3 "${USED_BY_CHECK}" "${asm}" >/dev/null
+}
+
+test_used_by_xref_check_accepts_direct_claim_via_symbolic_pointer_table() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_table_transitive.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+ProcessRequest:
+  LDX RequestPointerTable,Y
+  LDA RequestPointerTable+1,Y
+  RTS
+
+RequestPointerTable:
+.DW Payload
+
+; Format: payload bytes.
+; Used by: ProcessRequest.
+Payload:
+.DB $01
+ASM
+
+  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
+}
+
+test_used_by_xref_check_rejects_unconnected_consumer_despite_pointer_table() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_table_unconnected.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+ActualReader:
+  LDX RequestPointerTable,Y
+  RTS
+
+RequestPointerTable:
+.DW Payload
+
+OtherReader:
+  RTS
+
+; Format: payload bytes.
+; Used by: OtherReader.
+Payload:
+.DB $01
+ASM
+
+  set +e
+  python3 "${USED_BY_CHECK}" --strict "${asm}" \
+    >"${NESREV_TEST_TMPDIR}/table_unconnected.out" \
+    2>"${NESREV_TEST_TMPDIR}/table_unconnected.err"
+  local rc=$?
+  set -e
+  assert_eq "${rc}" "2" "an unrelated consumer must remain a stale claim"
+  assert_match "OtherReader" "$(cat "${NESREV_TEST_TMPDIR}/table_unconnected.err")"
 }
 
 test_used_by_xref_check_through_producer_advisory_unless_strict() {

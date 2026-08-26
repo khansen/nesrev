@@ -174,6 +174,14 @@ python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
   "${SCRIPT_DIR}/../agent_playbook/ASM_STYLE.md" \
   "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" || true
 
+# New projects already opt into proof-debt signals. Keep this source-level
+# family-completeness scan advisory until corpus calibration supports a hard
+# gate; --strict remains available for a reviewed project-local zero baseline.
+if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
+  echo "[constant-family] Checking raw state/request writers against existing constants (advisory)"
+  python3 "${SCRIPT_DIR}/raw_immediate_constant_check.py" "${ASM_FILE}"
+fi
+
 # Advisory only (must not fail the gate): flag data tables whose index is
 # provably bounded (mask or compare, resolved by xasm's index-pattern analysis)
 # but that have no data_extent_assertions.csv entry pinning their size.

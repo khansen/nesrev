@@ -25,6 +25,9 @@ CONSUMER_SYMBOL_RE = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 CONNECTOR_RE = re.compile(r"\b(via|through)\b", re.IGNORECASE)
 SYMBOL_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 UNRESOLVED_LABEL_RE = re.compile(r"^L[0-9A-Fa-f]{4,5}$")
+POINTER_TABLE_NAME_RE = re.compile(
+    r"(PtrTable|PointerTable|PtrTbl|PtrList|PointerList|Pointers|Ptrs)", re.IGNORECASE
+)
 SKIP_PHRASES = (
     "no known",
     "no active",
@@ -187,6 +190,28 @@ def build_source_references(asm_path: Path, symbols: set[str]) -> dict[str, set[
     return refs
 
 
+def reaches_through_symbolic_pointer_table(
+    consumer: str,
+    target: str,
+    source_refs: dict[str, set[str]],
+) -> bool:
+    """Return true for Consumer -> named pointer table -> Target source edges.
+
+    xasm assigns references in a data table to the preceding lexical routine,
+    so its owner field cannot prove this common indirect-dispatch shape. The
+    source graph can prove both symbolic edges without claiming that an
+    arbitrary two-hop reference is executable.
+    """
+
+    consumer_refs = source_refs.get(consumer, set())
+    for table in consumer_refs:
+        if not POINTER_TABLE_NAME_RE.search(table):
+            continue
+        if target in source_refs.get(table, set()):
+            return True
+    return False
+
+
 def first_symbol(text: str) -> str | None:
     match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", text)
     if not match:
@@ -271,7 +296,13 @@ def check_annotation(
             failures.append(
                 f"{line}: Used by comment for {target} names unknown consumer symbol {consumer}"
             )
-        elif consumer not in actual_owners:
+        else:
+            pointer_table_edge = (
+                producer_for_target is None
+                and reaches_through_symbolic_pointer_table(consumer, target, source_refs)
+            )
+            if consumer in actual_owners or pointer_table_edge:
+                continue
             rendered_owners = ", ".join(sorted(actual_owners)) or "none"
             msg = (
                 f"{line}: Used by comment for {context} names {consumer}, "
