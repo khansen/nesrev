@@ -169,9 +169,19 @@ make project-regenerate-asm PROJECT=<slug>
 Before intake, complete hidden-code/code-pointer discovery. Record
 `NESREV_RECOVERY_STATUS="none"` when no controls are needed; otherwise
 track them under `config/nesrev/`, set the matching `NESREV_*_FILE`
-paths, and use `"configured"`. The base command must reproduce the
-assembly; command-line paths are experimental overrides only. Formats
-and configuration live at
+paths, and use `"configured"`. The base command must reproduce the generator
+baseline; command-line paths are experimental overrides only. After intake
+normalization or any semantic edit, inspect the intentional difference without
+overwriting the authored file:
+
+```sh
+make project-regenerate-check PROJECT=<slug>
+```
+
+At pass 0, every reported hunk must be an understood intake normalization or
+recovery correction, and the review handoff must name those categories. An
+unexplained hunk means the tracked controls do not yet capture the generator
+state. Formats, configuration, and drift-check semantics live at
 [TOOLING.md#nesrev-controls](TOOLING.md#nesrev-controls).
 
 Once discovery and regeneration are stable, run:
@@ -355,7 +365,11 @@ new row for the intake baseline.
    placeholders left in the rationale column.
 3. Recovery discovery is recorded as `none`, or as `configured` with
    every active control tracked under `config/nesrev/` and named in
-   `project.conf`. Base-command regeneration reproduces the assembly.
+   `project.conf`. Run `make project-regenerate-check PROJECT=<slug>` and
+   review every hunk. A clean result proves exact generator identity; pass-0
+   drift is acceptable only when it is limited to documented intake
+   normalization or recovery corrections. The check must not reveal an
+   untracked control or unexplained hand edit.
 4. `ONBOARDING.md` has final intake/recovery status and no scaffold
    replacement directions. `project-intake` replaces the scaffold's
    setup-oriented First Steps body with a Resuming Work section; if that

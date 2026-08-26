@@ -64,11 +64,20 @@ if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
     "${ASM_FILE}"
 fi
 
+base_readability_args=()
 if [[ "${BASE_READABILITY_REQUIRED}" == "1" ]]; then
   # Hard gate for opted-in projects: fails if hex #$00/#$01 reappear in
   # index-register / unit-step quantity contexts.
+  base_readability_args+=(--strict)
+fi
+if [[ "${BASE_READABILITY_EQU_REQUIRED}" == "1" ]]; then
+  # Separate migration gate for semantic quantity constants. New scaffolds opt
+  # in; existing projects remain unaffected until their .EQU block is cleaned.
+  base_readability_args+=(--strict-equates)
+fi
+if (( ${#base_readability_args[@]} > 0 )); then
   bash "${SCRIPT_DIR}/base_readability_kpi.sh" \
-    "${ASM_FILE}" --strict
+    "${ASM_FILE}" "${base_readability_args[@]}"
 fi
 
 # Hard gate for established whole-body findings; newly detected prefix-only

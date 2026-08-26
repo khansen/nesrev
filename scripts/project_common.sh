@@ -55,6 +55,11 @@ load_project_conf() {
   # unit-step arithmetic use decimal notation from the start. Legacy projects
   # default off so existing base-by-habit debt is not a retroactive hard gate.
   BASE_READABILITY_REQUIRED="0"
+  # Quantity-suffixed .EQU readability opt-in. This is separate from the older
+  # immediate-literal flag because enabling it corpus-wide would retroactively
+  # turn substantial authored constant debt into hard failures. New scaffolds
+  # start clean and enforce both classes.
+  BASE_READABILITY_EQU_REQUIRED="0"
   # Scorecard lifecycle strictness opt-in. New projects use a clean ordered
   # scorecard and enable this; legacy projects may have imported or partial
   # historical rows that need a separate normalization pass before strict mode.
@@ -128,6 +133,7 @@ load_project_conf() {
   : "${DATA_BLOB_DISPOSITIONS_REQUIRED:=0}"
   : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
   : "${BASE_READABILITY_REQUIRED:=0}"
+  : "${BASE_READABILITY_EQU_REQUIRED:=0}"
   : "${SCORECARD_LIFECYCLE_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"

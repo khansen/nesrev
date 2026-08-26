@@ -160,6 +160,7 @@ If the ROM or NESrev recovery controls change, rerun:
 
 ```sh
 make project-regenerate-asm PROJECT={slug}
+make project-regenerate-check PROJECT={slug}
 make project-intake PROJECT={slug}
 ```
 """

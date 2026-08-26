@@ -53,6 +53,7 @@ commands are for debugging only.
 
 ```sh
 make project-regenerate-asm PROJECT=<slug>
+make project-regenerate-check PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 make project-pass-closeout PROJECT=<slug>
@@ -579,6 +580,21 @@ The reproducible command is always:
 make project-regenerate-asm PROJECT=<slug>
 ```
 
+To compare the authored assembly with a fresh base-command regeneration
+without replacing the authored file, run:
+
+```sh
+make project-regenerate-check PROJECT=<slug>
+```
+
+The check regenerates to a temporary path, prints a bounded unified diff, and
+exits zero on drift by default because semantic passes and reviewed intake
+normalization intentionally diverge from raw NESrev output. Every unexpected
+hunk is still a defect or an unrecorded recovery-control change. Use
+`STRICT=1` when exact generator identity is the intended invariant;
+`REGENERATE_DIFF_MAX_LINES=<count>` changes the preview limit. The check never
+rewrites the configured assembly file.
+
 Set active paths in `projects/<slug>/project.conf`:
 
 ```sh
@@ -759,6 +775,13 @@ exceptions, such as hardware-register payloads, address low bytes, tiles,
 sentinels, masks, or pointer bytes. Review those sites semantically before any
 broader conversion. Run without `--strict` for a non-failing count.
 
+New scaffolds also set `BASE_READABILITY_EQU_REQUIRED=1`. That separate flag
+checks raw hex right-hand sides on constants ending in `_COUNT`, `_INDEX`,
+`_IDX`, `_RELOAD`, or `_FRAMES`, excluding `ZP_`/`RAM_` address declarations.
+The separate opt-in avoids retroactively hard-failing existing constant blocks;
+legacy projects enable it after cleanup. Use `--check-equates` for an advisory
+standalone report or `--strict-equates` for the hard gate.
+
 <a id="pointer-table-relocation-gate"></a>
 `pointer_table_body_check.py <asm>` flags labels named as a pointer table
 (`...PtrTable`, `...Pointers`, ...) whose body is still a raw numeric `.DB` lo/hi
@@ -852,7 +875,7 @@ debug-only recipes not big enough to warrant their own section.
 
 ### NESrev regeneration
 
-- CSV hint formats + wrapper invocation:
+- CSV hint formats, wrapper invocation, and non-destructive regeneration drift:
   [#nesrev-controls](#nesrev-controls)
 
 ### Inventory and KPIs

@@ -92,6 +92,47 @@ test_base_readability_clean_file_reports_zero() {
   assert_match "strict_hex_quantity_immediates=0" "${out}" "clean file should report zero"
 }
 
+test_base_readability_flags_hex_quantity_equates_when_requested() {
+  local fx="${NESREV_TEST_TMPDIR}/equates.asm"
+  cat > "${fx}" <<'EOF'
+ROUND_TARGET_COUNT       .EQU $0A
+CURRENT_FRAME_INDEX      .EQU $01
+FRAME_TIMER_RELOAD       .EQU $20
+TRANSITION_DELAY_FRAMES  .EQU $3C
+PALETTE_CURSOR_IDX       .equ $02
+ZP_DebounceCount         .EQU $43
+RAM_AnimationIndex       .EQU $0500
+TILE_COUNT               .EQU 10
+TILE_TOKEN               .EQU $0A
+TABLE_COUNT              .EQU OtherEnd-OtherStart
+EOF
+  local out
+  out="$(bash "${BASE_READABILITY}" "${fx}" --check-equates 2>/dev/null)"
+  assert_match "hex_quantity_equates=5" "${out}" \
+    "quantity suffixes should be checked without treating ZP/RAM addresses as quantities"
+}
+
+test_base_readability_reports_equate_decimal_hint() {
+  local fx="${NESREV_TEST_TMPDIR}/equate_hint.asm"
+  printf 'ROUND_TARGET_COUNT .EQU $0A\n' > "${fx}"
+  local err
+  err="$(bash "${BASE_READABILITY}" "${fx}" --check-equates 2>&1 1>/dev/null)"
+  assert_match "review decimal 10" "${err}" "equate report should decode the hex value"
+  assert_match "quantity-suffixed equate" "${err}" "equate report should name the context"
+}
+
+test_base_readability_strict_equates_fails_on_hits() {
+  local fx="${NESREV_TEST_TMPDIR}/equate_strict_fail.asm"
+  printf 'ROUND_TARGET_COUNT .EQU $0A\n' > "${fx}"
+  assert_exit 69 bash "${BASE_READABILITY}" "${fx}" --strict-equates
+}
+
+test_base_readability_strict_equates_passes_when_clean() {
+  local fx="${NESREV_TEST_TMPDIR}/equate_strict_ok.asm"
+  printf 'ROUND_TARGET_COUNT .EQU 10\nTILE_TOKEN .EQU $0A\n' > "${fx}"
+  assert_exit 0 bash "${BASE_READABILITY}" "${fx}" --strict-equates
+}
+
 test_base_readability_missing_file_errors() {
   assert_exit 65 bash "${BASE_READABILITY}" "${NESREV_TEST_TMPDIR}/does_not_exist.asm"
 }
@@ -117,6 +158,22 @@ test_base_readability_required_new_project_defaults_on() {
   assert_eq "${flag}" "1" "new project scaffold must enable BASE_READABILITY_REQUIRED"
 }
 
+test_equ_base_readability_required_new_project_defaults_on() {
+  local slug
+  slug="$(unique_slug equ_brreq_on)"
+  bash scripts/new_project.sh "${slug}" >/dev/null
+  local flag
+  flag="$(bash -c '
+    set -euo pipefail
+    cd "'"${REPO_ROOT}"'"
+    source scripts/project_common.sh
+    load_project_conf "'"${slug}"'" >/dev/null 2>&1
+    echo "${BASE_READABILITY_EQU_REQUIRED}"
+  ')"
+  cleanup_project "${slug}"
+  assert_eq "${flag}" "1" "new project scaffold must enable .EQU base readability"
+}
+
 test_base_readability_required_legacy_default_off_without_conf() {
   local slug rom
   slug="$(unique_slug brreq_legacy)"
@@ -128,4 +185,23 @@ test_base_readability_required_legacy_default_off_without_conf() {
   flag="$(_load_flag "${slug}")"
   cleanup_project "${slug}"
   assert_eq "${flag}" "0" "legacy project.conf without the scaffold flag defaults off"
+}
+
+test_equ_base_readability_required_legacy_default_off_without_conf() {
+  local slug rom
+  slug="$(unique_slug equ_brreq_legacy)"
+  rom="${NESREV_TEST_TMPDIR}/rom.nes"
+  make_ines "${rom}"
+  scaffold_project "${slug}" "${rom}"
+  perl -0pi -e 's/^BASE_READABILITY_EQU_REQUIRED="1"\n//m' "projects/${slug}/project.conf"
+  local flag
+  flag="$(bash -c '
+    set -euo pipefail
+    cd "'"${REPO_ROOT}"'"
+    source scripts/project_common.sh
+    load_project_conf "'"${slug}"'" >/dev/null 2>&1
+    echo "${BASE_READABILITY_EQU_REQUIRED}"
+  ')"
+  cleanup_project "${slug}"
+  assert_eq "${flag}" "0" "legacy project.conf without the .EQU flag defaults off"
 }

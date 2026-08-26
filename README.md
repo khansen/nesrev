@@ -214,6 +214,9 @@ structure it cannot recover from static analysis alone:
 `project.conf`; then the base `make project-regenerate-asm
 PROJECT=<slug>` command is reproducible. Command-line `KEY=value`
 paths are one-run overrides only. Do not invoke `NESrev` directly.
+Use `make project-regenerate-check PROJECT=<slug>` to regenerate into a
+temporary file and review drift without replacing the authored assembly;
+add `STRICT=1` only when exact generator identity is the intended invariant.
 
 Canonical format specifications and worked examples for all five hint
 files live at
