@@ -329,7 +329,8 @@ fi
 bash "${RUN_SCRIPT_DIR}/refresh_inventory.sh" "${SLUG}"
 bash "${RUN_SCRIPT_DIR}/project_pass_residue_check.sh" "${SLUG}" "${PASS_ID}"
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
-bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
+DATA_BLOB_RENAMED_PASS="${PASS_ID}" \
+  bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
 
 if [[ "${VERIFY_MODE}" == "relaxed" ]]; then
   ALLOW_UNRESOLVED_LXXXX=1 bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
@@ -423,6 +424,7 @@ PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
 PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1 \
   bash "${RUN_SCRIPT_DIR}/project_next_pass.sh" "${SLUG}" json >/dev/null
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
-bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
+DATA_BLOB_RENAMED_PASS="${PASS_ID}" \
+  bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
 
 echo "project-pass-closeout: completed pass ${PASS_ID} with ${VERIFY_MODE} verification"

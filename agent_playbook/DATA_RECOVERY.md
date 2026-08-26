@@ -701,6 +701,10 @@ byte runs:
 Do this in the same pass that documents, renames, or otherwise
 touches the data format. Do not defer record reflow to a later
 cosmetic pass when record boundaries are already known.
+When a pass renames a `.DB`/`.DW` label and gives it a `Format:` declaration,
+add its `data_blob_dispositions.csv` row in the same pass even when the table is
+smaller than the ordinary opaque-span threshold. Closeout enforces this
+current-pass linkage; size is not a reason to half-ledger a newly named format.
 ### Mixed tail regions
 Preserve byte layout exactly. Add boundary labels only when
 producer/consumer is known. Document confirmed substreams first.

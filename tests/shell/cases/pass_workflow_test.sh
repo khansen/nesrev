@@ -447,6 +447,47 @@ EOF
   assert_match "non-latest pass 1 has docs_check='pending'" "${output}"
 }
 
+test_project_process_check_enforces_current_pass_formatted_data_disposition() {
+  local slug; slug="$(unique_slug process_formatted_data)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+  cat >> "projects/${slug}/project.conf" <<'EOF'
+DATA_BLOB_DISPOSITIONS_REQUIRED="1"
+EOF
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+; Format: two 4-byte OAM records [y, tile, attributes, x].
+SmallOamTemplate:
+  .DB $10,$20,$00,$30
+  .DB $18,$21,$00,$38
+Reset:
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'CSV'
+old_name,new_name,reason,confidence,pass_id
+L8123,SmallOamTemplate,two OAM records,high,1
+CSV
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/data_blob_dispositions.csv" <<'CSV'
+label,disposition,format,artifact,consumer_evidence,pointer_evidence,extent_evidence,reflow_status,notes
+CSV
+
+  local output rc
+  set +e
+  output="$(DATA_BLOB_RENAMED_PASS=1 bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" \
+    "closeout-scoped process check must reject an undispositioned formatted data rename"
+  assert_match "SmallOamTemplate" "${output}"
+  assert_match "renamed in pass 1" "${output}"
+
+  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+}
+
 test_raw_address_kpi_excludes_mapper_register_stores_from_absrom_count() {
   local asm="${NESREV_TEST_TMPDIR}/mapper_stores.asm"
   cat > "${asm}" <<'ASM'
@@ -1138,7 +1179,7 @@ SH
   cat > "${stubdir}/project_process_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'process %s\n' "$1" >> "${STUB_LOG}"
+printf 'process %s data_blob_pass=%s\n' "$1" "${DATA_BLOB_RENAMED_PASS:-unset}" >> "${STUB_LOG}"
 SH
   cat > "${stubdir}/project_verify.sh" <<'SH'
 #!/usr/bin/env bash
@@ -1159,11 +1200,11 @@ SH
 inventory ${slug}
 residue ${slug} 1
 docs ${slug}
-process ${slug}
+process ${slug} data_blob_pass=1
 verify ${slug} 1
 raw_refresh ${slug} auto_prep=0 raw_write=1 refresh_only=1 format=json
 docs ${slug}
-process ${slug}
+process ${slug} data_blob_pass=1
 EOF
   cmp -s "projects/${slug}/expected_closeout.log" "${log}" \
     || fail "project-pass-closeout must run inventory, residue, docs, process, verify, raw refresh, final docs/process in order"

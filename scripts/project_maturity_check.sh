@@ -146,6 +146,7 @@ if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITION
     "${DATA_BLOB_DISPOSITIONS_FILE}"
     --doc-root "${DOC_ROOT}"
     --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json"
+    --asm "${ASM_FILE}"
     --mode maturity
   )
   if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" ]]; then

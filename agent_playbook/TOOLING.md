@@ -708,8 +708,12 @@ reject rows still marked `not_yet_reviewed` or `queued_static_pass`.
 `data_blob_dispositions.csv` is a per-label worklist for long or opaque spans.
 New scaffolds enable `DATA_BLOB_DISPOSITIONS_REQUIRED=1`. `project-process-check`
 validates existing ledgers and prints advisory candidates from
-`inventory/pass/data_coverage.json`; maturity blocks opted-in projects when
-candidate spans lack rows, rows remain `not_yet_reviewed` or
+`inventory/pass/data_coverage.json`, filtering cached labels that no longer
+exist in the current assembly after a rename. At closeout, the process check
+also hard-fails when any `.DB`/`.DW` label renamed in that pass has a `Format:`
+declaration but no matching disposition row, regardless of size; this closes
+small newly named tables without rebuilding the whole pass-prep cache. Maturity
+blocks opted-in projects when candidate spans lack rows, rows remain `not_yet_reviewed` or
 `queued_static_pass`, or structural rows lack consumer, pointer-search, extent,
 artifact, or reflow evidence. Exact labels or glob patterns are allowed only
 for genuinely repeated same-format spans.

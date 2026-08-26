@@ -75,12 +75,16 @@ MATURITY_BLOCKING_REFLOW_STATUSES = {
 
 LABEL_PATTERN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_*\?\[\]!\-]*$")
 OPAQUE_NAME_RE = re.compile(r"(blob|payload|bytes|image|stream|block)", re.IGNORECASE)
+GLOBAL_LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):(?:\s*(.*))?$")
+FORMAT_COMMENT_RE = re.compile(r"^\s*;\s*Format:", re.IGNORECASE)
+DATA_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|DW)\b", re.IGNORECASE)
+RENAME_FIELDS = ["old_name", "new_name", "reason", "confidence", "pass_id"]
 
 
 @dataclass(frozen=True)
 class Candidate:
     label: str
-    size: int
+    size: int | None
     reasons: tuple[str, ...]
 
 
@@ -196,12 +200,18 @@ def candidate_label(record: dict[str, Any]) -> str | None:
     return None
 
 
-def find_candidates(records: list[dict[str, Any]], min_size: int) -> list[Candidate]:
+def find_candidates(
+    records: list[dict[str, Any]],
+    min_size: int,
+    current_labels: set[str] | None = None,
+) -> list[Candidate]:
     candidates: list[Candidate] = []
     for record in records:
         label = candidate_label(record)
         size = declared_size(record)
         if label is None or size is None or size < min_size:
+            continue
+        if current_labels is not None and label not in current_labels:
             continue
         if label.endswith("End"):
             continue
@@ -221,6 +231,115 @@ def find_candidates(records: list[dict[str, Any]], min_size: int) -> list[Candid
         if reasons:
             candidates.append(Candidate(label=label, size=size, reasons=tuple(sorted(set(reasons)))))
     return sorted(candidates, key=lambda item: item.label)
+
+
+def read_asm_data_labels(path: Path) -> tuple[set[str], set[str]] | None:
+    """Return current global labels and Format-documented data labels.
+
+    A Format comment may sit immediately before a label or between the label
+    and its first body statement. Only .DB/.DW bodies qualify; procedure
+    headers that happen to describe a format are not blob candidates.
+    """
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError) as exc:
+        error(f"{path}: failed to read asm: {exc}")
+        return None
+
+    labels: set[str] = set()
+    formatted_data: set[str] = set()
+    pending_format = False
+    current_label: str | None = None
+    current_label_has_format = False
+
+    for raw in lines:
+        stripped = raw.strip()
+        if FORMAT_COMMENT_RE.match(raw):
+            pending_format = True
+            if current_label is not None:
+                current_label_has_format = True
+            continue
+        if not stripped or stripped.startswith(";"):
+            continue
+
+        match = GLOBAL_LABEL_RE.match(raw)
+        if match:
+            current_label = match.group(1)
+            labels.add(current_label)
+            current_label_has_format = pending_format
+            pending_format = False
+            body = (match.group(2) or "").strip()
+            if body:
+                if current_label_has_format and DATA_DIRECTIVE_RE.match(body):
+                    formatted_data.add(current_label)
+                current_label = None
+                current_label_has_format = False
+            continue
+
+        if current_label is not None:
+            if current_label_has_format and DATA_DIRECTIVE_RE.match(raw):
+                formatted_data.add(current_label)
+            current_label = None
+            current_label_has_format = False
+        pending_format = False
+
+    return labels, formatted_data
+
+
+def read_pass_rename_names(path: Path, pass_id: int) -> set[str] | None:
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            if reader.fieldnames != RENAME_FIELDS:
+                error(
+                    f"{path}: invalid header {reader.fieldnames!r}; "
+                    f"expected {','.join(RENAME_FIELDS)}"
+                )
+                return None
+            names: set[str] = set()
+            for row_num, row in enumerate(reader, start=2):
+                if None in row:
+                    error(f"{path}:{row_num}: too many CSV columns")
+                    return None
+                try:
+                    row_pass = int((row.get("pass_id") or "").strip())
+                except ValueError:
+                    error(f"{path}:{row_num}: pass_id must be an integer")
+                    return None
+                if row_pass == pass_id:
+                    name = (row.get("new_name") or "").strip()
+                    if name:
+                        names.add(name)
+            return names
+    except (OSError, UnicodeError) as exc:
+        error(f"{path}: failed to read rename ledger: {exc}")
+        return None
+
+
+def merge_candidates(*groups: Iterable[Candidate]) -> list[Candidate]:
+    merged: dict[str, Candidate] = {}
+    for group in groups:
+        for candidate in group:
+            previous = merged.get(candidate.label)
+            if previous is None:
+                merged[candidate.label] = candidate
+                continue
+            merged[candidate.label] = Candidate(
+                label=candidate.label,
+                size=previous.size if previous.size is not None else candidate.size,
+                reasons=tuple(sorted(set(previous.reasons) | set(candidate.reasons))),
+            )
+    return [merged[label] for label in sorted(merged)]
+
+
+def candidate_summary(candidates: list[Candidate]) -> str:
+    summary = ", ".join(
+        f"{item.label}({item.size if item.size is not None else '?'}:{'/'.join(item.reasons)})"
+        for item in candidates[:20]
+    )
+    if len(candidates) > 20:
+        summary += f", ... +{len(candidates) - 20} more"
+    return summary
 
 
 def validate_rows(path: Path, doc_root: Path, rows: list[dict[str, str]], mode: str) -> tuple[bool, list[str]]:
@@ -314,6 +433,9 @@ def validate(
     path: Path,
     doc_root: Path,
     data_coverage: Path | None,
+    asm_file: Path | None,
+    renames_file: Path | None,
+    renamed_pass: int | None,
     min_size: int,
     mode: str,
     required: bool,
@@ -331,12 +453,46 @@ def validate(
     rows_ok, dispositioned_patterns = validate_rows(path, doc_root, rows, mode)
     ok = ok and rows_ok
 
+    current_labels: set[str] | None = None
+    formatted_data_labels: set[str] = set()
+    if asm_file is not None:
+        asm_labels = read_asm_data_labels(asm_file)
+        if asm_labels is None:
+            return 1
+        current_labels, formatted_data_labels = asm_labels
+
     records, coverage_available = read_coverage_records(data_coverage)
-    candidates = find_candidates(records, min_size) if coverage_available else []
+    coverage_candidates = (
+        find_candidates(records, min_size, current_labels) if coverage_available else []
+    )
+
+    renamed_candidates: list[Candidate] = []
+    if renamed_pass is not None:
+        if renames_file is None or asm_file is None:
+            error("--renamed-pass requires both --renames and --asm")
+            return 1
+        renamed_names = read_pass_rename_names(renames_file, renamed_pass)
+        if renamed_names is None:
+            return 1
+        coverage_sizes = {
+            label: declared_size(record)
+            for record in records
+            if (label := candidate_label(record)) is not None
+        }
+        renamed_candidates = [
+            Candidate(
+                label=label,
+                size=coverage_sizes.get(label),
+                reasons=("current-pass-formatted-data",),
+            )
+            for label in sorted(renamed_names & formatted_data_labels)
+        ]
+
+    candidates = merge_candidates(coverage_candidates, renamed_candidates)
     if coverage_available:
         info(
             f"candidate_spans={len(candidates)} disposition_rows={len(rows)} "
-            f"min_size={min_size}"
+            f"min_size={min_size} current_pass_formatted={len(renamed_candidates)}"
         )
     elif mode == "maturity" and required:
         error("maturity requires data coverage candidates; run project-pass-prep before closeout")
@@ -347,13 +503,21 @@ def validate(
         for candidate in candidates
         if not any(fnmatch.fnmatchcase(candidate.label, pattern) for pattern in dispositioned_patterns)
     ]
-    if missing:
-        summary = ", ".join(
-            f"{item.label}({item.size}:{'/'.join(item.reasons)})" for item in missing[:20]
+    renamed_labels = {candidate.label for candidate in renamed_candidates}
+    missing_renamed = [candidate for candidate in missing if candidate.label in renamed_labels]
+    if missing_renamed:
+        error(
+            f"{path}: {len(missing_renamed)} Format-documented data label(s) renamed in "
+            f"pass {renamed_pass} lack blob dispositions: {candidate_summary(missing_renamed)}"
         )
-        if len(missing) > 20:
-            summary += f", ... +{len(missing) - 20} more"
-        message = f"{path}: {len(missing)} candidate data spans lack blob dispositions: {summary}"
+        ok = False
+
+    missing_other = [candidate for candidate in missing if candidate.label not in renamed_labels]
+    if missing_other:
+        message = (
+            f"{path}: {len(missing_other)} candidate data spans lack blob dispositions: "
+            f"{candidate_summary(missing_other)}"
+        )
         if mode == "maturity":
             error(message)
             ok = False
@@ -368,6 +532,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("inventory", type=Path)
     parser.add_argument("--doc-root", type=Path, required=True)
     parser.add_argument("--data-coverage", type=Path)
+    parser.add_argument("--asm", type=Path)
+    parser.add_argument("--renames", type=Path)
+    parser.add_argument("--renamed-pass", type=int)
     parser.add_argument("--min-size", type=int, default=12)
     parser.add_argument("--mode", choices=["process", "maturity"], default="process")
     parser.add_argument("--required", action="store_true")
@@ -377,6 +544,9 @@ def main(argv: list[str]) -> int:
         path=args.inventory,
         doc_root=args.doc_root,
         data_coverage=args.data_coverage,
+        asm_file=args.asm,
+        renames_file=args.renames,
+        renamed_pass=args.renamed_pass,
         min_size=args.min_size,
         mode=args.mode,
         required=args.required,

@@ -134,3 +134,109 @@ CSV
   assert_exit 1 python3 "${DATA_BLOB_CHECK}" \
     "${inv}" --doc-root "${doc_root}" --mode process
 }
+
+test_data_blob_dispositions_ignores_stale_cached_label_missing_from_asm() {
+  local doc_root="${NESREV_TEST_TMPDIR}/docs"
+  local inv="${NESREV_TEST_TMPDIR}/data_blob_dispositions.csv"
+  local coverage="${NESREV_TEST_TMPDIR}/data_coverage.json"
+  local asm="${NESREV_TEST_TMPDIR}/current.asm"
+  mkdir -p "${doc_root}"
+  _write_blob_header "${inv}"
+  cat > "${coverage}" <<'JSON'
+[{"label":"FormerRoomBlobPayload","declared_size":32,"uncovered_size":32,"access_count":0}]
+JSON
+  cat > "${asm}" <<'ASM'
+CurrentRoomData:
+    .DB $00
+ASM
+
+  local output
+  output="$(python3 "${DATA_BLOB_CHECK}" \
+    "${inv}" --doc-root "${doc_root}" --data-coverage "${coverage}" \
+    --asm "${asm}" --mode process --required 2>&1)"
+  if [[ "${output}" == *"FormerRoomBlobPayload"* ]]; then
+    fail "a cached label absent from current asm must not remain a blob candidate: ${output}"
+  fi
+  assert_match "candidate_spans=0" "${output}" \
+    "stale cached labels should be filtered against current asm globals"
+}
+
+test_data_blob_dispositions_closeout_rejects_current_pass_formatted_rename_without_row() {
+  local doc_root="${NESREV_TEST_TMPDIR}/docs"
+  local inv="${NESREV_TEST_TMPDIR}/data_blob_dispositions.csv"
+  local renames="${NESREV_TEST_TMPDIR}/renames.csv"
+  local asm="${NESREV_TEST_TMPDIR}/current.asm"
+  mkdir -p "${doc_root}"
+  _write_blob_header "${inv}"
+  cat > "${renames}" <<'CSV'
+old_name,new_name,reason,confidence,pass_id
+L8123,SmallOamTemplate,two OAM records,high,2
+L9000,CodeRoutine,code owner,high,2
+CSV
+  cat > "${asm}" <<'ASM'
+; Format: two 4-byte OAM records [y, tile, attributes, x].
+SmallOamTemplate:
+    .DB $10,$20,$00,$30
+    .DB $18,$21,$00,$38
+
+CodeRoutine:
+; Format: A contains a packed request token on entry.
+    LDA #$00
+    RTS
+ASM
+
+  assert_exit 1 python3 "${DATA_BLOB_CHECK}" \
+    "${inv}" --doc-root "${doc_root}" --asm "${asm}" \
+    --renames "${renames}" --renamed-pass 2 --mode process --required
+}
+
+test_data_blob_dispositions_closeout_accepts_current_pass_formatted_rename_with_row() {
+  local doc_root="${NESREV_TEST_TMPDIR}/docs"
+  local inv="${NESREV_TEST_TMPDIR}/data_blob_dispositions.csv"
+  local renames="${NESREV_TEST_TMPDIR}/renames.csv"
+  local asm="${NESREV_TEST_TMPDIR}/current.asm"
+  mkdir -p "${doc_root}"
+  printf '# OAM Format\n' > "${doc_root}/OAM_FORMAT.md"
+  cat > "${inv}" <<'CSV'
+label,disposition,format,artifact,consumer_evidence,pointer_evidence,extent_evidence,reflow_status,notes
+SmallOamTemplate,record_table,two 4-byte OAM records,OAM_FORMAT.md,Title renderer copies both records,direct indexed label load,eight bytes ending at NextData,reflowed,title cursor records
+CSV
+  cat > "${renames}" <<'CSV'
+old_name,new_name,reason,confidence,pass_id
+L8123,SmallOamTemplate,two OAM records,high,2
+CSV
+  cat > "${asm}" <<'ASM'
+SmallOamTemplate:
+; Format: two 4-byte OAM records [y, tile, attributes, x].
+    .DB $10,$20,$00,$30
+    .DB $18,$21,$00,$38
+NextData:
+    .DB $00
+ASM
+
+  assert_exit 0 python3 "${DATA_BLOB_CHECK}" \
+    "${inv}" --doc-root "${doc_root}" --asm "${asm}" \
+    --renames "${renames}" --renamed-pass 2 --mode process --required
+}
+
+test_data_blob_dispositions_closeout_scopes_formatted_rename_to_requested_pass() {
+  local doc_root="${NESREV_TEST_TMPDIR}/docs"
+  local inv="${NESREV_TEST_TMPDIR}/data_blob_dispositions.csv"
+  local renames="${NESREV_TEST_TMPDIR}/renames.csv"
+  local asm="${NESREV_TEST_TMPDIR}/current.asm"
+  mkdir -p "${doc_root}"
+  _write_blob_header "${inv}"
+  cat > "${renames}" <<'CSV'
+old_name,new_name,reason,confidence,pass_id
+L8123,HistoricalSmallTable,historical table,high,1
+CSV
+  cat > "${asm}" <<'ASM'
+; Format: four-byte historical lookup.
+HistoricalSmallTable:
+    .DB $00,$01,$02,$03
+ASM
+
+  assert_exit 0 python3 "${DATA_BLOB_CHECK}" \
+    "${inv}" --doc-root "${doc_root}" --asm "${asm}" \
+    --renames "${renames}" --renamed-pass 2 --mode process --required
+}
