@@ -476,9 +476,10 @@ python3 scripts/agent_review.py <subcommand> [options]
 Implemented subcommands:
 
 - `start-pass` - normal post-commit handoff entry point: infer the default
-  `HEAD~1..HEAD` range, create the implementation note, initialize state,
-  generate and validate the packet, write the reviewer prompt, and print
-  status. It accepts optional learning-candidate text for the generated note.
+  `HEAD~2..HEAD` range for pass 0 or `HEAD~1..HEAD` for later passes, create
+  the implementation note, initialize state, generate and validate the packet,
+  write the reviewer prompt, and print status. It accepts optional
+  learning-candidate text for the generated note.
 - `init` - create `.agents/current.json` and `.agents/runs/<run_id>/`
   for the current branch and commit range.
 - `ready` - validate clean committed state, write/update the implementation
@@ -571,8 +572,9 @@ Implementation-agent instructions:
   `python3 scripts/agent_review.py start-pass --project <slug> --pass-id <id>`
   when external/adversarial handoff is enabled for a normal single-pass range
   so note creation, initialization, packet generation, and status reporting are
-  one operation. Use lower-level `init` plus `ready --generate-packet` only when
-  a non-default range, run id, or hand-authored implementation note is required.
+  one operation. `start-pass` accepts range and run-id overrides directly; use
+  lower-level `init` plus `ready --generate-packet` only for a hand-authored
+  implementation note.
 - If the reviewer requests changes, commit fixes or write a response that
   classifies every finding as `fixed`, `disputed`, or `deferred`; then run
   `reready`.
@@ -613,8 +615,9 @@ One-pass external-review happy path:
    This creates `.agents/runs/<slug>-pass-105/implementation.md`, initializes
    `.agents/current.json`, generates and validates
    `.agents/runs/<slug>-pass-105/packet-round-01.md`, and writes the reviewer
-   prompt. Use lower-level `init` and `ready --generate-packet` only for
-   non-default ranges or hand-authored implementation notes.
+   prompt. Use lower-level `init` and `ready --generate-packet` only for a
+   hand-authored implementation note; `start-pass` accepts range and run-id
+   overrides directly.
 
 3. The manually started worker loop or transport wakes the reviewer.
 4. The reviewer reviews `HEAD~1..HEAD`, writes
