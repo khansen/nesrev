@@ -615,6 +615,7 @@ When this pattern is identified, normalize declaration layout immediately:
 - one standalone `.DB $00` line for the terminator
 - keep stream bytes/order identical (parity-preserved)
 - if bytes exist after terminator for parity/layout reasons, keep them on a separate trailing `.DB` line with a comment (for example `; trailing bytes after stream terminator (parity-preserved)`)
+- mark shared-suffix entry labels with `suffix` in their format comment
 ### Variant: flag bits in address high byte
 
 Some games pack the control flags into byte 0 (address high) instead of

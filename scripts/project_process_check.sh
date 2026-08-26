@@ -185,6 +185,9 @@ if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
   python3 "${SCRIPT_DIR}/semantic_evidence_check.py" \
     "${ASM_FILE}" \
     "${CROSSWALK_FILE}"
+
+  echo "[ppu-packet-lines] Checking declared packet-stream line boundaries (advisory)"
+  python3 "${SCRIPT_DIR}/ppu_packet_line_check.py" "${ASM_FILE}"
 fi
 
 # Advisory only (must not fail the gate): flag data tables whose index is
