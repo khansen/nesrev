@@ -54,14 +54,18 @@ When resuming an existing project, run the wrappers in this order:
    project-specific insights, invariants, heuristics, and other
    agent-facing facts that are likely to help future passes and do not
    fit the systems doc, memory map, or scorecard.
-4. **Select the corridor objective.** Treat the generated briefing as
+4. **Refresh prior-project evidence.** Once pass 1 has recorded a real
+   analogue, run `make project-prior-reuse-check PROJECT=<slug>` and inspect
+   its constant-family shortlist alongside the analogue's asm/docs. The
+   command is advisory and is also included in `project-process-check`.
+5. **Select the corridor objective.** Treat the generated briefing as
    candidate evidence and choose the corridor per
    [#corridor-objective](#corridor-objective) (interpret "high-value" via
    [AGENTS.md#guiding-pass-philosophy](../AGENTS.md#guiding-pass-philosophy)).
    If the briefing has no strong corridor, apply the
    [AGENTS.md#reviewer-simulation-checklist](../AGENTS.md#reviewer-simulation-checklist)
    before deciding that only doc closure remains.
-5. **Persist the pass plan** — record the choice via
+6. **Persist the pass plan** — record the choice via
    `make project-pass-start PROJECT=<slug> TARGET=<corridor_anchor_or_notes_plan>`;
    see [#pass-start](#pass-start).
 
@@ -597,6 +601,19 @@ promote it to the canonical table if globally reusable, or allowlist a
 project-local composite/encoding in
 `docs/reverse_engineering/inventory/hardware_local_allowlist.txt` (one symbol
 per line; `#` comments and blank lines ignored; a missing file means none).
+
+### Prior-project constant reuse (advisory)
+
+`make project-prior-reuse-check PROJECT=<slug>` reads the pass-1
+`Analogue: <slug> (...)` scorecard note, resolves both projects through their
+`project.conf` files, and compares directly numeric byte-sized `.EQU` values.
+It reports an analogue name only when the current asm still has a matching raw
+immediate in nearby same-family context and the family already has a reused
+name. A narrow paired-bitmask rule can also introduce an unanchored hardware
+family such as `ZAPPER_`. Values zero/one, RAM/ZP addresses, game/title identity
+families, expressions, and context-free same-value collisions are suppressed.
+The process check runs this report automatically after pass 1. Findings never
+fail that gate; `STRICT=1` is available to prove a reviewed zero baseline.
 
 ### Pre-close relocation safety gate
 Before closing a pass, audit:

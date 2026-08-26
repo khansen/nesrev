@@ -145,6 +145,11 @@ classification rules stay in task-specific playbooks.
 If a subsystem appears Nintendo-common or already solved elsewhere, a pass is
 incomplete until the comparison is either applied or the scorecard states why
 the pattern does not fit.
+After pass 1 records the analogue, run
+`make project-prior-reuse-check PROJECT=<slug>` (also included in
+`project-process-check`) to surface evidence-backed constant near-misses; its
+advisory shortlist informs the manual comparison and never substitutes for
+subsystem-level evidence.
 
 
 <a id="session-orientation"></a>

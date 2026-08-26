@@ -88,6 +88,7 @@ if [[ "${renames_header}" != "old_name,new_name,reason,confidence,pass_id" ]]; t
   exit 1
 fi
 
+analogue_slug=""
 if [[ "${NESREV_RECOVERY_STATUS}" != "legacy" ]]; then
   crosswalk_header="$(
     rg -m1 '^\| Reference term / aliases \| Asm symbol\(s\) \| Mapping confidence \| Evidence \|$' \
@@ -99,54 +100,9 @@ if [[ "${NESREV_RECOVERY_STATUS}" != "legacy" ]]; then
     exit 1
   fi
 
-  python3 - "${PROGRESS_SCORECARD_FILE}" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-header = None
-pass_one_rows = []
-
-for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-    line = raw.strip()
-    if not (line.startswith("|") and line.endswith("|")):
-        continue
-    cells = [cell.strip() for cell in line.strip("|").split("|")]
-    if cells and cells[0] == "pass_id":
-        header = cells
-    elif cells and cells[0] == "1":
-        pass_one_rows.append((lineno, cells))
-
-if not pass_one_rows:
-    raise SystemExit(0)
-if header is None or "notes" not in header:
-    print(f"invalid scorecard header in {path}: missing notes column", file=sys.stderr)
-    raise SystemExit(1)
-if len(pass_one_rows) != 1:
-    lines = ", ".join(str(lineno) for lineno, _ in pass_one_rows)
-    print(f"invalid pass-1 scorecard rows in {path}: found at lines {lines}", file=sys.stderr)
-    raise SystemExit(1)
-
-lineno, cells = pass_one_rows[0]
-if len(cells) != len(header):
-    print(f"invalid pass-1 scorecard row at {path}:{lineno}: column count mismatch", file=sys.stderr)
-    raise SystemExit(1)
-
-notes = cells[header.index("notes")]
-analogue = re.search(
-    r"\bAnalogue:\s*[a-z0-9_-]+\s*\([^)]+\S\)",
-    notes,
-    flags=re.IGNORECASE,
-)
-if analogue is None:
-    print(
-        f"{path}:{lineno}: pass 1 notes must record "
-        "'Analogue: <project_slug|none> (<applied pattern or reason it did not fit>)'",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-PY
+  analogue_slug="$(
+    python3 "${SCRIPT_DIR}/scorecard_analogue.py" "${PROGRESS_SCORECARD_FILE}"
+  )"
 fi
 
 echo "[inventory] Checking generated inventory and raw-RAM owner sync"
@@ -173,6 +129,14 @@ python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
   "${ASM_FILE}" \
   "${SCRIPT_DIR}/../agent_playbook/ASM_STYLE.md" \
   "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" || true
+
+# The scorecard-selected analogue supplies the comparison input. This remains
+# advisory because same-valued literals can be semantically unrelated; the
+# checker requires family evidence to keep the review shortlist narrow.
+if [[ -n "${analogue_slug}" && "${analogue_slug}" != "none" ]]; then
+  echo "[prior-project-reuse] Checking evidence-backed analogue constants (advisory)"
+  bash "${SCRIPT_DIR}/project_prior_reuse_check.sh" "$1"
+fi
 
 # New projects already opt into proof-debt signals. Keep this source-level
 # family-completeness scan advisory until corpus calibration supports a hard

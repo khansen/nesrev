@@ -473,6 +473,10 @@ blocked:
   inspect analogous asm/docs before applying assumptions. Record the chosen analogue
   in the first semantic pass's scorecard notes using
   `Analogue: <project_slug> (<applied pattern or reason it did not fit>)`.
+  Once recorded, `make project-prior-reuse-check PROJECT=<slug>` compares the
+  current assembly with that project and prints an evidence-backed constant
+  reuse shortlist. Review it before closing the pass; it is advisory and does
+  not replace the required asm/docs inspection.
 - **Codepointers:** begin discovery without assuming controls are
   needed. Their absence does not mean the ROM is free of code-pointer
   tables —

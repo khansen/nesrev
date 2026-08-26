@@ -54,6 +54,7 @@ commands are for debugging only.
 ```sh
 make project-regenerate-asm PROJECT=<slug>
 make project-regenerate-check PROJECT=<slug>
+make project-prior-reuse-check PROJECT=<slug>
 make project-next-pass PROJECT=<slug>
 make project-pass-start PROJECT=<slug>
 make project-pass-closeout PROJECT=<slug>
@@ -66,6 +67,8 @@ Optional `KEY=value` arguments (append to the same line):
 and `TARGET=<corridor_anchor_or_notes_plan>`; `project-pass-closeout`
 accepts `PASS=<id>`, `VERIFY_MODE=strict|relaxed`, `FOCUS=<text>`,
 `NOTES=<text>`, `DEFERRALS=<...>`, and `REWORK_ITEMS=<count>`.
+`project-prior-reuse-check` accepts `STRICT=1` for a reviewed local zero
+baseline; its normal process-check integration is advisory.
 When invoking a newer closeout script from a tool-bearing worktree against a
 different project checkout, set `PROJECT_PASS_CLOSEOUT_REPO_ROOT` to the
 project checkout so project files resolve there while helpers come from the
@@ -785,6 +788,17 @@ checks raw hex right-hand sides on constants ending in `_COUNT`, `_INDEX`,
 The separate opt-in avoids retroactively hard-failing existing constant blocks;
 legacy projects enable it after cleanup. Use `--check-equates` for an advisory
 standalone report or `--strict-equates` for the hard gate.
+
+`project-prior-reuse-check` turns the pass-1 scorecard analogue into a
+read-only constant-reuse shortlist. `scorecard_analogue.py` validates and
+extracts the recorded slug; the project wrapper resolves each asm path through
+`project.conf`; and `prior_project_reuse_check.py` joins missing analogue
+constants to contextual raw immediates in the current asm. It limits the
+comparison to reusable subsystem families, suppresses ambiguous zero/one and
+RAM/ZP address values, and requires an already-shared family name except for a
+narrow paired hardware-bitmask signal. Default findings are warnings with exit
+zero, while `--strict` exits 3. Missing projects or unreadable inputs remain
+operational failures in either mode.
 
 <a id="pointer-table-relocation-gate"></a>
 `pointer_table_body_check.py <asm>` flags labels named as a pointer table
