@@ -120,8 +120,8 @@ project-pass-review-start:
 	@set -- \
 	  --project "$(PROJECT)" \
 	  --pass-id "$(PASS)" \
-	  --base "$(if $(BASE),$(BASE),HEAD~1)" \
 	  --head "$(if $(HEAD),$(HEAD),HEAD)"; \
+	if [ -n "$(BASE)" ]; then set -- "$$@" --base "$(BASE)"; fi; \
 	if [ -n "$(RUN_ID)" ]; then set -- "$$@" --run-id "$(RUN_ID)"; fi; \
 	if [ -n "$(MAX_ROUNDS)" ]; then set -- "$$@" --max-rounds "$(MAX_ROUNDS)"; fi; \
 	if [ -n "$(filter 1 true yes,$(ALLOW_UNRESOLVED_LXXXX))" ]; then set -- "$$@" --allow-unresolved-lxxxx; fi; \

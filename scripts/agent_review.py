@@ -587,11 +587,14 @@ def command_start_pass(args: argparse.Namespace) -> int:
     root = repo_root()
     if not PASS_ID_RE.fullmatch(args.pass_id):
         raise UserError("pass id must be numeric")
+    review_base = args.base
+    if review_base is None:
+        review_base = "HEAD~2" if int(args.pass_id) == 0 else "HEAD~1"
     run_id = args.run_id or f"{args.project}-pass-{args.pass_id}"
     state = initial_state(
         root,
         project=args.project,
-        base=args.base,
+        base=review_base,
         head=args.head,
         run_id=run_id,
         max_rounds=args.max_rounds,
@@ -1028,7 +1031,10 @@ def build_parser() -> argparse.ArgumentParser:
     start = sub.add_parser("start-pass", help="initialize and ready a committed pass")
     start.add_argument("--project", required=True)
     start.add_argument("--pass-id", required=True)
-    start.add_argument("--base", default="HEAD~1")
+    start.add_argument(
+        "--base",
+        help="review base (default: HEAD~2 for pass 0; HEAD~1 otherwise)",
+    )
     start.add_argument("--head", default="HEAD")
     start.add_argument("--run-id")
     start.add_argument("--max-rounds", type=int, default=3)

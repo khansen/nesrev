@@ -425,6 +425,11 @@ seeds the terminology crosswalk and any reference-derived artifacts,
 commit those changes as a second, separate commit. The first semantic
 naming pass should then be its own third commit so both intake stages
 remain identifiable in history.
+
+After those two intake commits, `make project-pass-review-start
+PROJECT=<slug> PASS=0` automatically reviews both by selecting `HEAD~2` as
+the base. Supply `BASE=<ref>` only when the intake history intentionally has
+a different shape.
 <a id="first-three-pass-architecture"></a>
 ## First Three-Pass Architecture
 
