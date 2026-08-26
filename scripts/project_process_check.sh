@@ -180,6 +180,11 @@ python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
 if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
   echo "[constant-family] Checking raw state/request writers against existing constants (advisory)"
   python3 "${SCRIPT_DIR}/raw_immediate_constant_check.py" "${ASM_FILE}"
+
+  echo "[semantic-evidence] Checking reference-order claims and derived-constant anchors (advisory)"
+  python3 "${SCRIPT_DIR}/semantic_evidence_check.py" \
+    "${ASM_FILE}" \
+    "${CROSSWALK_FILE}"
 fi
 
 # Advisory only (must not fail the gate): flag data tables whose index is
