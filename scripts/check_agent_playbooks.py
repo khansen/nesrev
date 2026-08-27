@@ -299,11 +299,15 @@ ROOT_WORD_CEILING = 6000
 # scanning add two deliberately advisory authoring checks to TOOLING.md. Only
 # routes that carry TOOLING.md grow; their ceilings preserve the exact prior
 # measured headroom rather than shortening the false-positive boundaries.
+# Process-learning cadence guidance adds the anti-overfitting diagnostic to
+# REVIEW_AUDITS.md: candidate volume should decline, `_None._` is healthy, and
+# persistent per-pass reports trigger diagnosis before another process branch.
+# The committed-pass review route preserves its exact prior measured headroom.
 ROUTE_BUDGETS = {
     "default": (3421, 24866),
     "data-recovery": (3112, 23308),
     "new-project": (4211, 30926),
-    "project-pass-review": (4453, 31606),
+    "project-pass-review": (4473, 31767),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
