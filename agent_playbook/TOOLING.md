@@ -810,6 +810,13 @@ narrow paired hardware-bitmask signal. Default findings are warnings with exit
 zero, while `--strict` exits 3. Missing projects or unreadable inputs remain
 operational failures in either mode.
 
+This checker does not compare routine bodies or validate borrowed procedure
+names. A clean result means only that no evidence-backed constant near-miss was
+found; it is not evidence that an analogue's procedure vocabulary is correct.
+When another analysis finds a code-shape match, carry the matched body and
+caller contract into the manual reuse review instead of copying the identifier
+as its own justification.
+
 <a id="negative-data-offset-check"></a>
 ### Negative indexed data-label offsets
 

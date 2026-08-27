@@ -523,13 +523,24 @@ For each undocumented or thinly-documented global label (read the
 header band manually to judge thinness, since the KPI counts a
 single non-empty comment line as "documented"):
 
+- **Does the name match the local contract?** For every newly named global
+  routine, especially one borrowed from an analogue, compare the action and
+  subject in the identifier with the routine body, its direct callers, and the
+  corresponding `renames.csv` reason. An analogue identifier is a vocabulary
+  candidate, not evidence; a name/reason disagreement is unresolved review
+  work even when the implementations are byte-identical.
 - **Could it be localized?** If it is reachable only as a
   branch/fallthrough target inside one routine and has no
   cross-routine `JSR` / `JMP` callers, convert it to an `@@` local
   label — canonical rule at
   [ASM_STYLE.md#local-global-labels](ASM_STYLE.md#local-global-labels).
   Verify the call graph from `xref_with_data.json` rather than by
-  text search.
+  text search. Before raising a localization finding, identify the owning
+  non-local scope and check for every intervening non-local label or helper.
+  If the proposed `@@` target crosses a scope split or the routine has multiple
+  entry/fallthrough scopes, apply the proposed rewrite and assemble it in a
+  disposable worktree before making the finding blocking; never mutation-test
+  in the implementation worktree.
 - **If it must stay global, does it need a header?** Apply the
   procedure-comment rules at
   [DOCUMENTATION.md#procedure-comments](DOCUMENTATION.md#procedure-comments).
