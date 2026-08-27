@@ -136,6 +136,13 @@ reviewer must inspect the touched regions and ledgers.
    streams, music, SFX, or shared audio cue/channel formats, those families
    must have dedicated `*_FORMAT.md` docs or one clearly scoped shared doc
    such as `AUDIO_FORMAT.md` that explicitly covers both music and SFX.
+   Inline return-address `.DW` handler payloads do not need boilerplate
+   `Format:` / `Used by:` lines when the dispatcher call and named handler
+   entries already expose both facts. Confirm the payload is unlabeled; a label
+   retained for a real source reference remains subject to the normal data-table
+   rule. The standard four-byte hardware OAM record alone does not require a
+   project format doc; use the canonical `OAM_FIELD_*` layout and document only
+   project-specific template or metasprite semantics locally.
    If a family is absent or not yet statically understood, record that
    disposition instead of leaving the silence ambiguous. New projects record
    these dispositions in `inventory/data_format_targets.csv`; the maturity

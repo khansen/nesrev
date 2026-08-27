@@ -287,11 +287,15 @@ ROOT_WORD_CEILING = 6000
 # contract to TOOLING.md and the matching data-boundary review rule to
 # QUALITY_REVIEW.md. Only routes that carry those playbooks are recalibrated;
 # the ceilings retain their prior measured-plus-headroom margins.
+# Inline return-address dispatch comment admission and canonical OAM record
+# ownership add paired rules to DOCUMENTATION.md, ASM_STYLE.md, and
+# QUALITY_REVIEW.md. All four bundles carry at least one of those playbooks, so
+# their ceilings retain the existing measured-plus-headroom margins.
 ROUTE_BUDGETS = {
-    "default": (3367, 24438),
-    "data-recovery": (3058, 22880),
-    "new-project": (4181, 30676),
-    "project-pass-review": (4378, 30950),
+    "default": (3374, 24495),
+    "data-recovery": (3065, 22937),
+    "new-project": (4203, 30856),
+    "project-pass-review": (4392, 31081),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
