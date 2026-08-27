@@ -108,6 +108,23 @@ test_borrowed_name_and_localization_review_rules_are_durable() {
     "multi-entry localization blockers must be assembled outside the implementation tree"
 }
 
+test_rename_reason_and_oam_prose_tooling_rules_are_durable() {
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+
+  assert_match 'executable labels in the newest pass' "$(<"${tooling}")" \
+    "rename/reason comparison must stay scoped to current executable work"
+  assert_match 'opposing concrete classes.*payload write.*cursor/position' "$(<"${tooling}")" \
+    "rename/reason comparison must stay narrower than general prose lint"
+  assert_match 'finding is not proof that either field is wrong' "$(<"${tooling}")" \
+    "rename/reason candidates must require body and caller review"
+  assert_match 'ASM comments and live[[:space:]]+project Markdown' "$(<"${tooling}")" \
+    "OAM prose ownership must cover project source and docs"
+  assert_match 'excludes immutable[[:space:]]+review archives and generated inventory snapshots' "$(<"${tooling}")" \
+    "OAM prose lint must preserve review provenance and generated evidence"
+  assert_match '\[canonical OAM record layout\]\(ASM_STYLE.md#hardware-constants\)' "$(<"${tooling}")" \
+    "OAM prose findings must route authors to the canonical owner"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"
