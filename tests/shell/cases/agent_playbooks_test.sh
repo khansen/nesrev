@@ -125,6 +125,25 @@ test_rename_reason_and_oam_prose_tooling_rules_are_durable() {
     "OAM prose findings must route authors to the canonical owner"
 }
 
+test_process_learning_cadence_guards_against_overfitting() {
+  local audits="${REPO_ROOT}/agent_playbook/REVIEW_AUDITS.md"
+
+  assert_match 'evidence-triggered,[[:space:]]+not[[:space:]]+a[[:space:]]+per-pass[[:space:]]+quota' "$(<"${audits}")" \
+    "learning candidates must not become mandatory per-pass output"
+  assert_match 'candidate[[:space:]]+rate[[:space:]]+should[[:space:]]+normally[[:space:]]+decline' "$(<"${audits}")" \
+    "the learning loop must expect recurring friction to settle after fixes"
+  assert_match '`_None\._`[[:space:]]+is[[:space:]]+a[[:space:]]+healthy[[:space:]]+expected[[:space:]]+result' "$(<"${audits}")" \
+    "an empty learning-candidate section must remain an expected healthy outcome"
+  assert_match 'pause[[:space:]]+before[[:space:]]+opening[[:space:]]+another[[:space:]]+process[[:space:]]+branch' "$(<"${audits}")" \
+    "persistent friction must trigger diagnosis before more process churn"
+  assert_match 'project-specific[[:space:]]+behavior[[:space:]]+or[[:space:]]+reviewer[[:space:]]+preference[[:space:]]+is[[:space:]]+being[[:space:]]+misclassified' "$(<"${audits}")" \
+    "triage must guard against promoting local preferences into global rules"
+  assert_match 'Persistent[[:space:]]+reporting[[:space:]]+is[[:space:]]+a[[:space:]]+reason[[:space:]]+to[[:space:]]+inspect[[:space:]]+the[[:space:]]+learning[[:space:]]+loop,[[:space:]]+not[[:space:]]+evidence' "$(<"${audits}")" \
+    "candidate frequency alone must not justify promotion"
+  assert_match 'Batch[[:space:]]+non-blocking[[:space:]]+observations[[:space:]]+until[[:space:]]+they[[:space:]]+recur[[:space:]]+or[[:space:]]+cross[[:space:]]+the[[:space:]]+meaningful-cost[[:space:]]+threshold' "$(<"${audits}")" \
+    "non-blocking friction must accumulate evidence before process work begins"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"

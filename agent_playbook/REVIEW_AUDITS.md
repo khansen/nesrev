@@ -69,6 +69,26 @@ Agent-review handoffs may copy `## Learning Candidates` sections into
 not as canonical process doctrine. A candidate becomes a rule only after a
 process/tooling review decides its disposition.
 
+Learning-candidate production is evidence-triggered, not a per-pass quota. As
+recurring defects are fixed, the candidate rate should normally decline;
+`_None._` is a healthy expected result. Do not manufacture increasingly minor
+process work merely to keep the learning loop active.
+
+If non-empty candidates persist on nearly every pass after known recurring
+defects have been closed, pause before opening another process branch and
+diagnose the signal. One of three conditions should be demonstrated:
+
+- a reusable process defect genuinely remains and warrants correction;
+- project-specific behavior or reviewer preference is being misclassified as
+  global friction and should stay project-local or be discarded; or
+- prompt, rule, or recent process-change churn is creating noisy candidates and
+  the learning loop should be stabilized before adding more rules.
+
+Persistent reporting is a reason to inspect the learning loop, not evidence
+that every candidate deserves promotion. Batch non-blocking observations until
+they recur or cross the meaningful-cost threshold; blockers, safety defects,
+and false-green signals still warrant immediate triage.
+
 For each candidate that recurs, blocks automation, exposes a false-green
 signal, or costs meaningful operator time, record one disposition:
 
