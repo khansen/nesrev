@@ -817,6 +817,38 @@ When another analysis finds a code-shape match, carry the matched body and
 caller contract into the manual reuse review instead of copying the identifier
 as its own justification.
 
+<a id="rename-reason-consistency-check"></a>
+### Rename name/reason action consistency
+
+`rename_reason_consistency_check.py <asm> <renames.csv> [--all-passes]
+[--strict]` surfaces a narrow class of procedure-name review candidates. For
+executable labels in the newest pass, it compares the action at the start of
+the selected `new_name` with an action at the start of the free-text `reason`.
+It reports only opposing concrete classes — payload write, cursor/position
+motion, payload read, and clear/reset — so generic verbs and noun-led reasons
+do not create a broad natural-language lint. `--all-passes` is an explicit
+historical migration audit; normal process checks inspect only the newest pass.
+
+A finding is not proof that either field is wrong. Read the routine body and
+callers, then fix the identifier or the ledger rationale so they describe the
+same primary contract. New clean-room projects run report mode under the
+proof-debt opt-in; `--strict` exits 68 for a reviewed zero baseline.
+
+<a id="oam-standard-prose-check"></a>
+### Repeated standard OAM prose
+
+`oam_standard_prose_check.py <asm> <project_root> [--strict]` reports exact
+restatements of the standard four-field OAM order in ASM comments and live
+project Markdown. Use `OAM_FIELD_*` in source comments and link Markdown to
+the [canonical OAM record layout](ASM_STYLE.md#hardware-constants), retaining
+local prose only for project-specific encodings or invariants. The checker
+does not match extended/nonstandard record shapes, and it excludes immutable
+review archives and generated inventory snapshots.
+
+New clean-room projects run report mode under the proof-debt opt-in. Historical
+projects remain silent until they opt in; use `--strict` (exit 69) after a
+reviewed project-local migration reaches zero.
+
 <a id="negative-data-offset-check"></a>
 ### Negative indexed data-label offsets
 

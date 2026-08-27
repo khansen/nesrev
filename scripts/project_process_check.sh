@@ -155,6 +155,16 @@ if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
 
   echo "[data-boundary] Checking small negative indexed data-label offsets (advisory)"
   python3 "${SCRIPT_DIR}/negative_data_offset_check.py" "${ASM_FILE}"
+
+  echo "[rename-reason] Checking current-pass routine names against ledger reasons (advisory)"
+  python3 "${SCRIPT_DIR}/rename_reason_consistency_check.py" \
+    "${ASM_FILE}" \
+    "${RENAMES_FILE}"
+
+  echo "[oam-standard-prose] Checking for repeated canonical OAM field-order prose (advisory)"
+  python3 "${SCRIPT_DIR}/oam_standard_prose_check.py" \
+    "${ASM_FILE}" \
+    "projects/$1"
 fi
 
 # Advisory only (must not fail the gate): flag data tables whose index is

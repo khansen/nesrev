@@ -295,11 +295,15 @@ ROOT_WORD_CEILING = 6000
 # contract plus matching TOOLING.md, QUALITY_REVIEW.md, and REVIEW_AUDITS.md
 # boundaries. Each affected route preserves its prior measured headroom; the
 # review route carries the full operator/reviewer evidence contract.
+# Current-pass rename/reason action comparison and project-facing OAM prose
+# scanning add two deliberately advisory authoring checks to TOOLING.md. Only
+# routes that carry TOOLING.md grow; their ceilings preserve the exact prior
+# measured headroom rather than shortening the false-positive boundaries.
 ROUTE_BUDGETS = {
-    "default": (3389, 24628),
-    "data-recovery": (3080, 23070),
+    "default": (3421, 24866),
+    "data-recovery": (3112, 23308),
     "new-project": (4211, 30926),
-    "project-pass-review": (4421, 31368),
+    "project-pass-review": (4453, 31606),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
