@@ -889,6 +889,8 @@ test_pass_start_emits_selection_briefing_not_unmaintained_gate_ledger() {
   local slug; slug="$(unique_slug pass_briefing)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
+  printf 'FirstRetained|fixture\nSecondRetained|fixture\n' \
+    > "projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt"
   cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -935,6 +937,8 @@ for obsolete in (
         raise SystemExit(f"obsolete unmaintained plan field remains: {obsolete}")
 if payload.get("selected_cluster") != "Reset corridor":
     raise SystemExit("selected corridor missing from generated briefing")
+if payload.get("warning_baseline_count_at_start") != 2:
+    raise SystemExit("pass start did not persist the warning-baseline count")
 PY
 
   if rg -n '^## (Planned|Gate Progress)' "${md_path}" >/dev/null; then
@@ -942,6 +946,91 @@ PY
   fi
   rg -q 'Generated corridor-selection briefing' "${md_path}" \
     || fail "generated pass briefing must describe its cache role"
+}
+
+test_project_pass_closeout_computes_warning_baseline_delta() {
+  local slug; slug="$(unique_slug closeout_warning_delta)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{
+  "intended_pass_id": 1,
+  "warning_baseline_count_at_start": 2,
+  "corridor_objective": {}
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt" <<'EOF'
+# symbol|rationale
+RetainedLabel|still intentionally retained
+EOF
+
+  local stubdir="projects/${slug}/closeout_warning_stubs"
+  mkdir -p "${stubdir}"
+  local helper
+  for helper in refresh_inventory project_pass_residue_check project_docs_check \
+      project_process_check project_verify project_next_pass; do
+    cat > "${stubdir}/${helper}.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+SH
+    chmod +x "${stubdir}/${helper}.sh"
+  done
+
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    REWORK_ITEMS=0 FOCUS="Warning baseline fixture" \
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import sys
+from pathlib import Path
+
+header = None
+for raw in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    cells = [cell.strip() for cell in raw.strip().strip("|").split("|")]
+    if "warnings_baseline_delta" in cells:
+        header = cells
+        continue
+    if header is None or len(cells) != len(header):
+        continue
+    columns = {name: idx for idx, name in enumerate(header)}
+    if cells[columns["pass_id"]] == "1":
+        if cells[columns["warnings_baseline_delta"]] != "-1":
+            raise SystemExit(f"expected warning delta -1, got {cells!r}")
+        break
+else:
+    raise SystemExit("pass 1 scorecard row missing")
+PY
+
+  python3 - \
+    "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" \
+    "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+plan_path = Path(sys.argv[1])
+plan = json.loads(plan_path.read_text(encoding="utf-8"))
+plan.pop("warning_baseline_count_at_start")
+plan_path.write_text(json.dumps(plan) + "\n", encoding="utf-8")
+
+scorecard_path = Path(sys.argv[2])
+scorecard_path.write_text(
+    scorecard_path.read_text(encoding="utf-8").replace(
+        "| -1 | pass (LXXXX allowed) |",
+        "| -7 | pass (LXXXX allowed) |",
+    ),
+    encoding="utf-8",
+)
+PY
+
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
+    REWORK_ITEMS=0 FOCUS="Warning baseline fixture" \
+    bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null 2>&1
+
+  assert_match "\| -7 \| pass \(LXXXX allowed\) \|" \
+    "$(cat "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md")" \
+    "legacy closeout without a start snapshot must preserve the existing delta"
 }
 
 _write_reset_next_pass() {

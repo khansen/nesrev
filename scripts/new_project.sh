@@ -340,8 +340,8 @@ Track objective throughput and quality metrics for each major pass.
 | 0 | Intake baseline | | | | | | 0 | | | | |
 
 Closeout auto-syncs the supported KPI cells (`labels_remaining`, `raw_rom_calls_remaining`,
-`raw_indirect_operands_remaining`, `hardcoded_counter_sites_remaining`); do not hand-edit
-those derived counts.
+`raw_indirect_operands_remaining`, `hardcoded_counter_sites_remaining`,
+`warnings_baseline_delta`); do not hand-edit those derived values.
 DOC
 
 cat > "$root/docs/crosswalk/TERMINOLOGY_CROSSWALK.md" <<'DOC'

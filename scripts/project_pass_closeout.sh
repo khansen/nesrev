@@ -268,6 +268,79 @@ print(pass_id)
 PY
 )"
 
+python3 - \
+  "${PROGRESS_SCORECARD_FILE}" \
+  "${DOC_ROOT}/inventory/pass/current_pass_plan.json" \
+  "${WARN_BASELINE_FILE}" \
+  "${PASS_ID}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+scorecard_path = Path(sys.argv[1])
+plan_path = Path(sys.argv[2])
+warning_baseline_path = Path(sys.argv[3])
+pass_id = sys.argv[4]
+
+
+def warning_count(path):
+    if not path.exists():
+        return 0
+    return sum(
+        1
+        for raw in path.read_text(encoding="utf-8").splitlines()
+        if raw.strip() and not raw.strip().startswith("#")
+    )
+
+
+try:
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+except (OSError, ValueError):
+    plan = {}
+
+plan_pass_id = plan.get("intended_pass_id")
+start_count = plan.get("warning_baseline_count_at_start")
+if str(plan_pass_id) != pass_id or not isinstance(start_count, int):
+    print(
+        "project-pass-closeout: warning baseline start count unavailable for "
+        f"pass {pass_id}; preserving the existing warnings_baseline_delta cell",
+        file=sys.stderr,
+    )
+    raise SystemExit(0)
+
+delta = warning_count(warning_baseline_path) - start_count
+lines = scorecard_path.read_text(encoding="utf-8").splitlines()
+header = None
+changed = False
+for idx, raw in enumerate(lines):
+    stripped = raw.strip()
+    if not (stripped.startswith("|") and stripped.endswith("|")):
+        continue
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if {"pass_id", "warnings_baseline_delta"}.issubset(set(cells)):
+        header = cells
+        continue
+    if header is None or len(cells) != len(header):
+        continue
+    columns = {name: col for col, name in enumerate(header)}
+    if cells[columns["pass_id"]] != pass_id:
+        continue
+    cells[columns["warnings_baseline_delta"]] = str(delta)
+    lines[idx] = "| " + " | ".join(cells) + " |"
+    changed = True
+    break
+
+if not changed:
+    raise SystemExit(f"scorecard row not found while recording warning delta for pass {pass_id}")
+
+scorecard_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+print(
+    "project-pass-closeout: recorded "
+    f"warnings_baseline_delta={delta} for pass {pass_id} "
+    f"({start_count} -> {start_count + delta})"
+)
+PY
+
 if [[ -n "${REWORK_ITEMS:-}" ]]; then
   python3 - "${PROGRESS_SCORECARD_FILE}" "${PASS_ID}" "${REWORK_ITEMS}" <<'PY'
 import re
