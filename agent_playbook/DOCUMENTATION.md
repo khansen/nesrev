@@ -582,6 +582,30 @@ intended role.
 Do not update it for routine micro-steps, pass-by-pass churn, or facts
 that are already captured adequately in canonical docs or inventories.
 
+<a id="removed-generator-label-notation"></a>
+### Removed generator-label notation
+
+When base-command regeneration will recreate an intentionally deleted
+NESrev-only label, preserve the exact reapplication hazard in plain text as
+**removed generator label L8123**. Here L8123 stands for the actual deleted
+generator label; replace it with that exact name. The label name in that phrase
+must not be backticked: `project-docs-check` treats backticked symbol-shaped
+names as live asm references. This exact plain-text form is the sanctioned
+exception to the normal preference against exact stale names.
+
+Use the notation only when all of these are true:
+
+- NESrev generated the label; it was not a project API name or a semantic rename
+- removing the label leaves the bytes and behavior unchanged, and a stable
+  symbolic owner or boundary still identifies the site
+- ordinary regeneration is expected to recreate the label
+
+Put a live reapplication hazard in `WORKING_NOTES.md`; a review archive may
+retain it as historical evidence. Name the stable owner/boundary and why label
+removal is safe in the same note. Do not add the deletion to `renames.csv`, do
+not retain a warning-baseline row for the absent label, and do not promote the
+generator name into a systems overview or crosswalk.
+
 ### Next-pass plan override
 
 When `WORKING_NOTES.md` contains a durable next-pass plan, it may
@@ -671,6 +695,8 @@ maintaining it if it no longer adds distinct value.
 4. Avoid backticked stale/legacy symbol names after renames.
    - `project-docs-check` validates backticked symbols against current asm labels.
    - For historical notes, use plain text like `legacy LC94B` (not `` `LC94B` ``) unless the symbol still exists.
+   - For an intentionally deleted NESrev label that regeneration will recreate,
+     use the [removed generator-label notation](#removed-generator-label-notation).
 5. Avoid symbol-shaped placeholders in docs, even when not backticked.
    - Tokens like `LFCxx`, `LF??`, or `LCxxx` can be interpreted as unresolved symbol references by tooling/reviewers.
    - Prefer plain-language phrasing such as `legacy LFC-series flow labels`.

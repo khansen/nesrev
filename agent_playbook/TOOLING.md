@@ -138,14 +138,15 @@ python3 scripts/agent_review.py archive --pass-id <id>
 validates the packet, writes the reviewer prompt, and prints status. The Make
 wrapper is equivalent:
 ```sh
-make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [LEARNING=<text>]
+make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [LEARNING=<text>]
 ```
 When using the Make wrapper, write literal dollar signs as `$$`; use the
 Python command directly when the learning text needs ordinary shell quoting.
 
-Pass `BASE=<ref>` or `HEAD=<ref>` to the wrapper for a non-default range. Use
-lower-level `init` plus `ready --generate-packet` only when a custom run id or
-hand-authored implementation note is required. `init` writes
+Pass `BASE=<ref>`, `HEAD=<ref>`, `RUN_ID=<id>`, or `MAX_ROUNDS=<n>` to the
+wrapper for those overrides. Use lower-level `init` plus
+`ready --generate-packet` only when a hand-authored implementation note is
+required. `init` writes
 the runtime-state patterns to `.git/info/exclude`, because the review head may
 predate the branch's tracked `.gitignore`. Long-running `watch` processes may
 be started before `init`; they wait for state instead of exiting. If the worker

@@ -339,6 +339,17 @@ The agent's bootstrap work after the wrapper finishes:
    documentation, not a reference, and does not clear the warning.
    Deleting the baseline entry before the warning is gone will fail
    verification.
+   Remove a generated label only when it adds no useful source boundary and
+   the structure already proves a stable owner — for example, a dead anchor on
+   inline payload bytes consumed through a return-address dispatcher. Retain
+   and provisionally baseline an orphan `.DB` region head when its consumer or
+   boundary is still unknown. Label removal can re-anchor generated
+   `pointer_targets.csv` rows to the preceding code label, and ordinary
+   regeneration can restore the deleted label. Record that live reapplication
+   hazard in `WORKING_NOTES.md` using the
+   [removed generator-label notation](DOCUMENTATION.md#removed-generator-label-notation),
+   then inspect `make project-regenerate-check PROJECT=<slug>` before accepting
+   regenerated asm as maintained source.
 3. Confirm that `QUICK_REFERENCE.md`'s Assembler Warnings section
    still points at `WARNING_BASELINE.txt` as the single per-symbol
    registry; the scaffold seeds that reference and the registry itself

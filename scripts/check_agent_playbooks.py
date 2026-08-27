@@ -275,10 +275,14 @@ ROOT_WORD_CEILING = 6000
 # its evidence/precision boundaries to the root contract and pass/tooling
 # routes. These ceilings retain measured-plus-headroom rather than hiding the
 # contextual and non-authoritative nature of the comparison.
+# Removed generator-label notation and warning-bootstrap classification add a
+# narrow, durable intake/reapplication contract to DOCUMENTATION.md and
+# NEW_PROJECT.md. The new-project ceiling keeps that rule explicit with the
+# same measured-plus-headroom discipline as the preceding tooling additions.
 ROUTE_BUDGETS = {
     "default": (3320, 24080),
     "data-recovery": (3035, 22715),
-    "new-project": (4115, 30150),
+    "new-project": (4156, 30472),
     "project-pass-review": (4320, 30480),
 }
 

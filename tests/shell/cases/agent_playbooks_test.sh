@@ -13,6 +13,36 @@ test_nesrev_control_examples_keep_literal_schema_headers() {
     "recovery-control docs must explain where required schema headers belong"
 }
 
+test_agent_review_protocol_records_pass_aware_default_range() {
+  local spec="${REPO_ROOT}/AGENT_REVIEW_PROTOCOL_SPEC.md"
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+
+  assert_eq "$(grep -cF '`HEAD~2..HEAD` range for pass 0 or `HEAD~1..HEAD` for later passes' "${spec}")" "1" \
+    "review protocol must keep both pass-aware defaults on one unambiguous line"
+  assert_eq "$(grep -cF 'make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [LEARNING=<text>]' "${tooling}")" "1" \
+    "Make-wrapper synopsis must advertise every supported review-run override"
+  if grep -q 'non-default range, run id' "${spec}"; then
+    fail "review protocol must not route supported start-pass overrides through lower-level init"
+  fi
+}
+
+test_removed_generator_label_notation_is_plain_and_scoped() {
+  local docs="${REPO_ROOT}/agent_playbook/DOCUMENTATION.md"
+  local intake="${REPO_ROOT}/agent_playbook/NEW_PROJECT.md"
+
+  assert_eq "$(grep -cF 'removed generator label L8123' "${docs}")" "1" \
+    "DOCUMENTATION.md must keep exactly one plain-text notation example"
+  if grep -qF 'removed generator label `L8123`' "${docs}"; then
+    fail "removed generator-label example must be plain text, not backticked"
+  fi
+  assert_match 'return-address dispatcher' "$(<"${intake}")" \
+    "intake rules must identify disposable inline-payload anchors"
+  assert_match 'orphan `\.DB` region head' "$(<"${intake}")" \
+    "intake rules must distinguish orphan data boundaries that stay retained"
+  assert_match 'pointer_targets\.csv.*preceding code label' "$(<"${intake}")" \
+    "intake rules must disclose the generated-inventory re-anchoring effect"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"
