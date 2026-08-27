@@ -57,6 +57,25 @@ test_intentional_kpi_regression_convention_is_durable() {
     "quality review must reject unexplained KPI regressions"
 }
 
+test_inline_dispatch_and_oam_comment_rules_are_durable() {
+  local asm_style="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
+  local docs="${REPO_ROOT}/agent_playbook/DOCUMENTATION.md"
+  local review="${REPO_ROOT}/agent_playbook/QUALITY_REVIEW.md"
+
+  assert_match '\[canonical OAM record layout\]\(ASM_STYLE.md#hardware-constants\)' "$(<"${docs}")" \
+    "project docs must point to the canonical hardware-layout section"
+  assert_match '\[Y, tile, attributes, X\]' "$(<"${asm_style}")" \
+    "the canonical OAM section must own the standard field order"
+  assert_match 'control-flow payload, not a standalone data table' "$(<"${docs}")" \
+    "inline return-address handler words must stay exempt from data-table boilerplate"
+  assert_match 'do not[[:space:]]+add boilerplate `Format:` or `Used by:` lines' "$(<"${docs}")" \
+    "the inline-dispatch exception must forbid both redundant comment lines"
+  assert_match 'standard OAM template may use.*OAM_FIELD_\*' "$(<"${docs}")" \
+    "project comments must be able to cite the canonical OAM field family"
+  assert_match 'standard four-byte hardware OAM[[:space:]]+record alone does not require a project format doc' "$(<"${review}")" \
+    "reviewers must not demand duplicate standard OAM format prose"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"

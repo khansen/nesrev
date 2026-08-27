@@ -400,7 +400,14 @@ Composite PPUCTRL init values (e.g. `PPUCTRL_NMI_ENABLE|PPUCTRL_BG_PT_1000`) are
 | `APU_STATUS_DISABLE_ALL` | %00000000 | |
 | `APU_FRAME_COUNTER_5STEP_NOIRQ` | %11000000 | 5-step mode + IRQ inhibit |
 
-**OAM sprite attributes:**
+**OAM sprite records and attributes:**
+
+The standard NES OAM record is four bytes in fixed order:
+`[Y, tile, attributes, X]`. The `OAM_SPRITE_STRIDE` and `OAM_FIELD_*`
+constants below are the canonical source for that layout. Project docs may link
+to this section instead of repeating the field order. At an asm declaration,
+`Format: N standard OAM sprite records (OAM_FIELD_*).` is sufficient unless the
+table adds a project-specific encoding or invariant.
 
 | Constant | Value | Notes |
 |---|---|---|
@@ -482,7 +489,7 @@ Use named symbols for semantics; keep literals for opaque payload bytes.
 
 - **Hardware shadow handling:** Before closing the current corridor batch, ensure all `LDA ZP_Ppu*Shadow` / `AND|ORA|EOR #$NN` / `STA PPUCTRL|PPUMASK` paths touched by the corridor use named bitmask constants with correct domain prefixes (`PPUCTRL_*`, `PPUMASK_*`). Add intent comments for non-obvious masks. See [Hardware Constants](#hardware-constants) for the canonical name list.
 - **Math constants:** Once the corridor proves the owning RAM/ZP field and the arithmetic role (motion/physics/collision/scoring math), name the math immediates in the same batch. Use subsystem-prefixed constants (`BALL_MOTION_*`, `SCORE_*`). Only replace immediates in executable logic, not packed data payload bytes. Do not stage a dedicated repository-wide math-constant pass.
-- **OAM shadow addressing:** Derive OAM page from NMI DMA setup (`STA OAMDMA`), not convention. Define `RAM_OamShadowBase`, `OAM_PAGE_HI .EQU >RAM_OamShadowBase`, and canonical field/stride constants (`OAM_FIELD_Y/TILE/ATTRIBS/X`, `OAM_SPRITE_STRIDE`). OAM byte-lane roles are fixed: `0/4/8/C`=Y, `1/5/9/D`=tile, `2/6/A/E`=attribs, `3/7/B/F`=X. Replace raw `$02xx` accesses with `RAM_OamShadowBase+OAM_FIELD_*` expressions.
+- **OAM shadow addressing:** Derive OAM page from NMI DMA setup (`STA OAMDMA`), not convention. Define `RAM_OamShadowBase`, `OAM_PAGE_HI .EQU >RAM_OamShadowBase`, and use the [canonical OAM record layout](#hardware-constants). Replace raw `$02xx` accesses with `RAM_OamShadowBase+OAM_FIELD_*` expressions.
 - **Base-derived page constants:** Derive page/high-byte constants from base symbols (`FOO_PAGE_HI .EQU >RAM_FooBase`). Do not duplicate standalone page literals.
 - **Stride-indexed table formatting:** When consumer code indexes by fixed stride (`ASL`/multiply, `Table,Y`/`Table+1,Y`), format the table as one `.DB` line per record. Add `Record format:` and `Index:` comments.
 - **Constantization workflow:** Magic immediates are overloaded; frequency-first planning is required. Audit existing constant gaps before defining new ones. Use line-targeted perl scripts for overloaded values; account for EQU insertion line drift. Prioritize immediates by confidence tier within the current corridor, not across a prescribed multi-pass project sequence. Define complementary constant pairs together. Audit label-embedded hex suffixes.
