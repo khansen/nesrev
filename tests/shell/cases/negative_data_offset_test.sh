@@ -103,12 +103,23 @@ test_negative_data_offset_rejects_bad_cli_and_read_errors() {
 }
 
 test_negative_data_offset_is_opt_in_process_advisory() {
-  local process_check
+  local process_check proof_block outside_proof_block
   process_check="$(<"${REPO_ROOT}/scripts/project_process_check.sh")"
+  proof_block="$(
+    sed -n '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/p' \
+      "${REPO_ROOT}/scripts/project_process_check.sh"
+  )"
+  outside_proof_block="$(
+    sed '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/d' \
+      "${REPO_ROOT}/scripts/project_process_check.sh"
+  )"
   assert_match 'negative_data_offset_check\.py' "${process_check}" \
     "new-project process checks must surface the boundary signal"
-  assert_match 'PROOF_DEBT_REQUIRED.*negative_data_offset_check\.py' "${process_check}" \
+  assert_match 'negative_data_offset_check\.py' "${proof_block}" \
     "legacy projects must stay outside the new advisory"
+  if printf '%s' "${outside_proof_block}" | grep -q 'negative_data_offset_check.py'; then
+    fail "boundary scan must not run outside the proof-debt opt-in block"
+  fi
   if printf '%s' "${process_check}" | grep -q 'negative_data_offset_check.py.*--strict'; then
     fail "boundary candidates must remain advisory until individually reviewed"
   fi
