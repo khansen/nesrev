@@ -439,6 +439,30 @@ after a normalization pass.
     outcome, not an objective. Every scorecard row must state a
     readability or semantic gain.
 
+<a id="intentional-kpi-regressions"></a>
+### Intentional KPI regressions
+
+A mechanically worse final KPI can be the correct result when a pass removes
+unsupported semantics, filler documentation, or another misleading construct.
+Before closeout, compare the final KPI output and auto-synced scorecard cells
+with the preceding closed pass. For each metric deliberately moved in its
+mechanically worse direction, add this marker to the current row's `notes` cell:
+
+`intentional-kpi-regression: <metric> <before> -> <after>; <semantic/readability reason>`
+
+Use the exact emitted metric name and measured final values. The reason must
+name the correction and explain why preserving the mechanically better value
+would mislead a future reader; for example, removing an unproven constant is a
+valid reason for `strict_active_magic_immediates` to increase. Repeat the marker
+for separately affected metrics and do not use raw `|` characters in the cell.
+
+A tool-definition, denominator, or baseline change is not an intentional code
+regression; record it as `kpi-measurement-change: <metric>; <old/new basis>`.
+If a worse movement has no defensible semantic/readability reason, investigate
+it as rework or record an explicit deferral before closeout. Do not rationalize
+an unexplained delta after the fact or reverse a correct edit merely to restore
+the earlier number.
+
 <a id="legacy-retrofit-scorecard-artifact"></a>
 ### Legacy Retrofit
 

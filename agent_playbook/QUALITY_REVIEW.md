@@ -301,6 +301,14 @@ KPI suite as a floor, not a ceiling.
   [PASS_WORKFLOW.md#scorecard-sync](PASS_WORKFLOW.md#scorecard-sync);
   this section governs how to interpret them, not how to track
   them.
+- A mechanically worse KPI is not automatically a quality regression. For each
+  deliberate case, verify that the scorecard uses the
+  [intentional-KPI-regression notation](PASS_WORKFLOW.md#intentional-kpi-regressions),
+  gives exact comparable values, and identifies the semantic/readability gain
+  that justifies rejecting the mechanically better result.
+- Treat an unexplained backward movement as incomplete review work. Confirm
+  that measurement-definition changes use the distinct measurement-change
+  notation and that a semantic edit was not undone solely to improve a count.
 - The human-review items above and the readability self-audit
   below catch what the KPI suite cannot.
 Calibration: never set `MAX_*` values while known undecoded `.DB`

@@ -279,11 +279,15 @@ ROOT_WORD_CEILING = 6000
 # narrow, durable intake/reapplication contract to DOCUMENTATION.md and
 # NEW_PROJECT.md. The new-project ceiling keeps that rule explicit with the
 # same measured-plus-headroom discipline as the preceding tooling additions.
+# Intentional KPI regression notation adds the scorecard operator rule to
+# PASS_WORKFLOW.md and the matching reviewer criterion to QUALITY_REVIEW.md.
+# The affected route ceilings preserve the exact-value/reason distinction and
+# retain their prior measured-plus-headroom margins.
 ROUTE_BUDGETS = {
-    "default": (3320, 24080),
+    "default": (3345, 24270),
     "data-recovery": (3035, 22715),
-    "new-project": (4156, 30472),
-    "project-pass-review": (4320, 30480),
+    "new-project": (4181, 30676),
+    "project-pass-review": (4352, 30740),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

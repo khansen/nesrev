@@ -43,6 +43,20 @@ test_removed_generator_label_notation_is_plain_and_scoped() {
     "intake rules must disclose the generated-inventory re-anchoring effect"
 }
 
+test_intentional_kpi_regression_convention_is_durable() {
+  local workflow="${REPO_ROOT}/agent_playbook/PASS_WORKFLOW.md"
+  local review="${REPO_ROOT}/agent_playbook/QUALITY_REVIEW.md"
+
+  assert_eq "$(grep -cF 'intentional-kpi-regression: <metric> <before> -> <after>; <semantic/readability reason>' "${workflow}")" "1" \
+    "pass workflow must keep one canonical intentional-regression marker"
+  assert_match 'exact emitted metric name and measured final values' "$(<"${workflow}")" \
+    "intentional KPI regressions must remain comparable"
+  assert_match 'kpi-measurement-change: <metric>; <old/new basis>' "$(<"${workflow}")" \
+    "measurement-definition changes must not masquerade as code regressions"
+  assert_match 'unexplained backward movement as incomplete review work' "$(<"${review}")" \
+    "quality review must reject unexplained KPI regressions"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"
