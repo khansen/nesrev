@@ -152,6 +152,9 @@ if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
 
   echo "[ppu-packet-lines] Checking declared packet-stream line boundaries (advisory)"
   python3 "${SCRIPT_DIR}/ppu_packet_line_check.py" "${ASM_FILE}"
+
+  echo "[data-boundary] Checking small negative indexed data-label offsets (advisory)"
+  python3 "${SCRIPT_DIR}/negative_data_offset_check.py" "${ASM_FILE}"
 fi
 
 # Advisory only (must not fail the gate): flag data tables whose index is

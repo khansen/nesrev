@@ -150,7 +150,11 @@ reviewer must inspect the touched regions and ledgers.
    data span surfaced by `data_coverage.json`, record a row in
    `data_blob_dispositions.csv` with the exact consumer evidence, pointer-field
    search result, extent proof, and reflow status; this is the maturity proof
-   that the bytes are understood, not merely labeled.
+   that the bytes are understood, not merely labeled. Triage every
+   `negative_data_offset_check.py` finding in an opened data corridor: introduce
+   or reuse the true boundary label when the operand reaches preceding bytes,
+   or prove the runtime index bias before retaining the subtraction. A semantic
+   rename alone does not resolve the boundary question.
 10. **Onboarding docs are complete and cross-linked**
    (`ONBOARDING.md`, `QUICK_REFERENCE.md`, `MEMORY_MAP.md`,
    dedicated format/state-machine docs, and promoted subsystem

@@ -283,11 +283,15 @@ ROOT_WORD_CEILING = 6000
 # PASS_WORKFLOW.md and the matching reviewer criterion to QUALITY_REVIEW.md.
 # The affected route ceilings preserve the exact-value/reason distinction and
 # retain their prior measured-plus-headroom margins.
+# Negative indexed data-label offset scanning adds one narrow source-analysis
+# contract to TOOLING.md and the matching data-boundary review rule to
+# QUALITY_REVIEW.md. Only routes that carry those playbooks are recalibrated;
+# the ceilings retain their prior measured-plus-headroom margins.
 ROUTE_BUDGETS = {
-    "default": (3345, 24270),
-    "data-recovery": (3035, 22715),
+    "default": (3367, 24438),
+    "data-recovery": (3058, 22880),
     "new-project": (4181, 30676),
-    "project-pass-review": (4352, 30740),
+    "project-pass-review": (4378, 30950),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
