@@ -142,6 +142,14 @@ Use `projects/PROGRAMMING_STYLE_COMPARISON.md` as the mature-architecture
 index, then inspect referenced asm/docs before applying conventions. Naming and
 classification rules stay in task-specific playbooks.
 
+Treat analogue vocabulary as candidate semantics, not authority. Before
+adopting a procedure, data, or field name, revalidate its action and subject
+against the current project's body plus its caller or producer/consumer
+contract. Carry forward the analogue's evidence, not its identifier alone;
+byte-identical code can preserve an old misnomer. When local evidence
+contradicts the borrowed name, use the accurate current-project name and route
+the analogue cleanup back to its owning project.
+
 If a subsystem appears Nintendo-common or already solved elsewhere, a pass is
 incomplete until the comparison is either applied or the scorecard states why
 the pattern does not fit.

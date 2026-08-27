@@ -291,11 +291,15 @@ ROOT_WORD_CEILING = 6000
 # ownership add paired rules to DOCUMENTATION.md, ASM_STYLE.md, and
 # QUALITY_REVIEW.md. All four bundles carry at least one of those playbooks, so
 # their ceilings retain the existing measured-plus-headroom margins.
+# Borrowed-name validation and multi-entry localization proof add one root
+# contract plus matching TOOLING.md, QUALITY_REVIEW.md, and REVIEW_AUDITS.md
+# boundaries. Each affected route preserves its prior measured headroom; the
+# review route carries the full operator/reviewer evidence contract.
 ROUTE_BUDGETS = {
-    "default": (3374, 24495),
-    "data-recovery": (3065, 22937),
-    "new-project": (4203, 30856),
-    "project-pass-review": (4392, 31081),
+    "default": (3389, 24628),
+    "data-recovery": (3080, 23070),
+    "new-project": (4211, 30926),
+    "project-pass-review": (4421, 31368),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -128,7 +128,10 @@ reviewer must inspect the touched regions and ledgers.
    effects, inputs/outputs, ordering, or public-entry semantics; walkthroughs
    and KPI filler fail this item. Review high-fanout callables and public
    jump/dispatch targets from `xref_summary_all.json`; localize,
-   rename/structure, add a concise header, or record why none is needed.
+   rename/structure, add a concise header, or record why none is needed. For a
+   name borrowed from an analogue, confirm the action and subject against the
+   local body, callers, and rename-ledger rationale; matching bytes or prior use
+   of the identifier does not prove the identifier is accurate.
 9. **Major data regions have dedicated format coverage.** Inline `Format:`
    comments are not enough for core editable systems. If the game has
    levels/stages/rooms/maps, objects/actors/enemies/hazards,

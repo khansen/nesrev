@@ -86,6 +86,28 @@ test_inline_dispatch_and_oam_comment_rules_are_durable() {
     "reviewers must not demand duplicate standard OAM format prose"
 }
 
+test_borrowed_name_and_localization_review_rules_are_durable() {
+  local root_rules="${REPO_ROOT}/AGENTS.md"
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+  local review="${REPO_ROOT}/agent_playbook/QUALITY_REVIEW.md"
+  local audits="${REPO_ROOT}/agent_playbook/REVIEW_AUDITS.md"
+
+  assert_match 'Carry forward the analogue.s evidence, not its identifier alone' "$(<"${root_rules}")" \
+    "prior-project reuse must preserve evidence rather than blindly copy names"
+  assert_match 'checker does not compare routine bodies or validate borrowed procedure[[:space:]]+names' "$(<"${tooling}")" \
+    "the constant advisory must not be mistaken for procedure-name validation"
+  assert_match 'clean result means only that no evidence-backed constant near-miss was[[:space:]]+found' "$(<"${tooling}")" \
+    "clean constant reuse output must retain its narrow meaning"
+  assert_match 'confirm the action and subject against the[[:space:]]+local body, callers, and rename-ledger rationale' "$(<"${review}")" \
+    "reviewers must validate borrowed names against local behavior"
+  assert_match 'name/reason disagreement is unresolved review[[:space:]]+work even when the implementations are byte-identical' "$(<"${audits}")" \
+    "rename rationale must remain an independent evidence check"
+  assert_match 'identify the owning[[:space:]]+non-local scope and check for every intervening non-local label or helper' "$(<"${audits}")" \
+    "localization findings must prove the proposed local scope"
+  assert_match 'assemble it in a[[:space:]]+disposable worktree before making the finding blocking' "$(<"${audits}")" \
+    "multi-entry localization blockers must be assembled outside the implementation tree"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"
