@@ -552,9 +552,11 @@ Rules:
   identifies the dispatcher and the adjacent `.DW` entries name the handler
   targets, the source already exposes the consumer and fixed-word shape; do not
   add boilerplate `Format:` or `Used by:` lines. Document only a non-obvious
-  selector bias, encoding, or control-flow constraint.
+  selector bias, encoding, or control-flow constraint. Keep such payloads
+  unlabeled unless a real source reference requires the boundary; a retained
+  label falls back to the normal data-table documentation rule.
 - A standard OAM template may use `Format: N standard OAM sprite records
-  (OAM_FIELD_*).` instead of repeating `[Y, tile, attributes, X]`. Project docs
+  (OAM_FIELD_*).` instead of repeating the standard field order. Project docs
   should link to the
   [canonical OAM record layout](ASM_STYLE.md#hardware-constants);
   describe locally only project-specific encoding or invariants.
