@@ -1229,7 +1229,7 @@ test_make_project_pass_review_start_forwards_learning_text() {
 
   local run_id="demo-pass-0"
   local counter="${NESREV_TEST_TMPDIR}/make-agent-review-start-count"
-  local base make_bin output note
+  local base learning make_bin output note
   base="$(git -C "${repo}" rev-parse HEAD~2)"
   mkdir -p "${NESREV_TEST_TMPDIR}/make-agent-review-start-bin"
   _write_agent_review_make_stub \
@@ -1237,11 +1237,12 @@ test_make_project_pass_review_start_forwards_learning_text() {
     ok \
     "${counter}"
   make_bin="$(command -v make)"
+  learning=$'Process friction kept $44 literal.\nSecond $55 line.'
 
   output="$(
     cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/make-agent-review-start-bin:${PATH}" \
       "${make_bin}" project-pass-review-start PROJECT=demo PASS=0 \
-        'LEARNING=Process friction kept $$44 literal.' 2>&1
+        "LEARNING=${learning}" 2>&1
   )"
 
   note="${repo}/.agents/runs/${run_id}/implementation.md"
@@ -1249,6 +1250,8 @@ test_make_project_pass_review_start_forwards_learning_text() {
     "make wrapper must drive start-pass through ready"
   assert_match 'Process friction kept [$]44 literal' "$(<"${note}")" \
     "make wrapper must preserve learning text for generated implementation notes"
+  assert_match 'Second [$]55 line' "$(<"${note}")" \
+    "make wrapper must preserve multiline learning text"
   assert_eq "$(_json_field "${repo}" "review_base")" "${base}" \
     "make wrapper must preserve the pass-aware HEAD~2 default for pass 0"
 }

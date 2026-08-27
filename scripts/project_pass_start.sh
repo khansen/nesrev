@@ -175,6 +175,28 @@ elif cluster_candidates:
 definition = (target or {}).get("definition") or {}
 open_range = (target or {}).get("recommended_open_range") or {}
 
+
+def localization_owner_snapshot(candidates):
+    owners_by_symbol = {}
+    for candidate in candidates:
+        for item in (candidate or {}).get("localize_candidates") or []:
+            if not item.get("safe_localize"):
+                continue
+            symbol = (item.get("symbol") or "").strip()
+            owner = (item.get("definition_owner") or "").strip()
+            if symbol and owner:
+                owners_by_symbol.setdefault(symbol, set()).add(owner)
+    return [
+        {"symbol": symbol, "owner": next(iter(owners))}
+        for symbol, owners in sorted(owners_by_symbol.items())
+        if len(owners) == 1
+    ]
+
+
+snapshot_candidates = list(cluster_candidates)
+if target is not None and target not in snapshot_candidates:
+    snapshot_candidates.append(target)
+
 plan = {
     "project": slug,
     "started_from_next_pass": str(Path(next_pass_path)),
@@ -195,6 +217,7 @@ plan = {
     "cluster_members": (target or {}).get("members") or [],
     "scope_barriers": (target or {}).get("scope_barriers") or [],
     "localize_candidates": (target or {}).get("localize_candidates") or [],
+    "localization_owner_snapshot": localization_owner_snapshot(snapshot_candidates),
 }
 
 if not target_arg and cluster_candidates and anchor_source == "cluster_candidate":

@@ -1,5 +1,9 @@
 .PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-regenerate-check project-prior-reuse-check project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
 
+# Single-quote a raw command-line token for the recipe shell. $(value ...)
+# prevents Make from consuming a dollar-prefixed target before this helper runs.
+shell_quote_raw = '$(subst ','"'"',$(1))'
+
 nesrev:
 	javac NESrev.java -Xlint:unchecked
 
@@ -87,37 +91,44 @@ project-next-pass:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-next-pass PROJECT=<slug> [FORMAT=text|json]"; exit 2; fi
 	@bash scripts/project_next_pass.sh $(PROJECT) $(if $(FORMAT),$(FORMAT),text)
 
-# Forward the corridor-objective fields through the recipe environment via
-# target-specific export so prose values (apostrophes, spaces) are passed
-# verbatim without shell re-quoting. project_pass_start.sh reads them from
-# os.environ; empty values are treated as omitted.
-project-pass-start: export CORRIDOR := $(CORRIDOR)
-project-pass-start: export WHY_NOW := $(WHY_NOW)
-project-pass-start: export BOUNDARIES := $(BOUNDARIES)
-project-pass-start: export EVIDENCE := $(EVIDENCE)
-project-pass-start: export OUT_OF_SCOPE := $(OUT_OF_SCOPE)
+project-pass-start: export NESREV_PASS_CORRIDOR := $(value CORRIDOR)
+project-pass-start: export NESREV_PASS_WHY_NOW := $(value WHY_NOW)
+project-pass-start: export NESREV_PASS_BOUNDARIES := $(value BOUNDARIES)
+project-pass-start: export NESREV_PASS_EVIDENCE := $(value EVIDENCE)
+project-pass-start: export NESREV_PASS_OUT_OF_SCOPE := $(value OUT_OF_SCOPE)
 project-pass-start:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-start PROJECT=<slug> [PASS=<id>] [TARGET=<symbol_or_override>] [CORRIDOR=<text>] [WHY_NOW=<text>] [BOUNDARIES=<text>] [EVIDENCE=<text>] [OUT_OF_SCOPE=<text>]"; exit 2; fi
-	@target='$(subst $$,$$$$,$(TARGET))'; \
+	@target=$(call shell_quote_raw,$(value TARGET)); \
 	target="$$(python3 -c 'import re, sys; t=sys.argv[1]; m=re.fullmatch(r"raw_\$$*([0-9A-Fa-f]{1,4})", t); print(f"raw_$${int(m.group(1), 16):04X}" if m else t)' "$$target")"; \
+	CORRIDOR="$${NESREV_PASS_CORRIDOR}" \
+	WHY_NOW="$${NESREV_PASS_WHY_NOW}" \
+	BOUNDARIES="$${NESREV_PASS_BOUNDARIES}" \
+	EVIDENCE="$${NESREV_PASS_EVIDENCE}" \
+	OUT_OF_SCOPE="$${NESREV_PASS_OUT_OF_SCOPE}" \
 	bash scripts/project_pass_start.sh "$(PROJECT)" "$(PASS)" "$$target"
 
-project-pass-closeout: export FOCUS := $(FOCUS)
-project-pass-closeout: export NOTES := $(NOTES)
-project-pass-closeout: export DEFERRALS := $(DEFERRALS)
-project-pass-closeout: export REWORK_ITEMS := $(REWORK_ITEMS)
+project-pass-closeout: export NESREV_PASS_FOCUS := $(value FOCUS)
+project-pass-closeout: export NESREV_PASS_NOTES := $(value NOTES)
+project-pass-closeout: export NESREV_PASS_DEFERRALS := $(value DEFERRALS)
+project-pass-closeout: export NESREV_PASS_REWORK_ITEMS := $(value REWORK_ITEMS)
 project-pass-closeout:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-closeout PROJECT=<slug> [PASS=<id>] [VERIFY_MODE=strict|relaxed] [FOCUS=<text>] [NOTES=<text>] [DEFERRALS=<...>] [REWORK_ITEMS=<count>]"; exit 2; fi
-	@bash scripts/project_pass_closeout.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
+	@FOCUS="$${NESREV_PASS_FOCUS}" \
+	NOTES="$${NESREV_PASS_NOTES}" \
+	DEFERRALS="$${NESREV_PASS_DEFERRALS}" \
+	REWORK_ITEMS="$${NESREV_PASS_REWORK_ITEMS}" \
+	bash scripts/project_pass_closeout.sh "$(PROJECT)" "$(PASS)" "$(VERIFY_MODE)"
 
 project-pass-review-packet: export ALLOW_UNRESOLVED_LXXXX := $(ALLOW_UNRESOLVED_LXXXX)
 project-pass-review-packet:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(BASE)" ] || [ -z "$(HEAD)" ]; then echo "usage: make project-pass-review-packet PROJECT=<slug> BASE=<base-ref> HEAD=<head-ref> [ALLOW_UNRESOLVED_LXXXX=1] [OUT=<packet.md>]"; exit 2; fi
 	@if [ -n "$(OUT)" ]; then bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)" > "$(OUT)"; else bash scripts/project_pass_review_packet.sh "$(PROJECT)" "$(BASE)" "$(HEAD)"; fi
 
+project-pass-review-start: export NESREV_PASS_LEARNING := $(value LEARNING)
 project-pass-review-start:
 	@if [ -z "$(PROJECT)" ] || [ -z "$(PASS)" ]; then echo "usage: make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<base-ref>] [HEAD=<head-ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [ALLOW_UNRESOLVED_LXXXX=1] [LEARNING=<text>]"; exit 2; fi
-	@set -- \
+	@learning="$${NESREV_PASS_LEARNING}"; \
+	set -- \
 	  --project "$(PROJECT)" \
 	  --pass-id "$(PASS)" \
 	  --head "$(if $(HEAD),$(HEAD),HEAD)"; \
@@ -125,7 +136,7 @@ project-pass-review-start:
 	if [ -n "$(RUN_ID)" ]; then set -- "$$@" --run-id "$(RUN_ID)"; fi; \
 	if [ -n "$(MAX_ROUNDS)" ]; then set -- "$$@" --max-rounds "$(MAX_ROUNDS)"; fi; \
 	if [ -n "$(filter 1 true yes,$(ALLOW_UNRESOLVED_LXXXX))" ]; then set -- "$$@" --allow-unresolved-lxxxx; fi; \
-	if [ -n "$${LEARNING:-}" ]; then set -- "$$@" --learning "$$LEARNING"; fi; \
+	if [ -n "$$learning" ]; then set -- "$$@" --learning "$$learning"; fi; \
 	python3 scripts/agent_review.py start-pass "$$@"
 
 project-raw-ram-review:

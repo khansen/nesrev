@@ -180,6 +180,34 @@ def local_label_owner_index(asm_file: Path):
     }
 
 
+def localization_owner_snapshot(doc_root: Path, pass_id: int):
+    plan_path = doc_root / "inventory" / "pass" / "current_pass_plan.json"
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(plan, dict):
+        return {}
+    if str(plan.get("intended_pass_id")) != str(pass_id):
+        return {}
+    snapshot = plan.get("localization_owner_snapshot") or []
+    if not isinstance(snapshot, list):
+        return {}
+    owners = {}
+    for item in snapshot:
+        if not isinstance(item, dict):
+            continue
+        symbol = (item.get("symbol") or "").strip()
+        owner = (item.get("owner") or "").strip()
+        if symbol and owner:
+            owners.setdefault(symbol, set()).add(owner)
+    return {
+        symbol: next(iter(owner_set))
+        for symbol, owner_set in owners.items()
+        if len(owner_set) == 1
+    }
+
+
 def rewrite_top_owner_field(text: str, replacements: dict[str, str]):
     if not text:
         return text
@@ -208,12 +236,20 @@ def rewrite_top_owner_field(text: str, replacements: dict[str, str]):
     return ",".join(parts)
 
 
-def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_rows):
+def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_rows, pass_id: int):
     review_path = doc_root / "inventory" / "raw_ram_review.csv"
     if not review_path.exists():
         return None
 
     local_owners = local_label_owner_index(asm_file)
+    owner_snapshot = localization_owner_snapshot(doc_root, pass_id)
+    renamed_globals = {
+        (row.get("old_name") or "").strip(): (row.get("new_name") or "").strip()
+        for row in rename_rows
+        if (row.get("old_name") or "").strip()
+        and (row.get("new_name") or "").strip()
+        and not (row.get("new_name") or "").strip().startswith("@@")
+    }
     replacements = {}
     ambiguous_local_replacements = []
     for row in rename_rows:
@@ -226,10 +262,16 @@ def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_
             if len(owners) == 1:
                 replacements[old_name] = owners[0]
             else:
+                snapshot_owner = owner_snapshot.get(old_name)
+                resolved_owner = renamed_globals.get(snapshot_owner, snapshot_owner)
+                if snapshot_owner and resolved_owner in owners:
+                    replacements[old_name] = resolved_owner
+                    continue
                 ambiguous_local_replacements.append({
                     "old_name": old_name,
                     "new_name": new_name,
                     "candidate_owners": owners,
+                    "snapshot_owner": snapshot_owner,
                     "reason": "ambiguous local label owner" if owners else "local label not found",
                 })
         else:
@@ -706,6 +748,7 @@ raw_ram_review_owner_update = rewrite_raw_ram_review_owner_symbols(
     doc_root,
     asm_file,
     rename_rows_for_pass,
+    pass_id,
 )
 
 doc_files = []

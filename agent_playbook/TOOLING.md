@@ -140,8 +140,8 @@ wrapper is equivalent:
 ```sh
 make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>] [RUN_ID=<id>] [MAX_ROUNDS=<n>] [LEARNING=<text>]
 ```
-When using the Make wrapper, write literal dollar signs as `$$`; use the
-Python command directly when the learning text needs ordinary shell quoting.
+Single-quote dollar-bearing prose for the shell. The Make wrapper preserves
+literal dollar signs and apostrophes; no `$$` escaping is required.
 
 Pass `BASE=<ref>`, `HEAD=<ref>`, `RUN_ID=<id>`, or `MAX_ROUNDS=<n>` to the
 wrapper for those overrides. Use lower-level `init` plus
