@@ -194,7 +194,8 @@ or `;`-separated; `project-pass-closeout` appends one row per gap to
 Without `DEFERRALS` it falls back to extracting the deferred clause from its own
 `NOTES` prose and leaves `revisit_condition` for the operator to fill — a
 fallback, not the contract, since nothing then has to be inferred from a
-sentence written for a human reader.
+sentence written for a human reader. Keep `subject` stable. On rerun, closeout
+also matches `deferral` text, preserving curated legacy keys and corridors.
 
 **Three strikes.** On the third deferral of one `subject` (`deferral_repeat`),
 stop: open an [identity pass](#identity-pass) using evidence later passes have
@@ -597,8 +598,9 @@ silently infer a new pass from a missing plan. It also rejects an inferred pass
 whose scorecard row is already closed; pass `PASS=<id>` explicitly only when
 intentionally rechecking an existing pass. During the residue sweep it echoes
 the persisted objective and warns if that objective is incomplete, stale, or
-missing. It auto-syncs derived KPI cells in the highest numeric `pass_id` row;
-do not hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
+missing. Pass start snapshots warning count; closeout derives
+`warnings_baseline_delta`, preserving legacy rows without a snapshot. It auto-syncs derived KPI cells in the highest
+numeric `pass_id` row; do not hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
 executable numeric operands; scoped overlays are reported without forcing
 unrelated uses of the same byte to change.
 If closeout or handoff exposes process, harness, or tooling friction, record it

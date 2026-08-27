@@ -43,14 +43,23 @@ for stale_input in "${stale_inputs[@]}"; do
   fi
 done
 
-python3 - "${1}" "${PASS_ID}" "${TARGET_SYMBOL}" "${next_pass_json}" "${PROGRESS_SCORECARD_FILE}" "${pass_dir}" "${pass_dir}/xref_with_data.json" <<'PY'
+python3 - "${1}" "${PASS_ID}" "${TARGET_SYMBOL}" "${next_pass_json}" "${PROGRESS_SCORECARD_FILE}" "${pass_dir}" "${pass_dir}/xref_with_data.json" "${WARN_BASELINE_FILE}" <<'PY'
 import json
 import os
 import re
 import sys
 from pathlib import Path
 
-slug, pass_id_arg, target_arg, next_pass_path, scorecard_path, pass_dir, xref_path = sys.argv[1:]
+(
+    slug,
+    pass_id_arg,
+    target_arg,
+    next_pass_path,
+    scorecard_path,
+    pass_dir,
+    xref_path,
+    warn_baseline_path,
+) = sys.argv[1:]
 
 # Operator-selected corridor objective fields (env-supplied, all optional).
 # Persisted into the current pass plan so the most important review artifact
@@ -73,6 +82,20 @@ missing_objective_fields = [
 next_pass = json.loads(Path(next_pass_path).read_text(encoding="utf-8"))
 scorecard_text = Path(scorecard_path).read_text(encoding="utf-8") if Path(scorecard_path).exists() else ""
 xref = json.loads(Path(xref_path).read_text(encoding="utf-8")) if Path(xref_path).exists() else {}
+
+
+def count_warning_lines(path):
+    p = Path(path)
+    if not p.exists():
+        return 0
+    return sum(
+        1
+        for raw in p.read_text(encoding="utf-8").splitlines()
+        if raw.strip() and not raw.strip().startswith("#")
+    )
+
+
+warning_baseline_count_at_start = count_warning_lines(warn_baseline_path)
 
 last_pass_id = None
 for raw in scorecard_text.splitlines():
@@ -156,6 +179,7 @@ plan = {
     "project": slug,
     "started_from_next_pass": str(Path(next_pass_path)),
     "intended_pass_id": pass_id,
+    "warning_baseline_count_at_start": warning_baseline_count_at_start,
     "selection_strategy": next_pass.get("selection_strategy"),
     "recommended_pass": next_pass.get("recommended_pass"),
     "operator_guidance": next_pass.get("operator_guidance") or {},

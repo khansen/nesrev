@@ -227,9 +227,20 @@ def main(argv: list[str]) -> int:
     # Re-running closeout for the same pass must not duplicate its rows, and
     # editing NOTES between runs must not either — hence the subject key rather
     # than the sentence, which changes when the prose is reworded.
-    already = {
-        (r.get("pass_id", ""), r.get("subject", "")) for r in rows
-    }
+    already: set[tuple[str, str]] = set()
+    for row in rows:
+        row_pass_id = row.get("pass_id", "")
+        subject = row.get("subject", "").strip()
+        if subject:
+            already.add((row_pass_id, subject))
+
+        # Operators may replace an auto-generated subject with a curated stable
+        # key while retaining the human description of the underlying gap. A
+        # later closeout rerun must recognise that row instead of recreating the
+        # generated key beside it.
+        deferral = row.get("deferral", "").strip()
+        if deferral:
+            already.add((row_pass_id, subject_key(deferral)))
 
     added = 0
     for entry in entries:
@@ -248,6 +259,7 @@ def main(argv: list[str]) -> int:
                 "status": "open",
             }
         )
+        already.add(key)
         added += 1
 
     if not added:

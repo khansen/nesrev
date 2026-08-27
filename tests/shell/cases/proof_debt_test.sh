@@ -232,6 +232,39 @@ test_deferral_capture_is_idempotent() {
   assert_eq "${rows}" "1" "re-running closeout must not duplicate deferral rows"
 }
 
+test_deferral_capture_preserves_a_curated_subject_on_rerun() {
+  local ledger="${NESREV_TEST_TMPDIR}/curated_deferrals.csv"
+  local args=(--pass-id 12 --corridor generated --explicit \
+    "Object-display stream primary format :: classify every consumer")
+  python3 "${DEFERRAL_CAPTURE}" "${ledger}" "${args[@]}" >/dev/null
+
+  python3 - "${ledger}" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+with path.open(encoding="utf-8", newline="") as handle:
+    rows = list(csv.DictReader(handle))
+rows[0]["subject"] = "object-display-stream-family"
+rows[0]["corridor"] = "curated object display corridor"
+with path.open("w", encoding="utf-8", newline="") as handle:
+    writer = csv.DictWriter(handle, fieldnames=rows[0], lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+PY
+
+  python3 "${DEFERRAL_CAPTURE}" "${ledger}" "${args[@]}" >/dev/null
+
+  local rows; rows="$(($(wc -l < "${ledger}") - 1))"
+  assert_eq "${rows}" "1" \
+    "a closeout rerun must recognize the underlying gap after subject curation"
+  assert_match "object-display-stream-family" "$(cat "${ledger}")" \
+    "a closeout rerun must preserve the operator's stable subject key"
+  assert_match "curated object display corridor" "$(cat "${ledger}")" \
+    "a closeout rerun must preserve curated corridor text"
+}
+
 test_deferral_capture_ignores_notes_without_a_deferral() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor c \
