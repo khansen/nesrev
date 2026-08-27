@@ -15,6 +15,11 @@ DirectOamTemplate:
 ; Format: one extended record [shadow offset, Y, tile, attributes, X].
 ExtendedOamTemplate:
     .DB $08,$10,$20,$00,$30
+; Format: one suffixed record [Y, tile, attributes, X, flags].
+SuffixedOamTemplate:
+    .DB $10,$20,$00,$30,$40
+TupleText:
+    .DB "[Y, tile, attributes, X]"
 EOF
   cat > "${root}/docs/reverse_engineering/MEMORY_MAP.md" <<'EOF'
 Each direct OAM tuple is `(y, tile, attr, x)`.
@@ -43,8 +48,9 @@ test_oam_standard_prose_excludes_provenance_and_extended_shapes() {
   _write_oam_fixture "${root}"
   local out
   out="$(python3 "${CHECK}" "${root}/asm/game.asm" "${root}" 2>&1)"
-  if printf '%s' "${out}" | grep -qE 'pass-2\.md|current_pass_plan\.md|game\.asm:4'; then
-    fail "review archives, inventory snapshots, and extended record shapes must stay outside the advisory"
+  if printf '%s' "${out}" | grep -qE \
+    'pass-2\.md|current_pass_plan\.md|shadow offset|X, flags|TupleText|\.DB "\[Y, tile'; then
+    fail "review archives, inventory snapshots, extended shapes, and non-comment ASM text must stay outside the advisory"
   fi
 }
 

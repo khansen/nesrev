@@ -13,12 +13,15 @@ AppendPpuBufferByte:
 AdvancePpuBufferCursor:
     INC RAM_PpuBufferCursor
     RTS
+StorePacketTable:
+    .DB $10,$20,$30
 RAM_AppendOnlyScratch .EQU $40
 EOF
   cat > "${ledger}" <<'EOF'
 old_name,new_name,reason,confidence,pass_id
 L8000,AppendPpuBufferByte,advances the RAM PPU buffer cursor with a capacity guard,high,4
 L8010,AdvancePpuBufferCursor,advances the RAM PPU buffer cursor with a capacity guard,high,5
+L8020,StorePacketTable,reads three packet bytes,high,5
 raw_$40,RAM_AppendOnlyScratch,reads a shared scratch byte,scoped-overlay,5
 EOF
 }
