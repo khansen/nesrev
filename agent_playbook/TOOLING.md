@@ -810,6 +810,26 @@ narrow paired hardware-bitmask signal. Default findings are warnings with exit
 zero, while `--strict` exits 3. Missing projects or unreadable inputs remain
 operational failures in either mode.
 
+<a id="negative-data-offset-check"></a>
+### Negative indexed data-label offsets
+
+`negative_data_offset_check.py <asm> [--strict]` reports instruction operands
+such as `LDA Table-3,X` when `Table` is source-classified as data and the
+literal subtraction is 1 through 16 bytes. The address may be correct because
+the runtime index is biased, but it is also a high-signal boundary smell: bytes
+before `Table` may need their own label, or the existing label may not name the
+true record origin. The checker intentionally excludes RAM/ZP `.EQU` symbols,
+code labels, unknown labels, non-indexed expressions, positive offsets, and
+larger subtractions.
+
+For new clean-room projects, `project-process-check` runs this signal in report
+mode under the existing proof-debt opt-in. Findings are advisory and must be
+triaged from the surrounding producer/consumer evidence: add or reuse the true
+boundary label when the operand crosses a real subrecord boundary, or retain
+the expression only when the index bias is proven. `--strict` exits 68 for a
+reviewed project-local zero baseline; operational/UTF-8 read failures remain
+hard errors in either mode.
+
 <a id="pointer-table-relocation-gate"></a>
 `pointer_table_body_check.py <asm>` flags labels named as a pointer table
 (`...PtrTable`, `...Pointers`, ...) whose body is still a raw numeric `.DB` lo/hi
@@ -895,6 +915,8 @@ debug-only recipes not big enough to warrant their own section.
 - Orphan opcode hidden-code candidates
   (`make project-hidden-code-scan PROJECT=<slug>`):
   [#orphan-opcode-scan](#orphan-opcode-scan)
+- Small negative indexed data-label boundary candidates:
+  [#negative-data-offset-check](#negative-data-offset-check)
 
 ### Vocabulary drift
 
