@@ -144,6 +144,16 @@ test_process_learning_cadence_guards_against_overfitting() {
     "non-blocking friction must accumulate evidence before process work begins"
 }
 
+test_pass_wrapper_transport_and_owner_snapshot_rules_are_durable() {
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+  local workflow="${REPO_ROOT}/agent_playbook/PASS_WORKFLOW.md"
+
+  assert_match 'Make[[:space:]]+wrapper[[:space:]]+preserves[[:space:]]+literal[[:space:]]+dollar[[:space:]]+signs[[:space:]]+and[[:space:]]+apostrophes' "$(<"${tooling}")" \
+    "Make wrapper docs must keep literal prose transport explicit"
+  assert_match 'snapshots[[:space:]]+warning[[:space:]]+count[[:space:]]+and[[:space:]]+generated[[:space:]]+localization[[:space:]]+owner[[:space:]]+pairs' "$(<"${workflow}")" \
+    "pass lifecycle docs must retain localization ownership evidence"
+}
+
 test_agent_playbook_validator_rejects_empty_anchored_section() {
   local playbook="${REPO_ROOT}/agent_playbook/ASM_STYLE.md"
   local backup="${NESREV_TEST_TMPDIR}/ASM_STYLE.md.backup"

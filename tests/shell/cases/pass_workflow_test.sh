@@ -1088,6 +1088,57 @@ PY
     || fail "markdown plan must render the out-of-scope field"
 }
 
+test_pass_start_snapshots_generated_localization_owners() {
+  local slug; slug="$(unique_slug pass_localization_snapshot)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'EOF'
+{
+  "selection_strategy": "test",
+  "recommended_pass": { "type": "semantic_corridor", "summary": "Close the owner corridor." },
+  "cluster_candidates": [
+    {
+      "cluster": "Owner corridor",
+      "anchor": "OldOwner",
+      "kind": "code",
+      "members": [],
+      "scope_barriers": [],
+      "localize_candidates": [
+        { "symbol": "OldDone", "definition_owner": "OldOwner", "safe_localize": true },
+        { "symbol": "UniqueLoop", "definition_owner": "OldOwner", "safe_localize": true }
+      ]
+    },
+    {
+      "cluster": "Conflicting owner corridor",
+      "anchor": "OtherOwner",
+      "kind": "code",
+      "members": [],
+      "scope_barriers": [],
+      "localize_candidates": [
+        { "symbol": "OldDone", "definition_owner": "OtherOwner", "safe_localize": true }
+      ]
+    }
+  ]
+}
+EOF
+
+  bash "${PASS_START}" "${slug}" 1 OldOwner >/dev/null 2>&1
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = [{"symbol": "UniqueLoop", "owner": "OldOwner"}]
+if plan.get("localization_owner_snapshot") != expected:
+    raise SystemExit(
+        "generated localization owner snapshot was not persisted: "
+        f"{plan.get('localization_owner_snapshot')!r}"
+    )
+PY
+}
+
 test_pass_start_warns_on_incomplete_corridor_objective_but_succeeds() {
   local slug; slug="$(unique_slug pass_objective_missing)"
   trap "cleanup_project ${slug}" EXIT
@@ -1516,12 +1567,16 @@ with open(os.environ["STUB_LOG"], "a", encoding="utf-8") as handle:
     handle.write(f"deferrals {explicit}\n")
 PY
 
+  local deferrals
+  deferrals=$'object_$40 :: inspect $40-$5F consumers :: static\nsecond_$AA :: inspect $AA writer :: runtime'
   STUB_LOG="${log}" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
     make project-pass-closeout PROJECT="${slug}" PASS=1 \
-      REWORK_ITEMS=2 DEFERRALS=fixture_gap:static:revisit >/dev/null
+      REWORK_ITEMS=2 "DEFERRALS=${deferrals}" >/dev/null
 
-  assert_match "deferrals fixture_gap:static:revisit" "$(cat "${log}")" \
+  assert_match 'deferrals object_[$]40 :: inspect [$]40-[$]5F consumers :: static' "$(cat "${log}")" \
     "Makefile must forward DEFERRALS to project-pass-closeout"
+  assert_match 'second_[$]AA :: inspect [$]AA writer :: runtime' "$(cat "${log}")" \
+    "Makefile must preserve multiline DEFERRALS values"
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1695,10 +1750,12 @@ SH
 set -euo pipefail
 SH
 
+  local notes
+  notes=$'Preserved runner\'s $AA note.\nSecond $BB line.'
   PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
-    FOCUS="Materialized closeout row" \
-    NOTES="Created from a reordered scorecard header." \
-    bash "${PASS_CLOSEOUT}" "${slug}" 1 strict >/dev/null
+    make project-pass-closeout PROJECT="${slug}" PASS=1 VERIFY_MODE=strict \
+      'FOCUS=Object $40-$5F corridor' \
+      "NOTES=${notes}" >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
@@ -1732,9 +1789,9 @@ if len(row) != len(header):
 cols = {name: i for i, name in enumerate(header)}
 expected = {
     "pass_id": "1",
-    "focus": "Materialized closeout row",
+    "focus": "Object $40-$5F corridor",
     "review_state": "",
-    "notes": "Created from a reordered scorecard header.",
+    "notes": "Preserved runner's $AA note. Second $BB line.",
     "verify": "pass",
     "docs_check": "pass",
     "rework_items": "pending",
@@ -1746,25 +1803,38 @@ for name, value in expected.items():
 PY
 }
 
-test_make_pass_start_forwards_objective_value_with_apostrophe() {
-  local slug; slug="$(unique_slug pass_objective_apostrophe)"
+test_make_pass_start_preserves_raw_objective_values() {
+  local slug; slug="$(unique_slug pass_objective_raw_values)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
   _write_reset_next_pass "${slug}"
 
-  # Exercise the Makefile forwarding path (not the script directly): a prose
-  # objective with an apostrophe must survive without breaking shell parsing.
+  # Exercise the Makefile forwarding path: apostrophes, single dollar signs,
+  # and embedded newlines must reach the pass plan literally.
+  local corridor
+  corridor=$'runner\'s $40-$5F path-state corridor\nsecond $BB line'
   make project-pass-start PROJECT="${slug}" PASS=1 TARGET=Reset \
-    CORRIDOR="runner's path-state corridor" >/dev/null 2>&1
+    "CORRIDOR=${corridor}" \
+    'WHY_NOW=shared $AA sentinel is still ambiguous' \
+    'BOUNDARIES=$40-$5F and its direct owners' \
+    'EVIDENCE=raw_$0040 generated evidence' \
+    'OUT_OF_SCOPE=$60-$7F scratch window' >/dev/null 2>&1
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
 import json
 import sys
 
 plan = json.load(open(sys.argv[1], encoding="utf-8"))
-got = plan.get("corridor_objective", {}).get("selected_corridor")
-if got != "runner's path-state corridor":
-    raise SystemExit(f"Makefile forwarding mangled the apostrophe value: {got!r}")
+got = plan.get("corridor_objective")
+expected = {
+    "selected_corridor": "runner's $40-$5F path-state corridor\nsecond $BB line",
+    "why_now": "shared $AA sentinel is still ambiguous",
+    "expected_boundaries": "$40-$5F and its direct owners",
+    "generated_evidence": "raw_$0040 generated evidence",
+    "explicitly_out_of_scope": "$60-$7F scratch window",
+}
+if got != expected:
+    raise SystemExit(f"Makefile forwarding mangled raw objective values: {got!r}")
 PY
 }
 
@@ -1792,7 +1862,7 @@ test_make_pass_start_normalizes_raw_ram_target_shorthand() {
 EOF
 
   local target
-  for target in raw_bf raw_0bf raw_00bf 'raw_$$00bf'; do
+  for target in raw_bf raw_0bf raw_00bf 'raw_$00bf'; do
     make project-pass-start PROJECT="${slug}" PASS=1 TARGET="${target}" >/dev/null 2>&1
     python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" "${target}" <<'PY'
 import json
@@ -2595,6 +2665,101 @@ if reader != "OldDone:1":
     raise SystemExit(f"ambiguous duplicate local owner should stay unreconciled, got {reader!r}")
 if "NewOwner" in reader or "UnrelatedOwner" in reader:
     raise SystemExit(f"duplicate local owner was guessed incorrectly: {reader!r}")
+PY
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{"intended_pass_id": 1, "localization_owner_snapshot": 7}
+EOF
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "4" \
+    "malformed localization owner snapshots must preserve ambiguity failure"
+  assert_match "ambiguous_local_replacements" "${out}" \
+    "malformed localization owner snapshots must not authorize a guess"
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{
+  "intended_pass_id": 2,
+  "localization_owner_snapshot": [{"symbol": "OldDone", "owner": "OldOwner"}]
+}
+EOF
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "4" \
+    "localization owner snapshots from another pass must not authorize a rewrite"
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{
+  "intended_pass_id": 1,
+  "localization_owner_snapshot": [{"symbol": "OldDone", "owner": "GhostOwner"}]
+}
+EOF
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "4" \
+    "snapshot owners absent from the post-pass asm must not be written to the review queue"
+  assert_match "GhostOwner" "${out}" \
+    "closeout should identify the rejected snapshot owner"
+}
+
+test_pass_residue_check_uses_snapshot_for_duplicate_local_owner_names() {
+  local slug; slug="$(unique_slug closeout_snapshotted_local_owner)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Localized repeated concise branch names."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+NewOwner:
+@@done:
+  LDA $10
+  RTS
+
+OtherNewOwner:
+@@done:
+  LDA $11
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+OldOwner,NewOwner,owner routine renamed,high,1
+OldDone,@@done,localized return branch,mechanical,1
+OtherOldOwner,OtherNewOwner,second owner routine renamed,high,1
+OtherOldDone,@@done,localized second return branch,mechanical,1
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,OldDone:1,
+0x0011,unreviewed,,,,yes,1,1,1,0,OtherOldDone:1,
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{
+  "intended_pass_id": 1,
+  "localization_owner_snapshot": [
+    {"symbol": "OldDone", "owner": "OldOwner"},
+    {"symbol": "OtherOldDone", "owner": "OtherOldOwner"}
+  ]
+}
+EOF
+
+  bash "${PASS_RESIDUE}" "${slug}" 1 >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+if rows["0x0010"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"first snapshotted local owner was not reconciled: {rows['0x0010']!r}")
+if rows["0x0011"]["top_readers"] != "OtherNewOwner:1":
+    raise SystemExit(f"second snapshotted local owner was not reconciled: {rows['0x0011']!r}")
 PY
 }
 
