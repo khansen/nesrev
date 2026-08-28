@@ -2266,6 +2266,88 @@ ASM
     "an allowlisted local composite must not be flagged"
 }
 
+test_hardware_drift_check_reports_allowlisted_cross_project_recurrence() {
+  local root="${NESREV_TEST_TMPDIR}/hardware_projects"
+  local current="${root}/current"
+  local peer="${root}/peer"
+  local unrelated="${root}/unrelated"
+  mkdir -p \
+    "${current}/asm" "${current}/docs/reverse_engineering/inventory" \
+    "${peer}/asm" "${peer}/docs/reverse_engineering/inventory" \
+    "${unrelated}/asm" "${unrelated}/docs/reverse_engineering/inventory"
+
+  cat > "${current}/asm/current.asm" <<'ASM'
+.ORG $C000
+APU_LOCAL_EXACT .EQU $08
+APU_LOCAL_VALUE .EQU $30
+APU_LOCAL_EXPR .EQU APU_LOCAL_EXACT+1
+OAM_PAGE_HI .EQU $02
+OAM_CURRENT_LOCAL .EQU $03
+Reset:
+  RTS
+ASM
+  cat > "${current}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt" <<'EOF'
+APU_LOCAL_EXACT
+APU_LOCAL_VALUE
+APU_LOCAL_EXPR
+OAM_PAGE_HI
+OAM_CURRENT_LOCAL
+EOF
+  cat > "${peer}/asm/peer.asm" <<'ASM'
+.ORG $C000
+APU_LOCAL_EXACT .EQU $08
+APU_PEER_VALUE .EQU $30
+APU_PEER_EXPR .EQU APU_LOCAL_EXACT+1
+OAM_PAGE_HI .EQU $03
+OAM_PEER_LOCAL .EQU $02
+Reset:
+  RTS
+ASM
+  cat > "${peer}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt" <<'EOF'
+APU_LOCAL_EXACT
+APU_PEER_VALUE
+APU_PEER_EXPR
+OAM_PAGE_HI
+OAM_PEER_LOCAL
+EOF
+  cat > "${unrelated}/asm/unrelated.asm" <<'ASM'
+.ORG $C000
+PPUMASK_UNRELATED_VALUE .EQU $30
+Reset:
+  RTS
+ASM
+  printf 'PPUMASK_UNRELATED_VALUE\n' \
+    > "${unrelated}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt"
+
+  local allow="${current}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt"
+  local out rc
+  set +e
+  out="$(python3 "${DRIFT_CHECK}" "${current}/asm/current.asm" \
+    "${ASM_STYLE_DOC}" "${allow}" --projects-root "${root}" --strict)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "0" \
+    "allowlisted recurrence must remain advisory even in strict drift mode"
+  assert_match "OK: no canonical hardware-constant drift" "${out}"
+  assert_match "advisory: 2 allowlisted project-local hardware constant" "${out}" \
+    "exact-name and compatible value recurrence must both be reported"
+  assert_match "APU_LOCAL_EXACT: exact-name in peer" "${out}"
+  assert_match 'APU_LOCAL_VALUE: same APU_ literal [$]30 as peer:APU_PEER_VALUE' "${out}"
+  if [[ "${out}" == *"OAM_PAGE_HI"* ]]; then
+    fail "a canonical current name must not match a noncanonical peer candidate"
+  fi
+  if [[ "${out}" == *"OAM_CURRENT_LOCAL"* ]]; then
+    fail "a noncanonical current name must not match a canonical peer candidate"
+  fi
+  if [[ "${out}" == *"APU_LOCAL_EXPR"* ]]; then
+    fail "expression-valued constants must not enter literal recurrence evidence"
+  fi
+  if [[ "${out}" == *"PPUMASK_UNRELATED_VALUE"* ]]; then
+    fail "same-valued constants from another hardware family must not be reported"
+  fi
+}
+
 test_hardware_drift_check_flags_ppu_register_bit_near_misses_only() {
   local asm="${NESREV_TEST_TMPDIR}/ppu_near_miss.asm"
   cat > "${asm}" <<'ASM'
@@ -2341,16 +2423,29 @@ ASM
 
 test_process_check_reports_hardware_drift_advisory_without_failing() {
   local slug; slug="$(unique_slug hw_drift_process)"
-  trap "cleanup_project ${slug}" EXIT
+  local peer; peer="$(unique_slug hw_drift_peer)"
+  trap "cleanup_project ${slug}; cleanup_project ${peer}" EXIT
   _make_workflow_project "${slug}" "legacy"
+  _make_workflow_project "${peer}" "legacy"
   _write_pass_one_scorecard "${slug}" "Pre-contract project history."
 
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
 APU_CUSTOM_LOCAL .EQU $05
+APU_SHARED_LOCAL .EQU $08
 Reset:
   RTS
 ASM
+  printf 'APU_SHARED_LOCAL\n' \
+    > "projects/${slug}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt"
+  cat > "projects/${peer}/asm/${peer}.asm" <<'ASM'
+.ORG $C000
+APU_SHARED_LOCAL .EQU $08
+Reset:
+  RTS
+ASM
+  printf 'APU_SHARED_LOCAL\n' \
+    > "projects/${peer}/docs/reverse_engineering/inventory/hardware_local_allowlist.txt"
 
   local out rc
   set +e
@@ -2361,6 +2456,8 @@ ASM
   assert_eq "${rc}" "0" "hardware-drift check must be advisory and not fail process-check"
   assert_match "canonical hardware-constant drift \(advisory\)" "${out}"
   assert_match "APU_CUSTOM_LOCAL" "${out}"
+  assert_match "APU_SHARED_LOCAL: exact-name in ${peer}" "${out}" \
+    "process check must surface cross-project allowlist recurrence evidence"
   assert_match "OK: project process checks passed" "${out}"
 }
 

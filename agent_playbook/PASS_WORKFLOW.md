@@ -619,15 +619,16 @@ does not restate them.
 <a id="hardware-drift"></a>
 ### Canonical hardware-constant drift (advisory)
 
-`project-process-check` warns when a project `.EQU` uses a canonical hardware
-prefix (`PPUCTRL_`, `PPUMASK_`, `PPUSTATUS_`, `PAD_`, `OAM_`, `APU_`, `JOY1_`,
-`JOY2_`) but is not a canonical name from
-[ASM_STYLE.md#hardware-constants](ASM_STYLE.md#hardware-constants). It is
-advisory — the gate still passes. Resolve each: rename to a canonical constant,
-promote it to the canonical table if globally reusable, or allowlist a
-project-local composite/encoding in
+`project-process-check` reports project `.EQU`s under canonical hardware
+prefixes (`PPUCTRL_`, `PPUMASK_`, `PPUSTATUS_`, `PAD_`, `OAM_`, `APU_`,
+`JOY1_`, `JOY2_`) absent from the
+[canonical table](ASM_STYLE.md#hardware-constants) and local allowlist. It also
+reports noncanonical constants independently allowlisted in peers under an
+exact name or same-prefix literal. Both reports are advisory: rename to
+canonical, promote only after review proves global reuse, or retain a project-local
+composite/encoding. The allowlist is
 `docs/reverse_engineering/inventory/hardware_local_allowlist.txt` (one symbol
-per line; `#` comments and blank lines ignored; a missing file means none).
+per line; `#` comments and blank lines are ignored; a missing file means none).
 
 ### Prior-project constant reuse (advisory)
 

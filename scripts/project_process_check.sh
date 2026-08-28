@@ -128,7 +128,8 @@ echo "[4/4] Checking canonical hardware-constant drift (advisory)"
 python3 "${SCRIPT_DIR}/check_hardware_constant_drift.py" \
   "${ASM_FILE}" \
   "${SCRIPT_DIR}/../agent_playbook/ASM_STYLE.md" \
-  "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" || true
+  "${DOC_ROOT}/inventory/hardware_local_allowlist.txt" \
+  --projects-root projects || true
 
 # The scorecard-selected analogue supplies the comparison input. This remains
 # advisory because same-valued literals can be semantically unrelated; the
