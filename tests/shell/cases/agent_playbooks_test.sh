@@ -125,6 +125,17 @@ test_rename_reason_and_oam_prose_tooling_rules_are_durable() {
     "OAM prose findings must route authors to the canonical owner"
 }
 
+test_hardware_allowlist_recurrence_stays_advisory() {
+  local workflow="${REPO_ROOT}/agent_playbook/PASS_WORKFLOW.md"
+
+  assert_match 'noncanonical[[:space:]]+constants[[:space:]]+independently[[:space:]]+allowlisted[[:space:]]+in[[:space:]]+peers[[:space:]]+under[[:space:]]+an[[:space:]]+exact[[:space:]]+name[[:space:]]+or[[:space:]]+same-prefix[[:space:]]+literal' "$(<"${workflow}")" \
+    "hardware allowlist recurrence must retain its narrow evidence shape"
+  assert_match 'Both[[:space:]]+reports[[:space:]]+are[[:space:]]+advisory' "$(<"${workflow}")" \
+    "cross-project recurrence must not become an automatic promotion gate"
+  assert_match '`#`[[:space:]]+comments[[:space:]]+and[[:space:]]+blank[[:space:]]+lines[[:space:]]+are[[:space:]]+ignored' "$(<"${workflow}")" \
+    "hardware allowlist documentation must name its comment syntax"
+}
+
 test_process_learning_cadence_guards_against_overfitting() {
   local audits="${REPO_ROOT}/agent_playbook/REVIEW_AUDITS.md"
 
