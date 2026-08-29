@@ -16,9 +16,39 @@ inv_dir="${NESREV_INVENTORY_OUT_DIR:-${DOC_ROOT}/inventory}"
 mkdir -p "${inv_dir}"
 
 project_slug="$1"
+XASM_BIN="${XASM_BIN:-xasm}"
 
 const_tmp="$(mktemp)"
-trap 'rm -f "$const_tmp"' EXIT
+pointer_xref_tmp=""
+cleanup_inventory_tmp() {
+  rm -f "${const_tmp}"
+  if [[ -n "${pointer_xref_tmp}" ]]; then
+    rm -rf "${pointer_xref_tmp}"
+  fi
+}
+trap cleanup_inventory_tmp EXIT
+
+pointer_xref="${NESREV_XREF_FILE:-}"
+if [[ -n "${pointer_xref}" ]]; then
+  if [[ ! -f "${pointer_xref}" ]]; then
+    echo "error: shared xref file not found: ${pointer_xref}" >&2
+    exit 65
+  fi
+else
+  pointer_xref_tmp="$(mktemp -d)"
+  pointer_xref="${pointer_xref_tmp}/xref_with_data.json"
+  if ! "${XASM_BIN}" --pure-binary \
+      -o "${pointer_xref_tmp}/inventory.o" \
+      --xref="${pointer_xref}" \
+      --xref-format=json \
+      --xref-include-owner=true \
+      --xref-data=true \
+      "${ASM_FILE}" >/dev/null 2>"${pointer_xref_tmp}/xasm.stderr"; then
+    cat "${pointer_xref_tmp}/xasm.stderr" >&2
+    echo "error: xasm failed while generating the pointer inventory xref" >&2
+    exit 65
+  fi
+fi
 
 awk '
 /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]+/ {
@@ -57,7 +87,7 @@ awk '
 } > "${inv_dir}/constants_catalog.csv"
 
 bash "${SCRIPT_DIR}/pointer_targets.sh" \
-  "${ASM_FILE}" \
+  "${pointer_xref}" \
   "${inv_dir}/pointer_targets.csv"
 
 python3 "${SCRIPT_DIR}/embedded_pointer_targets.py" \

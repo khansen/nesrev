@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+XASM_BIN="${XASM_BIN:-xasm}"
 
 inv_dir="${DOC_ROOT}/inventory"
 mkdir -p "${inv_dir}"
@@ -78,8 +79,7 @@ case "${NESREV_RECOVERY_STATUS}" in
     ;;
 esac
 
-echo "[0/8] Preparing intake registries"
-bash "${SCRIPT_DIR}/refresh_inventory.sh" "$1"
+echo "[0/8] Preparing intake registry paths"
 
 # Transactional ONBOARDING promotion.
 #
@@ -182,7 +182,7 @@ if ! grep -qv "^[[:space:]]*\(#.*\)\?$" "${WARN_BASELINE_FILE}" 2>/dev/null; the
   baseline_dir="$(dirname "${WARN_BASELINE_FILE}")"
   baseline_tmp="$(mktemp "${baseline_dir}/WARNING_BASELINE.txt.XXXXXX")"
   set +e
-  xasm --pure-binary -o "${OUT_BIN}" "${ASM_FILE}" >"${xasm_seed_log}" 2>&1
+  "${XASM_BIN}" --pure-binary -o "${OUT_BIN}" "${ASM_FILE}" >"${xasm_seed_log}" 2>&1
   xasm_rc=$?
   set -e
   if (( xasm_rc != 0 )); then
@@ -212,14 +212,18 @@ else
 fi
 
 echo "[2/8] Verifying intake baseline"
-ALLOW_UNRESOLVED_LXXXX=1 bash "${SCRIPT_DIR}/project_verify.sh" "$1"
+export NESREV_XREF_FILE="${xref_json}"
+PROJECT_VERIFY_REFRESH_INVENTORY=1 \
+PROJECT_VERIFY_REFRESH_SCRIPT="${SCRIPT_DIR}/refresh_inventory.sh" \
+ALLOW_UNRESOLVED_LXXXX=1 \
+  bash "${SCRIPT_DIR}/project_verify.sh" "$1"
 
 echo "[3/8] Generating structured listing"
 mkdir -p "$(dirname "${OUT_BIN}")"
-xasm --pure-binary -o "${OUT_BIN}" --listing="${listing_json}" --listing-format=json "${ASM_FILE}" >/dev/null
+"${XASM_BIN}" --pure-binary -o "${OUT_BIN}" --listing="${listing_json}" --listing-format=json "${ASM_FILE}" >/dev/null
 
-echo "[4/8] Generating structured xref"
-xasm --pure-binary -o "${OUT_BIN}" --xref="${xref_json}" --xref-format=json "${ASM_FILE}" >/dev/null
+echo "[4/8] Reusing verification xref"
+bash "${SCRIPT_DIR}/pointer_targets.sh" "${xref_json}" >/dev/null
 
 echo "[5/8] Auditing raw addresses"
 bash "${SCRIPT_DIR}/project_audit.sh" "$1" json > "${audit_json}"

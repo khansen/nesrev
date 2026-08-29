@@ -399,17 +399,25 @@ print(
 PY
 fi
 
-bash "${RUN_SCRIPT_DIR}/refresh_inventory.sh" "${SLUG}"
+TMPDIR_PASS_CLOSEOUT="$(mktemp -d)"
+trap 'rm -rf "${TMPDIR_PASS_CLOSEOUT}"' EXIT
+export NESREV_XREF_FILE="${TMPDIR_PASS_CLOSEOUT}/xref_with_data.json"
+
+if [[ "${VERIFY_MODE}" == "relaxed" ]]; then
+  PROJECT_VERIFY_REFRESH_INVENTORY=1 \
+  PROJECT_VERIFY_REFRESH_SCRIPT="${RUN_SCRIPT_DIR}/refresh_inventory.sh" \
+  ALLOW_UNRESOLVED_LXXXX=1 \
+    bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
+else
+  PROJECT_VERIFY_REFRESH_INVENTORY=1 \
+  PROJECT_VERIFY_REFRESH_SCRIPT="${RUN_SCRIPT_DIR}/refresh_inventory.sh" \
+    bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
+fi
+
 bash "${RUN_SCRIPT_DIR}/project_pass_residue_check.sh" "${SLUG}" "${PASS_ID}"
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
 DATA_BLOB_RENAMED_PASS="${PASS_ID}" \
   bash "${RUN_SCRIPT_DIR}/project_process_check.sh" "${SLUG}"
-
-if [[ "${VERIFY_MODE}" == "relaxed" ]]; then
-  ALLOW_UNRESOLVED_LXXXX=1 bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
-else
-  bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
-fi
 
 python3 - "${PROGRESS_SCORECARD_FILE}" "${PASS_ID}" "${VERIFY_MODE}" "${REWORK_ITEMS:-}" <<'PY'
 import sys

@@ -94,7 +94,7 @@ write_json() {
       printf '{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}\n' > "${path}"
       ;;
     xref)
-      printf '{"symbols":[],"references":[],"data_reads":[],"data_writes":[],"indirect_data_flows":[]}\n' > "${path}"
+      printf '{"version":"2","symbols":[],"references":[],"data_directive_references":[],"data_reads":[],"data_writes":[],"indirect_data_flows":[]}\n' > "${path}"
       ;;
     array)
       printf '[]\n' > "${path}"
@@ -149,14 +149,16 @@ _write_compare_size_xasm_stub() {
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf 'CALL' >> "${XASM_LOG}"
+stub_log="${XASM_STUB_LOG:-${XASM_LOG}}"
+printf 'CALL' >> "${stub_log}"
 for arg in "$@"; do
-  printf '\t%s' "${arg}" >> "${XASM_LOG}"
+  printf '\t%s' "${arg}" >> "${stub_log}"
 done
-printf '\n' >> "${XASM_LOG}"
+printf '\n' >> "${stub_log}"
 
 out=""
 compare=""
+xref=""
 while (( $# > 0 )); do
   case "$1" in
     -o)
@@ -167,6 +169,10 @@ while (( $# > 0 )); do
       compare="${1#*=}"
       shift
       ;;
+    --xref=*)
+      xref="${1#*=}"
+      shift
+      ;;
     *)
       shift
       ;;
@@ -174,7 +180,7 @@ while (( $# > 0 )); do
 done
 
 if [[ -n "${compare}" ]]; then
-  printf 'COMPARE_SIZE\t%s\n' "$(wc -c < "${compare}" | tr -d ' ')" >> "${XASM_LOG}"
+  printf 'COMPARE_SIZE\t%s\n' "$(wc -c < "${compare}" | tr -d ' ')" >> "${stub_log}"
 fi
 
 if [[ -n "${out}" ]]; then
@@ -185,6 +191,10 @@ from pathlib import Path
 
 Path(sys.argv[1]).write_bytes(b"\x00" * int(sys.argv[2]))
 PY
+fi
+if [[ -n "${xref}" ]]; then
+  mkdir -p "$(dirname "${xref}")"
+  printf '{"version":"2","data_directive_references":[]}\n' > "${xref}"
 fi
 STUB
   chmod +x "${stubdir}/xasm"
@@ -872,8 +882,41 @@ ASM
   _write_nes2_prg_high_reference "${ref}"
   _write_compare_size_xasm_stub "${stubdir}"
 
-  PATH="${stubdir}:${PATH}" XASM_LOG="${log}" XASM_STUB_OUT_SIZE=4194304 \
+  XASM_BIN="${stubdir}/xasm" PATH="${stubdir}:${PATH}" \
+  XASM_LOG="${log}" XASM_STUB_OUT_SIZE=4194304 \
     bash "${REPO_ROOT}/scripts/verify.sh" "${asm}" "${ref}" "${out}" "${warnings}" '$C000' >/dev/null
+}
+
+test_verify_publishes_xref_v2_from_the_parity_assembly() {
+  local asm="${NESREV_TEST_TMPDIR}/verify_xref.asm"
+  local ref="${NESREV_TEST_TMPDIR}/verify_xref.nes"
+  local out="${NESREV_TEST_TMPDIR}/verify_xref.o"
+  local xref="${NESREV_TEST_TMPDIR}/published_xref.json"
+  local warnings="${NESREV_TEST_TMPDIR}/verify_xref_warnings.txt"
+  local stubdir="${NESREV_TEST_TMPDIR}/xasm_verify_xref_stub"
+  local log="${NESREV_TEST_TMPDIR}/xasm_verify_xref_calls.tsv"
+
+  printf '.ORG $C000\nReset: RTS\n' > "${asm}"
+  : > "${warnings}"
+  make_ines "${ref}"
+  python3 - "${ref}" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+payload = path.read_bytes()
+path.write_bytes(payload[:16] + bytes(len(payload) - 16))
+PY
+  _write_compare_size_xasm_stub "${stubdir}"
+
+  XASM_BIN="${stubdir}/xasm" XASM_STUB_LOG="${log}" XASM_STUB_OUT_SIZE=16384 \
+    bash "${REPO_ROOT}/scripts/verify.sh" \
+      "${asm}" "${ref}" "${out}" "${warnings}" '$C000' "${xref}" >/dev/null
+
+  assert_eq "$(wc -l < "${log}" | tr -d ' ')" "1" \
+    "verification must generate pointer xref data in its parity assembly"
+  assert_eq "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "${xref}")" "2" \
+    "verification must publish the xasm v2 xref for downstream checks"
 }
 
 test_legacy_project_process_check_does_not_require_analogue_record() {
@@ -1581,6 +1624,8 @@ SH
   cat > "${stubdir}/refresh_inventory.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ -n "${NESREV_XREF_FILE:-}" && -f "${NESREV_XREF_FILE}" ]] \
+  || { echo "inventory did not receive the verification xref" >&2; exit 98; }
 printf 'inventory %s\n' "$1" >> "${STUB_LOG}"
 SH
   cat > "${stubdir}/project_next_pass.sh" <<'SH'
@@ -1608,6 +1653,8 @@ SH
   cat > "${stubdir}/project_process_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ -n "${NESREV_XREF_FILE:-}" && -f "${NESREV_XREF_FILE}" ]] \
+  || { echo "process check did not receive the verification xref" >&2; exit 98; }
 printf 'process %s data_blob_pass=%s\n' "$1" "${DATA_BLOB_RENAMED_PASS:-unset}" >> "${STUB_LOG}"
 SH
   cat > "${stubdir}/project_verify.sh" <<'SH'
@@ -1617,7 +1664,14 @@ if [[ "${EXPECT_RELAXED:-0}" == "1" && "${ALLOW_UNRESOLVED_LXXXX:-}" != "1" ]]; 
   echo "expected relaxed verify environment" >&2
   exit 99
 fi
+[[ -n "${NESREV_XREF_FILE:-}" ]] \
+  || { echo "closeout did not request a shared verification xref" >&2; exit 98; }
+mkdir -p "$(dirname "${NESREV_XREF_FILE}")"
+printf '{"version":"2","data_directive_references":[]}\n' > "${NESREV_XREF_FILE}"
 printf 'verify %s %s\n' "$1" "${ALLOW_UNRESOLVED_LXXXX:-}" >> "${STUB_LOG}"
+[[ "${PROJECT_VERIFY_REFRESH_INVENTORY:-0}" == "1" ]] \
+  || { echo "closeout did not request inventory refresh inside verification" >&2; exit 98; }
+bash "${PROJECT_VERIFY_REFRESH_SCRIPT}" "$1"
 SH
 
   STUB_LOG="${log}" EXPECT_RELAXED=1 PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
@@ -1626,17 +1680,17 @@ SH
     bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null
 
   cat > "projects/${slug}/expected_closeout.log" <<EOF
+verify ${slug} 1
 inventory ${slug}
 residue ${slug} 1
 docs ${slug}
 process ${slug} data_blob_pass=1
-verify ${slug} 1
 raw_refresh ${slug} auto_prep=0 raw_write=1 refresh_only=1 format=json
 docs ${slug}
 process ${slug} data_blob_pass=1
 EOF
   cmp -s "projects/${slug}/expected_closeout.log" "${log}" \
-    || fail "project-pass-closeout must run inventory, residue, docs, process, verify, raw refresh, final docs/process in order"
+    || fail "project-pass-closeout must verify once, then share analysis through inventory, process, and final refresh gates"
 
   python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'PY'
 import sys
