@@ -307,6 +307,29 @@ test_project_process_check_rejects_stale_generated_inventory() {
   assert_match "unknowns.md" "${output}"
 }
 
+test_project_process_check_rejects_missing_generated_inventory() {
+  local slug; slug="$(unique_slug process_missing_inventory)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard \
+    "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
+
+  bash "${REPO_ROOT}/scripts/refresh_inventory.sh" "${slug}" >/dev/null
+  rm "projects/${slug}/docs/reverse_engineering/inventory/split_pointer_targets.csv"
+
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "missing generated inventory must fail process-check"
+  assert_match "generated inventory snapshot is missing" "${output}"
+  assert_match "split_pointer_targets.csv" "${output}"
+  assert_match "commit the complete generated inventory set" "${output}"
+}
+
 test_project_process_check_accepts_optional_data_format_inventory_under_set_u() {
   local slug; slug="$(unique_slug process_optional_data_format)"
   trap "cleanup_project ${slug}" EXIT

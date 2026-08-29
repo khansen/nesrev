@@ -772,12 +772,12 @@ Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 
 `project-process-check` also runs a non-mutating inventory integrity guard. If
-any generated inventory snapshot exists (`constants_catalog.csv`,
-`pointer_targets.csv`, `embedded_pointer_targets.csv`,
-`split_pointer_targets.csv`, `branch_literal_sites.csv`, or `unknowns.md`), the
-guard regenerates those snapshots into a temporary directory and fails when the
-project copy is stale; run `scripts/refresh_inventory.sh <slug>` and commit the
-synchronized output.
+any generated inventory snapshot exists, the complete generated set is required:
+`constants_catalog.csv`, `pointer_targets.csv`, `embedded_pointer_targets.csv`,
+`split_pointer_targets.csv`, `branch_literal_sites.csv`, and `unknowns.md`. The
+guard regenerates those snapshots into a temporary directory and fails when a
+project copy is missing or stale; run `scripts/refresh_inventory.sh <slug>` and
+commit the complete synchronized output.
 It also validates active `raw_ram_review.csv` `top_readers` / `top_writers`
 owners still resolve to live labels, catching stale owner columns after renames
 that bypassed closeout. Owner tokens should name a global label, or a scoped

@@ -315,10 +315,10 @@ ROOT_WORD_CEILING = 6000
 # Xref-backed pass selection adds the structured RAM/ZP symbol boundary to
 # TOOLING.md. Affected ceilings retain their exact prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3444, 25049),
-    "data-recovery": (3134, 23486),
+    "default": (3444, 25058),
+    "data-recovery": (3134, 23495),
     "new-project": (4211, 30928),
-    "project-pass-review": (4496, 31950),
+    "project-pass-review": (4496, 31959),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

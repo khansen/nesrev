@@ -135,8 +135,8 @@ def validate_generated_inventory(
     refresh_script: Path,
 ) -> list[str]:
     inv_dir = doc_root / "inventory"
-    existing = [inv_dir / name for name in GENERATED_INVENTORY_FILES if (inv_dir / name).exists()]
-    if not existing:
+    inventory_paths = [inv_dir / name for name in GENERATED_INVENTORY_FILES]
+    if not any(path.exists() for path in inventory_paths):
         return []
 
     errors: list[str] = []
@@ -161,10 +161,17 @@ def validate_generated_inventory(
             return errors
 
         generated_dir = Path(tmpdir)
-        for actual in existing:
+        for actual in inventory_paths:
             expected = generated_dir / actual.name
             if not expected.exists():
                 errors.append(f"error: generated inventory check did not produce {actual.name}")
+                continue
+            if not actual.exists():
+                errors.append(
+                    f"error: generated inventory snapshot is missing: {actual}; "
+                    f"run {refresh_script} {project_slug} and commit the complete "
+                    f"generated inventory set"
+                )
                 continue
             if actual.read_bytes() == expected.read_bytes():
                 continue
