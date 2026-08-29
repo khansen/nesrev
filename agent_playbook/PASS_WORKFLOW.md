@@ -597,11 +597,12 @@ closeout requires `current_pass_plan.json`; it cannot silently infer a pass from
 a missing plan or reuse an inferred, already-closed row. Use explicit
 `PASS=<id>` only for intentional rechecks. The residue sweep echoes the
 persisted objective and warns if it is incomplete, stale, or missing. Pass
-start snapshots warning count and generated localization owner pairs. Closeout
-derives `warnings_baseline_delta`, preserving legacy rows without a snapshot,
-and reconciles repeated concise `@@` names only from snapshotted owners. It
-auto-syncs derived KPI cells in the highest numeric `pass_id` row; do not
-hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
+start snapshots warning count and fresh-xref owners for safe branch-only
+localizations beyond generated candidates.
+Closeout derives `warnings_baseline_delta`, preserving legacy rows without a
+snapshot, and reconciles repeated concise `@@` names only from snapshotted
+owners. It auto-syncs derived KPI cells in the highest numeric `pass_id` row;
+do not hand-type them. Current-pass `raw_$NNNN` renames must have no remaining
 executable numeric operands; scoped overlays are reported without forcing
 unrelated uses of the same byte to change.
 If closeout or handoff exposes process, harness, or tooling friction, record it

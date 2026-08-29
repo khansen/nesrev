@@ -303,11 +303,14 @@ ROOT_WORD_CEILING = 6000
 # REVIEW_AUDITS.md: candidate volume should decline, `_None._` is healthy, and
 # persistent per-pass reports trigger diagnosis before another process branch.
 # The committed-pass review route preserves its exact prior measured headroom.
+# Full-xref localization snapshots add one workflow capability without dropping
+# the persisted-objective distinction. The shell-runner fix adds no route prose;
+# affected ceilings retain their exact prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3421, 24866),
+    "default": (3422, 24871),
     "data-recovery": (3112, 23308),
     "new-project": (4211, 30926),
-    "project-pass-review": (4473, 31767),
+    "project-pass-review": (4474, 31772),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

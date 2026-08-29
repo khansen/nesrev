@@ -178,6 +178,83 @@ open_range = (target or {}).get("recommended_open_range") or {}
 
 def localization_owner_snapshot(candidates):
     owners_by_symbol = {}
+
+    # Generated candidates cover only the suggested evidence ranges. A corridor
+    # may safely localize other branch targets, so snapshot every conservative
+    # branch-only pair carried by the fresh pre-edit xref.
+    branch_opcodes = {"BNE", "BEQ", "BCC", "BCS", "BMI", "BPL", "BVC", "BVS"}
+    definitions = {}
+    for item in xref.get("symbols", []):
+        if item.get("scope") != "global":
+            continue
+        if item.get("kind") != "label":
+            continue
+        definition = item.get("definition") or {}
+        name = (item.get("name") or "").strip()
+        file = definition.get("file")
+        line = definition.get("line")
+        if name and file and line:
+            try:
+                definitions[name] = (file, int(line))
+            except (TypeError, ValueError):
+                continue
+
+    refs_by_symbol = {}
+    for ref in xref.get("references", []):
+        symbol = (ref.get("symbol") or "").strip()
+        if symbol in definitions:
+            refs_by_symbol.setdefault(symbol, []).append(ref)
+
+    branch_owners = {}
+    for symbol, (definition_file, _) in definitions.items():
+        refs = refs_by_symbol.get(symbol, [])
+        if not refs:
+            continue
+        owners = set()
+        safe = True
+        for ref in refs:
+            owner = (ref.get("owner_routine") or "").strip()
+            opcode = (ref.get("opcode") or "").upper()
+            if ref.get("file") != definition_file or opcode not in branch_opcodes:
+                safe = False
+                break
+            if not owner:
+                safe = False
+                break
+            owners.add(owner)
+        if safe and owners:
+            branch_owners[symbol] = owners
+
+    # xasm can attribute a later branch target to an earlier branch-only global.
+    # Collapse that chain until the enclosing non-local routine is reached.
+    def enclosing_owners(symbol, seen=None):
+        if symbol not in branch_owners:
+            return {symbol}
+        seen = set(seen or ())
+        if symbol in seen:
+            return set()
+        seen.add(symbol)
+        resolved = set()
+        for owner in branch_owners[symbol]:
+            if owner == symbol:
+                continue
+            resolved.update(enclosing_owners(owner, seen))
+        return resolved
+
+    for symbol, (definition_file, definition_line) in definitions.items():
+        if symbol not in branch_owners:
+            continue
+        resolved = {
+            owner
+            for owner in enclosing_owners(symbol)
+            if owner in definitions
+            and definitions[owner][0] == definition_file
+            and definitions[owner][1] <= definition_line
+            and owner != symbol
+        }
+        if resolved:
+            owners_by_symbol.setdefault(symbol, set()).update(resolved)
+
     for candidate in candidates:
         for item in (candidate or {}).get("localize_candidates") or []:
             if not item.get("safe_localize"):

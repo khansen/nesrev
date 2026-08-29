@@ -1139,6 +1139,255 @@ if plan.get("localization_owner_snapshot") != expected:
 PY
 }
 
+test_pass_start_refuses_unsafe_xref_localization_owners() {
+  local slug; slug="$(unique_slug pass_xref_localization_refusals)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared conservative localization-owner evidence."
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "symbols": [
+    {"name":"EarlierDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":2}},
+    {"name":"OldOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":5}},
+    {"name":"OtherOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":15}},
+    {"name":"LateOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":30}},
+    {"name":"SafeDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":40}},
+    {"name":"CalledRoutine","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":41}},
+    {"name":"CrossFileDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":42}},
+    {"name":"ConflictedDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":43}},
+    {"name":"MissingOwnerDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":44}},
+    {"name":"LocalScopeDone","kind":"label","scope":"local","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":45}},
+    {"name":"DataKindDone","kind":"data","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":46}},
+    {"name":"MalformedLineDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":"unknown"}},
+    {"name":"ExternalOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/other.asm","line":1}}
+  ],
+  "references": [
+    {"symbol":"SafeDone","file":"projects/${slug}/asm/${slug}.asm","line":6,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"CalledRoutine","file":"projects/${slug}/asm/${slug}.asm","line":7,"opcode":"JSR","access":"call","owner_routine":"OldOwner"},
+    {"symbol":"CrossFileDone","file":"projects/${slug}/asm/${slug}.asm","line":8,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"CrossFileDone","file":"projects/${slug}/asm/other.asm","line":2,"opcode":"BNE","access":"jump","owner_routine":"ExternalOwner"},
+    {"symbol":"EarlierDone","file":"projects/${slug}/asm/${slug}.asm","line":31,"opcode":"BNE","access":"jump","owner_routine":"LateOwner"},
+    {"symbol":"ConflictedDone","file":"projects/${slug}/asm/${slug}.asm","line":9,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"ConflictedDone","file":"projects/${slug}/asm/${slug}.asm","line":16,"opcode":"BNE","access":"jump","owner_routine":"OtherOwner"},
+    {"symbol":"MissingOwnerDone","file":"projects/${slug}/asm/${slug}.asm","line":10,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"MissingOwnerDone","file":"projects/${slug}/asm/${slug}.asm","line":11,"opcode":"BEQ","access":"jump"},
+    {"symbol":"LocalScopeDone","file":"projects/${slug}/asm/${slug}.asm","line":12,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"DataKindDone","file":"projects/${slug}/asm/${slug}.asm","line":13,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"MalformedLineDone","file":"projects/${slug}/asm/${slug}.asm","line":14,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"}
+  ]
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'EOF'
+{
+  "selection_strategy": "test",
+  "recommended_pass": {"type":"semantic_corridor","summary":"Close the owner corridor."},
+  "cluster_candidates": [
+    {
+      "cluster":"Owner corridor",
+      "anchor":"OldOwner",
+      "kind":"code",
+      "members":[],
+      "scope_barriers":[],
+      "localize_candidates":[]
+    }
+  ]
+}
+EOF
+
+  bash "${PASS_START}" "${slug}" 1 OldOwner >/dev/null 2>&1
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = [{"symbol": "SafeDone", "owner": "OldOwner"}]
+if plan.get("localization_owner_snapshot") != expected:
+    raise SystemExit(
+        "unsafe full-xref localization owner was not refused: "
+        f"{plan.get('localization_owner_snapshot')!r}"
+    )
+PY
+}
+
+test_pass_start_snapshots_xref_owners_for_opportunistic_localization() {
+  local slug; slug="$(unique_slug pass_xref_localization_snapshot)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Localized branch targets across the selected corridor."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+EarlierDone:
+  RTS
+
+OldOwner:
+  BNE OldMid
+  BNE ConflictedDone
+  BNE CrossFileDone
+OldMid:
+  BEQ OldDone
+OldDone:
+  LDA $10
+  JSR CalledRoutine
+  RTS
+
+OtherOldOwner:
+  BNE OtherOldDone
+  BNE ConflictedDone
+OtherOldDone:
+  LDA $11
+  RTS
+
+ConflictedDone:
+  RTS
+
+CrossFileDone:
+  RTS
+
+LateOwner:
+  BNE EarlierDone
+  RTS
+
+CalledRoutine:
+  RTS
+ASM
+  cat > "projects/${slug}/asm/other.asm" <<'ASM'
+ExternalOwner:
+  BNE CrossFileDone
+  RTS
+ASM
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "symbols": [
+    {"name":"EarlierDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":2}},
+    {"name":"OldOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":5}},
+    {"name":"OldMid","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":9}},
+    {"name":"OldDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":11}},
+    {"name":"OtherOldOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":16}},
+    {"name":"OtherOldDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":19}},
+    {"name":"ConflictedDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":23}},
+    {"name":"CrossFileDone","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":26}},
+    {"name":"LateOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":29}},
+    {"name":"CalledRoutine","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":33}},
+    {"name":"ExternalOwner","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/other.asm","line":1}}
+  ],
+  "references": [
+    {"symbol":"OldMid","file":"projects/${slug}/asm/${slug}.asm","line":6,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"OldDone","file":"projects/${slug}/asm/${slug}.asm","line":10,"opcode":"BEQ","access":"jump","owner_routine":"OldMid"},
+    {"symbol":"OtherOldDone","file":"projects/${slug}/asm/${slug}.asm","line":17,"opcode":"BNE","access":"jump","owner_routine":"OtherOldOwner"},
+    {"symbol":"ConflictedDone","file":"projects/${slug}/asm/${slug}.asm","line":7,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"ConflictedDone","file":"projects/${slug}/asm/${slug}.asm","line":18,"opcode":"BNE","access":"jump","owner_routine":"OtherOldOwner"},
+    {"symbol":"CrossFileDone","file":"projects/${slug}/asm/${slug}.asm","line":8,"opcode":"BNE","access":"jump","owner_routine":"OldOwner"},
+    {"symbol":"CrossFileDone","file":"projects/${slug}/asm/other.asm","line":2,"opcode":"BNE","access":"jump","owner_routine":"ExternalOwner"},
+    {"symbol":"EarlierDone","file":"projects/${slug}/asm/${slug}.asm","line":30,"opcode":"BNE","access":"jump","owner_routine":"LateOwner"},
+    {"symbol":"CalledRoutine","file":"projects/${slug}/asm/${slug}.asm","line":13,"opcode":"JSR","access":"call","owner_routine":"OldDone"}
+  ]
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'EOF'
+{
+  "selection_strategy": "test",
+  "recommended_pass": {"type":"semantic_corridor","summary":"Close the owner corridor."},
+  "cluster_candidates": [
+    {
+      "cluster":"Owner corridor",
+      "anchor":"OldOwner",
+      "kind":"code",
+      "members":[],
+      "scope_barriers":[],
+      "localize_candidates":[]
+    }
+  ]
+}
+EOF
+
+  bash "${PASS_START}" "${slug}" 1 OldOwner >/dev/null 2>&1
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = [
+    {"symbol": "OldDone", "owner": "OldOwner"},
+    {"symbol": "OldMid", "owner": "OldOwner"},
+    {"symbol": "OtherOldDone", "owner": "OtherOldOwner"},
+]
+if plan.get("localization_owner_snapshot") != expected:
+    raise SystemExit(
+        "full-xref localization owner snapshot was not persisted: "
+        f"{plan.get('localization_owner_snapshot')!r}"
+    )
+PY
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+EarlierDone:
+  RTS
+
+NewOwner:
+  BNE @@mid
+  BNE ConflictedDone
+  BNE CrossFileDone
+@@mid:
+  BEQ @@done
+@@done:
+  LDA $10
+  JSR CalledRoutine
+  RTS
+
+OtherNewOwner:
+  BNE @@done
+  BNE ConflictedDone
+@@done:
+  LDA $11
+  RTS
+
+ConflictedDone:
+  RTS
+
+CrossFileDone:
+  RTS
+
+LateOwner:
+  BNE EarlierDone
+  RTS
+
+CalledRoutine:
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+OldOwner,NewOwner,owner routine renamed,high,1
+OldMid,@@mid,localized intermediate branch,mechanical,1
+OldDone,@@done,localized nested branch,mechanical,1
+OtherOldOwner,OtherNewOwner,second owner routine renamed,high,1
+OtherOldDone,@@done,localized repeated branch name,mechanical,1
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,OldDone:1,
+0x0011,unreviewed,,,,yes,1,1,1,0,OtherOldDone:1,
+EOF
+
+  bash "${PASS_RESIDUE}" "${slug}" 1 >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+if rows["0x0010"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"nested localized owner was not reconciled: {rows['0x0010']!r}")
+if rows["0x0011"]["top_readers"] != "OtherNewOwner:1":
+    raise SystemExit(f"repeated localized owner was not reconciled: {rows['0x0011']!r}")
+PY
+}
+
 test_pass_start_warns_on_incomplete_corridor_objective_but_succeeds() {
   local slug; slug="$(unique_slug pass_objective_missing)"
   trap "cleanup_project ${slug}" EXIT
