@@ -720,6 +720,12 @@ Normal wrappers share one fresh xref across `.DW`, embedded `.DB`, and split
 `project-maturity-check` creates one temporary xref only when either `.DB`
 ledger exists and the caller did not supply `NESREV_XREF_FILE`.
 
+`Used by:` validation remains hybrid: it reads declaration comments from asm,
+but takes symbols, routine-owned references, and pointer-table owner-to-target
+edges from xref v2. Composite wrappers reuse `NESREV_XREF_FILE` for the docs
+gate. Standalone `project-docs-check` explicitly generates one temporary xref;
+direct checker calls must pass a fresh xref or request `--generate-xref`.
+
 `data_format_targets.csv` is an authored maturity worklist for core data-format
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
 validate schema and canonical family coverage, and maturity checks additionally

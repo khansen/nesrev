@@ -86,6 +86,20 @@ test_inline_dispatch_and_oam_comment_rules_are_durable() {
     "reviewers must not demand duplicate standard OAM format prose"
 }
 
+test_used_by_xref_graph_contract_is_durable() {
+  local docs="${REPO_ROOT}/agent_playbook/DOCUMENTATION.md"
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+
+  assert_match 'Xref v2 proves named symbolic pointer-table edges' "$(<"${docs}")" \
+    "Used by guidance must retain the structured pointer-table proof"
+  assert_match 'runtime ZP and other unresolved dispatch remain advisory' "$(<"${docs}")" \
+    "structured edges must not overclaim runtime dispatch reachability"
+  assert_match 'Composite wrappers reuse `NESREV_XREF_FILE` for the docs[[:space:]]+gate' "$(<"${tooling}")" \
+    "docs validation must keep composite wrapper xref reuse explicit"
+  assert_match 'pass a fresh xref or request `--generate-xref`' "$(<"${tooling}")" \
+    "standalone fallback must remain explicit"
+}
+
 test_borrowed_name_and_localization_review_rules_are_durable() {
   local root_rules="${REPO_ROOT}/AGENTS.md"
   local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"

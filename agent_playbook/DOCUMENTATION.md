@@ -546,7 +546,7 @@ Rules:
 
 - `Format:` must state the minimal self-contained record/stream shape that is actually proven — record width, field order, and any sentinel/terminator the reader needs to scan the bytes locally.
 - `Used by:` must name the consumer routine(s). `Consumer:` is also acceptable.
-- `Used by: X through <dispatcher>` may name an indirect dispatcher (jump/pointer table or ZP pointer). The static xref cannot follow that indirection, so a missing direct reference is advisory, not a failure (hard only under `--strict`); a named consumer that is not a real symbol still hard-fails.
+- `Used by: X through <dispatcher>` may name an indirect dispatcher (jump/pointer table or ZP pointer). Xref v2 proves named symbolic pointer-table edges; runtime ZP and other unresolved dispatch remain advisory when no edge exists (hard only under `--strict`). A named consumer that is not a real symbol still hard-fails.
 - Inline `.DW` handler words immediately after a `JSR DispatchInlineJumpTable*`
   call are control-flow payload, not a standalone data table. When the call
   identifies the dispatcher and the adjacent `.DW` entries name the handler

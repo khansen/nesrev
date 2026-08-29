@@ -246,7 +246,7 @@ removed:
       intermediate state. The `projects` branch is local-only and must never be
       pushed.
 - [x] Migrate embedded and split `.DB` pointer inventories together.
-- [ ] Migrate the `Used by` pointer-table source graph.
+- [x] Migrate the `Used by` pointer-table source graph.
 - [ ] Replace pass-selection low-address equate parsing with xref symbols.
 - [ ] Specify and implement the general xasm instruction-operand artifact.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
@@ -287,3 +287,19 @@ its three entries share a high byte supplied outside the table. That evidence
 corrected the planned missing-counterpart refusal without weakening the
 refusals for malformed paired tables. The `projects` branch remains local-only
 and must never be pushed.
+
+### `Used by` graph evidence
+
+The graph migration is pinned to local-only `projects` commit `9a6c1f649` and
+xasm `9a404e1`. Normal and strict exit statuses match in 22/22 projects. Claim
+outcomes match exactly in 21/22; Donkey Kong gains two non-blocking advisories
+for `via` clauses naming derived `.EQU` offsets. Xref resolves those uses to
+the two row labels but does not yet expose equate-dependency edges. Re-parsing
+the expression string would violate Phase 3, so the conservative advisories
+remain until structured equate provenance lands. No prior claim disappears.
+
+Rendered reference lists change in six projects because the xref graph omits
+resolved RAM/ZP equates that the retired token scanner treated as edges. Those
+lists are diagnostic context only; claim outcomes change solely for the two
+Donkey Kong cases above. Composite wrappers reuse their fresh xref, while
+standalone docs-check makes its fallback explicit.

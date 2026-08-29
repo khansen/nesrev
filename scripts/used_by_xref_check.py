@@ -7,7 +7,7 @@ symbols as consumers, and it skips broad prose-only ownership descriptions.
 
 from __future__ import annotations
 
-import json
+import os
 import re
 import subprocess
 import sys
@@ -15,15 +15,18 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from data_directive_xref import ContractError, load_xref
 
-USAGE = "usage: used_by_xref_check.py [--strict] <asm_file> [xref_json]"
+
+USAGE = (
+    "usage: used_by_xref_check.py [--strict] [--generate-xref] "
+    "<asm_file> [xref_json]"
+)
 GLOBAL_DEF_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 EQU_DEF_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\b", re.IGNORECASE)
 USED_BY_RE = re.compile(r";\s*Used by:\s*(.+)", re.IGNORECASE)
-SYMBOL_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 CONSUMER_SYMBOL_RE = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 CONNECTOR_RE = re.compile(r"\b(via|through)\b", re.IGNORECASE)
-SYMBOL_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 UNRESOLVED_LABEL_RE = re.compile(r"^L[0-9A-Fa-f]{4,5}$")
 POINTER_TABLE_NAME_RE = re.compile(
     r"(PtrTable|PointerTable|PtrTbl|PtrList|PointerList|Pointers|Ptrs)", re.IGNORECASE
@@ -49,10 +52,6 @@ def fail_usage() -> int:
 
 def sentence_prefix(text: str) -> str:
     return text.split(".", 1)[0].strip()
-
-
-def strip_comment(text: str) -> str:
-    return text.split(";", 1)[0]
 
 
 def split_symbols(text: str) -> list[str]:
@@ -95,12 +94,14 @@ def collect_used_by_annotations(asm_path: Path) -> list[dict[str, object]]:
     return annotations
 
 
-def load_cached_xref(asm_path: Path, xref_path: Path | None) -> dict[str, object] | None:
-    if xref_path is None or not xref_path.exists() or not xref_path.is_file():
-        return None
+def load_fresh_xref(asm_path: Path, xref_path: Path) -> dict[str, object]:
+    if not xref_path.exists() or not xref_path.is_file():
+        raise ContractError(f"xref file not found: {xref_path}")
     if xref_path.stat().st_mtime < asm_path.stat().st_mtime:
-        return None
-    return json.loads(xref_path.read_text(encoding="utf-8"))
+        raise ContractError(
+            f"xref file is older than asm: {xref_path}; regenerate the shared xref"
+        )
+    return load_xref(xref_path)
 
 
 def run_xasm_xref(asm_path: Path) -> dict[str, object]:
@@ -109,7 +110,7 @@ def run_xasm_xref(asm_path: Path) -> dict[str, object]:
         out_path = tmp_path / "out.o"
         xref_path = tmp_path / "xref.json"
         cmd = [
-            "xasm",
+            os.environ.get("XASM_BIN", "xasm"),
             "--pure-binary",
             "-o",
             str(out_path),
@@ -137,7 +138,7 @@ def run_xasm_xref(asm_path: Path) -> dict[str, object]:
             if proc.stderr:
                 print(proc.stderr, file=sys.stderr, end="" if proc.stderr.endswith("\n") else "\n")
             sys.exit(proc.returncode)
-        return json.loads(xref_path.read_text(encoding="utf-8"))
+        return load_xref(xref_path)
 
 
 def add_owner(owner_map: dict[str, set[str]], symbol: object, owner: object) -> None:
@@ -146,19 +147,26 @@ def add_owner(owner_map: dict[str, set[str]], symbol: object, owner: object) -> 
     owner_map[symbol].add(owner)
 
 
+def records(xref: dict[str, object], section: str) -> list[object]:
+    value = xref.get(section)
+    if not isinstance(value, list):
+        raise ContractError(f"xref version 2 is missing {section}")
+    return value
+
+
 def build_reference_owners(xref: dict[str, object]) -> tuple[set[str], dict[str, set[str]]]:
     symbols = {
         item.get("name")
-        for item in xref.get("symbols", [])
+        for item in records(xref, "symbols")
         if isinstance(item, dict) and isinstance(item.get("name"), str)
     }
     owners: dict[str, set[str]] = defaultdict(set)
-    for item in xref.get("references", []):
+    for item in records(xref, "references"):
         if not isinstance(item, dict):
             continue
         add_owner(owners, item.get("symbol"), item.get("owner_routine"))
     for section in ("data_reads", "data_writes"):
-        for item in xref.get(section, []):
+        for item in records(xref, section):
             if not isinstance(item, dict):
                 continue
             add_owner(owners, item.get("symbol"), item.get("owner_routine"))
@@ -166,48 +174,54 @@ def build_reference_owners(xref: dict[str, object]) -> tuple[set[str], dict[str,
     return {s for s in symbols if isinstance(s, str)}, owners
 
 
-def build_source_references(asm_path: Path, symbols: set[str]) -> dict[str, set[str]]:
+def add_reference(
+    refs: dict[str, set[str]], owner: object, symbol: object
+) -> None:
+    if not isinstance(owner, str) or not owner:
+        return
+    if not isinstance(symbol, str) or not symbol or owner == symbol:
+        return
+    refs[owner].add(symbol)
+
+
+def build_xref_references(xref: dict[str, object]) -> dict[str, set[str]]:
     refs: dict[str, set[str]] = defaultdict(set)
-    owner = ""
-    for raw in asm_path.read_text(encoding="utf-8").splitlines():
-        code = strip_comment(raw)
-        label_match = GLOBAL_DEF_RE.match(code)
-        equ_match = EQU_DEF_RE.match(code)
-        if label_match:
-            owner = label_match.group(1)
-            code = code[label_match.end() :]
-        elif equ_match:
-            owner = equ_match.group(1)
-            code = code[equ_match.end() :]
-        elif not code.strip():
+    for item in records(xref, "references"):
+        if not isinstance(item, dict):
             continue
-        if not owner:
-            continue
-        for match in SYMBOL_TOKEN_RE.finditer(code):
-            symbol = match.group(0)
-            if symbol in symbols and symbol != owner:
-                refs[owner].add(symbol)
+        add_reference(refs, item.get("owner_routine"), item.get("symbol"))
+    for index, item in enumerate(records(xref, "data_directive_references")):
+        if not isinstance(item, dict):
+            raise ContractError(f"data_directive_references[{index}] must be object")
+        referenced_symbols = item.get("referenced_symbols")
+        if not isinstance(referenced_symbols, list) or not all(
+            isinstance(symbol, str) for symbol in referenced_symbols
+        ):
+            raise ContractError(
+                f"data_directive_references[{index}].referenced_symbols must be list[str]"
+            )
+        for symbol in referenced_symbols:
+            add_reference(refs, item.get("owner_symbol"), symbol)
     return refs
 
 
 def reaches_through_symbolic_pointer_table(
     consumer: str,
     target: str,
-    source_refs: dict[str, set[str]],
+    xref_refs: dict[str, set[str]],
 ) -> bool:
-    """Return true for Consumer -> named pointer table -> Target source edges.
+    """Return true for Consumer -> named pointer table -> Target xref edges.
 
-    xasm assigns references in a data table to the preceding lexical routine,
-    so its owner field cannot prove this common indirect-dispatch shape. The
-    source graph can prove both symbolic edges without claiming that an
-    arbitrary two-hop reference is executable.
+    Ordinary reference owners prove the first edge. Data-directive owner_symbol
+    provenance proves the second without assigning the table operand to a
+    preceding routine or treating an arbitrary two-hop reference as executable.
     """
 
-    consumer_refs = source_refs.get(consumer, set())
+    consumer_refs = xref_refs.get(consumer, set())
     for table in consumer_refs:
         if not POINTER_TABLE_NAME_RE.search(table):
             continue
-        if target in source_refs.get(table, set()):
+        if target in xref_refs.get(table, set()):
             return True
     return False
 
@@ -227,7 +241,7 @@ def check_annotation(
     annotation: dict[str, object],
     symbols: set[str],
     owners: dict[str, set[str]],
-    source_refs: dict[str, set[str]],
+    xref_refs: dict[str, set[str]],
     *,
     strict: bool,
 ) -> tuple[list[str], list[str], bool]:
@@ -273,17 +287,17 @@ def check_annotation(
     failures: list[str] = []
     advisories: list[str] = []
     if producer_for_target:
-        producer_refs = source_refs.get(producer_for_target, set())
+        producer_refs = xref_refs.get(producer_for_target, set())
         if target not in producer_refs:
             rendered_refs = ", ".join(sorted(producer_refs)) or "none"
             # A through/via dispatcher commonly reaches the target indirectly --
-            # a jump table, pointer table, or ZP pointer the static xref cannot
-            # follow -- so a missing *direct* reference is unverifiable, not
-            # necessarily wrong. Advisory by default; hard only under --strict.
+            # a ZP pointer or other runtime dispatch the static xref cannot
+            # follow -- so a missing proven edge is unverifiable, not necessarily
+            # wrong. Advisory by default; hard only under --strict.
             msg = (
                 f"{line}: Used by comment for {target} says through {producer_for_target}, "
                 f"but {producer_for_target} does not reference {target}; "
-                f"source references are: {rendered_refs}"
+                f"xref references are: {rendered_refs}"
             )
             (failures if strict else advisories).append(msg)
     actual_owners = owners.get(checked_symbol, set())
@@ -299,7 +313,7 @@ def check_annotation(
         else:
             pointer_table_edge = (
                 producer_for_target is None
-                and reaches_through_symbolic_pointer_table(consumer, target, source_refs)
+                and reaches_through_symbolic_pointer_table(consumer, target, xref_refs)
             )
             if consumer in actual_owners or pointer_table_edge:
                 continue
@@ -317,11 +331,18 @@ def check_annotation(
 
 def main(argv: list[str]) -> int:
     strict = False
-    args = argv[1:]
-    if args and args[0] == "--strict":
-        strict = True
-        args = args[1:]
-    if len(args) not in (1, 2):
+    generate_xref = False
+    args: list[str] = []
+    for arg in argv[1:]:
+        if arg == "--strict":
+            strict = True
+        elif arg == "--generate-xref":
+            generate_xref = True
+        elif arg.startswith("-"):
+            return fail_usage()
+        else:
+            args.append(arg)
+    if (generate_xref and len(args) != 1) or (not generate_xref and len(args) != 2):
         return fail_usage()
     asm_path = Path(args[0])
     if not asm_path.exists():
@@ -330,9 +351,17 @@ def main(argv: list[str]) -> int:
     xref_path = Path(args[1]) if len(args) == 2 else None
 
     annotations = collect_used_by_annotations(asm_path)
-    xref = load_cached_xref(asm_path, xref_path) or run_xasm_xref(asm_path)
-    symbols, owners = build_reference_owners(xref)
-    source_refs = build_source_references(asm_path, symbols)
+    try:
+        if generate_xref:
+            xref = run_xasm_xref(asm_path)
+        else:
+            assert xref_path is not None
+            xref = load_fresh_xref(asm_path, xref_path)
+        symbols, owners = build_reference_owners(xref)
+        xref_refs = build_xref_references(xref)
+    except ContractError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 65
 
     failures: list[str] = []
     advisories: list[str] = []
@@ -342,7 +371,7 @@ def main(argv: list[str]) -> int:
             annotation,
             symbols,
             owners,
-            source_refs,
+            xref_refs,
             strict=strict,
         )
         failures.extend(new_failures)

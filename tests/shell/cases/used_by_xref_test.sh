@@ -60,7 +60,7 @@ DataTable:
 .DB $01
 ASM
 
-  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >/dev/null
 }
 
 test_used_by_xref_check_accepts_direct_claim_through_derived_equ() {
@@ -81,7 +81,7 @@ Reader:
   RTS
 ASM
 
-  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >/dev/null
 }
 
 test_used_by_xref_check_rejects_stale_direct_consumer() {
@@ -101,7 +101,7 @@ DataTable:
 ASM
 
   set +e
-  python3 "${USED_BY_CHECK}" --strict "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
 
@@ -125,7 +125,7 @@ DataTable:
 .DB $01
 ASM
 
-  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
 
   assert_match "Used by hard-error scan passed" "$(cat "${NESREV_TEST_TMPDIR}/used_by.out")"
   assert_match "ADVISORY: Used by xref" "$(cat "${NESREV_TEST_TMPDIR}/used_by.err")"
@@ -147,7 +147,8 @@ DataTable:
 ASM
 
   set +e
-  PATH=/usr/bin:/bin python3 "${USED_BY_CHECK}" "${asm}" \
+  XASM_BIN="${NESREV_TEST_TMPDIR}/missing-xasm" \
+    python3 "${USED_BY_CHECK}" --generate-xref "${asm}" \
     >"${NESREV_TEST_TMPDIR}/used_by.out" \
     2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
@@ -172,7 +173,7 @@ DataTable:
 ASM
 
   set +e
-  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
 
@@ -199,7 +200,7 @@ Payload:
 .DB $01
 ASM
 
-  python3 "${USED_BY_CHECK}" "${asm}" >/dev/null
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >/dev/null
 }
 
 test_used_by_xref_check_accepts_direct_claim_via_symbolic_pointer_table() {
@@ -220,7 +221,221 @@ Payload:
 .DB $01
 ASM
 
-  python3 "${USED_BY_CHECK}" --strict "${asm}" >/dev/null
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >/dev/null
+}
+
+test_used_by_xref_check_uses_data_owner_for_pointer_table_edge() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_xref_graph.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_xref_graph.json"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+ProcessRequest:
+  LDX RequestPointerTable,Y
+  RTS
+PriorRoutine:
+  RTS
+
+RequestPointerTable:
+.DW Payload
+
+; Format: payload bytes.
+; Used by: ProcessRequest.
+Payload:
+.DB $01
+ASM
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[
+  {"name":"ProcessRequest"},
+  {"name":"PriorRoutine"},
+  {"name":"RequestPointerTable"},
+  {"name":"Payload"}
+],"references":[
+  {"symbol":"RequestPointerTable","owner_routine":"ProcessRequest"},
+  {"symbol":"Payload","owner_routine":"PriorRoutine"}
+],"data_reads":[],"data_writes":[],"data_directive_references":[
+  {"owner_symbol":"RequestPointerTable","referenced_symbols":["Payload"]}
+]}
+JSON
+
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" --strict "${asm}" "${xref}" >/dev/null
+}
+
+test_used_by_xref_check_does_not_reconstruct_pointer_edges_from_source() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_no_source_graph.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_no_source_graph.json"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+ProcessRequest:
+  LDX RequestPointerTable,Y
+  RTS
+
+RequestPointerTable:
+.DW Payload
+
+; Format: payload bytes.
+; Used by: ProcessRequest.
+Payload:
+.DB $01
+ASM
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[
+  {"name":"ProcessRequest"},
+  {"name":"RequestPointerTable"},
+  {"name":"Payload"}
+],"references":[],"data_reads":[],"data_writes":[],
+"data_directive_references":[
+  {"owner_symbol":"RequestPointerTable","referenced_symbols":["Payload"]}
+]}
+JSON
+
+  set +e
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" --strict "${asm}" "${xref}" \
+      >"${NESREV_TEST_TMPDIR}/no_source_graph.out" \
+      2>"${NESREV_TEST_TMPDIR}/no_source_graph.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "source text must not supply a missing xref edge"
+  assert_match "xref owners are: none" "$(cat "${NESREV_TEST_TMPDIR}/no_source_graph.err")"
+}
+
+test_used_by_xref_check_rejects_arbitrary_two_hop_xref_path() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_arbitrary_hop.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_arbitrary_hop.json"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+ProcessRequest:
+  LDA HelperData
+  RTS
+
+HelperData:
+.DW Payload
+
+; Format: payload bytes.
+; Used by: ProcessRequest.
+Payload:
+.DB $01
+ASM
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[
+  {"name":"ProcessRequest"},
+  {"name":"HelperData"},
+  {"name":"Payload"}
+],"references":[
+  {"symbol":"HelperData","owner_routine":"ProcessRequest"}
+],"data_reads":[],"data_writes":[],"data_directive_references":[
+  {"owner_symbol":"HelperData","referenced_symbols":["Payload"]}
+]}
+JSON
+
+  set +e
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" --strict "${asm}" "${xref}" \
+      >"${NESREV_TEST_TMPDIR}/arbitrary_hop.out" \
+      2>"${NESREV_TEST_TMPDIR}/arbitrary_hop.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "an arbitrary two-hop xref path must not prove a consumer"
+  assert_match "xref owners are: none" "$(cat "${NESREV_TEST_TMPDIR}/arbitrary_hop.err")"
+}
+
+test_used_by_xref_check_requires_explicit_standalone_generation() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_explicit_fallback.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  RTS
+ASM
+
+  set +e
+  python3 "${USED_BY_CHECK}" "${asm}" \
+    >"${NESREV_TEST_TMPDIR}/explicit_fallback.out" \
+    2>"${NESREV_TEST_TMPDIR}/explicit_fallback.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "64" "standalone xref generation must require an explicit flag"
+  assert_match "--generate-xref" "$(cat "${NESREV_TEST_TMPDIR}/explicit_fallback.err")"
+}
+
+test_used_by_xref_check_rejects_incompatible_shared_xref() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_v1.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_v1.json"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  RTS
+ASM
+  cat > "${xref}" <<'JSON'
+{"version":"1","symbols":[],"references":[]}
+JSON
+
+  set +e
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" "${asm}" "${xref}" \
+      >"${NESREV_TEST_TMPDIR}/used_by_v1.out" \
+      2>"${NESREV_TEST_TMPDIR}/used_by_v1.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "Used by validation must reject an incompatible shared xref"
+  assert_match "xref schema version 2 required" "$(cat "${NESREV_TEST_TMPDIR}/used_by_v1.err")"
+}
+
+test_used_by_xref_check_rejects_malformed_data_reference_symbols() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_bad_data_refs.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_bad_data_refs.json"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  RTS
+ASM
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[{"name":"Reader"}],"references":[],
+"data_reads":[],"data_writes":[],"data_directive_references":[
+  {"owner_symbol":"Table","referenced_symbols":"Target"}
+]}
+JSON
+
+  set +e
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" "${asm}" "${xref}" \
+      >"${NESREV_TEST_TMPDIR}/bad_data_refs.out" \
+      2>"${NESREV_TEST_TMPDIR}/bad_data_refs.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "malformed data-reference symbol arrays must fail"
+  assert_match "referenced_symbols must be list\[str\]" "$(cat "${NESREV_TEST_TMPDIR}/bad_data_refs.err")"
+}
+
+test_used_by_xref_check_rejects_stale_shared_xref() {
+  local asm="${NESREV_TEST_TMPDIR}/used_by_stale_xref.asm"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_stale_xref.json"
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[],"references":[],"data_reads":[],
+"data_writes":[],"data_directive_references":[]}
+JSON
+  touch -t 200001010000 "${xref}"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  RTS
+ASM
+
+  set +e
+  XASM_BIN=/usr/bin/false \
+    python3 "${USED_BY_CHECK}" "${asm}" "${xref}" \
+      >"${NESREV_TEST_TMPDIR}/stale_xref.out" \
+      2>"${NESREV_TEST_TMPDIR}/stale_xref.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "stale shared xref must fail instead of assembling silently"
+  assert_match "xref file is older than asm" "$(cat "${NESREV_TEST_TMPDIR}/stale_xref.err")"
 }
 
 test_used_by_xref_check_rejects_unconnected_consumer_despite_pointer_table() {
@@ -244,7 +459,7 @@ Payload:
 ASM
 
   set +e
-  python3 "${USED_BY_CHECK}" --strict "${asm}" \
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" \
     >"${NESREV_TEST_TMPDIR}/table_unconnected.out" \
     2>"${NESREV_TEST_TMPDIR}/table_unconnected.err"
   local rc=$?
@@ -275,10 +490,10 @@ OtherPayload:
 .DB $02
 ASM
 
-  # Non-strict: an unverifiable through/via dispatcher (indirect reach) is
-  # advisory, not a hard failure -- the xref cannot follow the indirection.
+  # Non-strict: a through/via producer with no proven target edge may still
+  # reach it through runtime dispatch, so the mismatch remains advisory.
   set +e
-  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
   assert_eq "${rc}" "0" "through-producer must be advisory (not hard) without --strict"
@@ -287,7 +502,7 @@ ASM
 
   # --strict opt-in still enforces it as a hard failure.
   set +e
-  python3 "${USED_BY_CHECK}" --strict "${asm}" >"${NESREV_TEST_TMPDIR}/used_by_s.out" 2>"${NESREV_TEST_TMPDIR}/used_by_s.err"
+  python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >"${NESREV_TEST_TMPDIR}/used_by_s.out" 2>"${NESREV_TEST_TMPDIR}/used_by_s.err"
   local rc_strict=$?
   set -e
   assert_eq "${rc_strict}" "2" "through-producer must hard-fail under --strict"
@@ -309,7 +524,7 @@ DataTable:
 ASM
 
   set +e
-  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
 
@@ -331,7 +546,7 @@ DataTable:
 ASM
 
   set +e
-  python3 "${USED_BY_CHECK}" "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
+  python3 "${USED_BY_CHECK}" --generate-xref "${asm}" >"${NESREV_TEST_TMPDIR}/used_by.out" 2>"${NESREV_TEST_TMPDIR}/used_by.err"
   local rc=$?
   set -e
 
@@ -352,4 +567,30 @@ test_project_docs_check_hard_fails_unknown_used_by_consumer() {
 
   assert_eq "${rc}" "2" "project-docs-check must hard-fail stale Used by comments"
   assert_match "FakeMissingConsumer" "$(cat "${NESREV_TEST_TMPDIR}/docs.err")"
+}
+
+test_project_docs_check_reuses_shared_xref_for_used_by_validation() {
+  local slug; slug="$(unique_slug used_by_docs_shared)"
+  local xref="${NESREV_TEST_TMPDIR}/used_by_docs_shared.json"
+  trap "cleanup_project ${slug}" EXIT
+  _make_used_by_docs_project "${slug}"
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[
+  {"name":"Reader"},
+  {"name":"DataTable"}
+],"references":[
+  {"symbol":"DataTable","owner_routine":"Reader"}
+],"data_reads":[],"data_writes":[],"data_directive_references":[]}
+JSON
+
+  set +e
+  NESREV_XREF_FILE="${xref}" XASM_BIN=/usr/bin/false \
+    make project-docs-check "PROJECT=${slug}" \
+      >"${NESREV_TEST_TMPDIR}/docs_shared.out" \
+      2>"${NESREV_TEST_TMPDIR}/docs_shared.err"
+  local rc=$?
+  set -e
+
+  assert_eq "${rc}" "2" "shared xref must reach Used by validation without another assembly"
+  assert_match "FakeMissingConsumer" "$(cat "${NESREV_TEST_TMPDIR}/docs_shared.err")"
 }

@@ -317,9 +317,13 @@ echo "[7/9] Building asm symbol index (labels + .EQU + local @@labels)"
 } | sort -u >"${TMPDIR_CHECK_DOCS}/asm_symbols.txt"
 
 echo "[8/9] Checking mechanically guarded Used by annotations"
-python3 "${SCRIPT_DIR}/used_by_xref_check.py" \
-  "${ASM_FILE}" \
-  "${DOC_ROOT}/inventory/pass/xref_with_data.json"
+used_by_args=("${ASM_FILE}")
+if [[ -n "${NESREV_XREF_FILE:-}" ]]; then
+  used_by_args+=("${NESREV_XREF_FILE}")
+else
+  used_by_args=(--generate-xref "${ASM_FILE}")
+fi
+python3 "${SCRIPT_DIR}/used_by_xref_check.py" "${used_by_args[@]}"
 
 echo "[9/9] Validating backticked symbol references in docs"
 { rg --no-filename -o '`@@?[A-Za-z_][A-Za-z0-9_]*`|`[A-Za-z_][A-Za-z0-9_]*`' "${DOC_FILES[@]}" || true; } \

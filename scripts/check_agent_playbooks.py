@@ -309,11 +309,14 @@ ROOT_WORD_CEILING = 6000
 # Shared xref-v2 `.DB` pointer inventories add the structured-input and
 # standalone-maturity boundary to TOOLING.md. Only TOOLING routes grow, and
 # their ceilings retain their exact prior measured headroom.
+# Xref-backed `Used by:` graph validation adds the hybrid source/xref boundary
+# to DOCUMENTATION.md and TOOLING.md. Affected ceilings retain their exact
+# prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3430, 24932),
-    "data-recovery": (3120, 23369),
-    "new-project": (4211, 30926),
-    "project-pass-review": (4482, 31833),
+    "default": (3436, 24981),
+    "data-recovery": (3126, 23418),
+    "new-project": (4211, 30928),
+    "project-pass-review": (4488, 31882),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
