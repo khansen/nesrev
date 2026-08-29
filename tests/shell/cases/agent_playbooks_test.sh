@@ -100,6 +100,20 @@ test_used_by_xref_graph_contract_is_durable() {
     "standalone fallback must remain explicit"
 }
 
+test_next_pass_xref_ram_symbol_contract_is_durable() {
+  local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"
+
+  assert_match 'global xref-v2 `equ` symbols and their resolved definition values' \
+    "$(<"${tooling}")" \
+    "pass selection must retain structured RAM/ZP symbol resolution"
+  assert_match 'including[[:space:]]+derived equates that a literal source scan cannot recognize' \
+    "$(<"${tooling}")" \
+    "derived RAM/ZP aliases must not regress to literal-only discovery"
+  assert_match 'Raw literal operand discovery and lexical owner attribution[[:space:]]+remain source-based' \
+    "$(<"${tooling}")" \
+    "the structured symbol migration must preserve explicitly lexical checks"
+}
+
 test_borrowed_name_and_localization_review_rules_are_durable() {
   local root_rules="${REPO_ROOT}/AGENTS.md"
   local tooling="${REPO_ROOT}/agent_playbook/TOOLING.md"

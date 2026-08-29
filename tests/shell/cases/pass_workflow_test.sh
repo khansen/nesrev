@@ -1547,7 +1547,7 @@ cat > "${pass_dir}/xref_summary_generic.json" <<'JSON'
 {"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
 JSON
 cat > "${pass_dir}/xref_with_data.json" <<'JSON'
-{"symbols":[],"references":[],"data_reads":[],"data_writes":[]}
+{"version":"2","symbols":[],"references":[],"data_directive_references":[],"data_reads":[],"data_writes":[]}
 JSON
 cat > "${pass_dir}/data_consumers.json" <<'JSON'
 []
@@ -2858,7 +2858,7 @@ JSON
 {"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}
 JSON
   cat > "${pass_dir}/xref_with_data.json" <<'JSON'
-{"symbols":[],"references":[],"data_reads":[],"data_writes":[]}
+{"version":"2","symbols":[],"references":[],"data_directive_references":[],"data_reads":[],"data_writes":[]}
 JSON
   cat > "${pass_dir}/data_consumers.json" <<'JSON'
 []
@@ -3349,6 +3349,8 @@ NextRoutine:
 ASM
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
 {
+  "version": "2",
+  "data_directive_references": [],
   "symbols": [
     {
       "name": "Reset",
@@ -3428,6 +3430,8 @@ NextRoutine:
 ASM
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
 {
+  "version": "2",
+  "data_directive_references": [],
   "symbols": [
     {
       "name": "Reset",
@@ -3489,7 +3493,8 @@ test_next_pass_raw_ram_review_refreshes_symbolized_owner_columns() {
 
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
-ZP_FrameCounter .EQU $10
+ZP_FrameCounterBase .EQU $0F
+ZP_FrameCounter .EQU ZP_FrameCounterBase+1
 
 NewOwner:
   LDA ZP_FrameCounter
@@ -3498,14 +3503,27 @@ NewOwner:
 ASM
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
 {
+  "version": "2",
+  "data_directive_references": [],
   "symbols": [
     {
       "name": "NewOwner",
       "scope": "global",
       "definition": {
         "file": "projects/${slug}/asm/${slug}.asm",
-        "line": 4,
+        "line": 5,
         "cpu_address": "\$C000"
+      }
+    },
+    {
+      "name": "ZP_FrameCounter",
+      "kind": "equ",
+      "scope": "global",
+      "defined": true,
+      "definition": {
+        "file": "projects/${slug}/asm/${slug}.asm",
+        "line": 3,
+        "value": 16
       }
     }
   ],
@@ -3515,7 +3533,7 @@ ASM
       "symbol": "ZP_FrameCounter",
       "owner_routine": "NewOwner",
       "file": "projects/${slug}/asm/${slug}.asm",
-      "line": 5,
+      "line": 6,
       "opcode": "LDA"
     }
   ],
@@ -3524,7 +3542,7 @@ ASM
       "symbol": "ZP_FrameCounter",
       "owner_routine": "NewOwner",
       "file": "projects/${slug}/asm/${slug}.asm",
-      "line": 6,
+      "line": 7,
       "opcode": "STA"
     }
   ]
@@ -3553,6 +3571,216 @@ if row["top_readers"] != "NewOwner:1" or row["top_writers"] != "NewOwner:1":
 if row["operand_count"] != "2" or row["read_count"] != "1" or row["write_count"] != "1":
     raise SystemExit(f"symbolized factual counts were not refreshed: {row!r}")
 PY
+}
+
+test_next_pass_raw_ram_symbol_map_refuses_noncanonical_xref_symbols() {
+  local slug; slug="$(unique_slug raw_symbol_refusals)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared structured RAM-symbol refusal fixture."
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "version": "2",
+  "data_directive_references": [],
+  "symbols": [
+    {"name":"ZP_LabelPretender","kind":"label","scope":"global","defined":true,"definition":{"value":16}},
+    {"name":"ZP_LocalEqu","kind":"equ","scope":"local","defined":true,"definition":{"value":17}},
+    {"name":"ZP_UndefinedEqu","kind":"equ","scope":"global","defined":false,"definition":{"value":18}},
+    {"name":"RAM_OutsideLowRange","kind":"equ","scope":"global","defined":true,"definition":{"value":4096}},
+    {"name":"OTHER_Equ","kind":"equ","scope":"global","defined":true,"definition":{"value":19}},
+    {"name":"ZP_NegativeEqu","kind":"equ","scope":"global","defined":true,"definition":{"value":-1}}
+  ],
+  "references": [],
+  "data_reads": [
+    {"symbol":"ZP_LabelPretender","owner_routine":"NewOwner","opcode":"LDA"},
+    {"symbol":"ZP_LocalEqu","owner_routine":"NewOwner","opcode":"LDA"},
+    {"symbol":"ZP_UndefinedEqu","owner_routine":"NewOwner","opcode":"LDA"},
+    {"symbol":"RAM_OutsideLowRange","owner_routine":"NewOwner","opcode":"LDA"},
+    {"symbol":"OTHER_Equ","owner_routine":"NewOwner","opcode":"LDA"},
+    {"symbol":"ZP_NegativeEqu","owner_routine":"NewOwner","opcode":"LDA"}
+  ],
+  "data_writes": []
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,symbolized,ZP_LabelPretender,,5,no,1,1,1,0,OldOwner:1,
+0x0011,symbolized,ZP_LocalEqu,,5,no,1,1,1,0,OldOwner:1,
+0x0012,symbolized,ZP_UndefinedEqu,,5,no,1,1,1,0,OldOwner:1,
+0x1000,symbolized,RAM_OutsideLowRange,,5,no,1,1,1,0,OldOwner:1,
+0x0013,symbolized,OTHER_Equ,,5,no,1,1,1,0,OldOwner:1,
+0x-001,symbolized,ZP_NegativeEqu,,5,no,1,1,1,0,OldOwner:1,
+EOF
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = list(csv.DictReader(handle))
+
+wrong = [row for row in rows if row["top_readers"] != "OldOwner:1"]
+if wrong:
+    raise SystemExit(f"unsafe xref symbol entered the low-address equate map: {wrong!r}")
+PY
+}
+
+test_next_pass_raw_ram_symbol_map_does_not_fall_back_to_source_equates() {
+  local slug; slug="$(unique_slug raw_symbol_no_source_fallback)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared source-only RAM-symbol fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_SourceOnly .EQU $10
+
+NewOwner:
+  LDA ZP_SourceOnly
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<'JSON'
+{
+  "version": "2",
+  "data_directive_references": [],
+  "symbols": [],
+  "references": [],
+  "data_reads": [
+    {"symbol":"ZP_SourceOnly","owner_routine":"NewOwner","opcode":"LDA"}
+  ],
+  "data_writes": []
+}
+JSON
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,symbolized,ZP_SourceOnly,,5,no,1,1,1,0,OldOwner:1,
+EOF
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  assert_match 'OldOwner:1' \
+    "$(cat "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv")"
+  if rg -q 'NewOwner:1' "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv"; then
+    fail "source text must not supply a RAM-symbol mapping absent from xref"
+  fi
+}
+
+test_next_pass_raw_ram_symbol_map_rejects_malformed_resolved_value() {
+  local slug; slug="$(unique_slug raw_symbol_bad_value)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared malformed structured RAM-symbol fixture."
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<'JSON'
+{
+  "version": "2",
+  "data_directive_references": [],
+  "symbols": [
+    {"name":"ZP_BadValue","kind":"equ","scope":"global","defined":true,"definition":{"value":true}}
+  ],
+  "references": [],
+  "data_reads": [],
+  "data_writes": []
+}
+JSON
+
+  local output rc
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "malformed resolved RAM-symbol values must fail conservatively"
+  assert_match 'symbols\[0\]\.definition\.value must be int' "${output}"
+}
+
+test_next_pass_raw_ram_symbol_map_rejects_malformed_records() {
+  local slug; slug="$(unique_slug raw_symbol_bad_record)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared malformed structured RAM-symbol records."
+  local xref="projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json"
+  local output rc
+
+  cat > "${xref}" <<'JSON'
+{"version":"2","data_directive_references":[],"symbols":[null],"references":[],"data_reads":[],"data_writes":[]}
+JSON
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "65" "non-object xref symbols must fail conservatively"
+  assert_match 'symbols\[0\] must be an object' "${output}"
+
+  cat > "${xref}" <<'JSON'
+{"version":"2","data_directive_references":[],"symbols":[{"name":"ZP_BadDefinition","kind":"equ","scope":"global","defined":true,"definition":[]}],"references":[],"data_reads":[],"data_writes":[]}
+JSON
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "65" "non-object xref definitions must fail conservatively"
+  assert_match 'symbols\[0\]\.definition must be an object' "${output}"
+}
+
+test_next_pass_requires_complete_xref_sections() {
+  local slug; slug="$(unique_slug raw_symbol_sections)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared incomplete structured RAM-symbol sections."
+  local xref="projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json"
+  local section output rc
+
+  for section in symbols references data_reads data_writes; do
+    python3 - "${xref}" "${section}" <<'PY'
+import json
+import sys
+
+path, missing = sys.argv[1:]
+payload = {
+    "version": "2",
+    "data_directive_references": [],
+    "symbols": [],
+    "references": [],
+    "data_reads": [],
+    "data_writes": [],
+}
+payload.pop(missing)
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(payload, handle)
+PY
+    set +e
+    output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" "65" "missing ${section} must fail the xref symbol contract"
+    assert_match "xref version 2 is missing ${section}" "${output}"
+  done
+}
+
+test_next_pass_requires_xref_v2_symbol_contract() {
+  local slug; slug="$(unique_slug raw_symbol_v1)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared incompatible structured RAM-symbol fixture."
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<'JSON'
+{"version":"1","symbols":[],"references":[],"data_directive_references":[],"data_reads":[],"data_writes":[]}
+JSON
+
+  local output rc
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "pass selection must reject incompatible xref symbol data"
+  assert_match 'xref schema version 2 required' "${output}"
 }
 
 test_next_pass_raw_ram_clusters_prioritize_actionable_over_deferred_density() {
@@ -3596,6 +3824,8 @@ ASM
 EOF
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
 {
+  "version": "2",
+  "data_directive_references": [],
   "symbols": [
     {
       "name": "DenseReviewed",

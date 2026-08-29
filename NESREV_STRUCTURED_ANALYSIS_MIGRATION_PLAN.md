@@ -247,7 +247,7 @@ removed:
       pushed.
 - [x] Migrate embedded and split `.DB` pointer inventories together.
 - [x] Migrate the `Used by` pointer-table source graph.
-- [ ] Replace pass-selection low-address equate parsing with xref symbols.
+- [x] Replace pass-selection low-address equate parsing with xref symbols.
 - [ ] Specify and implement the general xasm instruction-operand artifact.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.
@@ -303,3 +303,21 @@ resolved RAM/ZP equates that the retired token scanner treated as edges. Those
 lists are diagnostic context only; claim outcomes change solely for the two
 Donkey Kong cases above. Composite wrappers reuse their fresh xref, while
 standalone docs-check makes its fallback explicit.
+
+### Pass-selection RAM/ZP map evidence
+
+The pass-selection migration uses the same pinned `projects` commit and xasm
+build. Across all 22 projects, the xref-v2 map retains every one of the 5,850
+literal-source aliases and adds 605 resolved derived aliases; no prior mapping
+disappears. Complete `next_pass.json` payloads and explicit
+`raw_ram_review.csv` refresh output remain byte-for-byte equivalent in 22/22
+projects. The additional aliases do not affect current review rows, but allow
+future derived `ZP_*` / `RAM_*` equates to refresh factual owner/count columns
+without extending NESrev's source parser.
+
+The accompanying mixed-path audit found no second low-address equate parser in
+`project_pass_residue_check.sh`. Its asm reads enforce literal raw-operand
+residue and lexical rename/local-label policy. In `project_next_pass.sh`, raw
+literal discovery, label-layout ownership, and LXXXX counting likewise remain
+textual because spelling or physical source layout is part of the fact; the
+planned instruction artifact owns any later migration of operand structure.

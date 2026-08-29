@@ -312,11 +312,13 @@ ROOT_WORD_CEILING = 6000
 # Xref-backed `Used by:` graph validation adds the hybrid source/xref boundary
 # to DOCUMENTATION.md and TOOLING.md. Affected ceilings retain their exact
 # prior measured headroom.
+# Xref-backed pass selection adds the structured RAM/ZP symbol boundary to
+# TOOLING.md. Affected ceilings retain their exact prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3436, 24981),
-    "data-recovery": (3126, 23418),
+    "default": (3444, 25049),
+    "data-recovery": (3134, 23486),
     "new-project": (4211, 30928),
-    "project-pass-review": (4488, 31882),
+    "project-pass-review": (4496, 31950),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

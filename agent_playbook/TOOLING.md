@@ -726,6 +726,14 @@ edges from xref v2. Composite wrappers reuse `NESREV_XREF_FILE` for the docs
 gate. Standalone `project-docs-check` explicitly generates one temporary xref;
 direct checker calls must pass a fresh xref or request `--generate-xref`.
 
+`project-next-pass` builds its low-address `ZP_*` / `RAM_*` symbol map from
+global xref-v2 `equ` symbols and their resolved definition values, including
+derived equates that a literal source scan cannot recognize. It consumes the
+fresh pass-prep xref already in the cache and rejects incompatible or malformed
+structured input. Raw literal operand discovery and lexical owner attribution
+remain source-based until the general instruction artifact can preserve their
+spelling and source-layout facts.
+
 `data_format_targets.csv` is an authored maturity worklist for core data-format
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
 validate schema and canonical family coverage, and maturity checks additionally

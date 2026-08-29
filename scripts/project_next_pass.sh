@@ -99,7 +99,9 @@ from pathlib import Path
 ) = sys.argv[1:]
 sys.path.insert(0, script_dir)
 import proof_debt
+from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
+RAM_SYMBOL_RE = re.compile(r"^(?:ZP|RAM)_[A-Za-z0-9_]+$")
 GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4,5}):\s*$")
 DATA_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|DW|BYTE|WORD|DS|INCBIN)\b", re.IGNORECASE)
 MNEMONIC_RE = re.compile(r"^\s*([A-Za-z]{3}(?:\.[A-Za-z])?)\s+([^;]+?)(?:\s*;.*)?$")
@@ -264,9 +266,22 @@ def label_map(summary):
     return out
 
 def load_xref(path):
-    data = load_json(path)
-    if not data:
+    p = Path(path)
+    if not p.exists():
         return {"symbols": [], "references": []}
+    try:
+        data = load_structured_xref(p)
+    except ContractError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(65) from exc
+    for section in ("symbols", "references", "data_reads", "data_writes"):
+        if not isinstance(data.get(section), list):
+            print(f"error: xref version 2 is missing {section}", file=sys.stderr)
+            raise SystemExit(65)
+    for index, symbol in enumerate(data["symbols"]):
+        if not isinstance(symbol, dict):
+            print(f"error: symbols[{index}] must be an object", file=sys.stderr)
+            raise SystemExit(65)
     return data
 
 def build_symbol_def_map(xref):
@@ -688,21 +703,27 @@ def summarize_raw_owner_counts(rows, kind):
         f"{name}:{count}" for name, count in sorted(out.items(), key=lambda kv: (-kv[1], kv[0]))[:4]
     )
 
-def parse_lowaddr_ram_equ_symbols(path):
-    out = {}
-    equ_re = re.compile(
-        r"^\s*(?P<symbol>(?:ZP|RAM)_[A-Za-z0-9_]+)\s+\.EQU\s+\$"
-        r"(?P<hex>[0-9A-Fa-f]{1,4})\b"
-    )
-    for text in load_file_lines(path):
-        m = equ_re.match(text)
-        if not m:
+def build_lowaddr_ram_equ_symbols(xref):
+    by_addr = {}
+    for index, symbol in enumerate(xref.get("symbols", [])):
+        name = symbol.get("name")
+        if not isinstance(name, str) or not RAM_SYMBOL_RE.fullmatch(name):
             continue
-        addr = int(m.group("hex"), 16)
-        if addr > 0x0FFF:
+        if (
+            symbol.get("kind") != "equ"
+            or symbol.get("scope") != "global"
+            or symbol.get("defined") is not True
+        ):
             continue
-        out.setdefault(f"0x{addr:04x}", []).append(m.group("symbol"))
-    return out
+        definition = symbol.get("definition")
+        if not isinstance(definition, dict):
+            raise ContractError(f"symbols[{index}].definition must be an object")
+        value = definition.get("value")
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ContractError(f"symbols[{index}].definition.value must be int")
+        if 0 <= value <= 0x0FFF:
+            by_addr.setdefault(f"0x{value:04x}", []).append(name)
+    return by_addr
 
 def build_symbolized_raw_ram_candidates(xref, addr_symbols):
     symbol_to_addr = {
@@ -1616,10 +1637,12 @@ raw_accesses = parse_raw_lowaddr_accesses(asm_file, source_owner_index)
 raw_ram_review = load_raw_ram_review(raw_ram_review_path)
 all_raw_ram_candidates = build_raw_ram_candidates(raw_accesses, raw_ram_review, limit=None)
 raw_ram_candidates = all_raw_ram_candidates[:12]
-symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
-    xref,
-    parse_lowaddr_ram_equ_symbols(asm_file),
-)
+try:
+    lowaddr_ram_symbols = build_lowaddr_ram_equ_symbols(xref)
+except ContractError as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    raise SystemExit(65) from exc
+symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(xref, lowaddr_ram_symbols)
 merged_raw_ram_review_rows = merge_raw_ram_review(
     all_raw_ram_candidates,
     raw_ram_review,
