@@ -88,22 +88,12 @@ test_rename_reason_rejects_bad_cli_and_malformed_input() {
   assert_exit 65 python3 "${CHECK}" "${asm}" "${ledger}"
 }
 
-test_rename_reason_is_opt_in_process_advisory() {
-  local process_check proof_block outside_proof_block
+test_rename_reason_is_universal_process_advisory() {
+  local process_check
   process_check="$(<"${REPO_ROOT}/scripts/project_process_check.sh")"
-  proof_block="$(
-    sed -n '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/p' \
-      "${REPO_ROOT}/scripts/project_process_check.sh"
-  )"
-  outside_proof_block="$(
-    sed '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/d' \
-      "${REPO_ROOT}/scripts/project_process_check.sh"
-  )"
-  assert_match 'rename_reason_consistency_check\.py' "${proof_block}" \
-    "new-project process checks must surface current-pass name/reason disagreements"
-  if printf '%s' "${outside_proof_block}" | grep -q 'rename_reason_consistency_check.py'; then
-    fail "legacy projects must stay outside the rename-reason advisory"
-  fi
+  assert_match 'rename_reason_consistency_check\.py' "${process_check}" \
+    "every project's process check must surface current-pass name/reason disagreements"
+  assert_not_match 'PROOF_DEBT_REQUIRED' "${process_check}"
   if printf '%s' "${process_check}" | grep -q 'rename_reason_consistency_check.py.*--strict'; then
     fail "name/reason candidates must remain advisory until individually reviewed"
   fi

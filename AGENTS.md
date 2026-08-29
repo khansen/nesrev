@@ -210,10 +210,15 @@ Every active project uses this fixed set; process gates validate it.
 | `docs/reverse_engineering/*_DX_Systems.md` | per-subsystem stable behavior docs |
 | `docs/reverse_engineering/SEMANTIC_CLAIMS.md` | maturity-time semantic-claims ledger ([QUALITY_REVIEW.md#semantic-claims](agent_playbook/QUALITY_REVIEW.md#semantic-claims); validated by `project-maturity-check`) |
 | `docs/reverse_engineering/inventory/renames.csv` | rename ledger (closeout reads this) |
-| `docs/reverse_engineering/inventory/data_format_targets.csv` | core data-format family disposition worklist for new projects |
+| `docs/reverse_engineering/inventory/data_format_targets.csv` | core data-format family disposition worklist |
 | `docs/reverse_engineering/inventory/data_blob_dispositions.csv` | blob worklist |
+| `docs/reverse_engineering/inventory/data_extent_assertions.csv` | reviewed fixed-size table extents |
+| `docs/reverse_engineering/inventory/pointer_targets.csv` | generated `.DW` target inventory |
+| `docs/reverse_engineering/inventory/embedded_pointer_targets.csv` | generated embedded `.DB` pointer inventory |
+| `docs/reverse_engineering/inventory/split_pointer_targets.csv` | generated split low/high pointer inventory |
 | `docs/reverse_engineering/inventory/raw_ram_review.csv` | raw-RAM review queue (once project enters raw-RAM mode) |
 | `docs/reverse_engineering/inventory/deferrals.csv` | deferrals captured at closeout, one row per gap (schema-checked) |
+| `docs/reverse_engineering/inventory/proof_debt_acknowledged.csv` | reviewed proof-debt dispositions |
 Optional support docs: `WORKING_NOTES.md` (rules at
 [DOCUMENTATION.md#working-notes](agent_playbook/DOCUMENTATION.md#working-notes)),
 `PARITY_GAPS.md`, `ACTOR_ENUMS.md` or equivalent enum docs, trace

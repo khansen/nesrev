@@ -11,8 +11,9 @@ review and are kept as the record of what was contested.
 **The terms this shipped under**, agreed at review and still binding on anyone
 extending it:
 
-1. **The signals stay advisory and opt-in.** Every check exits `0`; none can
-   fail a build; they run only where `PROOF_DEBT_REQUIRED="1"` is set.
+1. **The signals stay advisory.** Every finding exits `0`; none can fail a
+   build. The original rollout was project-opted; the current contract runs
+   every detector universally and treats only operational errors as hard.
 2. **The thresholds are corpus-fitted tripwires, not proven invariants.**
    Twelve constants, all chosen by looking at a corpus that is not a controlled
    experiment (§5). Re-run the backtest before changing any of them.
@@ -516,7 +517,7 @@ Re-run the backtest before changing the signal set.
 | Drift section in the dashboard | `scripts/project_maturity_summary.sh` |
 | `rework_items` no longer auto-zeroed | `scripts/project_pass_closeout.sh` |
 | Missing notes no longer reads as no debt | `scripts/working_notes_maturity_check.sh` |
-| Opt-in flag (`PROOF_DEBT_REQUIRED`) | `scripts/project_common.sh`, `scripts/new_project.sh` |
+| Universal invocation contract | `scripts/project_process_check.sh`, `scripts/project_next_pass.sh` |
 | Both crosswalk header spellings accepted | `scripts/proof_debt.py`, `scripts/symbol_vocabulary_check.py` |
 | Partial-match suppression on a mapped crosswalk | `scripts/symbol_vocabulary_check.py` |
 | `rework_items` enforced on closed rows | `scripts/scorecard_lifecycle_check.py` |
@@ -526,12 +527,11 @@ Re-run the backtest before changing the signal set.
 Every check is advisory (exit 0). None of them can fail a build. The two
 corrected gates change what is *reported*, not what is enforced.
 
-The signals are also opt-in, following the mechanism the repository already
-uses for nine other checks: they run only where `PROOF_DEBT_REQUIRED="1"` is set
-in `project.conf`. New scaffolds opt in; existing projects stay silent until
-chosen. This matters beyond caution — these signals read authored ledgers that
-postdate most of the corpus, so firing them on work done under an earlier
-process would report a debt the project never had the chance to incur.
+The original rollout was project-opted because these signals read authored
+ledgers that postdated most of the corpus. The universal-gates migration
+retired that switch: canonical ledgers now exist for every project, every
+signal runs, and persistent findings use validated acknowledgement or
+deferral rows instead of global silence.
 
 Tests: 326 shell tests pass (35 new, each exercising both a firing and a silent
 case), plus 1,206 JUnit tests. New detectors were mutation-tested — reverting
@@ -594,12 +594,9 @@ the reliance on prose parsing.
   regexes over a human sentence and reduces it to nouns, and three strikes
   rests on that reduction being stable. It remains the least verifiable path,
   and an unattended run that never sets `DEFERRALS` takes it every time.
-- **Default-off means the branch may be inert.** Every check exits 0 and runs
-  only under `PROOF_DEBT_REQUIRED=1`, which no project currently sets. Nothing
-  here changes any outcome until someone opts a project in and then acts on
-  what they read. That posture is deliberate — a new check firing on twenty-one
-  projects at once is how a channel gets ignored — but safety and efficacy are
-  trading directly against each other, and this sits at the safe end.
+- **The original default-off rollout could be inert.** That limitation is
+  retired: universal execution makes the signal visible, while acknowledgement
+  and deferral ledgers control noise without suppressing the detector.
 - **`deferrals.csv` is a materialised view with no reconciliation.** Its rows
   are derived from scorecard notes. Editing a note after closeout leaves the
   ledger silently divergent, and because the dedup key is `(pass_id, subject)`,
@@ -611,21 +608,19 @@ the reliance on prose parsing.
   review called highest-value, and it is entirely prose. Its two-channel
   evidence standard has not been exercised against a real ROM, so the claim
   that identity work is reachable this way is argued, not demonstrated.
-- **`rework_items` enforcement rides a different flag.** It is gated on
-  `SCORECARD_LIFECYCLE_REQUIRED`, not on the proof-debt opt-in, so the next
-  project to enable lifecycle checks inherits the stricter rule without opting
-  into anything. Only one project sets that flag today and it passes.
+- **`rework_items` enforcement was originally separately gated.** The current
+  universal lifecycle check makes the dependency explicit for every project.
 - **Signal fatigue remains the standing risk.** Three signals on one project
   today is healthy. Thirty signals on every project would restore exactly the
   blindness this is meant to cure.
 
 ### 5.1 Before promoting any signal to a hard gate
 
-No proof-debt signal may be promoted from advisory or recommender behaviour to a
-hard gate until `PROOF_DEBT_REQUIRED=1` has been run through at least one real
-opted-in project pass — including pass start, closeout, and review of the
-resulting recommendations. Backtests and fixtures establish regressions and
-noise bounds; they do not prove that a signal improves live pass work.
+No proof-debt signal may be promoted from advisory or recommender behaviour to
+a hard gate until it has been exercised through at least one real project pass
+— including pass start, closeout, and review of the resulting recommendations.
+Backtests and fixtures establish regressions and noise bounds; they do not
+prove that a signal improves live pass work.
 
 This is a condition on the whole mechanism, not on any one signal. It covers all
 six proof-debt signals — `crosswalk_unmapped`, `semantic_claims_empty`,
@@ -633,9 +628,9 @@ six proof-debt signals — `crosswalk_unmapped`, `semantic_claims_empty`,
 `runtime_deferrals_unscheduled` — and equally the surrounding behaviour that
 reads them: vocabulary-family drift in `scripts/symbol_vocabulary_check.py`, the
 identity interception in `apply_identity_interception`, and the `rework_items`
-enforcement in `scripts/scorecard_lifecycle_check.py`. Advisory opt-in operation
-is not covered by this condition and needs no such proof; the condition binds
-only the step that makes something able to fail a build.
+enforcement in `scripts/scorecard_lifecycle_check.py`. Universal advisory
+operation is not covered by this condition and needs no such proof; the
+condition binds only the step that makes something able to fail a build.
 
 The distinction matters because the two kinds of evidence answer different
 questions. A backtest over this corpus can show a signal does not fire wildly on

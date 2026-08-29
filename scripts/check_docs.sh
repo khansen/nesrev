@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 4 || $# -gt 5 ]]; then
-  echo "usage: $0 <asm_file> <doc_root> <systems_doc> <warn_baseline_file> [recovery_status]" >&2
+if [[ $# -ne 4 ]]; then
+  echo "usage: $0 <asm_file> <doc_root> <systems_doc> <warn_baseline_file>" >&2
   echo "(invoke via 'make project-docs-check PROJECT=<slug>' rather than directly)" >&2
   exit 64
 fi
@@ -11,7 +11,6 @@ ASM_FILE="$1"
 DOC_ROOT="$2"
 SYSTEMS_DOC="$3"
 WARN_BASELINE_FILE="$4"
-RECOVERY_STATUS="${5:-legacy}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TMPDIR_CHECK_DOCS="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_CHECK_DOCS}"' EXIT
@@ -199,13 +198,12 @@ fi
 echo "OK: systems doc contains no unresolved labels or future-pass planning"
 
 echo "[5/9] Checking for scaffold placeholder support docs"
-python3 - "${DOC_ROOT}" "${RECOVERY_STATUS}" "${WARN_BASELINE_FILE}" <<'PY'
+python3 - "${DOC_ROOT}" "${WARN_BASELINE_FILE}" <<'PY'
 import sys
 from pathlib import Path
 
 doc_root = Path(sys.argv[1])
-recovery_status = sys.argv[2]
-warn_baseline = Path(sys.argv[3])
+warn_baseline = Path(sys.argv[2])
 
 placeholder_patterns = {
     "ONBOARDING.md": [
@@ -226,12 +224,9 @@ placeholder_patterns = {
     ],
 }
 
-# The stale pass-0 note is part of the new scaffold lifecycle. Existing
-# projects predate that contract and remain valid until explicitly upgraded.
-if recovery_status != "legacy":
-    placeholder_patterns["PROGRESS_SCORECARD.md"] = [
-        "Initial intake; run `project-inventory` and KPI scripts to seed values.",
-    ]
+placeholder_patterns["PROGRESS_SCORECARD.md"] = [
+    "Initial intake; run `project-inventory` and KPI scripts to seed values.",
+]
 
 failures = []
 for name, patterns in placeholder_patterns.items():

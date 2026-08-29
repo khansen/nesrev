@@ -15,6 +15,7 @@ _init_packet_repo() {
 
   cp "${REPO_ROOT}/scripts/project_pass_review_packet.sh" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/project_common.sh" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/project_policy_config_check.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/proof_debt.py" "${repo}/scripts/"
 
   cat > "${repo}/projects/${slug}/project.conf" <<EOF
@@ -24,8 +25,8 @@ REF_NES="projects/${slug}/reference/${slug}.nes"
 DOC_ROOT="projects/${slug}/docs/reverse_engineering"
 SYSTEMS_DOC="projects/${slug}/docs/reverse_engineering/${slug}_DX_Systems.md"
 WARN_BASELINE_FILE="projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt"
+NESREV_RECOVERY_STATUS="none"
 OUT_BIN="projects/${slug}/build/${slug}.o"
-PROOF_DEBT_REQUIRED="1"
 EOF
   cat > "${repo}/projects/${slug}/asm/${slug}.asm" <<'EOF'
 L1234:

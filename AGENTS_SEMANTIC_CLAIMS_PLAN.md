@@ -337,12 +337,9 @@ This is optional and should not block the initial rollout.
 
 ## Open Decisions
 
-1. Should new projects use a project.conf flag such as
-   `SEMANTIC_CLAIMS_REQUIRED=1`, or should the presence of the scaffolded file
-   imply strict mode?
-
-   Recommendation: use a project.conf flag so legacy projects can opt in
-   deliberately and new scaffolds can enable it.
+1. Resolved: every project uses strict pass-time validation. Presence is a
+   canonical-artifact requirement, not an implicit switch, and project config
+   cannot weaken the policy.
 
 2. Should data-format docs embed claims directly or link to
    `SEMANTIC_CLAIMS.md`?

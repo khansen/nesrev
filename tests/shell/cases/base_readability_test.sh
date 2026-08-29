@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests the advisory base-readability KPI (scripts/base_readability_kpi.sh) and
-# its project.conf plumbing (BASE_READABILITY_REQUIRED in project_common.sh).
+# its universal project-verify wiring and removed-switch rejection.
 
 BASE_READABILITY="${REPO_ROOT}/scripts/base_readability_kpi.sh"
 
@@ -137,71 +137,20 @@ test_base_readability_missing_file_errors() {
   assert_exit 65 bash "${BASE_READABILITY}" "${NESREV_TEST_TMPDIR}/does_not_exist.asm"
 }
 
-_load_flag() {
-  local slug="$1"
-  bash -c '
-    set -euo pipefail
-    cd "'"${REPO_ROOT}"'"
-    source scripts/project_common.sh
-    load_project_conf "'"${slug}"'" >/dev/null 2>&1
-    echo "${BASE_READABILITY_REQUIRED}"
-  '
+test_project_verify_enforces_both_base_readability_classes_unconditionally() {
+  local wrapper
+  wrapper="$(<"${REPO_ROOT}/scripts/project_verify.sh")"
+  assert_match 'base_readability_kpi\.sh' "${wrapper}"
+  assert_match '--strict --strict-equates' "${wrapper}"
+  assert_not_match 'BASE_READABILITY_REQUIRED|BASE_READABILITY_EQU_REQUIRED' "${wrapper}"
 }
 
-test_base_readability_required_new_project_defaults_on() {
-  local slug
-  slug="$(unique_slug brreq_on)"
-  bash scripts/new_project.sh "${slug}" >/dev/null
-  local flag
-  flag="$(_load_flag "${slug}")"
-  cleanup_project "${slug}"
-  assert_eq "${flag}" "1" "new project scaffold must enable BASE_READABILITY_REQUIRED"
-}
-
-test_equ_base_readability_required_new_project_defaults_on() {
-  local slug
-  slug="$(unique_slug equ_brreq_on)"
-  bash scripts/new_project.sh "${slug}" >/dev/null
-  local flag
-  flag="$(bash -c '
-    set -euo pipefail
-    cd "'"${REPO_ROOT}"'"
-    source scripts/project_common.sh
-    load_project_conf "'"${slug}"'" >/dev/null 2>&1
-    echo "${BASE_READABILITY_EQU_REQUIRED}"
-  ')"
-  cleanup_project "${slug}"
-  assert_eq "${flag}" "1" "new project scaffold must enable .EQU base readability"
-}
-
-test_base_readability_required_legacy_default_off_without_conf() {
-  local slug rom
-  slug="$(unique_slug brreq_legacy)"
-  rom="${NESREV_TEST_TMPDIR}/rom.nes"
-  make_ines "${rom}"
-  scaffold_project "${slug}" "${rom}"
-  perl -0pi -e 's/^BASE_READABILITY_REQUIRED="1"\\n//m' "projects/${slug}/project.conf"
-  local flag
-  flag="$(_load_flag "${slug}")"
-  cleanup_project "${slug}"
-  assert_eq "${flag}" "0" "legacy project.conf without the scaffold flag defaults off"
-}
-
-test_equ_base_readability_required_legacy_default_off_without_conf() {
-  local slug rom
-  slug="$(unique_slug equ_brreq_legacy)"
-  rom="${NESREV_TEST_TMPDIR}/rom.nes"
-  make_ines "${rom}"
-  scaffold_project "${slug}" "${rom}"
-  perl -0pi -e 's/^BASE_READABILITY_EQU_REQUIRED="1"\n//m' "projects/${slug}/project.conf"
-  local flag
-  flag="$(bash -c '
-    set -euo pipefail
-    cd "'"${REPO_ROOT}"'"
-    source scripts/project_common.sh
-    load_project_conf "'"${slug}"'" >/dev/null 2>&1
-    echo "${BASE_READABILITY_EQU_REQUIRED}"
-  ')"
-  cleanup_project "${slug}"
-  assert_eq "${flag}" "0" "legacy project.conf without the .EQU flag defaults off"
+test_project_policy_rejects_removed_base_readability_switches() {
+  local conf="${NESREV_TEST_TMPDIR}/project.conf"
+  cat > "${conf}" <<'EOF'
+NESREV_RECOVERY_STATUS="none"
+BASE_READABILITY_REQUIRED="0"
+BASE_READABILITY_EQU_REQUIRED="0"
+EOF
+  assert_exit 1 python3 "${REPO_ROOT}/scripts/project_policy_config_check.py" config "${conf}"
 }

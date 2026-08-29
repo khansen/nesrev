@@ -38,8 +38,7 @@ fi
 #
 # Default (report) mode prints the count and per-site hints and always exits 0.
 # --strict mode additionally hard-fails (exit 68) when the count is non-zero;
-# project-verify uses it for projects that opt in with BASE_READABILITY_REQUIRED
-# after a base pass has driven the count to zero, protecting them from regression.
+# project-verify enforces it for every project after the corpus-wide migration.
 STRICT_HEX_QUANTITY_IMMEDIATES="$(
   awk '
     {
@@ -81,8 +80,8 @@ if (( CHECK_EQUATES == 1 )); then
   # A semantic quantity suffix makes these equates substantially less
   # ambiguous than general .EQU literals. ZP_/RAM_ declarations are excluded:
   # their right-hand sides are addresses even when the role ends in Count or
-  # Index. Existing projects opt into strictness separately so this wider class
-  # does not become a retroactive hard gate.
+  # Index. The report-only direct mode remains useful while project-verify uses
+  # strict enforcement.
   HEX_QUANTITY_EQUATES="$(
     awk '
       function hex_to_dec(value,    digits, i, n, ch) {

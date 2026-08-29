@@ -185,9 +185,9 @@ its structure (not its truth) with:
 make project-semantic-claims-check PROJECT=<project_slug>
 ```
 
-`project-maturity-check` also runs it — strict for projects that opt in via
-`SEMANTIC_CLAIMS_REQUIRED="1"` (set by new scaffolds), advisory for legacy
-projects. New projects scaffold the file; it may stay sparse until gold closeout.
+`project-docs-check` runs its strict pass-time structural validation for every
+project, while `project-maturity-check` additionally requires at least one
+claim. New projects scaffold the file; it may stay sparse until gold closeout.
 
 Mod workflow commands:
 

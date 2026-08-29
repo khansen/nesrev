@@ -229,29 +229,37 @@ PY
 # a pass, so the dashboard reports them on every run.
 echo "Vocabulary and data-format drift (advisory):"
 
-if [[ -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
-  python3 "${SCRIPT_DIR}/data_format_targets_summary.py" "${DATA_FORMAT_TARGETS_FILE}"
-else
-  echo "- data-format families: no ledger present"
-fi
+python3 "${SCRIPT_DIR}/data_format_targets_summary.py" "${DATA_FORMAT_TARGETS_FILE}"
+python3 - "${DATA_BLOB_DISPOSITIONS_FILE}" <<'PY'
+import sys
+from pathlib import Path
 
-if [[ -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then
-  blob_rows="$(( $(wc -l < "${DATA_BLOB_DISPOSITIONS_FILE}") - 1 ))"
-  if (( blob_rows < 0 )); then blob_rows=0; fi
-  echo "- data-blob dispositions: ${blob_rows} rows"
-else
-  echo "- data-blob dispositions: no ledger present"
-fi
+path = Path(sys.argv[1])
+try:
+    rows = max(len(path.read_text(encoding="utf-8").splitlines()) - 1, 0)
+except OSError:
+    print(f"- DEFECT: required data-blob ledger missing: {path}")
+else:
+    print(f"- data-blob dispositions: {rows} rows")
+PY
 
-if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
-  python3 "${SCRIPT_DIR}/proof_debt.py" \
-    "${DOC_ROOT}" "${CROSSWALK_FILE}" 2>/dev/null | sed 's/^/- /' || true
-  python3 "${SCRIPT_DIR}/proof_debt.py" \
-    "${DOC_ROOT}" "${CROSSWALK_FILE}" --coverage 2>/dev/null | sed 's/^/  /' || true
-  python3 "${SCRIPT_DIR}/symbol_vocabulary_check.py" \
-    "${ASM_FILE}" "${CROSSWALK_FILE}" 2>/dev/null | sed 's/^/- /' || true
+if ! proof_report="$(python3 "${SCRIPT_DIR}/proof_debt.py" \
+    "${DOC_ROOT}" "${CROSSWALK_FILE}" 2>&1)"; then
+  echo "- DEFECT: proof-debt analysis failed: ${proof_report}"
 else
-  echo "- proof debt: not enabled (set PROOF_DEBT_REQUIRED=1 in project.conf)"
+  printf '%s\n' "${proof_report}" | sed 's/^/- /'
+fi
+if ! coverage_report="$(python3 "${SCRIPT_DIR}/proof_debt.py" \
+    "${DOC_ROOT}" "${CROSSWALK_FILE}" --coverage 2>&1)"; then
+  echo "- DEFECT: proof-debt coverage analysis failed: ${coverage_report}"
+else
+  printf '%s\n' "${coverage_report}" | sed 's/^/  /'
+fi
+if ! vocabulary_report="$(python3 "${SCRIPT_DIR}/symbol_vocabulary_check.py" \
+    "${ASM_FILE}" "${CROSSWALK_FILE}" 2>&1)"; then
+  echo "- DEFECT: symbol-vocabulary analysis failed: ${vocabulary_report}"
+else
+  printf '%s\n' "${vocabulary_report}" | sed 's/^/- /'
 fi
 
 echo

@@ -65,10 +65,10 @@ them so the reviewer knows where to look first.
 
 ### Machine-checkable gates
 
-These items have process gates that fail loudly when violated. A
-green `make project-verify` only proves that *configured* KPI
-ceilings are met, which on permissive projects (`MAX_* = 999999`)
-can hide substantial debt. Use `make project-maturity-check
+These items have process gates that fail loudly when violated. A green
+`make project-verify` proves the finite configured KPI ratchets are met, but an
+initial current-count ratchet can still preserve substantial debt. Use
+`make project-maturity-check
 PROJECT=<slug>` (project-wide only) for the raw-address and
 data-label hard-gate subset, and read other KPI output as review
 inventory rather than assuming every count should be zero.
@@ -99,10 +99,9 @@ reviewer must inspect the touched regions and ledgers.
    self-documenting retained public label may remain headerless; the count is
    an inventory, not a quality score. **Near gold, zero documented code
    contracts is a process failure unless the scorecard records the audit.**
-   New projects opt into `PROCEDURE_CONTRACTS_REQUIRED=1` for this tripwire.
-   Legacy gold predating these tripwires is stale until a scorecard row records
-   the marker in
-   [PASS_WORKFLOW.md#legacy-retrofit-scorecard-artifact](PASS_WORKFLOW.md#legacy-retrofit-scorecard-artifact);
+   This tripwire applies to every project. Gold predating it is stale until a
+   scorecard row records the marker in
+   [PASS_WORKFLOW.md#policy-baseline-scorecard-artifact](PASS_WORKFLOW.md#policy-baseline-scorecard-artifact);
    zero-undocumented retrofit is not required.
 5. **Comment quality beats coverage.** No line-by-line narration, literal
    translations, raw-address prose, or tautological headers were added to make
@@ -170,8 +169,8 @@ reviewer must inspect the touched regions and ledgers.
    dedicated format/state-machine docs, and promoted subsystem
    `*_DX_Systems.md`). A not-yet-promoted systems
    scaffold is acceptable while semantic work remains; speculative expansion
-   is not. New projects opt into a maturity budget for `WORKING_NOTES.md`; if
-   the file is over budget, promote stable facts to canonical docs/source, act
+   is not. Every project has a bounded maturity budget for `WORKING_NOTES.md`;
+   if the file is over budget, promote stable facts to canonical docs/source, act
    on queued findings, and prune it before claiming maturity. A larger
    configured budget is acceptable only with a scorecard rationale that the
    remaining notes are active forward-pass hazards or unresolved evidence gaps.
@@ -291,12 +290,11 @@ owns it (`raw_ram_review.csv` or `WORKING_NOTES.md`), not as a full claim. Use
 structure and links only: unique headings, required fields, allowed Kind and
 Confidence, real (or `External/reference-only`) subjects, and resolving local
 doc links. It does not prove claims; evidence quality stays reviewer judgment.
-`project-docs-check` runs the pass-time strict structural check for existing
-ledgers and for projects with `SEMANTIC_CLAIMS_REQUIRED=1`, so closeout and CI
-catch malformed claims even before maturity. The pass-time check allows a
-sparse (zero-claim) ledger. `project-maturity-check` runs the checker in
-maturity mode for opted-in projects, which additionally requires at least one
-claim at gold closeout; legacy projects with no ledger remain outside the gate.
+`project-docs-check` runs the pass-time strict structural check for every
+project, so closeout and CI catch missing or malformed claims even before
+maturity. The pass-time check allows a sparse (zero-claim) ledger.
+`project-maturity-check` runs the checker in maturity mode, which additionally
+requires at least one claim at gold closeout.
 <a id="kpi-interpretation"></a>
 ## KPI Interpretation and Limitations
 

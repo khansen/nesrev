@@ -88,50 +88,10 @@ WARN_BASELINE_FILE="projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.t
 XASM_AUDIT_ROM_RANGE=""
 XASM_COMPARE_CPU_BASE=""
 
-# New clean-room projects opt into strict semantic-claims maturity. The
-# SEMANTIC_CLAIMS.md ledger may stay sparse until gold closeout; the checker
-# (run by project-maturity-check) validates structure only. Legacy projects
-# omit this flag and the check is advisory.
-SEMANTIC_CLAIMS_REQUIRED="1"
-
-# New clean-room projects also opt into the gold-closeout procedure-contract
-# tripwire. This is not a comment-coverage KPI: it only blocks maturity when a
-# nontrivial codebase has no documented callable/global code-label contracts at
-# all, which indicates the positive contract audit was skipped.
-PROCEDURE_CONTRACTS_REQUIRED="1"
-
-# New clean-room projects opt into the WORKING_NOTES.md maturity budget.
 # WORKING_NOTES.md may carry live forward-pass findings during semantic work,
 # but gold closeout should fail if stable facts, pass history, or acted-on
 # findings have accumulated there instead of being promoted/pruned.
-WORKING_NOTES_MATURITY_REQUIRED="1"
 MAX_MATURITY_WORKING_NOTES_LINES="120"
-
-# New clean-room projects keep a strict pass lifecycle ledger: unique,
-# ordered pass IDs, and no completed historical row left with pending gate
-# outcomes. Legacy/imported scorecards can opt in after normalization.
-SCORECARD_LIFECYCLE_REQUIRED="1"
-
-# New clean-room projects carry an explicit core data-format target inventory.
-# Process checks validate the list while semantic work is in progress; maturity
-# checks require every canonical family to be dispositioned.
-PROOF_DEBT_REQUIRED="1"
-DATA_FORMAT_TARGETS_REQUIRED="1"
-
-# New clean-room projects also carry an explicit per-blob disposition inventory.
-# Process checks surface candidate opaque spans while semantic work is in
-# progress; maturity checks require each candidate span to have a reviewed
-# consumer/pointer/extent disposition.
-DATA_BLOB_DISPOSITIONS_REQUIRED="1"
-
-# New clean-room projects enforce the strict literal-base readability class
-# from the start: index/count zero-one immediates and unit-step arithmetic use
-# decimal notation, while machine-oriented bytes stay hex.
-BASE_READABILITY_REQUIRED="1"
-
-# Quantity-suffixed constants (COUNT/INDEX/IDX/RELOAD/FRAMES) are human
-# quantities, not machine tokens; require decimal notation in new projects.
-BASE_READABILITY_EQU_REQUIRED="1"
 
 # Hidden-code/recovery discovery must be resolved before intake:
 #   pending    discovery not completed
@@ -394,19 +354,20 @@ cat > "$root/docs/reverse_engineering/inventory/kpis.conf" <<'DOC'
 # KPI thresholds for `make project-verify`.
 # Each variable is read by its dedicated runner under scripts/.
 # Tighten values toward their target as cleanup progresses.
+# Intake calibration pending.
 
 # Raw addresses: $XX low-address operands and $Cxxx-$Fxxx ROM operands.
-MAX_ACTIVE_RAW_LOWADDR=999999
+MAX_ACTIVE_RAW_LOWADDR=0
 MAX_ACTIVE_RAW_ABSROM=0
 
 # Bare numeric immediates in code, excluding #0/#$00.
-MAX_ACTIVE_MAGIC_IMMEDIATES=999999
+MAX_ACTIVE_MAGIC_IMMEDIATES=0
 
 # $+N / $-N relative-branch literals (parity-sensitive).
-MAX_ACTIVE_BRANCH_LITERALS=999999
+MAX_ACTIVE_BRANCH_LITERALS=0
 
 # `; inferred` confidence tags.
-MAX_INFERRED_ANNOTATIONS=999999
+MAX_INFERRED_ANNOTATIONS=0
 
 # Placeholder/filler comment phrases. Target stays at 0.
 MAX_PLACEHOLDER_COMMENTS=0
@@ -415,9 +376,9 @@ MAX_PLACEHOLDER_COMMENTS=0
 # Replace the intake ceilings with the reviewed baseline; do not add filler
 # headers merely to reduce these counts. Data labels remain a strict format-
 # documentation gate.
-MAX_UNDOCUMENTED_PROCEDURES=999999
-MAX_UNDOCUMENTED_GLOBAL_CODE_LABELS=999999
-MAX_UNDOCUMENTED_DATA_LABELS=999999
+MAX_UNDOCUMENTED_PROCEDURES=0
+MAX_UNDOCUMENTED_GLOBAL_CODE_LABELS=0
+MAX_UNDOCUMENTED_DATA_LABELS=0
 DOC
 
 cat > "$root/docs/reverse_engineering/inventory/constant_magic_allowlist.csv" <<'DOC'
@@ -445,6 +406,18 @@ DOC
 
 cat > "$root/docs/reverse_engineering/inventory/data_blob_dispositions.csv" <<'DOC'
 label,disposition,format,artifact,consumer_evidence,pointer_evidence,extent_evidence,reflow_status,notes
+DOC
+
+cat > "$root/docs/reverse_engineering/inventory/data_extent_assertions.csv" <<'DOC'
+label,expected_size,reason
+DOC
+
+cat > "$root/docs/reverse_engineering/inventory/deferrals.csv" <<'DOC'
+pass_id,corridor,subject,kind,deferral,revisit_condition,status
+DOC
+
+cat > "$root/docs/reverse_engineering/inventory/proof_debt_acknowledged.csv" <<'DOC'
+signal,reason,pass_id
 DOC
 
 cat > "$root/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'DOC'

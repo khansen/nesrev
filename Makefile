@@ -1,4 +1,4 @@
-.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-regenerate-check project-prior-reuse-check project-verify project-docs-check project-docs-provenance-lint project-ci project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-legacy-retrofit-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
+.PHONY: nesrev test check-agent-playbooks check-repo-hygiene test-shell project-doctor project-init project-regenerate-asm project-regenerate-check project-prior-reuse-check project-verify project-docs-check project-docs-provenance-lint project-ci projects-ci projects-policy-check project-inventory project-audit project-comment-audit project-compare project-static-analysis project-hidden-code-scan project-intake project-process-check project-maturity-check project-maturity-summary project-semantic-claims-check project-policy-baseline-check project-data-extent-check project-pass-prep project-next-pass project-pass-start project-pass-closeout project-pass-review-packet project-pass-review-start project-raw-ram-review mod-new mod-build mod-patch clean
 
 # Single-quote a raw command-line token for the recipe shell. $(value ...)
 # prevents Make from consuming a dollar-prefixed target before this helper runs.
@@ -55,6 +55,12 @@ project-ci:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-ci PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_ci.sh $(PROJECT)
 
+projects-policy-check:
+	bash scripts/projects_policy_check.sh
+
+projects-ci:
+	bash scripts/projects_ci.sh
+
 project-intake:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-intake PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_intake.sh $(PROJECT)
@@ -75,9 +81,9 @@ project-semantic-claims-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-semantic-claims-check PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_semantic_claims_check.sh $(PROJECT)
 
-project-legacy-retrofit-check:
-	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-legacy-retrofit-check PROJECT=<slug> [REQUIRE=1]"; exit 2; fi
-	bash scripts/project_legacy_retrofit_check.sh $(PROJECT) $(if $(filter 1 true yes,$(REQUIRE)),--require,)
+project-policy-baseline-check:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-policy-baseline-check PROJECT=<slug> [REQUIRE=1]"; exit 2; fi
+	bash scripts/project_policy_baseline_check.sh $(PROJECT) $(if $(filter 1 true yes,$(REQUIRE)),--require,)
 
 project-data-extent-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-data-extent-check PROJECT=<slug>"; exit 2; fi

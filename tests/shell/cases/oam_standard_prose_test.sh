@@ -85,22 +85,12 @@ test_oam_standard_prose_rejects_bad_cli_and_missing_inputs() {
   assert_exit 65 python3 "${CHECK}" missing.asm "${root}"
 }
 
-test_oam_standard_prose_is_opt_in_process_advisory() {
-  local process_check proof_block outside_proof_block
+test_oam_standard_prose_is_universal_process_advisory() {
+  local process_check
   process_check="$(<"${REPO_ROOT}/scripts/project_process_check.sh")"
-  proof_block="$(
-    sed -n '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/p' \
-      "${REPO_ROOT}/scripts/project_process_check.sh"
-  )"
-  outside_proof_block="$(
-    sed '/^if \[\[ "${PROOF_DEBT_REQUIRED}" == "1" \]\]; then$/,/^fi$/d' \
-      "${REPO_ROOT}/scripts/project_process_check.sh"
-  )"
-  assert_match 'oam_standard_prose_check\.py' "${proof_block}" \
-    "new-project process checks must surface repeated canonical OAM prose"
-  if printf '%s' "${outside_proof_block}" | grep -q 'oam_standard_prose_check.py'; then
-    fail "legacy projects must stay outside the OAM prose advisory"
-  fi
+  assert_match 'oam_standard_prose_check\.py' "${process_check}" \
+    "every project's process checks must surface repeated canonical OAM prose"
+  assert_not_match 'PROOF_DEBT_REQUIRED' "${process_check}"
   if printf '%s' "${process_check}" | grep -q 'oam_standard_prose_check.py.*--strict'; then
     fail "OAM prose candidates must remain advisory until the project is migrated"
   fi

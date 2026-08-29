@@ -22,7 +22,7 @@ def main(argv: list[str]) -> int:
         return 64
     path = Path(argv[0])
     if not path.is_file():
-        print("- data-format families: no ledger present")
+        print(f"- DEFECT: required data-format ledger missing: {path}")
         return 0
 
     with path.open(newline="", encoding="utf-8") as fh:

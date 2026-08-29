@@ -85,12 +85,15 @@ test_make_project_init_scaffolds_a_project() {
     || fail "make project-init did not write data_format_targets.csv"
   [[ -f "projects/${slug}/docs/reverse_engineering/inventory/data_blob_dispositions.csv" ]] \
     || fail "make project-init did not write data_blob_dispositions.csv"
-  grep -qF 'DATA_FORMAT_TARGETS_REQUIRED="1"' "projects/${slug}/project.conf" \
-    || fail "make project-init did not opt into data-format target maturity checks"
-  grep -qF 'DATA_BLOB_DISPOSITIONS_REQUIRED="1"' "projects/${slug}/project.conf" \
-    || fail "make project-init did not opt into data-blob disposition maturity checks"
-  grep -qF 'SCORECARD_LIFECYCLE_REQUIRED="1"' "projects/${slug}/project.conf" \
-    || fail "make project-init did not opt into scorecard lifecycle checks"
+  [[ -f "projects/${slug}/docs/reverse_engineering/inventory/data_extent_assertions.csv" ]] \
+    || fail "make project-init did not write data_extent_assertions.csv"
+  [[ -f "projects/${slug}/docs/reverse_engineering/inventory/deferrals.csv" ]] \
+    || fail "make project-init did not write deferrals.csv"
+  [[ -f "projects/${slug}/docs/reverse_engineering/inventory/proof_debt_acknowledged.csv" ]] \
+    || fail "make project-init did not write proof_debt_acknowledged.csv"
+  if rg -q '_REQUIRED=' "projects/${slug}/project.conf"; then
+    fail "project.conf must not contain per-project quality-policy switches"
+  fi
   grep -qF "audio_music_jingles,not_yet_reviewed" \
     "projects/${slug}/docs/reverse_engineering/inventory/data_format_targets.csv" \
     || fail "data_format_targets.csv must include an explicit music disposition row"
@@ -245,6 +248,9 @@ test_failed_intake_leaves_onboarding_status_unchanged() {
     || fail "failed intake should restore the scaffold First Steps section"
   ! grep -qF "## Resuming Work" "${onboarding}" \
     || fail "failed intake should not leave the post-intake Resuming Work section"
+  grep -qF '# Intake calibration pending.' \
+    "projects/${slug}/docs/reverse_engineering/inventory/kpis.conf" \
+    || fail "failed intake must restore the pending KPI scaffold"
 }
 
 test_fresh_project_init_regenerate_intake_happy_path() {
@@ -333,6 +339,12 @@ test_fresh_project_init_regenerate_intake_happy_path() {
     || fail "successful intake left scaffold setup directions in ONBOARDING.md"
   ! rg -q "replace with project-specific|update this snapshot" "${onboarding}" \
     || fail "successful intake left scaffold replacement instructions in ONBOARDING.md"
+  local kpis="projects/${slug}/docs/reverse_engineering/inventory/kpis.conf"
+  ! grep -qF '# Intake calibration pending.' "${kpis}" \
+    || fail "successful intake left KPI calibration pending"
+  ! rg -q '=999999$' "${kpis}" \
+    || fail "successful intake wrote a disabling KPI sentinel"
+  python3 "${REPO_ROOT}/scripts/project_policy_config_check.py" kpis "${kpis}" >/dev/null
 }
 
 test_intake_rejects_pending_recovery_discovery() {
@@ -417,18 +429,19 @@ test_intake_rejects_missing_configured_control() {
     "$(cat "${NESREV_TEST_TMPDIR}/intake.stderr")"
 }
 
-test_legacy_project_allows_pre_contract_scorecard_note() {
+test_every_project_rejects_pre_contract_scorecard_note() {
   local slug; slug="$(unique_slug legacy_scorecard)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
   _prepare_docs_check_fixture "${slug}"
 
-  # Simulate a project.conf created before the recovery lifecycle existed.
-  sed -i.bak '/^NESREV_/d' "projects/${slug}/project.conf"
-  rm -f "projects/${slug}/project.conf.bak"
-
-  make project-docs-check "PROJECT=${slug}" >/dev/null \
-    || fail "legacy project must not fail solely for the pre-contract pass-0 note"
+  set +e
+  make project-docs-check "PROJECT=${slug}" \
+    >"${NESREV_TEST_TMPDIR}/legacy_docs.stdout" 2>"${NESREV_TEST_TMPDIR}/legacy_docs.stderr"
+  local rc=$?
+  set -e
+  assert_eq "${rc}" "2" "every project must reject the stale pass-0 scorecard note"
+  assert_match "Initial intake; run" "$(cat "${NESREV_TEST_TMPDIR}/legacy_docs.stderr")"
 }
 
 test_new_project_rejects_pre_contract_scorecard_note() {
@@ -542,20 +555,16 @@ MD
   assert_match "invalid Kind 'data contract'" "$(cat "${NESREV_TEST_TMPDIR}/docs.stderr")"
 }
 
-test_docs_check_allows_missing_legacy_semantic_claims_file() {
+test_docs_check_rejects_missing_semantic_claims_file_for_every_project() {
   local slug; slug="$(unique_slug docs_claim_legacy)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
   _prepare_docs_check_fixture "${slug}"
   _drop_docs_check_fixture_scorecard_placeholder "${slug}"
 
-  sed -i.bak 's/SEMANTIC_CLAIMS_REQUIRED="1"/SEMANTIC_CLAIMS_REQUIRED="0"/' \
-    "projects/${slug}/project.conf"
-  rm -f "projects/${slug}/project.conf.bak"
   rm -f "projects/${slug}/docs/reverse_engineering/SEMANTIC_CLAIMS.md"
 
-  make project-docs-check "PROJECT=${slug}" >/dev/null \
-    || fail "legacy docs-check must allow a missing SEMANTIC_CLAIMS.md"
+  assert_exit 2 make project-docs-check "PROJECT=${slug}"
 }
 
 test_valid_scaffold_creates_required_files() {
@@ -587,6 +596,11 @@ test_valid_scaffold_creates_required_files() {
   done
   [[ -d "projects/${slug}/build" ]] || fail "scaffold did not create projects/${slug}/build"
   [[ ! -e "projects/${slug}/build/.gitkeep" ]] || fail "build directory must not contain .gitkeep"
+  local kpis="projects/${slug}/docs/reverse_engineering/inventory/kpis.conf"
+  grep -qF '# Intake calibration pending.' "${kpis}" \
+    || fail "scaffold KPI file must declare pending finite calibration"
+  ! rg -q '=999999$' "${kpis}" \
+    || fail "scaffold KPI file must not contain a disabling sentinel"
 }
 
 test_generated_systems_overview_stays_deferred_until_promotion() {

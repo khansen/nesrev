@@ -21,7 +21,7 @@ REF_NES="${root}/reference/${slug}.nes"
 DOC_ROOT="${root}/docs/reverse_engineering"
 SYSTEMS_DOC="${root}/docs/reverse_engineering/${slug}_DX_Systems.md"
 WARN_BASELINE_FILE="${root}/docs/reverse_engineering/WARNING_BASELINE.txt"
-NESREV_RECOVERY_STATUS="legacy"
+NESREV_RECOVERY_STATUS="none"
 OUT_BIN="${root}/build/${slug}.o"
 EOF
 

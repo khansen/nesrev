@@ -7,11 +7,11 @@ quality remains a reviewer judgment. See the model and scope at
 agent_playbook/QUALITY_REVIEW.md#semantic-claims.
 
 Modes:
-  --mode advisory   everything is a warning; exit 0 (legacy-safe default)
+  --mode advisory   everything is a warning; exit 0 (direct diagnostic use)
   --mode strict     missing file and structural errors fail (exit 2); a sparse
                     ledger with zero claims is allowed (pass-time validation)
   --mode maturity   strict, and additionally require at least one real claim
-                    (gold-closeout gate for opted-in projects)
+                    (universal gold-closeout gate)
 
 Usage:
   project_semantic_claims_check.py <asm_file> <semantic_claims_file> [--mode advisory|strict|maturity]
@@ -274,13 +274,13 @@ def main() -> int:
 
     if not claims_path.exists():
         msg = (
-            f"SEMANTIC_CLAIMS.md not found: {claims_path}. New/opted-in projects "
+            f"SEMANTIC_CLAIMS.md not found: {claims_path}. Every project "
             "must scaffold it; it may stay sparse until gold closeout."
         )
         if fail_on_errors:
             print(f"FAIL: {msg}", file=sys.stderr)
             return 2
-        print(f"warn: {msg} (advisory; legacy project not opted in)")
+        print(f"warn: {msg} (advisory mode)")
         return 0
 
     errors = validate(asm_path, claims_path, require_claims=(mode == "maturity"))

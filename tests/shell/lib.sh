@@ -5,6 +5,7 @@
 #   fail "message"                  - print and exit non-zero
 #   assert_eq actual expected msg   - string equality
 #   assert_match regex string msg   - posix regex match
+#   assert_not_match regex string   - posix regex absence
 #   assert_exit expected_rc cmd...  - run cmd, assert exit code
 #   make_ines out [opts...]         - synthesize an iNES ROM (see below)
 #   scaffold_project slug rom_path  - create a minimal project.conf rig
@@ -34,6 +35,13 @@ assert_match() {
   local regex="$1" string="$2" msg="${3:-}"
   if ! [[ "${string}" =~ ${regex} ]]; then
     fail "${msg:-assert_match}: pattern '${regex}' not found in: ${string}"
+  fi
+}
+
+assert_not_match() {
+  local regex="$1" string="$2" msg="${3:-}"
+  if [[ "${string}" =~ ${regex} ]]; then
+    fail "${msg:-assert_not_match}: unexpected pattern '${regex}' found in: ${string}"
   fi
 }
 
@@ -112,6 +120,7 @@ REF_NES="${proj_root}/reference/${slug}.nes"
 DOC_ROOT="${proj_root}/docs/reverse_engineering"
 SYSTEMS_DOC="${proj_root}/docs/reverse_engineering/${slug}_DX_Systems.md"
 WARN_BASELINE_FILE="${proj_root}/docs/reverse_engineering/WARNING_BASELINE.txt"
+NESREV_RECOVERY_STATUS="none"
 OUT_BIN="${proj_root}/build/${slug}.o"
 EOF
 }

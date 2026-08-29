@@ -19,13 +19,8 @@ strict_arg="${2:-}"
 load_project_conf "${project_slug}"
 project_asm="${ASM_FILE}"
 project_scorecard="${PROGRESS_SCORECARD_FILE}"
-scorecard_args=("${project_scorecard}")
-if [[ "${NESREV_RECOVERY_STATUS}" == "legacy" ]]; then
-  scorecard_args+=(--optional)
-fi
-
 analogue_slug="$(
-  python3 "${SCRIPT_DIR}/scorecard_analogue.py" "${scorecard_args[@]}"
+  python3 "${SCRIPT_DIR}/scorecard_analogue.py" "${project_scorecard}"
 )"
 if [[ -z "${analogue_slug}" ]]; then
   echo "prior-project-reuse: skipped (pass 1 has not recorded an analogue yet)"

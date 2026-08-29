@@ -7,8 +7,8 @@ set -euo pipefail
 # This deliberately does not report on deferrals. Systematic deferral with no
 # structured record is one condition and needs one owner, which is
 # `deferrals_uncaptured` in proof_debt.py — a rate rather than an absolute
-# count, and behind one opt-in flag rather than a second. Reporting it here too
-# meant the same condition surfacing twice with two different thresholds.
+# count. Reporting it here too meant the same condition surfacing twice with
+# two different thresholds.
 
 if [[ $# -lt 2 || $# -gt 3 ]]; then
   echo "usage: $0 <working_notes_path> <max_lines> [scorecard_path]" >&2

@@ -317,11 +317,14 @@ ROOT_WORD_CEILING = 6000
 # Scoped raw-RAM owner snapshots add the repeated-local-label reconciliation
 # boundary to TOOLING.md. Only TOOLING routes grow, and their ceilings retain
 # their exact prior measured headroom.
+# Universal project gates replace opt-in prose across TOOLING, NEW_PROJECT,
+# PASS_WORKFLOW, and QUALITY_REVIEW. The affected ceilings are recalibrated in
+# both directions so every route retains its exact prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3448, 25097),
-    "data-recovery": (3138, 23534),
-    "new-project": (4211, 30928),
-    "project-pass-review": (4500, 31998),
+    "default": (3455, 25120),
+    "data-recovery": (3145, 23549),
+    "new-project": (4214, 30973),
+    "project-pass-review": (4505, 32001),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

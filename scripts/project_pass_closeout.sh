@@ -489,16 +489,21 @@ PY
 
 # Capture this pass's deferrals while the operator's own wording is at hand.
 # A deferral with no recorded revisit condition is how a placeholder fossilises.
-if [[ "${PROOF_DEBT_REQUIRED}" == "1" ]]; then
-  # DEFERRALS is the contract; NOTES prose is the fallback for when the
-  # operator did not state the gaps directly.
-  python3 "${RUN_SCRIPT_DIR}/deferral_capture.py" \
-    "${DOC_ROOT}/inventory/deferrals.csv" \
-    --pass-id "${PASS_ID}" \
-    --corridor "${FOCUS:-}" \
-    --explicit "${DEFERRALS:-}" \
-    --notes "${NOTES:-}"
+# DEFERRALS is the contract; NOTES prose is the fallback for when the
+# operator did not state the gaps directly.
+DEFERRAL_CAPTURE_SCRIPT="${RUN_SCRIPT_DIR}/deferral_capture.py"
+if [[ ! -f "${DEFERRAL_CAPTURE_SCRIPT}" ]]; then
+  # A test/external harness may override only the stage wrappers. Deferral
+  # capture remains mandatory and falls back to this tool bundle unless that
+  # harness deliberately supplies its own capture implementation.
+  DEFERRAL_CAPTURE_SCRIPT="${SCRIPT_DIR}/deferral_capture.py"
 fi
+python3 "${DEFERRAL_CAPTURE_SCRIPT}" \
+  "${DOC_ROOT}/inventory/deferrals.csv" \
+  --pass-id "${PASS_ID}" \
+  --corridor "${FOCUS:-}" \
+  --explicit "${DEFERRALS:-}" \
+  --notes "${NOTES:-}"
 
 PROJECT_NEXT_PASS_AUTO_PREP=0 \
 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \

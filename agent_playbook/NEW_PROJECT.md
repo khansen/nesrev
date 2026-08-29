@@ -153,9 +153,9 @@ been provided; the generated `reference/` directory gives the user the
 exact placement target. See the script for the exact
 generated paths; this playbook does not duplicate them.
 
-New scaffolds include `SEMANTIC_CLAIMS.md` and set `SEMANTIC_CLAIMS_REQUIRED="1"`
-in `project.conf`, opting into strict semantic-claims maturity. The ledger may
-stay sparse until gold closeout; the model and checker live at
+New scaffolds include `SEMANTIC_CLAIMS.md`, and every project's pass-time
+documentation check validates it strictly. The ledger may stay sparse until
+gold closeout; the model and checker live at
 [QUALITY_REVIEW.md#semantic-claims](QUALITY_REVIEW.md#semantic-claims).
 <a id="initial-assembly-generation"></a>
 ## Initial Assembly Generation
@@ -404,14 +404,12 @@ Expected residual debt that does **not** disqualify intake:
   corridors may use explicit relaxed verification. Strict-closeout
   semantics live at
   [PASS_WORKFLOW.md#semantic-pass-verification](PASS_WORKFLOW.md#semantic-pass-verification).
-- The seven `999999` KPI ceilings the scaffold writes to the project
-  config (`MAX_ACTIVE_RAW_LOWADDR`, `MAX_ACTIVE_MAGIC_IMMEDIATES`,
-  `MAX_ACTIVE_BRANCH_LITERALS`, `MAX_INFERRED_ANNOTATIONS`,
-  `MAX_UNDOCUMENTED_PROCEDURES`, `MAX_UNDOCUMENTED_GLOBAL_CODE_LABELS`,
-  `MAX_UNDOCUMENTED_DATA_LABELS`). They are provisional placeholders
-  and stay in place until the project approaches maturity. Procedure/global
-  code-label ceilings are review inventories, not a mandate to reach zero by
-  adding comments; never tighten them through filler.
+- The scaffold's KPI file starts with a pending-calibration marker and zero
+  placeholders. `project-intake` transactionally replaces every value with the
+  exact measured finite baseline before verification; a failed intake restores
+  the pending file. Procedure/global code-label ceilings are review inventories,
+  not a mandate to reach zero by adding comments; never tighten them through
+  filler.
 - A populated `WARNING_BASELINE.txt` containing baselined symbols.
 
 Do not declare the project healthy or run

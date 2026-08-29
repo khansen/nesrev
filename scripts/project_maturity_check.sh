@@ -14,28 +14,26 @@ load_project_conf "$1"
 
 pointer_inventory_xref="${NESREV_XREF_FILE:-}"
 pointer_inventory_xref_tmp=""
-if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" || -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
-  if [[ -n "${pointer_inventory_xref}" ]]; then
-    if [[ ! -f "${pointer_inventory_xref}" ]]; then
-      echo "error: shared xref file not found: ${pointer_inventory_xref}" >&2
-      exit 65
-    fi
-  else
-    pointer_inventory_xref_tmp="$(mktemp -d)"
-    trap 'rm -rf "${pointer_inventory_xref_tmp}"' EXIT
-    pointer_inventory_xref="${pointer_inventory_xref_tmp}/xref_with_data.json"
-    XASM_BIN="${XASM_BIN:-xasm}"
-    if ! "${XASM_BIN}" --pure-binary \
-        -o "${pointer_inventory_xref_tmp}/maturity.o" \
-        --xref="${pointer_inventory_xref}" \
-        --xref-format=json \
-        --xref-include-owner=true \
-        --xref-data=true \
-        "${ASM_FILE}" >/dev/null 2>"${pointer_inventory_xref_tmp}/xasm.stderr"; then
-      cat "${pointer_inventory_xref_tmp}/xasm.stderr" >&2
-      echo "error: xasm failed while generating the maturity pointer xref" >&2
-      exit 65
-    fi
+if [[ -n "${pointer_inventory_xref}" ]]; then
+  if [[ ! -f "${pointer_inventory_xref}" ]]; then
+    echo "error: shared xref file not found: ${pointer_inventory_xref}" >&2
+    exit 65
+  fi
+else
+  pointer_inventory_xref_tmp="$(mktemp -d)"
+  trap 'rm -rf "${pointer_inventory_xref_tmp}"' EXIT
+  pointer_inventory_xref="${pointer_inventory_xref_tmp}/xref_with_data.json"
+  XASM_BIN="${XASM_BIN:-xasm}"
+  if ! "${XASM_BIN}" --pure-binary \
+      -o "${pointer_inventory_xref_tmp}/maturity.o" \
+      --xref="${pointer_inventory_xref}" \
+      --xref-format=json \
+      --xref-include-owner=true \
+      --xref-data=true \
+      "${ASM_FILE}" >/dev/null 2>"${pointer_inventory_xref_tmp}/xasm.stderr"; then
+    cat "${pointer_inventory_xref_tmp}/xasm.stderr" >&2
+    echo "error: xasm failed while generating the maturity pointer xref" >&2
+    exit 65
   fi
 fi
 
@@ -70,26 +68,20 @@ if ! data_extent_report="$(bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" 
   echo "maturity gate failed: data extent assertions failed" >&2
   fail=1
 fi
-if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
-  if ! embedded_targets_report="$(bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" "${pointer_inventory_xref}" "${EMBEDDED_POINTER_TARGETS_FILE}" 2>&1)"; then
-    printf '%s\n' "${embedded_targets_report}" >&2
-    echo "maturity gate failed: embedded pointer target registry is stale" >&2
-    fail=1
-  fi
+if ! embedded_targets_report="$(bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" "${pointer_inventory_xref}" "${EMBEDDED_POINTER_TARGETS_FILE}" 2>&1)"; then
+  printf '%s\n' "${embedded_targets_report}" >&2
+  echo "maturity gate failed: embedded pointer target registry is stale" >&2
+  fail=1
 fi
-if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
-  if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" "${pointer_inventory_xref}" "${SPLIT_POINTER_TARGETS_FILE}" 2>&1)"; then
-    printf '%s\n' "${split_targets_report}" >&2
-    echo "maturity gate failed: split pointer target registry is stale" >&2
-    fail=1
-  fi
+if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" "${pointer_inventory_xref}" "${SPLIT_POINTER_TARGETS_FILE}" 2>&1)"; then
+  printf '%s\n' "${split_targets_report}" >&2
+  echo "maturity gate failed: split pointer target registry is stale" >&2
+  fail=1
 fi
-if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
-  if ! embedded_audit_report="$(python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" "${ASM_FILE}" 2>&1)"; then
-    printf '%s\n' "${embedded_audit_report}" >&2
-    echo "maturity gate failed: embedded pointer audit failed" >&2
-    fail=1
-  fi
+if ! embedded_audit_report="$(python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" "${ASM_FILE}" 2>&1)"; then
+  printf '%s\n' "${embedded_audit_report}" >&2
+  echo "maturity gate failed: embedded pointer audit failed" >&2
+  fail=1
 fi
 if ! pointer_table_report="$(python3 "${SCRIPT_DIR}/pointer_table_body_check.py" "${ASM_FILE}" --strict 2>&1)"; then
   printf '%s\n' "${pointer_table_report}" >&2
@@ -104,86 +96,57 @@ if [[ "${data_noncompliant}" != "0" ]]; then
   echo "maturity gate failed: noncompliant data labels remain (${data_noncompliant})" >&2
   fail=1
 fi
-if [[ "${PROCEDURE_CONTRACTS_REQUIRED}" == "1" ]]; then
-  if [[ "${proc_total}" == "unknown" || "${proc_documented}" == "unknown" ]]; then
-    echo "maturity gate failed: procedure-contract audit could not read callable procedure counts" >&2
-    fail=1
-  elif (( proc_total > 0 && proc_documented < MIN_MATURITY_DOCUMENTED_PROCEDURES )); then
-    echo "maturity gate failed: procedure-contract audit skipped (${proc_documented}/${proc_total} documented callables; minimum ${MIN_MATURITY_DOCUMENTED_PROCEDURES})" >&2
-    fail=1
-  fi
-  if [[ "${global_total}" == "unknown" || "${global_documented}" == "unknown" ]]; then
-    echo "maturity gate failed: procedure-contract audit could not read global code-label counts" >&2
-    fail=1
-  elif (( global_total > 0 && global_documented < MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS )); then
-    echo "maturity gate failed: procedure-contract audit skipped (${global_documented}/${global_total} documented global code labels; minimum ${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS})" >&2
-    fail=1
-  fi
+if [[ "${proc_total}" == "unknown" || "${proc_documented}" == "unknown" ]]; then
+  echo "maturity gate failed: procedure-contract audit could not read callable procedure counts" >&2
+  fail=1
+elif (( proc_total > 0 && proc_documented < MIN_MATURITY_DOCUMENTED_PROCEDURES )); then
+  echo "maturity gate failed: procedure-contract audit skipped (${proc_documented}/${proc_total} documented callables; minimum ${MIN_MATURITY_DOCUMENTED_PROCEDURES})" >&2
+  fail=1
+fi
+if [[ "${global_total}" == "unknown" || "${global_documented}" == "unknown" ]]; then
+  echo "maturity gate failed: procedure-contract audit could not read global code-label counts" >&2
+  fail=1
+elif (( global_total > 0 && global_documented < MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS )); then
+  echo "maturity gate failed: procedure-contract audit skipped (${global_documented}/${global_total} documented global code labels; minimum ${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS})" >&2
+  fail=1
 fi
 
-# Semantic-claims gold-closeout gate. Opted-in projects (SEMANTIC_CLAIMS_REQUIRED=1,
-# set by new scaffolds) use maturity mode, which additionally requires at least
-# one real claim — a sparse ledger is only acceptable pass-time, not at maturity.
-# Legacy projects are advisory and the checker exits 0 on its own, so this never
-# fails an unopted legacy project.
-sc_mode="advisory"
-if [[ "${SEMANTIC_CLAIMS_REQUIRED}" == "1" ]]; then
-  sc_mode="maturity"
-fi
 if ! python3 "${SCRIPT_DIR}/project_semantic_claims_check.py" \
-    "${ASM_FILE}" "${SEMANTIC_CLAIMS_FILE}" --mode "${sc_mode}"; then
+    "${ASM_FILE}" "${SEMANTIC_CLAIMS_FILE}" --mode maturity; then
   echo "maturity gate failed: semantic-claims check failed" >&2
   fail=1
 fi
 
-if [[ "${LEGACY_RETROFIT_REQUIRED}" == "1" ]]; then
-  if ! bash "${SCRIPT_DIR}/project_legacy_retrofit_check.sh" "$1" --require; then
-    echo "maturity gate failed: legacy retrofit audit check failed" >&2
-    fail=1
-  fi
+if ! bash "${SCRIPT_DIR}/project_policy_baseline_check.sh" "$1" --require; then
+  echo "maturity gate failed: policy baseline audit check failed" >&2
+  fail=1
 fi
 
-if [[ "${WORKING_NOTES_MATURITY_REQUIRED}" == "1" ]]; then
-  if ! bash "${SCRIPT_DIR}/working_notes_maturity_check.sh" \
-      "${WORKING_NOTES_FILE}" "${MAX_MATURITY_WORKING_NOTES_LINES}" \
-      "${PROGRESS_SCORECARD_FILE}"; then
-    echo "maturity gate failed: working-notes pruning check failed" >&2
-    fail=1
-  fi
+if ! bash "${SCRIPT_DIR}/working_notes_maturity_check.sh" \
+    "${WORKING_NOTES_FILE}" "${MAX_MATURITY_WORKING_NOTES_LINES}" \
+    "${PROGRESS_SCORECARD_FILE}"; then
+  echo "maturity gate failed: working-notes pruning check failed" >&2
+  fail=1
 fi
 
-if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" || -f "${DATA_FORMAT_TARGETS_FILE}" ]]; then
-  data_format_args=(
-    "${DATA_FORMAT_TARGETS_FILE}"
-    --doc-root "${DOC_ROOT}"
-    --mode maturity
-  )
-  if [[ "${DATA_FORMAT_TARGETS_REQUIRED}" == "1" ]]; then
-    data_format_args+=(--required)
-  fi
-  if ! python3 "${SCRIPT_DIR}/data_format_targets_check.py" \
-      "${data_format_args[@]}"; then
-    echo "maturity gate failed: data-format target inventory is incomplete" >&2
-    fail=1
-  fi
+if ! python3 "${SCRIPT_DIR}/data_format_targets_check.py" \
+    "${DATA_FORMAT_TARGETS_FILE}" \
+    --doc-root "${DOC_ROOT}" \
+    --mode maturity \
+    --required; then
+  echo "maturity gate failed: data-format target inventory is incomplete" >&2
+  fail=1
 fi
 
-if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" || -f "${DATA_BLOB_DISPOSITIONS_FILE}" ]]; then
-  data_blob_args=(
-    "${DATA_BLOB_DISPOSITIONS_FILE}"
-    --doc-root "${DOC_ROOT}"
-    --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json"
-    --asm "${ASM_FILE}"
-    --mode maturity
-  )
-  if [[ "${DATA_BLOB_DISPOSITIONS_REQUIRED}" == "1" ]]; then
-    data_blob_args+=(--required)
-  fi
-  if ! python3 "${SCRIPT_DIR}/data_blob_dispositions_check.py" \
-      "${data_blob_args[@]}"; then
-    echo "maturity gate failed: data-blob disposition inventory is incomplete" >&2
-    fail=1
-  fi
+if ! python3 "${SCRIPT_DIR}/data_blob_dispositions_check.py" \
+    "${DATA_BLOB_DISPOSITIONS_FILE}" \
+    --doc-root "${DOC_ROOT}" \
+    --data-coverage "${DOC_ROOT}/inventory/pass/data_coverage.json" \
+    --asm "${ASM_FILE}" \
+    --mode maturity \
+    --required; then
+  echo "maturity gate failed: data-blob disposition inventory is incomplete" >&2
+  fail=1
 fi
 
 # Constantization smell (advisory, independent of the hard gates): a game of any

@@ -225,13 +225,12 @@ test_semantic_evidence_rejects_bad_cli_and_read_errors() {
   assert_exit 65 python3 "${CHECK}" "${asm}" "${crosswalk}"
 }
 
-test_semantic_evidence_is_opt_in_process_advisory() {
+test_semantic_evidence_is_universal_process_advisory() {
   local process_check
   process_check="$(cat "${REPO_ROOT}/scripts/project_process_check.sh")"
-  assert_match 'PROOF_DEBT_REQUIRED.*==.*1' "${process_check}" \
-    "legacy projects must stay outside the new advisory"
   assert_match 'semantic_evidence_check.py' "${process_check}" \
-    "opted-in process checks must surface the signal"
+    "every project's process check must surface the signal"
+  assert_not_match 'PROOF_DEBT_REQUIRED' "${process_check}"
   if printf '%s' "${process_check}" | grep -q 'semantic_evidence_check.py.*--strict'; then
     fail "corpus calibration does not support making the shared check strict"
   fi

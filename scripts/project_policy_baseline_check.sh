@@ -29,4 +29,4 @@ if [[ "${MODE_ARG}" == "--require" ]]; then
   args+=(--require)
 fi
 
-python3 "${SCRIPT_DIR}/legacy_retrofit_audit_check.py" "${args[@]}"
+python3 "${SCRIPT_DIR}/policy_baseline_audit_check.py" "${args[@]}"

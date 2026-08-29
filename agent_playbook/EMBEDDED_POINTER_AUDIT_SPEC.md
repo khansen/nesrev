@@ -189,7 +189,8 @@ guardrails (confirm the audit passes). Never mutate the repo to test.
 
 ## Rollout
 
-- Keep per-project opt-in (`EMBEDDED_POINTER_AUDIT_REQUIRED=1`).
+- Run the audit for every project; missing canonical inventories are defects,
+  not a way to suppress the check.
 - Land improvements incrementally; gate each behind the corpus above so no new
   false-positive confirmation reaches the guardrail list.
 - Prioritize 1 and 2 (they fix the observed false-positive inflation and the

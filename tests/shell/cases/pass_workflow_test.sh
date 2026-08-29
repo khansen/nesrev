@@ -50,8 +50,35 @@ EOF
   printf 'old_name,new_name,reason,confidence,pass_id\n' \
     > "${root}/docs/reverse_engineering/inventory/renames.csv"
   cat > "${root}/docs/reverse_engineering/inventory/kpis.conf" <<'EOF'
-MAX_ACTIVE_MAGIC_IMMEDIATES=999999
+MAX_ACTIVE_MAGIC_IMMEDIATES=1000
 EOF
+  cat > "${root}/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'EOF'
+# Semantic Claims
+
+No claims recorded yet.
+EOF
+  printf 'label,expected_size,reason\n' \
+    > "${root}/docs/reverse_engineering/inventory/data_extent_assertions.csv"
+  cat > "${root}/docs/reverse_engineering/inventory/data_format_targets.csv" <<'EOF'
+family,disposition,artifact,evidence
+levels_rooms_maps,not_yet_reviewed,,fixture pending review
+objects_actors_enemies_hazards,not_yet_reviewed,,fixture pending review
+items_pickups_powerups,not_yet_reviewed,,fixture pending review
+projectiles_collision,not_yet_reviewed,,fixture pending review
+behavior_state_movement_animation,not_yet_reviewed,,fixture pending review
+metasprites_sprite_animation,not_yet_reviewed,,fixture pending review
+graphics_tiles_chr_nametables,not_yet_reviewed,,fixture pending review
+ppu_packet_update_streams,not_yet_reviewed,,fixture pending review
+audio_music_jingles,not_yet_reviewed,,fixture pending review
+audio_sfx_cues,not_yet_reviewed,,fixture pending review
+password_save_progression,not_yet_reviewed,,fixture pending review
+EOF
+  printf 'label,disposition,format,artifact,consumer_evidence,pointer_evidence,extent_evidence,reflow_status,notes\n' \
+    > "${root}/docs/reverse_engineering/inventory/data_blob_dispositions.csv"
+  printf 'pass_id,corridor,subject,kind,deferral,revisit_condition,status\n' \
+    > "${root}/docs/reverse_engineering/inventory/deferrals.csv"
+  printf 'signal,reason,pass_id\n' \
+    > "${root}/docs/reverse_engineering/inventory/proof_debt_acknowledged.csv"
 }
 
 _write_pass_zero_scorecard() {
@@ -223,7 +250,7 @@ test_new_project_process_check_accepts_recorded_pass_one_analogue() {
   analogue_slug="$(unique_slug analogue_source)"
   trap "cleanup_project ${slug}; cleanup_project ${analogue_slug}" EXIT
   _make_workflow_project "${slug}" "none"
-  _make_workflow_project "${analogue_slug}" "legacy"
+  _make_workflow_project "${analogue_slug}" "none"
   _write_pass_one_scorecard \
     "${slug}" \
     "Analogue: ${analogue_slug} (reused the reset and NMI vocabulary; packet layout differed)."
@@ -330,19 +357,12 @@ test_project_process_check_rejects_missing_generated_inventory() {
   assert_match "commit the complete generated inventory set" "${output}"
 }
 
-test_project_process_check_accepts_optional_data_format_inventory_under_set_u() {
+test_project_process_check_requires_canonical_data_format_inventory_under_set_u() {
   local slug; slug="$(unique_slug process_optional_data_format)"
   trap "cleanup_project ${slug}" EXIT
-  _make_workflow_project "${slug}" "legacy"
-  _write_pass_zero_scorecard "${slug}"
-
-  # DATA_FORMAT_TARGETS_REQUIRED is intentionally unset here. On bash 3.2,
-  # expanding an empty optional-args array under set -u aborts before the checker
-  # runs; this fixture pins the optional-file path that triggered that failure.
-  cat > "projects/${slug}/docs/reverse_engineering/inventory/data_format_targets.csv" <<'CSV'
-family,disposition,artifact,evidence
-levels_rooms_maps,not_yet_reviewed,,test fixture exercises optional process-time data-format inventory
-CSV
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
 
   local output
   output="$(bash "${PROCESS_CHECK}" "${slug}")"
@@ -481,10 +501,10 @@ EOF
   bash "${PROCESS_CHECK}" "${slug}" >/dev/null
 }
 
-test_project_process_check_skips_scorecard_lifecycle_for_legacy_imports() {
+test_project_process_check_enforces_scorecard_lifecycle_for_imported_projects() {
   local slug; slug="$(unique_slug process_lifecycle_legacy)"
   trap "cleanup_project ${slug}" EXIT
-  _make_workflow_project "${slug}" "legacy"
+  _make_workflow_project "${slug}" "none"
   cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -492,10 +512,16 @@ test_project_process_check_skips_scorecard_lifecycle_for_legacy_imports() {
 | 1 | Imported stale pass | 0 / 0 | 0 | 0 | 0 | 0 | 0 | pass | pending | 0 | Imported history. |
 EOF
 
-  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "1" "imported scorecard lifecycle drift must fail universally"
+  assert_match "non-latest pass 1 has docs_check='pending'" "${output}"
 }
 
-test_project_process_check_enforces_scorecard_lifecycle_when_required() {
+test_project_policy_rejects_scorecard_lifecycle_switch() {
   local slug; slug="$(unique_slug process_lifecycle_required)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -516,8 +542,8 @@ EOF
   rc=$?
   set -e
 
-  assert_eq "${rc}" "1" "opted-in scorecard lifecycle drift must fail process-check"
-  assert_match "non-latest pass 1 has docs_check='pending'" "${output}"
+  assert_eq "${rc}" "1" "removed scorecard lifecycle switch must fail config validation"
+  assert_match "SCORECARD_LIFECYCLE_REQUIRED is a removed quality-policy switch" "${output}"
 }
 
 test_project_process_check_enforces_current_pass_formatted_data_disposition() {
@@ -527,9 +553,6 @@ test_project_process_check_enforces_current_pass_formatted_data_disposition() {
   _write_pass_one_scorecard \
     "${slug}" \
     "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
-  cat >> "projects/${slug}/project.conf" <<'EOF'
-DATA_BLOB_DISPOSITIONS_REQUIRED="1"
-EOF
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
 ; Format: two 4-byte OAM records [y, tile, attributes, x].
@@ -976,13 +999,19 @@ PY
     "verification must publish the xasm v2 xref for downstream checks"
 }
 
-test_legacy_project_process_check_does_not_require_analogue_record() {
+test_every_project_process_check_requires_analogue_record() {
   local slug; slug="$(unique_slug analogue_legacy)"
   trap "cleanup_project ${slug}" EXIT
-  _make_workflow_project "${slug}" "legacy"
+  _make_workflow_project "${slug}" "none"
   _write_pass_one_scorecard "${slug}" "Pre-contract project history."
 
-  bash "${PROCESS_CHECK}" "${slug}" >/dev/null
+  local output rc
+  set +e
+  output="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "1" "every project must record a pass-1 analogue decision"
+  assert_match "pass 1 notes must record 'Analogue:" "${output}"
 }
 
 test_pass_start_emits_selection_briefing_not_unmaintained_gate_ledger() {
@@ -2023,7 +2052,6 @@ test_make_pass_closeout_rerun_repairs_pending_rework_before_process_check() {
   local slug; slug="$(unique_slug pass_closeout_rework_rerun)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
-  printf 'PROOF_DEBT_REQUIRED=1\n' >> "projects/${slug}/project.conf"
 
   cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
@@ -2149,7 +2177,6 @@ test_project_pass_closeout_external_script_uses_declared_repo_root() {
   (
     cd "${target_repo}"
     _make_workflow_project "${slug}" "none"
-    printf 'PROOF_DEBT_REQUIRED=1\n' >> "projects/${slug}/project.conf"
     cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
 |---|---|---|---|---|---|---|---|---|---|---:|---|
@@ -2954,9 +2981,10 @@ test_process_check_reports_hardware_drift_advisory_without_failing() {
   local slug; slug="$(unique_slug hw_drift_process)"
   local peer; peer="$(unique_slug hw_drift_peer)"
   trap "cleanup_project ${slug}; cleanup_project ${peer}" EXIT
-  _make_workflow_project "${slug}" "legacy"
-  _make_workflow_project "${peer}" "legacy"
-  _write_pass_one_scorecard "${slug}" "Pre-contract project history."
+  _make_workflow_project "${slug}" "none"
+  _make_workflow_project "${peer}" "none"
+  _write_pass_one_scorecard "${slug}" \
+    "Analogue: none (synthetic test fixture; no prior-project pattern applies)."
 
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000

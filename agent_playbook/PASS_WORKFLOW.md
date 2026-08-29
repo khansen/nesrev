@@ -405,12 +405,11 @@ latest pass row — see [#pass-closeout](#pass-closeout). Metrics:
 
 `project-process-check` always rejects raw `|` characters in notes cells
 because Markdown treats them as column delimiters; write pipe-shaped formats
-such as `bank|$addr` in prose form (`bank 1 $A64C`) instead. New clean-room
-projects also set `SCORECARD_LIFECYCLE_REQUIRED=1`, making process-check reject
-duplicate or out-of-order pass IDs and historical rows whose `verify` or
-`docs_check` cell is blank/`pending`. The latest row may stay pending while
-`project-pass-closeout` is still running. Legacy/imported scorecards can opt in
-after a normalization pass.
+such as `bank|$addr` in prose form (`bank 1 $A64C`) instead. It also rejects
+duplicate or out-of-order pass IDs and historical rows whose
+`verify` or `docs_check` cell is blank/`pending`. The latest row may stay
+pending while `project-pass-closeout` is still running. Imported scorecards
+must be normalized before their next process check.
 
 1. **Pass count.** Mature project target: `<= 12` major passes to
    the quality bar. Count meaningful edit/verify passes.
@@ -464,15 +463,16 @@ it as rework or record an explicit deferral before closeout. Do not rationalize
 an unexplained delta after the fact or reverse a correct edit merely to restore
 the earlier number.
 
-<a id="legacy-retrofit-scorecard-artifact"></a>
-### Legacy Retrofit
+<a id="policy-baseline-scorecard-artifact"></a>
+### Policy Baseline Audit
 
-Legacy refresh uses a scorecard `notes` marker
-`legacy-retrofit-audit:` with fields `semantic_claims`, `procedures`,
+Every project's maturity audit uses a scorecard `notes` marker
+`policy-baseline-audit:` with fields `semantic_claims`, `procedures`,
 `global_code_labels`, `retained_headerless`, and `action`. Denominators are
 live detail-line counts; `0/0` is complete; zero undocumented headers are not
-required. Validate with
-`make project-legacy-retrofit-check PROJECT=<slug> REQUIRE=1`.
+required. Maturity requires `semantic_claims=created` or `reviewed` and validates
+the live ledger. Validate with
+`make project-policy-baseline-check PROJECT=<slug> REQUIRE=1`.
 
 <a id="raw-ram-prioritization"></a>
 ## Raw-RAM Symbolization Prioritization

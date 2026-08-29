@@ -26,7 +26,7 @@ _make_scaffold() {
   mkdir -p "projects/${slug}/docs/reverse_engineering/inventory"
   # constant_kpi config the sync script reads; needs MAX_ACTIVE_MAGIC_IMMEDIATES
   cat > "projects/${slug}/docs/reverse_engineering/inventory/constant_kpi.txt" <<'EOF'
-MAX_ACTIVE_MAGIC_IMMEDIATES=999999
+MAX_ACTIVE_MAGIC_IMMEDIATES=1000
 EOF
   # Augment project.conf with CONST_KPI_FILE
   cat >> "projects/${slug}/project.conf" <<EOF

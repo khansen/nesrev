@@ -82,7 +82,7 @@ if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
   fi
 fi
 
-python3 - "$1" "${FORMAT}" "${ASM_FILE}" "${WARN_BASELINE_FILE}" "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/unknowns.md" "${DOC_ROOT}/inventory/pass" "${DOC_ROOT}/inventory/raw_ram_review.csv" "${SCRIPT_DIR}" "${CROSSWALK_FILE}" "${DOC_ROOT}/SEMANTIC_CLAIMS.md" "${RENAMES_FILE}" "${WORKING_NOTES_FILE}" "${DOC_ROOT}/inventory/deferrals.csv" "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv" "${PROOF_DEBT_REQUIRED}" <<'PY'
+python3 - "$1" "${FORMAT}" "${ASM_FILE}" "${WARN_BASELINE_FILE}" "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/unknowns.md" "${DOC_ROOT}/inventory/pass" "${DOC_ROOT}/inventory/raw_ram_review.csv" "${SCRIPT_DIR}" "${CROSSWALK_FILE}" "${DOC_ROOT}/SEMANTIC_CLAIMS.md" "${RENAMES_FILE}" "${WORKING_NOTES_FILE}" "${DOC_ROOT}/inventory/deferrals.csv" "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv" <<'PY'
 import csv
 import json
 import os
@@ -95,7 +95,7 @@ from pathlib import Path
     slug, out_format, asm_file, warn_file, scorecard_file, unknowns_file,
     pass_dir, raw_ram_review_path, script_dir, crosswalk_file,
     semantic_claims_file, renames_file, working_notes_file,
-    deferrals_file, proof_debt_ack_file, proof_debt_required,
+    deferrals_file, proof_debt_ack_file,
 ) = sys.argv[1:]
 sys.path.insert(0, script_dir)
 import proof_debt
@@ -1674,23 +1674,27 @@ raw_ram_clusters = build_raw_ram_clusters(
 
 vocabulary_drift = []
 vocabulary_families = []
-if proof_debt_required == "1":
-    import subprocess as _sp
-    _r = _sp.run(
-        ["python3", os.path.join(script_dir, "symbol_vocabulary_check.py"),
-         asm_file, crosswalk_file],
-        capture_output=True, text=True,
+import subprocess as _sp
+_r = _sp.run(
+    ["python3", os.path.join(script_dir, "symbol_vocabulary_check.py"),
+     asm_file, crosswalk_file],
+    capture_output=True, text=True,
+)
+if _r.returncode != 0:
+    sys.stderr.write(_r.stderr)
+    raise SystemExit(
+        f"project-next-pass: symbol vocabulary analysis failed with exit {_r.returncode}"
     )
-    vocabulary_drift = [
-        ln[len("warn: "):] if ln.startswith("warn: ") else ln
-        for ln in _r.stdout.splitlines()
-        if ln.startswith("warn:")
-    ]
-    # the family names themselves, for the contradiction check below
-    vocabulary_families = re.findall(
-        r"^warn:\s+([A-Za-z][A-Za-z0-9]*): \d+ symbols", _r.stdout, re.M
-    )
-proof_debt_signals = [] if proof_debt_required != "1" else proof_debt.collect(
+vocabulary_drift = [
+    ln[len("warn: "):] if ln.startswith("warn: ") else ln
+    for ln in _r.stdout.splitlines()
+    if ln.startswith("warn:")
+]
+# the family names themselves, for the contradiction check below
+vocabulary_families = re.findall(
+    r"^warn:\s+([A-Za-z][A-Za-z0-9]*): \d+ symbols", _r.stdout, re.M
+)
+proof_debt_signals = proof_debt.collect(
     scorecard=Path(scorecard_file),
     crosswalk=Path(crosswalk_file),
     semantic_claims=Path(semantic_claims_file),
@@ -1706,22 +1710,21 @@ proof_debt_signals = [] if proof_debt_required != "1" else proof_debt.collect(
 # prose, the trigger exists as a warning, and the recommender — which is what
 # an unattended operator actually reads — can never suggest it.
 identity_evidence = None
-if proof_debt_required == "1":
-    _ids = {s["id"] for s in proof_debt_signals}
-    _repeat = next((s for s in proof_debt_signals if s["id"] == "deferral_repeat"), None)
-    if _repeat:
-        identity_evidence = {
-            "summary": "A single subject has been deferred repeatedly; fuse the evidence later passes produced and decide it.",
-            "reason": _repeat["text"],
-            # Three strikes means the cheap corridors have been tried and did
-            # not close this, so it outranks them rather than queueing behind.
-            "urgent": True,
-        }
-    elif "crosswalk_unmapped" in _ids and vocabulary_drift:
-        identity_evidence = {
-            "summary": "A dominant symbol family has no reference-term match while the crosswalk stays unmapped; an identity pass can close both.",
-            "reason": vocabulary_drift[0],
-        }
+_ids = {s["id"] for s in proof_debt_signals}
+_repeat = next((s for s in proof_debt_signals if s["id"] == "deferral_repeat"), None)
+if _repeat:
+    identity_evidence = {
+        "summary": "A single subject has been deferred repeatedly; fuse the evidence later passes produced and decide it.",
+        "reason": _repeat["text"],
+        # Three strikes means the cheap corridors have been tried and did
+        # not close this, so it outranks them rather than queueing behind.
+        "urgent": True,
+    }
+elif "crosswalk_unmapped" in _ids and vocabulary_drift:
+    identity_evidence = {
+        "summary": "A dominant symbol family has no reference-term match while the crosswalk stays unmapped; an identity pass can close both.",
+        "reason": vocabulary_drift[0],
+    }
 recommended = choose_recommended_pass(generic_summary, baseline, raw_ram_candidates, raw_ram_clusters, identity_evidence)
 
 recommended = apply_identity_interception(recommended, vocabulary_families, identity_evidence)
@@ -1802,12 +1805,10 @@ cluster_candidates = make_cluster_candidates(
 follow_up = make_follow_up(recommended["type"], cluster_candidates)
 
 operator_signals = extract_operator_signals(scorecard_file, working_notes_path, last_pass)
-if proof_debt_required == "1":
-    # Proof debt reports deferrals from the ledger, with a rate and a subject.
-    # Leaving the prose-derived latest-pass note in place would print the same
-    # condition twice in adjacent blocks under two different definitions. It is
-    # not redundant in general: for a project that has not opted in, this is
-    # the only deferral signal there is.
+# Proof debt reports deferrals from the ledger, with a rate and a subject.
+# Leaving the prose-derived latest-pass note in place would print the same
+# condition twice in adjacent blocks under two different definitions.
+if any(signal["id"].startswith("deferral") for signal in proof_debt_signals):
     operator_signals = [
         s for s in operator_signals if s.get("kind") != "latest_pass_note"
     ]

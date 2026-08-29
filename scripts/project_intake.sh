@@ -69,10 +69,6 @@ case "${NESREV_RECOVERY_STATUS}" in
     done
     recovery_summary+="."
     ;;
-  legacy)
-    # Existing projects created before the discovery-state field remain valid.
-    recovery_summary=""
-    ;;
   *)
     echo "error: invalid NESREV_RECOVERY_STATUS='${NESREV_RECOVERY_STATUS}'; expected pending, none, or configured." >&2
     exit 2
@@ -98,6 +94,7 @@ echo "[0/8] Preparing intake registry paths"
 # project-docs-check sees ordinary docs in either state — no
 # suppression env-var or backdoor.
 ONBOARDING_SNAPSHOT=""
+KPI_SNAPSHOT=""
 xasm_seed_log=""
 baseline_tmp=""
 _intake_cleanup() {
@@ -120,6 +117,13 @@ _intake_cleanup() {
       echo "intake failed (rc=${rc}); restored ONBOARDING.md from snapshot" >&2
     fi
     rm -f "${ONBOARDING_SNAPSHOT}"
+  fi
+  if [[ -n "${KPI_SNAPSHOT}" && -f "${KPI_SNAPSHOT}" ]]; then
+    if (( rc != 0 )) && [[ -f "${KPI_FILE}" ]]; then
+      cp "${KPI_SNAPSHOT}" "${KPI_FILE}"
+      echo "intake failed (rc=${rc}); restored kpis.conf from snapshot" >&2
+    fi
+    rm -f "${KPI_SNAPSHOT}"
   fi
   exit "${rc}"
 }
@@ -212,6 +216,11 @@ else
 fi
 
 echo "[2/8] Verifying intake baseline"
+if grep -qF '# Intake calibration pending.' "${KPI_FILE}"; then
+  KPI_SNAPSHOT="$(mktemp)"
+  cp "${KPI_FILE}" "${KPI_SNAPSHOT}"
+  python3 "${SCRIPT_DIR}/kpi_ratchet_calibrate.py" "${ASM_FILE}" "${KPI_FILE}"
+fi
 export NESREV_XREF_FILE="${xref_json}"
 PROJECT_VERIFY_REFRESH_INVENTORY=1 \
 PROJECT_VERIFY_REFRESH_SCRIPT="${SCRIPT_DIR}/refresh_inventory.sh" \
@@ -243,6 +252,10 @@ bash "${SCRIPT_DIR}/project_scorecard_sync.sh" "$1" 0
 if [[ -n "${ONBOARDING_SNAPSHOT}" ]]; then
   rm -f "${ONBOARDING_SNAPSHOT}"
   ONBOARDING_SNAPSHOT=""
+fi
+if [[ -n "${KPI_SNAPSHOT}" ]]; then
+  rm -f "${KPI_SNAPSHOT}"
+  KPI_SNAPSHOT=""
 fi
 trap - EXIT
 

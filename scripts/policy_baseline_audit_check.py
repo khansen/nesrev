@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate legacy-retrofit audit markers in project scorecards."""
+"""Validate universal policy-baseline audit markers in project scorecards."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 MARKER_RE = re.compile(
-    r"legacy-retrofit-audit:\s*"
+    r"policy-baseline-audit:\s*"
     r"semantic_claims=(created|reviewed|advisory);\s*"
     r"procedures=(\d+)/(\d+);\s*"
     r"global_code_labels=(\d+)/(\d+);\s*"
@@ -56,7 +56,7 @@ def parse_scorecard_marker(scorecard_path: Path) -> tuple[Marker | None, list[st
             header = cells
             header_index = {name: idx for idx, name in enumerate(header)}
             continue
-        if "legacy-retrofit-audit:" not in raw:
+        if "policy-baseline-audit:" not in raw:
             continue
         if header is None or header_index is None:
             errors.append(f"{scorecard_path}:{line_no}: marker appears before scorecard header")
@@ -71,19 +71,19 @@ def parse_scorecard_marker(scorecard_path: Path) -> tuple[Marker | None, list[st
             errors.append(f"{scorecard_path}:{line_no}: marker row missing numeric pass_id or notes cell")
             continue
 
-        marker_start = notes.find("legacy-retrofit-audit:")
+        marker_start = notes.find("policy-baseline-audit:")
         if marker_start == -1:
-            errors.append(f"{scorecard_path}:{line_no}: legacy-retrofit-audit marker must live in the notes column")
+            errors.append(f"{scorecard_path}:{line_no}: policy-baseline-audit marker must live in the notes column")
             continue
         marker_text = notes[marker_start:].strip()
         match = MARKER_RE.match(marker_text)
         if match is None:
-            errors.append(f"{scorecard_path}:{line_no}: malformed legacy-retrofit-audit marker")
+            errors.append(f"{scorecard_path}:{line_no}: malformed policy-baseline-audit marker")
             continue
 
         action = match.group(7).strip()
         if not action:
-            errors.append(f"{scorecard_path}:{line_no}: legacy-retrofit-audit action must not be empty")
+            errors.append(f"{scorecard_path}:{line_no}: policy-baseline-audit action must not be empty")
             continue
 
         markers.append(
@@ -109,7 +109,7 @@ def parse_scorecard_marker(scorecard_path: Path) -> tuple[Marker | None, list[st
 
 def run_detail_kpi(script_path: Path, asm_path: Path, metric_name: str) -> tuple[int, list[str]]:
     errors: list[str] = []
-    with tempfile.NamedTemporaryFile(prefix="legacy_retrofit_detail.", delete=False) as detail_file:
+    with tempfile.NamedTemporaryFile(prefix="policy_baseline_detail.", delete=False) as detail_file:
         detail_path = Path(detail_file.name)
     try:
         env = dict(os.environ)
@@ -185,12 +185,12 @@ def validate(args: argparse.Namespace) -> int:
     if marker is None:
         if args.require:
             print(
-                "FAIL: legacy current-gold assertion requires a valid "
-                "legacy-retrofit-audit marker",
+                "FAIL: universal current-policy audit requires a valid "
+                "policy-baseline-audit marker",
                 file=sys.stderr,
             )
             return 1
-        print("OK: no legacy-retrofit-audit marker recorded (advisory)")
+        print("OK: no policy-baseline-audit marker recorded (advisory)")
         return 0
 
     proc_detail_count, proc_errors = run_detail_kpi(
@@ -228,6 +228,10 @@ def validate(args: argparse.Namespace) -> int:
             scripts_dir,
         )
     )
+    if args.require and marker.semantic_claims == "advisory":
+        errors.append(
+            "universal current-policy audit requires semantic_claims=created or reviewed"
+        )
 
     complete = (
         marker.procedures_reviewed == marker.procedures_denominator
@@ -235,7 +239,7 @@ def validate(args: argparse.Namespace) -> int:
     )
     if args.require and not complete:
         errors.append(
-            "legacy current-gold assertion requires complete audit fractions "
+            "universal current-policy audit requires complete audit fractions "
             f"(procedures={marker.procedures_reviewed}/{marker.procedures_denominator}; "
             f"global_code_labels={marker.global_reviewed}/{marker.global_denominator})"
         )
@@ -247,7 +251,7 @@ def validate(args: argparse.Namespace) -> int:
 
     status = "complete" if complete else "in-progress"
     print(
-        "OK: legacy retrofit audit marker "
+        "OK: policy baseline audit marker "
         f"{status} at {scorecard_path}:{marker.line_no} "
         f"(semantic_claims={marker.semantic_claims}; "
         f"procedures={marker.procedures_reviewed}/{marker.procedures_denominator}; "

@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+python3 "${SCRIPT_DIR}/project_policy_config_check.py" kpis "${KPI_FILE}"
 
 TMPDIR_PROJECT_VERIFY="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_PROJECT_VERIFY}"' EXIT
@@ -57,38 +58,19 @@ bash "${SCRIPT_DIR}/pointer_targets_check.sh" \
   "${verification_xref}" \
   "${POINTER_TARGETS_FILE}"
 
-if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
-  bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" \
-    "${verification_xref}" \
-    "${EMBEDDED_POINTER_TARGETS_FILE}"
-fi
+bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" \
+  "${verification_xref}" \
+  "${EMBEDDED_POINTER_TARGETS_FILE}"
 
-if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
-  bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" \
-    "${verification_xref}" \
-    "${SPLIT_POINTER_TARGETS_FILE}"
-fi
+bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" \
+  "${verification_xref}" \
+  "${SPLIT_POINTER_TARGETS_FILE}"
 
-if [[ "${EMBEDDED_POINTER_AUDIT_REQUIRED}" == "1" ]]; then
-  python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" \
-    "${ASM_FILE}"
-fi
+python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" \
+  "${ASM_FILE}"
 
-base_readability_args=()
-if [[ "${BASE_READABILITY_REQUIRED}" == "1" ]]; then
-  # Hard gate for opted-in projects: fails if hex #$00/#$01 reappear in
-  # index-register / unit-step quantity contexts.
-  base_readability_args+=(--strict)
-fi
-if [[ "${BASE_READABILITY_EQU_REQUIRED}" == "1" ]]; then
-  # Separate migration gate for semantic quantity constants. New scaffolds opt
-  # in; existing projects remain unaffected until their .EQU block is cleaned.
-  base_readability_args+=(--strict-equates)
-fi
-if (( ${#base_readability_args[@]} > 0 )); then
-  bash "${SCRIPT_DIR}/base_readability_kpi.sh" \
-    "${ASM_FILE}" "${base_readability_args[@]}"
-fi
+bash "${SCRIPT_DIR}/base_readability_kpi.sh" \
+  "${ASM_FILE}" --strict --strict-equates
 
 # Hard gate for established whole-body findings; newly detected prefix-only
 # findings stay advisory here until the corpus migration is complete. Maturity

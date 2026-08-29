@@ -15,55 +15,9 @@ load_project_conf() {
     exit 65
   fi
 
-  # Reset optional recovery settings before sourcing so repeated calls in one
-  # shell cannot leak one project's controls into another project.
-  NESREV_RECOVERY_STATUS="legacy"
-  # Semantic-claims maturity opt-in (legacy projects default off). New scaffolds
-  # set SEMANTIC_CLAIMS_REQUIRED="1" in project.conf to make the check strict.
-  SEMANTIC_CLAIMS_REQUIRED="0"
-  # Procedure-contract maturity opt-in (legacy projects default off). New
-  # scaffolds set PROCEDURE_CONTRACTS_REQUIRED="1" so gold closeout cannot
-  # silently accept a zero-contract codebase after labels are mature.
-  PROCEDURE_CONTRACTS_REQUIRED="0"
-  # Legacy retrofit marker opt-in (legacy projects default off). Projects that
-  # have been re-audited against current gold policy set this to require a
-  # machine-validated scorecard marker during maturity checks.
-  LEGACY_RETROFIT_REQUIRED="0"
-  # Working-notes maturity opt-in (legacy projects default off). New scaffolds
-  # set WORKING_NOTES_MATURITY_REQUIRED="1" so gold closeout cannot silently
-  # accept a large notes file full of promotable findings or stale pass context.
-  WORKING_NOTES_MATURITY_REQUIRED="0"
-  # New scaffolds set PROOF_DEBT_REQUIRED="1". Legacy projects stay silent
-  # until they opt in: these signals read authored ledgers that predate most
-  # of the corpus, so firing them on work done under an earlier process
-  # reports a debt the project never had the chance to incur.
-  PROOF_DEBT_REQUIRED="0"
-  # Core data-format disposition opt-in (legacy projects default off). New
-  # scaffolds set DATA_FORMAT_TARGETS_REQUIRED="1" so gold closeout cannot
-  # silently skip map/room/object/item/audio/graphics format disposition.
-  DATA_FORMAT_TARGETS_REQUIRED="0"
-  # Per-blob data-format disposition opt-in (legacy projects default off). New
-  # scaffolds set DATA_BLOB_DISPOSITIONS_REQUIRED="1" so gold closeout cannot
-  # silently accept large opaque spans whose internal structure was not reviewed.
-  DATA_BLOB_DISPOSITIONS_REQUIRED="0"
-  # Embedded-pointer audit opt-in. Projects enable this once raw pointer-table
-  # debt has a reviewed baseline; legacy projects default off to avoid noisy
-  # monotonic data runs becoming accidental hard gates.
-  EMBEDDED_POINTER_AUDIT_REQUIRED="0"
-  # Base-readability gate opt-in (legacy projects default off). New scaffolds
-  # set BASE_READABILITY_REQUIRED="1" so index/count zero-one immediates and
-  # unit-step arithmetic use decimal notation from the start. Legacy projects
-  # default off so existing base-by-habit debt is not a retroactive hard gate.
-  BASE_READABILITY_REQUIRED="0"
-  # Quantity-suffixed .EQU readability opt-in. This is separate from the older
-  # immediate-literal flag because enabling it corpus-wide would retroactively
-  # turn substantial authored constant debt into hard failures. New scaffolds
-  # start clean and enforce both classes.
-  BASE_READABILITY_EQU_REQUIRED="0"
-  # Scorecard lifecycle strictness opt-in. New projects use a clean ordered
-  # scorecard and enable this; legacy projects may have imported or partial
-  # historical rows that need a separate normalization pass before strict mode.
-  SCORECARD_LIFECYCLE_REQUIRED="0"
+  # Reset recovery facts before sourcing so repeated calls in one shell cannot
+  # leak one project's controls into another project.
+  NESREV_RECOVERY_STATUS=""
   MIN_MATURITY_DOCUMENTED_PROCEDURES="1"
   MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS="1"
   MAX_MATURITY_WORKING_NOTES_LINES="120"
@@ -72,6 +26,9 @@ load_project_conf() {
   NESREV_DATAPOINTERS_FILE=""
   NESREV_INLINECALLS_FILE=""
   NESREV_DATARANGES_FILE=""
+
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project_policy_config_check.py" \
+    config "${conf}"
 
   # shellcheck disable=SC1090
   source "${conf}"
@@ -124,29 +81,25 @@ load_project_conf() {
   if [[ -z "${WORKING_NOTES_FILE:-}" ]]; then
     WORKING_NOTES_FILE="${DOC_ROOT}/WORKING_NOTES.md"
   fi
-  : "${SEMANTIC_CLAIMS_REQUIRED:=0}"
-  : "${PROCEDURE_CONTRACTS_REQUIRED:=0}"
-  : "${LEGACY_RETROFIT_REQUIRED:=0}"
-  : "${WORKING_NOTES_MATURITY_REQUIRED:=0}"
-  : "${PROOF_DEBT_REQUIRED:=0}"
-  : "${DATA_FORMAT_TARGETS_REQUIRED:=0}"
-  : "${DATA_BLOB_DISPOSITIONS_REQUIRED:=0}"
-  : "${EMBEDDED_POINTER_AUDIT_REQUIRED:=0}"
-  : "${BASE_READABILITY_REQUIRED:=0}"
-  : "${BASE_READABILITY_EQU_REQUIRED:=0}"
-  : "${SCORECARD_LIFECYCLE_REQUIRED:=0}"
   : "${MIN_MATURITY_DOCUMENTED_PROCEDURES:=1}"
   : "${MIN_MATURITY_DOCUMENTED_GLOBAL_CODE_LABELS:=1}"
   : "${MAX_MATURITY_WORKING_NOTES_LINES:=120}"
 
-  # Optional, tracked NESrev recovery controls. New projects declare these
-  # in project.conf; older projects may omit them.
-  : "${NESREV_RECOVERY_STATUS:=legacy}"
+  # Tracked NESrev recovery controls. Recovery status is an explicit discovery
+  # fact; it never selects which quality checks run or how strict they are.
   : "${NESREV_CODEPOINTERS_FILE:=}"
   : "${NESREV_CODEENTRIES_FILE:=}"
   : "${NESREV_DATAPOINTERS_FILE:=}"
   : "${NESREV_INLINECALLS_FILE:=}"
   : "${NESREV_DATARANGES_FILE:=}"
+
+  case "${NESREV_RECOVERY_STATUS}" in
+    pending|none|configured) ;;
+    *)
+      echo "error: invalid NESREV_RECOVERY_STATUS='${NESREV_RECOVERY_STATUS}'; expected pending, none, or configured" >&2
+      exit 65
+      ;;
+  esac
 
   if [[ -z "${OUT_BIN:-}" ]]; then
     OUT_BIN="${ASM_FILE/\/asm\//\/build\/}"

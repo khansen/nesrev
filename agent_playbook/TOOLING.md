@@ -471,12 +471,11 @@ while identifying nothing — and reads as resolved, so later passes build on it
 Both crosswalk header spellings are accepted; matching only the canonical one
 read thirteen projects as empty tables and silently disabled the check.
 
-Both detectors always exit `0`, and both are opt-in: they run only when
-`PROOF_DEBT_REQUIRED="1"` is set in `project.conf`. Legacy projects stay silent,
-because these checks read authored ledgers that postdate most of the corpus and
-would otherwise report a debt the project never had the chance to incur. New
-scaffolds opt in. Both run at `project-next-pass`, before corridor selection,
-and again in `project-maturity-summary` alongside coverage.
+Both detectors always exit `0`, and both run for every project. Their input
+ledgers are canonical artifacts; operational errors are hard failures while
+findings remain advisory and require review or a validated disposition. Both
+run at `project-next-pass`, before corridor selection, and again in
+`project-maturity-summary` alongside coverage.
 
 ```sh
 python3 scripts/proof_debt.py <doc_root> <crosswalk.md> [--crosswalk-only]
@@ -627,6 +626,14 @@ Use `NESREV_RECOVERY_STATUS="none"` only after discovery finds no
 required controls. The scaffold's `pending` value blocks intake so a
 plain linear-trace result cannot be committed accidentally.
 
+Project configuration records facts, not quality policy. All tracked projects
+must declare recovery status as `none` or `configured`; removed gate switches
+and unbounded KPI sentinels are rejected. `make projects-policy-check` discovers
+every tracked `projects/*/project.conf` and runs the ROM-independent universal
+configuration, artifact, process, and documentation contract. Use
+`make projects-ci` for the full local corpus when the private reference ROMs
+are available; a missing ROM is an environment failure, never an exemption.
+
 `CODEPOINTERS=`, `DATAPOINTERS=`, `CODEENTRIES=`, `INLINECALLS=`, and
 `DATARANGES=` command-line values override the
 matching configured path for one run. Use overrides to experiment, then move accepted
@@ -721,8 +728,8 @@ tables supply a constant high byte elsewhere.
 
 Normal wrappers share one fresh xref across `.DW`, embedded `.DB`, and split
 `.DB` inventories. Leaf consumers never assemble. Standalone
-`project-maturity-check` creates one temporary xref only when either `.DB`
-ledger exists and the caller did not supply `NESREV_XREF_FILE`.
+`project-maturity-check` creates one temporary xref when the caller did not
+supply `NESREV_XREF_FILE`; both canonical `.DB` ledgers consume it.
 
 `Used by:` validation remains hybrid: it reads declaration comments from asm,
 but takes symbols, routine-owned references, and pointer-table owner-to-target
@@ -738,20 +745,20 @@ structured input. Raw literal operand discovery and lexical owner attribution
 remain source-based until the general instruction artifact can preserve their
 spelling and source-layout facts.
 
-`data_format_targets.csv` is an authored maturity worklist for core data-format
-families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
-validate schema and canonical family coverage, and maturity checks additionally
-reject rows still marked `not_yet_reviewed` or `queued_static_pass`.
+`data_format_targets.csv` is the mandatory authored maturity worklist for core
+data-format families. Process checks validate schema and canonical family
+coverage, and maturity checks additionally reject rows still marked
+`not_yet_reviewed` or `queued_static_pass`.
 
-`data_blob_dispositions.csv` is a per-label worklist for long or opaque spans.
-New scaffolds enable `DATA_BLOB_DISPOSITIONS_REQUIRED=1`. `project-process-check`
-validates existing ledgers and prints advisory candidates from
+`data_blob_dispositions.csv` is the mandatory per-label worklist for long or
+opaque spans. `project-process-check` validates the ledger and prints advisory
+candidates from
 `inventory/pass/data_coverage.json`, filtering cached labels that no longer
 exist in the current assembly after a rename. At closeout, the process check
 also hard-fails when any `.DB`/`.DW` label renamed in that pass has a `Format:`
 declaration but no matching disposition row, regardless of size; this closes
 small newly named tables without rebuilding the whole pass-prep cache. Maturity
-blocks opted-in projects when candidate spans lack rows, rows remain `not_yet_reviewed` or
+blocks maturity when candidate spans lack rows, rows remain `not_yet_reviewed` or
 `queued_static_pass`, or structural rows lack consumer, pointer-search, extent,
 artifact, or reflow evidence. Exact labels or glob patterns are allowed only
 for genuinely repeated same-format spans.
@@ -789,8 +796,7 @@ named local label written as `Global@@local`. Anonymous `@` owner tokens are
 allowed because they cannot be made unambiguous in ledger prose; inactive
 historical rows are not retroactively normalized by this guard.
 
-Projects may opt into the raw `.DB` embedded-pointer audit with
-`EMBEDDED_POINTER_AUDIT_REQUIRED=1` in `project.conf`. The audit finds
+Every project runs the raw `.DB` embedded-pointer audit. The audit finds
 little-endian runs of CPU addresses (values in the $8000-$FFFF PRG address
 space, not ROM file offsets) in raw byte spans — both monotonic pointer arrays
 and non-monotonic pointer structs — scoped to the per-bank PRG window inferred
@@ -804,10 +810,8 @@ corpus live in
 [EMBEDDED_POINTER_AUDIT_SPEC.md](EMBEDDED_POINTER_AUDIT_SPEC.md).
 
 <a id="base-readability-gate"></a>
-New clean-room project scaffolds set `BASE_READABILITY_REQUIRED=1` in
-`project.conf`. Legacy projects default off and may opt in after a base pass
-reaches zero. When enabled, `project-verify` runs
-`base_readability_kpi.sh --strict`, which hard-fails when hex `#$00`/`#$01`
+`project-verify` always runs `base_readability_kpi.sh --strict`, which
+hard-fails when hex `#$00`/`#$01`
 appear in index-register (`LDX`/`LDY`/`CPX`/`CPY`) or unit-step
 (`ADC`/`SBC #$01`) quantity contexts, where the
 [Literal Base Readability](ASM_STYLE.md#literal-base-readability) rule requires
@@ -817,12 +821,11 @@ exceptions, such as hardware-register payloads, address low bytes, tiles,
 sentinels, masks, or pointer bytes. Review those sites semantically before any
 broader conversion. Run without `--strict` for a non-failing count.
 
-New scaffolds also set `BASE_READABILITY_EQU_REQUIRED=1`. That separate flag
-checks raw hex right-hand sides on constants ending in `_COUNT`, `_INDEX`,
+The same universal gate runs the separate quantity-equate check for raw hex
+right-hand sides on constants ending in `_COUNT`, `_INDEX`,
 `_IDX`, `_RELOAD`, or `_FRAMES`, excluding `ZP_`/`RAM_` address declarations.
-The separate opt-in avoids retroactively hard-failing existing constant blocks;
-legacy projects enable it after cleanup. Use `--check-equates` for an advisory
-standalone report or `--strict-equates` for the hard gate.
+Use `--check-equates` for an advisory standalone report or `--strict-equates`
+for the hard gate.
 
 `project-prior-reuse-check` turns the pass-1 scorecard analogue into a
 read-only constant-reuse shortlist. `scorecard_analogue.py` validates and
@@ -856,8 +859,8 @@ historical migration audit; normal process checks inspect only the newest pass.
 
 A finding is not proof that either field is wrong. Read the routine body and
 callers, then fix the identifier or the ledger rationale so they describe the
-same primary contract. New clean-room projects run report mode under the
-proof-debt opt-in; `--strict` exits 68 for a reviewed zero baseline.
+same primary contract. Every project runs report mode; `--strict` exits 68 for
+a reviewed zero baseline.
 
 <a id="oam-standard-prose-check"></a>
 ### Repeated standard OAM prose
@@ -870,9 +873,8 @@ local prose only for project-specific encodings or invariants. The checker
 does not match extended/nonstandard record shapes, and it excludes immutable
 review archives and generated inventory snapshots.
 
-New clean-room projects run report mode under the proof-debt opt-in. Historical
-projects remain silent until they opt in; use `--strict` (exit 69) after a
-reviewed project-local migration reaches zero.
+Every project runs report mode. Use `--strict` (exit 69) after a reviewed
+project-local migration reaches zero.
 
 <a id="negative-data-offset-check"></a>
 ### Negative indexed data-label offsets
@@ -886,8 +888,8 @@ true record origin. The checker intentionally excludes RAM/ZP `.EQU` symbols,
 code labels, unknown labels, non-indexed expressions, positive offsets, and
 larger subtractions.
 
-For new clean-room projects, `project-process-check` runs this signal in report
-mode under the existing proof-debt opt-in. Findings are advisory and must be
+`project-process-check` runs this signal in report mode for every project.
+Findings are advisory and must be
 triaged from the surrounding producer/consumer evidence: add or reuse the true
 boundary label when the operand crosses a real subrecord boundary, or retain
 the expression only when the index bias is proven. `--strict` exits 68 for a
