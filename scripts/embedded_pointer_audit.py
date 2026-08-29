@@ -376,18 +376,26 @@ def find_pointer_struct_runs(
 
 def struct_copy_deref_proof(asm_lines: list[str], owner: str, owner_cpu: int, aliases: dict[str, str]) -> str:
     """Improvement 3: confirm a struct candidate when the block is block-copied
-    into a ZP region (by label, alias, or CPU address) and that ZP pointer is
-    later dereferenced `[zp],Y`."""
+    into a ZP region (by label, alias, or CPU address) with the same traversal
+    index and that ZP pointer is later dereferenced `[zp],Y`.
+
+    Requiring one index for both sides distinguishes a real indexed block copy
+    from unrelated table lookup code that stores one coordinate through a
+    different destination index. Scratch bytes are heavily reused, so a later
+    dereference of the same ZP name is not sufficient evidence by itself.
+    """
     code = [strip_comment(line) for line in asm_lines]
     name_alt = "|".join(re.escape(n) for n in names_for_owner(owner, aliases))
-    src_re = re.compile(rf"\bLDA\s+(?:{name_alt}|\${owner_cpu:04X})\s*,\s*[XY]\b")
-    dest_re = re.compile(r"\bSTA\s+([A-Za-z_]\w*)\s*,\s*[XY]\b")
+    src_re = re.compile(rf"\bLDA\s+(?:{name_alt}|\${owner_cpu:04X})\s*,\s*([XY])\b")
+    dest_re = re.compile(r"\bSTA\s+([A-Za-z_]\w*)\s*,\s*([XY])\b")
     for i, line in enumerate(code):
-        if not src_re.search(line):
+        source_match = src_re.search(line)
+        if not source_match:
             continue
+        source_index = source_match.group(1)
         for j in range(i, min(i + 4, len(code))):
             match = dest_re.search(code[j])
-            if match:
+            if match and match.group(2) == source_index:
                 zp = match.group(1)
                 deref = re.compile(rf"[\[\(]{re.escape(zp)}[\]\)]")
                 if any(deref.search(x) for x in code):

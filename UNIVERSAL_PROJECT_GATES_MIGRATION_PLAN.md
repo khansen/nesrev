@@ -149,7 +149,7 @@ Measured on local `projects` at `c01a10ae5`, with process tooling from
 | Proof-debt analyses | 2/22 | The advisory group is silent for 20 projects |
 | Data-format targets | 4/22 | Four files exist; only Balloon Fight and Kid Icarus pass maturity |
 | Data-blob dispositions | 3/22 | Five files exist; only Balloon Fight and Kid Icarus pass maturity |
-| Embedded-pointer audit | 1/22 | 20 pass; Kung Fu and Zelda expose confirmed debt |
+| Embedded-pointer audit | 1/22 | 21 pass; Zelda exposes one confirmed raw pointer table |
 | Immediate base readability | 22/22 | Already universal in practice; the flag is redundant |
 | `.EQU` base readability | 0/22 | 19 projects fail, with 516 exact lexical fixes |
 | Scorecard lifecycle | 2/22 | 7 pass; 15 require normalization |
@@ -193,9 +193,12 @@ such ceilings:
 
 - Quantity-suffixed `.EQU` readability has 516 hex literals across 19
   projects. Devil World, Donkey Kong, and Golf are already clean.
-- The embedded-pointer audit identifies three confirmed unrelocated structures
-  in Kung Fu and one in Zelda. These need semantic pointer representation, not
-  an allowlist or disabled audit.
+- The embedded-pointer audit identifies one confirmed unrelocated structure in
+  Zelda. Implementation disproved the three original Kung Fu reports: their
+  source and destination indexes differ because they are one-byte hitbox-table
+  lookups, not block copies. The generic proof now requires the same traversal
+  index, while Zelda still needs semantic pointer representation rather than an
+  allowlist or disabled audit.
 - Fifteen scorecards fail the current lifecycle checker.
 - Urban Champion and Zelda exceed the current 120-line working-notes maturity
   budget.
@@ -337,8 +340,9 @@ Prepare local-only project commits without weakening any checker:
 
 1. Normalize the 15 failing scorecards.
 2. Convert the 516 quantity-suffixed `.EQU` values from hex to decimal.
-3. Resolve the three Kung Fu and one Zelda confirmed embedded-pointer
-   findings symbolically.
+3. Resolve Zelda's confirmed embedded-pointer finding symbolically. Keep a
+   regression fixture for the disproved Kung Fu shape so reused scratch bytes
+   cannot turn an indexed coordinate lookup into a false block-copy proof.
 4. Add missing header-only canonical ledgers where an empty state is valid.
 5. Add missing `data_extent_assertions.csv` files with only the schema until
    actual extent evidence supports rows.
@@ -524,7 +528,8 @@ The migration is complete when all of the following are true:
    scorecard placeholders.
 3. Make scorecard lifecycle and `.EQU` readability universal; their debt is
    exact and inexpensive to verify.
-4. Make the embedded-pointer audit universal after fixing Kung Fu and Zelda.
+4. Make the embedded-pointer audit universal after fixing Zelda and pinning the
+   Kung Fu false-positive correction.
 5. Require canonical ledger presence and strict pass-time schemas.
 6. Make semantic/data-format/data-blob maturity universal while retaining
    honest queued pass-time states.

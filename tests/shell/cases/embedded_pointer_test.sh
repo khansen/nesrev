@@ -174,6 +174,20 @@ aliases = {"StructAlias": "StructBlock"}
 proof = mod.struct_copy_deref_proof(asm_lines, "StructBlock", 0x8400, aliases)
 if not proof:
     raise SystemExit("struct copied via alias to a dereferenced ZP base should confirm")
+
+# A one-byte table lookup stored through a different index is not a block copy,
+# even when the scratch destination happens to be dereferenced elsewhere.
+not_a_copy = [
+    "BuildHitbox:",
+    "  LDA StructAlias,Y",
+    "  STA ZP_StructBase,X",
+    "  RTS",
+    "Reader:",
+    "  LDA [ZP_StructBase],Y",
+    "  RTS",
+]
+if mod.struct_copy_deref_proof(not_a_copy, "StructBlock", 0x8400, aliases):
+    raise SystemExit("different source/destination indexes must not prove a block copy")
 PY
 }
 
