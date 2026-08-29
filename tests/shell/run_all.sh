@@ -63,7 +63,11 @@ for file in "${test_files[@]}"; do
     total=$((total + 1))
     case_label="${test_name_base}::${fn}"
     tmpdir="$(mktemp -d -t "nesrev_shtest.XXXXXX")"
-    if (
+    # Do not place the test subshell directly in an if condition. Bash disables
+    # errexit throughout commands whose status is tested by if, which would
+    # silently discard a non-final raw-command assertion inside a test.
+    set +e
+    (
       set -euo pipefail
       cd "${REPO_ROOT}"
       export NESREV_TEST_TMPDIR="${tmpdir}"
@@ -72,10 +76,12 @@ for file in "${test_files[@]}"; do
       # shellcheck disable=SC1090
       source "${file}"
       "${fn}"
-    ) >"${tmpdir}/stdout" 2>"${tmpdir}/stderr"; then
+    ) >"${tmpdir}/stdout" 2>"${tmpdir}/stderr"
+    rc=$?
+    set -e
+    if (( rc == 0 )); then
       echo "PASS  ${case_label}"
     else
-      rc=$?
       failed=$((failed + 1))
       failures+=("${case_label}")
       echo "FAIL  ${case_label} (exit ${rc})"

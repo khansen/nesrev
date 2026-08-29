@@ -161,8 +161,10 @@ test_pass_wrapper_transport_and_owner_snapshot_rules_are_durable() {
 
   assert_match 'Make[[:space:]]+wrapper[[:space:]]+preserves[[:space:]]+literal[[:space:]]+dollar[[:space:]]+signs[[:space:]]+and[[:space:]]+apostrophes' "$(<"${tooling}")" \
     "Make wrapper docs must keep literal prose transport explicit"
-  assert_match 'snapshots[[:space:]]+warning[[:space:]]+count[[:space:]]+and[[:space:]]+generated[[:space:]]+localization[[:space:]]+owner[[:space:]]+pairs' "$(<"${workflow}")" \
-    "pass lifecycle docs must retain localization ownership evidence"
+  assert_match 'snapshots[[:space:]]+warning[[:space:]]+count[[:space:]]+and[[:space:]]+fresh-xref[[:space:]]+owners[[:space:]]+for[[:space:]]+safe[[:space:]]+branch-only[[:space:]]+localizations' "$(<"${workflow}")" \
+    "pass lifecycle docs must retain full-xref localization ownership evidence"
+  assert_match 'beyond[[:space:]]+generated[[:space:]]+candidates' "$(<"${workflow}")" \
+    "owner snapshots must cover safe opportunistic localization"
 }
 
 test_agent_playbook_validator_rejects_empty_anchored_section() {
