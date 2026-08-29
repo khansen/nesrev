@@ -2,15 +2,15 @@
 set -euo pipefail
 
 if [[ $# -ne 2 ]]; then
-  echo "usage: $0 <asm_file> <pointer_targets_csv>" >&2
+  echo "usage: $0 <xref_v2_json> <pointer_targets_csv>" >&2
   exit 64
 fi
 
-ASM_FILE="$1"
+XREF_FILE="$1"
 PTR_FILE="$2"
 
-if [[ ! -f "${ASM_FILE}" ]]; then
-  echo "error: asm file not found: ${ASM_FILE}" >&2
+if [[ ! -f "${XREF_FILE}" ]]; then
+  echo "error: xref file not found: ${XREF_FILE}" >&2
   exit 65
 fi
 if [[ ! -f "${PTR_FILE}" ]]; then
@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp)"
 trap 'rm -f "${tmp}"' EXIT
 
-bash "${SCRIPT_DIR}/pointer_targets.sh" "${ASM_FILE}" "${tmp}"
+bash "${SCRIPT_DIR}/pointer_targets.sh" "${XREF_FILE}" "${tmp}"
 
 if cmp -s "${tmp}" "${PTR_FILE}"; then
   echo "OK: pointer-target registry synchronized"

@@ -695,10 +695,10 @@ the generated cache under
 `docs/reverse_engineering/inventory/pass/` is documented at
 [PASS_WORKFLOW.md#generated-vs-authored-artifacts](PASS_WORKFLOW.md#generated-vs-authored-artifacts).
 
-`pointer_targets.csv` reports source owners for actual `.DW` pointer tables.
-Inline return-table payloads are attributed to their dispatching callsite, not
-to a synthetic table label, and the terminal three NES CPU vector words are
-excluded so they are not misattributed to the preceding data label.
+`pointer_targets.csv` consumes xasm v2 `data_directive_references` for `.DW`
+tables, preserving lexical owner, width-relative index, expression, and target
+kind. Unowned words and NES vector addresses `$FFFA`/`$FFFC`/`$FFFE` stay
+excluded; inline return payloads retain their dispatching callsite owner.
 
 `embedded_pointer_targets.csv` reports relocatable pointer fields that remain
 inside `.DB` records as adjacent `<label,>label` operands. It is a sibling

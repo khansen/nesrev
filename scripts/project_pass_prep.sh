@@ -60,9 +60,6 @@ run_status() {
   status_json "$status" "$exit_code" "$stdout_file" "$stderr_file"
 }
 
-echo "[1/5] Refreshing inventory"
-bash "${SCRIPT_DIR}/refresh_inventory.sh" "${slug}"
-
 compare_stdout_file="${pass_dir}/compare.stdout"
 compare_stderr_file="${pass_dir}/compare.stderr"
 compare_ref_prg="${TMPDIR_PASS_PREP}/reference_prg.bin"
@@ -95,7 +92,7 @@ primary_artifacts=(
   "${pass_dir}/data_coverage.json"
 )
 
-echo "[2/5] Generating primary xasm analysis/compare bundle"
+echo "[1/5] Generating primary xasm analysis/compare bundle"
 bundle_cmd=("${XASM_BIN}" --pure-binary -o "${OUT_BIN}")
 if (( ${#compare_args[@]} > 0 )); then
   bundle_cmd+=("${compare_args[@]}")
@@ -145,6 +142,10 @@ if (( bundle_exit_code != 0 )); then
     exit "${bundle_exit_code}"
   fi
 fi
+
+export NESREV_XREF_FILE="${pass_dir}/xref_with_data.json"
+echo "[2/5] Refreshing inventory from the primary xref"
+bash "${SCRIPT_DIR}/refresh_inventory.sh" "${slug}"
 
 echo "[3/5] Generating xref summary (generic labels)"
 "${XASM_BIN}" --pure-binary -o "${OUT_BIN}" \

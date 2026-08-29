@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 4 || $# -gt 5 ]]; then
-  echo "usage: $0 <asm_file> <ref_nes> <out_bin> <warn_baseline_file> [compare_cpu_base]" >&2
+if [[ $# -lt 4 || $# -gt 6 ]]; then
+  echo "usage: $0 <asm_file> <ref_nes> <out_bin> <warn_baseline_file> [compare_cpu_base] [xref_v2_json]" >&2
   echo "(invoke via 'make project-verify PROJECT=<slug>' rather than directly)" >&2
   exit 64
 fi
@@ -12,14 +12,16 @@ REF_NES="$2"
 OUT_BIN="$3"
 WARN_BASELINE_FILE="$4"
 COMPARE_CPU_BASE="${5:-}"
+XREF_FILE="${6:-}"
+XASM_BIN="${XASM_BIN:-xasm}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 TMPDIR_VERIFY="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_VERIFY}"' EXIT
 
-if ! command -v xasm >/dev/null 2>&1; then
-  echo "error: xasm not found in PATH" >&2
+if ! command -v "${XASM_BIN}" >/dev/null 2>&1; then
+  echo "error: xasm not found: ${XASM_BIN}" >&2
   exit 1
 fi
 
@@ -41,7 +43,22 @@ fi
 echo "[1/4] Assembling ${ASM_FILE} (unused .EQU = error)"
 XASM_LOG="${TMPDIR_VERIFY}/xasm.log"
 mkdir -p "$(dirname "${OUT_BIN}")"
-xasm --pure-binary --Werror=unused-equ -o "${OUT_BIN}" "${ASM_FILE}" 2>&1 | tee "${XASM_LOG}"
+xasm_args=(--pure-binary --Werror=unused-equ -o "${OUT_BIN}")
+xref_stage=""
+if [[ -n "${XREF_FILE}" ]]; then
+  mkdir -p "$(dirname "${XREF_FILE}")"
+  xref_stage="${TMPDIR_VERIFY}/xref_with_data.json"
+  xasm_args+=(
+    --xref="${xref_stage}"
+    --xref-format=json
+    --xref-include-owner=true
+    --xref-data=true
+  )
+fi
+"${XASM_BIN}" "${xasm_args[@]}" "${ASM_FILE}" 2>&1 | tee "${XASM_LOG}"
+if [[ -n "${xref_stage}" ]]; then
+  mv "${xref_stage}" "${XREF_FILE}"
+fi
 
 echo "[1b/4] Validating expected warning baseline"
 rg "warning: .*defined but not used" "${XASM_LOG}" \
@@ -84,7 +101,7 @@ else
   echo "FAIL: output PRG differs from iNES PRG reference" >&2
   echo "running xasm --compare for first mismatch source mapping..." >&2
   compare_cmd=(
-    xasm
+    "${XASM_BIN}"
     --pure-binary
     -o "${TMPDIR_VERIFY}/scratch.o"
     "--compare=${REF_PRG}"
@@ -92,7 +109,7 @@ else
   )
   if [[ -n "${COMPARE_CPU_BASE}" ]]; then
     compare_cmd=(
-      xasm
+      "${XASM_BIN}"
       --pure-binary
       -o "${TMPDIR_VERIFY}/scratch.o"
       "--compare=${REF_PRG}"
