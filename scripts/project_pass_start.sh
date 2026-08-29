@@ -43,7 +43,8 @@ for stale_input in "${stale_inputs[@]}"; do
   fi
 done
 
-python3 - "${1}" "${PASS_ID}" "${TARGET_SYMBOL}" "${next_pass_json}" "${PROGRESS_SCORECARD_FILE}" "${pass_dir}" "${pass_dir}/xref_with_data.json" "${WARN_BASELINE_FILE}" <<'PY'
+python3 - "${1}" "${PASS_ID}" "${TARGET_SYMBOL}" "${next_pass_json}" "${PROGRESS_SCORECARD_FILE}" "${pass_dir}" "${pass_dir}/xref_with_data.json" "${DOC_ROOT}/inventory/raw_ram_review.csv" "${WARN_BASELINE_FILE}" <<'PY'
+import csv
 import json
 import os
 import re
@@ -58,6 +59,7 @@ from pathlib import Path
     scorecard_path,
     pass_dir,
     xref_path,
+    raw_ram_review_path,
     warn_baseline_path,
 ) = sys.argv[1:]
 
@@ -270,6 +272,125 @@ def localization_owner_snapshot(candidates):
     ]
 
 
+def raw_ram_owner_scope_snapshot(review_path):
+    """Preserve pre-edit lexical scopes for factual raw-RAM owner tokens.
+
+    This is not localization permission. It records the possible enclosing
+    code-label chain so closeout can intersect it with the post-edit scoped
+    local labels and accept only one surviving owner.
+    """
+    review = Path(review_path)
+    if not review.exists():
+        return []
+    try:
+        with review.open("r", encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+    except (OSError, csv.Error):
+        return []
+
+    ledger_owners = set()
+    for row in rows:
+        for field in ("top_readers", "top_writers"):
+            for item in (row.get(field) or "").split(","):
+                owner = item.partition(":")[0].strip()
+                if owner:
+                    ledger_owners.add(owner)
+    if not ledger_owners:
+        return []
+
+    branch_opcodes = {"BNE", "BEQ", "BCC", "BCS", "BMI", "BPL", "BVC", "BVS"}
+    data_directive_re = re.compile(
+        r"^\s*\.(?:DB|DW|DD|BYTE|WORD|DS|INCBIN)\b",
+        re.IGNORECASE,
+    )
+    source_cache = {}
+
+    def source_lines(file):
+        if file not in source_cache:
+            try:
+                source_cache[file] = Path(file).read_text(encoding="utf-8").splitlines()
+            except OSError:
+                source_cache[file] = []
+        return source_cache[file]
+
+    def is_data_label(file, line):
+        lines = source_lines(file)
+        if line < 1 or line > len(lines):
+            return True
+        label_line = lines[line - 1].split(";", 1)[0]
+        _, separator, trailing = label_line.partition(":")
+        if separator and trailing.strip():
+            return bool(data_directive_re.match(trailing.strip()))
+        for text in lines[line:]:
+            body = text.split(";", 1)[0].strip()
+            if body:
+                return bool(data_directive_re.match(body))
+        return True
+
+    definitions = {}
+    definitions_by_file = {}
+    for item in xref.get("symbols", []):
+        if item.get("scope") != "global" or item.get("kind") != "label":
+            continue
+        definition = item.get("definition") or {}
+        name = (item.get("name") or "").strip()
+        file = definition.get("file")
+        line = definition.get("line")
+        if not name or not file or line is None:
+            continue
+        try:
+            line = int(line)
+        except (TypeError, ValueError):
+            continue
+        if is_data_label(file, line):
+            continue
+        definitions[name] = (file, line)
+        definitions_by_file.setdefault(file, []).append((line, name))
+
+    refs_by_symbol = {}
+    for ref in xref.get("references", []):
+        symbol = (ref.get("symbol") or "").strip()
+        if symbol in definitions:
+            refs_by_symbol.setdefault(symbol, []).append(ref)
+
+    entry_symbols = set()
+    for file, entries in definitions_by_file.items():
+        entries.sort()
+        if entries:
+            entry_symbols.add(entries[0][1])
+        for _, symbol in entries:
+            for ref in refs_by_symbol.get(symbol, []):
+                opcode = (ref.get("opcode") or "").upper()
+                if ref.get("file") != file or opcode not in branch_opcodes:
+                    entry_symbols.add(symbol)
+                    break
+
+    predecessors = {}
+    for entries in definitions_by_file.values():
+        previous = None
+        for _, symbol in entries:
+            if symbol in entry_symbols:
+                previous = symbol
+                continue
+            if previous:
+                predecessors[symbol] = previous
+                previous = symbol
+
+    needed_links = set()
+    for ledger_owner in ledger_owners:
+        symbol = ledger_owner
+        seen = set()
+        while symbol in predecessors and symbol not in seen:
+            seen.add(symbol)
+            needed_links.add(symbol)
+            symbol = predecessors[symbol]
+
+    return [
+        {"symbol": symbol, "owner": predecessors[symbol]}
+        for symbol in sorted(needed_links)
+    ]
+
+
 snapshot_candidates = list(cluster_candidates)
 if target is not None and target not in snapshot_candidates:
     snapshot_candidates.append(target)
@@ -295,6 +416,7 @@ plan = {
     "scope_barriers": (target or {}).get("scope_barriers") or [],
     "localize_candidates": (target or {}).get("localize_candidates") or [],
     "localization_owner_snapshot": localization_owner_snapshot(snapshot_candidates),
+    "raw_ram_owner_scope_snapshot": raw_ram_owner_scope_snapshot(raw_ram_review_path),
 }
 
 if not target_arg and cluster_candidates and anchor_source == "cluster_candidate":

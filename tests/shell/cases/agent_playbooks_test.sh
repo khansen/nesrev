@@ -193,6 +193,10 @@ test_pass_wrapper_transport_and_owner_snapshot_rules_are_durable() {
     "pass lifecycle docs must retain full-xref localization ownership evidence"
   assert_match 'beyond[[:space:]]+generated[[:space:]]+candidates' "$(<"${workflow}")" \
     "owner snapshots must cover safe opportunistic localization"
+  assert_match 'Closeout[[:space:]]+intersects[[:space:]]+that[[:space:]]+scope[[:space:]]+evidence[[:space:]]+with[[:space:]]+post-edit[[:space:]]+local-label[[:space:]]+owners[[:space:]]+and[[:space:]]+accepts[[:space:]]+exactly[[:space:]]+one[[:space:]]+surviving[[:space:]]+owner' "$(<"${tooling}")" \
+    "raw-RAM owner reconciliation must stay scoped under repeated local names"
+  assert_match 'never[[:space:]]+localization[[:space:]]+permission' "$(<"${tooling}")" \
+    "raw-RAM owner evidence must not weaken localization conservatism"
 }
 
 test_agent_playbook_validator_rejects_empty_anchored_section() {

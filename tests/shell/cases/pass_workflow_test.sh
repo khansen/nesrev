@@ -1488,6 +1488,175 @@ if rows["0x0011"]["top_readers"] != "OtherNewOwner:1":
 PY
 }
 
+test_pass_start_snapshots_scoped_raw_ram_owners_for_repeated_local_names() {
+  local slug; slug="$(unique_slug pass_raw_owner_scope_snapshot)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Localized self-loop owners under repeated concise names."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+Start:
+  JSR L8000
+  JSR L8010
+  RTS
+
+L8000:
+L8001:
+L8002:
+  LDA $10
+  BNE L8002
+  RTS
+
+L8010:
+L8011:
+L8012:
+  LDA $11
+  BNE L8012
+  RTS
+ASM
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "symbols": [
+    {"name":"Start","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":2}},
+    {"name":"L8000","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":7}},
+    {"name":"L8001","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":8}},
+    {"name":"L8002","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":9}},
+    {"name":"L8010","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":14}},
+    {"name":"L8011","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":15}},
+    {"name":"L8012","kind":"label","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":16}}
+  ],
+  "references": [
+    {"symbol":"L8000","file":"projects/${slug}/asm/${slug}.asm","line":3,"opcode":"JSR","access":"call","owner_routine":"Start"},
+    {"symbol":"L8010","file":"projects/${slug}/asm/${slug}.asm","line":4,"opcode":"JSR","access":"call","owner_routine":"Start"},
+    {"symbol":"L8001","file":"projects/${slug}/asm/${slug}.asm","line":7,"opcode":"BNE","access":"branch","owner_routine":"L8000"},
+    {"symbol":"L8002","file":"projects/${slug}/asm/${slug}.asm","line":11,"opcode":"BNE","access":"branch","owner_routine":"L8002"},
+    {"symbol":"L8011","file":"projects/${slug}/asm/${slug}.asm","line":14,"opcode":"BNE","access":"branch","owner_routine":"L8010"},
+    {"symbol":"L8012","file":"projects/${slug}/asm/${slug}.asm","line":18,"opcode":"BNE","access":"branch","owner_routine":"L8012"}
+  ]
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,unreviewed,,,,yes,1,1,1,0,L8002:1,
+0x0011,unreviewed,,,,yes,1,1,1,0,L8012:1,
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'EOF'
+{
+  "selection_strategy": "test",
+  "recommended_pass": {"type":"semantic_corridor","summary":"Close both self-loop owner corridors."},
+  "cluster_candidates": [
+    {
+      "cluster":"Self-loop owner corridors",
+      "anchor":"L8000",
+      "kind":"code",
+      "members":[],
+      "scope_barriers":[],
+      "localize_candidates":[]
+    }
+  ]
+}
+EOF
+
+  bash "${PASS_START}" "${slug}" 1 L8000 >/dev/null 2>&1
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1], encoding="utf-8"))
+expected = [
+    {"symbol": "L8001", "owner": "L8000"},
+    {"symbol": "L8002", "owner": "L8001"},
+    {"symbol": "L8011", "owner": "L8010"},
+    {"symbol": "L8012", "owner": "L8011"},
+]
+if plan.get("raw_ram_owner_scope_snapshot") != expected:
+    raise SystemExit(
+        "scoped raw-RAM owner snapshot was not persisted: "
+        f"{plan.get('raw_ram_owner_scope_snapshot')!r}"
+    )
+unsafe = {item.get("symbol") for item in plan.get("localization_owner_snapshot", [])}
+if unsafe.intersection({"L8002", "L8012"}):
+    raise SystemExit("self-owned loops must not become localization permissions")
+PY
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+Start:
+  JSR NewOwner
+  JSR OtherNewOwner
+  RTS
+
+NewOwner:
+@@mid:
+@@done:
+  LDA $10
+  BNE @@done
+  RTS
+
+OtherNewOwner:
+@@mid:
+@@done:
+  LDA $11
+  BNE @@done
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'EOF'
+L8000,NewOwner,renamed first owner routine,high,1
+L8001,@@mid,localized first intermediate branch,mechanical,1
+L8002,@@done,localized first self-loop,mechanical,1
+L8010,OtherNewOwner,renamed second owner routine,high,1
+L8011,@@mid,localized second intermediate branch,mechanical,1
+L8012,@@done,localized second self-loop,mechanical,1
+EOF
+
+  local plan_path="projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json"
+  local saved_plan="${NESREV_TEST_TMPDIR}/raw-owner-scope-plan.json"
+  cp "${plan_path}" "${saved_plan}"
+  python3 - "${plan_path}" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+plan = json.load(open(path, encoding="utf-8"))
+plan.pop("raw_ram_owner_scope_snapshot", None)
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(plan, handle)
+    handle.write("\n")
+PY
+
+  local out rc
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "4" \
+    "removing the scoped raw-RAM owner snapshot must restore duplicate-local ambiguity"
+  assert_match "ambiguous_local_replacements" "${out}"
+
+  cp "${saved_plan}" "${plan_path}"
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "0" \
+    "scoped raw-RAM owner evidence must reconcile both repeated local names"
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+if rows["0x0010"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"first scoped local owner was not reconciled: {rows['0x0010']!r}")
+if rows["0x0011"]["top_readers"] != "OtherNewOwner:1":
+    raise SystemExit(f"second scoped local owner was not reconciled: {rows['0x0011']!r}")
+PY
+}
+
 test_pass_start_warns_on_incomplete_corridor_objective_but_succeeds() {
   local slug; slug="$(unique_slug pass_objective_missing)"
   trap "cleanup_project ${slug}" EXIT
@@ -3163,6 +3332,26 @@ EOF
     "snapshot owners absent from the post-pass asm must not be written to the review queue"
   assert_match "GhostOwner" "${out}" \
     "closeout should identify the rejected snapshot owner"
+
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'EOF'
+{
+  "intended_pass_id": 1,
+  "raw_ram_owner_scope_snapshot": [
+    {"symbol": "OldDone", "owner": "OldOwner"},
+    {"symbol": "OldOwner", "owner": "UnrelatedOwner"}
+  ]
+}
+EOF
+  set +e
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "4" \
+    "multiple surviving scoped owners must preserve duplicate-local ambiguity"
+  assert_match "OldOwner" "${out}" \
+    "closeout should report every rejected scoped owner candidate"
+  assert_match "UnrelatedOwner" "${out}" \
+    "closeout should report every rejected scoped owner candidate"
 }
 
 test_pass_residue_check_uses_snapshot_for_duplicate_local_owner_names() {

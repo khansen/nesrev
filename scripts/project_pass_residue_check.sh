@@ -208,6 +208,44 @@ def localization_owner_snapshot(doc_root: Path, pass_id: int):
     }
 
 
+def raw_ram_owner_scope_snapshot(doc_root: Path, pass_id: int):
+    plan_path = doc_root / "inventory" / "pass" / "current_pass_plan.json"
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(plan, dict):
+        return {}
+    if str(plan.get("intended_pass_id")) != str(pass_id):
+        return {}
+    snapshot = plan.get("raw_ram_owner_scope_snapshot") or []
+    if not isinstance(snapshot, list):
+        return {}
+    owners = {}
+    for item in snapshot:
+        if not isinstance(item, dict):
+            continue
+        symbol = (item.get("symbol") or "").strip()
+        owner = (item.get("owner") or "").strip()
+        if symbol and owner:
+            owners.setdefault(symbol, set()).add(owner)
+    return {
+        symbol: next(iter(owner_set))
+        for symbol, owner_set in owners.items()
+        if len(owner_set) == 1
+    }
+
+
+def scoped_owner_candidates(symbol: str, predecessors: dict[str, str]):
+    owners = set()
+    seen = set()
+    while symbol in predecessors and symbol not in seen:
+        seen.add(symbol)
+        symbol = predecessors[symbol]
+        owners.add(symbol)
+    return owners
+
+
 def rewrite_top_owner_field(text: str, replacements: dict[str, str]):
     if not text:
         return text
@@ -243,6 +281,7 @@ def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_
 
     local_owners = local_label_owner_index(asm_file)
     owner_snapshot = localization_owner_snapshot(doc_root, pass_id)
+    owner_scope_snapshot = raw_ram_owner_scope_snapshot(doc_root, pass_id)
     renamed_globals = {
         (row.get("old_name") or "").strip(): (row.get("new_name") or "").strip()
         for row in rename_rows
@@ -267,11 +306,24 @@ def rewrite_raw_ram_review_owner_symbols(doc_root: Path, asm_file: Path, rename_
                 if snapshot_owner and resolved_owner in owners:
                     replacements[old_name] = resolved_owner
                     continue
+                raw_scoped_candidates = scoped_owner_candidates(
+                    old_name,
+                    owner_scope_snapshot,
+                )
+                scoped_candidates = {
+                    renamed_globals.get(candidate, candidate)
+                    for candidate in raw_scoped_candidates
+                }
+                scoped_matches = sorted(set(owners).intersection(scoped_candidates))
+                if len(scoped_matches) == 1:
+                    replacements[old_name] = scoped_matches[0]
+                    continue
                 ambiguous_local_replacements.append({
                     "old_name": old_name,
                     "new_name": new_name,
                     "candidate_owners": owners,
                     "snapshot_owner": snapshot_owner,
+                    "scope_snapshot_owners": sorted(raw_scoped_candidates),
                     "reason": "ambiguous local label owner" if owners else "local label not found",
                 })
         else:

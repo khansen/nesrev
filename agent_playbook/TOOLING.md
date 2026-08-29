@@ -84,6 +84,10 @@ Direct `project-pass-prep` runs and closeout refresh the factual columns in
 full prep rerun. Ordinary `project-next-pass` is read-only for that tracked
 ledger, including its auto-prep path, so a clean closeout commit does not become
 dirty just because the next briefing was generated.
+`project-pass-start` also snapshots the possible pre-edit enclosing code-label
+chain for factual raw-RAM owner tokens. Closeout intersects that scope evidence
+with post-edit local-label owners and accepts exactly one surviving owner; the
+snapshot is evidence for ledger reconciliation, never localization permission.
 
 ### Project-Pass Review Packet
 
