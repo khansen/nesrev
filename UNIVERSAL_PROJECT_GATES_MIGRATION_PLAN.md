@@ -468,6 +468,84 @@ The migration report must distinguish:
 Aggregate totals are not enough. Investigate per-project outliers, especially a
 single project that differs from an otherwise uniform corpus pattern.
 
+## Pre-Landing Implementation Results
+
+The implementation was prepared on `feat/mandatory-project-gates`, with the
+co-dependent corpus retrofit on the local-only
+`retrofit/universal-project-gates` branch. These results describe the complete
+pre-landing state; the final commit identities may change when the corpus
+branch is rebased over the reviewed tooling head.
+
+Universal pass-time enforcement is green:
+
+- `make projects-policy-check` passes all 22 tracked projects. It discovers the
+  projects from tracked `project.conf` files and runs the process, docs,
+  schema, finite-ceiling, recovery-policy, proof-debt, and canonical-artifact
+  checks without a project opt-in.
+- `make project-verify PROJECT=<slug>` passes all 22 projects after the final
+  retrofit edits. Twenty pass strictly. Hogan's Alley and Zelda pass with the
+  documented one-run `ALLOW_UNRESOLVED_LXXXX=1` semantic-pass allowance; both
+  fail the unresolved-label check without it.
+- All eight canonical authored/generated artifact classes in the baseline
+  table are present for 22/22 projects, and every project records an explicit
+  recovery fact: 10 `configured`, 12 `none`, zero omitted or `legacy`.
+- The 516 quantity-suffixed `.EQU` operands were converted without binary
+  drift. No `999999` KPI sentinel remains; every former sentinel is replaced
+  by its post-retrofit measured finite ceiling.
+- The embedded-pointer audit is universal. Its block-copy proof now requires a
+  shared traversal index, rejecting the three disproved Kung Fu findings while
+  the Zelda pointer table is represented symbolically.
+- All 22 semantic-claims ledgers contain validated, evidence-backed claims.
+  Sparse ledgers remain maturity debt rather than being filled with invented
+  claims.
+- Structured coverage reports 3,799 candidate data spans. Existing reviewed
+  rows covered 863; the remaining 2,936 are explicit
+  `queued_static_pass` rows with their measured size and structured reason.
+  No candidate is undispositioned. The 22 data-format ledgers contain 28
+  documented, one evidence-backed `absent_not_applicable`, 202 queued, and 12
+  not-yet-reviewed family rows.
+- Every scorecard has a live-denominator `policy-baseline-audit:` marker. Six
+  projects have complete procedure/global-code review fractions; the other 16
+  record exact incomplete fractions and fail maturity. The historical
+  `legacy-retrofit-audit:` marker is gone.
+- Urban Champion's working notes were pruned from 150 to 79 lines. Zelda's
+  notes were pruned from 225 to 64 lines, with stable screen-feature and audio
+  facts promoted to canonical format documentation.
+
+Maturity was then run separately for every project with fresh pass-prep
+caches. All 22 fail for explicit project debt; none fails because a checker was
+skipped, a canonical artifact was missing, or a structured blob candidate was
+undispositioned:
+
+| Project | Remaining maturity failures |
+|---|---|
+| Balloon Fight | policy-baseline audit |
+| Baseball | policy-baseline audit; data formats; data blobs |
+| Clu Clu Land | policy-baseline audit; data formats; data blobs |
+| Devil World | policy-baseline audit; data formats; data blobs |
+| Donkey Kong | data formats; data blobs |
+| Donkey Kong 3 | data formats; data blobs |
+| Donkey Kong Jr. | data formats; data blobs |
+| Donkey Kong Jr. Math | data formats; data blobs |
+| Duck Hunt | policy-baseline audit; data formats; data blobs |
+| Excitebike | policy-baseline audit; data formats; data blobs |
+| Golf | policy-baseline audit; data formats; data blobs |
+| Hogan's Alley | raw-address debt (264); noncompliant data labels (97); policy-baseline audit; data formats; data blobs |
+| Ice Climber | policy-baseline audit; data formats; data blobs |
+| Kid Icarus | policy-baseline audit |
+| Kung Fu | policy-baseline audit; data formats; data blobs |
+| Mario Bros. | data formats; data blobs |
+| Metroid | data formats; data blobs |
+| Pinball | policy-baseline audit; data formats; data blobs |
+| Popeye | policy-baseline audit; data formats; data blobs |
+| Tennis | policy-baseline audit; data formats; data blobs |
+| Urban Champion | policy-baseline audit; data formats; data blobs |
+| Zelda | symbolic pointer-table bodies; raw-address debt (5,467); noncompliant data labels (85); policy-baseline audit; data formats; data blobs |
+
+This is the intended migration boundary: pass-time policy is universal and
+green, while maturity remains an honest work queue. The corpus branch has not
+been and must never be pushed.
+
 ## Atomic Landing Sequence
 
 The tooling and corpus are co-dependent.
