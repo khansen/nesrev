@@ -59,13 +59,13 @@ bash "${SCRIPT_DIR}/pointer_targets_check.sh" \
 
 if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
   bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" \
-    "${ASM_FILE}" \
+    "${verification_xref}" \
     "${EMBEDDED_POINTER_TARGETS_FILE}"
 fi
 
 if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
   bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" \
-    "${ASM_FILE}" \
+    "${verification_xref}" \
     "${SPLIT_POINTER_TARGETS_FILE}"
 fi
 

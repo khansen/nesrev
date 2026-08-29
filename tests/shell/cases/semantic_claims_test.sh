@@ -380,6 +380,54 @@ test_maturity_check_legacy_project_not_failed_by_semantic_claims() {
   bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
 }
 
+test_maturity_check_generates_or_reuses_one_pointer_xref() {
+  local slug; slug="$(unique_slug sc_mat_pointer_xref)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_sc_project "${slug}" "1"
+  _write_valid_claim "${slug}"
+  printf 'source,entry,target_label,target_type,confidence,notes\n' \
+    > "projects/${slug}/docs/reverse_engineering/inventory/embedded_pointer_targets.csv"
+  printf 'lo_source,hi_source,entry,target_label,target_type,confidence,notes\n' \
+    > "projects/${slug}/docs/reverse_engineering/inventory/split_pointer_targets.csv"
+
+  local stub_dir="${NESREV_TEST_TMPDIR}/maturity-xasm"
+  local xasm_log="${NESREV_TEST_TMPDIR}/maturity-xasm.log"
+  mkdir -p "${stub_dir}"
+  cat > "${stub_dir}/xasm" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'call\n' >> "${XASM_LOG}"
+while (( $# > 0 )); do
+  case "$1" in
+    -o)
+      : > "$2"
+      shift 2
+      ;;
+    --xref=*)
+      printf '{"version":"2","symbols":[],"data_directive_references":[]}\n' \
+        > "${1#*=}"
+      shift
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+STUB
+  chmod +x "${stub_dir}/xasm"
+
+  XASM_BIN="${stub_dir}/xasm" XASM_LOG="${xasm_log}" \
+    bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+  assert_eq "$(wc -l < "${xasm_log}" | tr -d ' ')" "1" \
+    "standalone maturity must generate one shared xref for both .DB ledgers"
+
+  local shared_xref="${NESREV_TEST_TMPDIR}/shared-maturity-xref.json"
+  printf '{"version":"2","symbols":[],"data_directive_references":[]}\n' \
+    > "${shared_xref}"
+  NESREV_XREF_FILE="${shared_xref}" XASM_BIN=/usr/bin/false \
+    bash "${MATURITY_CHECK_SH}" "${slug}" >/dev/null
+}
+
 test_maturity_check_fails_optin_project_with_zero_procedure_contracts() {
   local slug; slug="$(unique_slug sc_contract_fail)"
   trap "cleanup_project ${slug}" EXIT

@@ -178,22 +178,37 @@ PY
 }
 
 test_embedded_pointer_targets_extracts_db_low_high_pairs() {
-  local asm="${NESREV_TEST_TMPDIR}/embedded_targets.asm"
+  local xref="${NESREV_TEST_TMPDIR}/embedded_targets.json"
   local csv="${NESREV_TEST_TMPDIR}/embedded_pointer_targets.csv"
 
-  cat > "${asm}" <<'ASM'
-CodeTarget:
-  RTS
+  cat > "${xref}" <<'JSON'
+{"version":"2","data_directive_references":[
+  {"file":"game.asm","line":10,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":0,"expression":"<DataTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":10,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":1,"expression":">DataTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":10,"directive":".DB","width_bytes":1,"operand_index":2,"owner_symbol":"DispatchRecord","owner_item_index":2,"expression":"<CodeTarget","target_projection":"low","target_kind":"code"},
+  {"file":"game.asm","line":10,"directive":".DB","width_bytes":1,"operand_index":3,"owner_symbol":"DispatchRecord","owner_item_index":3,"expression":">CodeTarget","target_projection":"high","target_kind":"code"},
+  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":5,"expression":"<(DataTarget+3)","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":6,"expression":">(DataTarget+3)","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":12,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":8,"expression":"<OperandGapTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":12,"directive":".DB","width_bytes":1,"operand_index":2,"owner_symbol":"DispatchRecord","owner_item_index":9,"expression":">OperandGapTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":13,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":10,"expression":"<OwnerGapTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":13,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":12,"expression":">OwnerGapTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":14,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":13,"expression":"<LineGapTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":15,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":14,"expression":">LineGapTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":16,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":15,"expression":"<FileGapTarget","target_projection":"low","target_kind":"data"},
+  {"file":"other.asm","line":16,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":16,"expression":">FileGapTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":17,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":17,"expression":"<TargetA","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":17,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":18,"expression":">TargetB","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":18,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"FirstRecord","owner_item_index":0,"expression":"<OwnerMismatchTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":18,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"SecondRecord","owner_item_index":0,"expression":">OwnerMismatchTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":19,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":19,"expression":"FirstSymbol","target_kind":"data"},
+  {"file":"game.asm","line":19,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":20,"expression":"SecondSymbol","target_kind":"data"},
+  {"file":"game.asm","line":20,"directive":".DB","width_bytes":1,"operand_index":0,"owner_item_index":0,"expression":"<UnownedTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":20,"directive":".DB","width_bytes":1,"operand_index":1,"owner_item_index":1,"expression":">UnownedTarget","target_projection":"high","target_kind":"data"}
+]}
+JSON
 
-DataTarget:
-  .DB $00
-
-DispatchRecord:
-  .DB <DataTarget,>DataTarget,<CodeTarget,>CodeTarget,$04
-  .DB <(DataTarget+3),>(DataTarget+3),$00
-ASM
-
-  python3 "${EMBEDDED_TARGETS}" "${asm}" "${csv}"
+  python3 "${EMBEDDED_TARGETS}" "${xref}" "${csv}"
 
   cat > "${NESREV_TEST_TMPDIR}/expected.csv" <<'CSV'
 source,entry,target_label,target_type,confidence,notes
@@ -207,22 +222,35 @@ CSV
 }
 
 test_embedded_pointer_targets_check_rejects_stale_registry() {
-  local asm="${NESREV_TEST_TMPDIR}/embedded_targets_stale.asm"
+  local xref="${NESREV_TEST_TMPDIR}/embedded_targets_stale.json"
   local csv="${NESREV_TEST_TMPDIR}/embedded_pointer_targets.csv"
 
-  cat > "${asm}" <<'ASM'
-DataTarget:
-  .DB $00
-
-DispatchRecord:
-  .DB <DataTarget,>DataTarget
-ASM
+  cat > "${xref}" <<'JSON'
+{"version":"2","data_directive_references":[
+  {"file":"game.asm","line":4,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":0,"expression":"<DataTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":4,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":1,"expression":">DataTarget","target_projection":"high","target_kind":"data"}
+]}
+JSON
 
   cat > "${csv}" <<'CSV'
 source,entry,target_label,target_type,confidence,notes
 CSV
 
-  assert_exit 67 bash "${EMBEDDED_TARGETS_CHECK}" "${asm}" "${csv}"
+  assert_exit 67 bash "${EMBEDDED_TARGETS_CHECK}" "${xref}" "${csv}"
+}
+
+test_embedded_pointer_targets_rejects_incompatible_xref() {
+  local xref="${NESREV_TEST_TMPDIR}/embedded_targets_v1.json"
+  printf '{"version":"1","references":[]}\n' > "${xref}"
+
+  local output rc
+  set +e
+  output="$(python3 "${EMBEDDED_TARGETS}" "${xref}" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "embedded pointer inventory must require xref version 2"
+  assert_match "xref schema version 2 required" "${output}"
 }
 
 test_embedded_pointer_audit_fails_confirmed_raw_pointer_table() {

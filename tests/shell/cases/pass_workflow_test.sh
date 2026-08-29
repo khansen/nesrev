@@ -601,6 +601,40 @@ ASM
     || fail "unused constants must be retained with zero usage sites"
 }
 
+test_project_inventory_reuses_one_xref_for_all_pointer_ledgers() {
+  local slug; slug="$(unique_slug inventory_shared_xref)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  local xref="${NESREV_TEST_TMPDIR}/shared-xref.json"
+  local out_dir="${NESREV_TEST_TMPDIR}/inventory"
+  cat > "${xref}" <<'JSON'
+{"version":"2","symbols":[
+  {"name":"DispatchRecord","kind":"label","scope":"global","definition":{"file":"game.asm","line":10,"output_offset":0}},
+  {"name":"FramePtrLoTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":20,"output_offset":2}},
+  {"name":"FramePtrHiTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":30,"output_offset":3}},
+  {"name":"AfterTables","kind":"label","scope":"global","definition":{"file":"game.asm","line":40,"output_offset":4}}
+],"data_directive_references":[
+  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":0,"expression":"<DataTarget","target_projection":"low","target_kind":"data"},
+  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":1,"expression":">DataTarget","target_projection":"high","target_kind":"data"},
+  {"file":"game.asm","line":21,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"FramePtrLoTable","owner_item_index":0,"expression":"<CodeTarget","target_projection":"low","target_kind":"code"},
+  {"file":"game.asm","line":31,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"FramePtrHiTable","owner_item_index":0,"expression":">CodeTarget","target_projection":"high","target_kind":"code"}
+]}
+JSON
+
+  NESREV_XREF_FILE="${xref}" \
+  NESREV_INVENTORY_OUT_DIR="${out_dir}" \
+  XASM_BIN=/usr/bin/false \
+    bash "${REPO_ROOT}/scripts/refresh_inventory.sh" "${slug}" >/dev/null
+
+  grep -qF 'DispatchRecord,0,DataTarget,data_pointer' \
+    "${out_dir}/embedded_pointer_targets.csv" \
+    || fail "embedded pointer inventory must consume the wrapper-provided xref"
+  grep -qF 'FramePtrLoTable,FramePtrHiTable,0,CodeTarget,code_pointer' \
+    "${out_dir}/split_pointer_targets.csv" \
+    || fail "split pointer inventory must consume the same wrapper-provided xref"
+}
+
 test_project_pass_prep_bundles_compatible_xasm_outputs() {
   local slug; slug="$(unique_slug pass_prep_bundle)"
   trap "cleanup_project ${slug}" EXIT

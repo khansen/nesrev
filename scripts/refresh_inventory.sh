@@ -91,11 +91,11 @@ bash "${SCRIPT_DIR}/pointer_targets.sh" \
   "${inv_dir}/pointer_targets.csv"
 
 python3 "${SCRIPT_DIR}/embedded_pointer_targets.py" \
-  "${ASM_FILE}" \
+  "${pointer_xref}" \
   "${inv_dir}/embedded_pointer_targets.csv"
 
 python3 "${SCRIPT_DIR}/split_pointer_targets.py" \
-  "${ASM_FILE}" \
+  "${pointer_xref}" \
   "${inv_dir}/split_pointer_targets.csv"
 
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"

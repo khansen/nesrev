@@ -1,32 +1,18 @@
 #!/usr/bin/env python3
-"""Emit symbolic pointer targets stored in split low/high .DB tables.
-
-This covers the common NES layout where one table stores `<Target` bytes and a
-sibling table stores `>Target` bytes.  `pointer_targets.csv` owns `.DW` tables
-and `embedded_pointer_targets.csv` owns adjacent `<label,>label` record fields;
-this registry makes the split-table shape visible to inventory checks too.
-"""
+"""Build paired low/high .DB pointer-table inventory from xasm xref v2."""
 
 from __future__ import annotations
 
 import csv
 import sys
-from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, TextIO
 
-from embedded_pointer_targets import (
-    LABEL_RE,
-    build_label_kinds,
-    canonical_expr,
-    db_payload,
-    split_operands,
-    strip_comment,
-    strip_label,
-    target_type,
-)
+from data_directive_xref import ContractError, load_xref, pointer_metadata, require
+from embedded_pointer_targets import canonical_expr, db_records, record_owner
 
 
-FIELDNAMES = [
+FIELDNAMES = (
     "lo_source",
     "hi_source",
     "entry",
@@ -34,7 +20,7 @@ FIELDNAMES = [
     "target_type",
     "confidence",
     "notes",
-]
+)
 
 SPLIT_POINTER_SUFFIXES = (
     ("PtrLoTable", "PtrHiTable"),
@@ -43,19 +29,6 @@ SPLIT_POINTER_SUFFIXES = (
     ("LoPtrTable", "HiPtrTable"),
     ("LowPtrTable", "HighPtrTable"),
 )
-
-
-@dataclass
-class TableBody:
-    label: str
-    operands: list[tuple[int, str]]
-
-
-def global_label(line: str) -> str:
-    match = LABEL_RE.match(line)
-    if not match or match.group(1):
-        return ""
-    return match.group(2)
 
 
 def split_counterpart(label: str, from_lo: bool) -> str:
@@ -70,83 +43,114 @@ def is_split_table_label(label: str) -> bool:
     return bool(split_counterpart(label, True) or split_counterpart(label, False))
 
 
-def meaningful_body_text(line: str) -> str:
-    return strip_comment(strip_label(line)).strip()
+def table_records(
+    payload: dict[str, Any],
+) -> dict[str, list[tuple[int, dict[str, Any]]]]:
+    symbols = payload.get("symbols")
+    if not isinstance(symbols, list):
+        raise ContractError("xref version 2 is missing symbols")
 
-
-def collect_candidate_tables(lines: list[str]) -> tuple[dict[str, TableBody], list[str]]:
-    tables: dict[str, TableBody] = {}
-    errors: list[str] = []
-    current: TableBody | None = None
-
-    for line_no, line in enumerate(lines, start=1):
-        label = global_label(line)
-        if label:
-            current = TableBody(label=label, operands=[]) if is_split_table_label(label) else None
-            if current:
-                tables[label] = current
-
-        if not current:
+    definitions: dict[str, tuple[str, int, int]] = {}
+    ordered_definitions: list[tuple[str, int, int]] = []
+    for symbol_index, symbol in enumerate(symbols):
+        if not isinstance(symbol, dict):
+            raise ContractError(f"symbols[{symbol_index}] must be an object")
+        if symbol.get("scope") != "global" or symbol.get("kind") != "label":
             continue
-
-        text = meaningful_body_text(line)
-        if not text:
+        name = symbol.get("name")
+        definition = symbol.get("definition")
+        if not isinstance(name, str) or not isinstance(definition, dict):
             continue
+        file_name = definition.get("file")
+        line = definition.get("line")
+        output_offset = definition.get("output_offset")
+        if (
+            isinstance(file_name, str)
+            and isinstance(line, int)
+            and not isinstance(line, bool)
+            and isinstance(output_offset, int)
+            and not isinstance(output_offset, bool)
+        ):
+            definitions[name] = (file_name, line, output_offset)
+            ordered_definitions.append((file_name, line, output_offset))
 
-        payload = db_payload(line)
-        if payload:
-            operands = split_operands(payload)
-            for operand in operands:
-                operand = operand.strip()
-                if not operand:
-                    errors.append(f"{current.label}:{line_no}: empty .DB operand in split pointer table")
-                else:
-                    current.operands.append((line_no, operand))
+    tables: dict[str, list[tuple[int, dict[str, Any]]]] = {}
+    for index, record in db_records(payload):
+        owner = record_owner(record, index)
+        if owner is None or not is_split_table_label(owner):
             continue
+        require(record, "owner_item_index", int, index)
+        tables.setdefault(owner, []).append((index, record))
 
-        errors.append(
-            f"{current.label}:{line_no}: split pointer table body contains non-.DB content: {text}"
-        )
+    for owner, records in tables.items():
+        records.sort(key=lambda item: require(item[1], "owner_item_index", int, item[0]))
+        indexes = [require(record, "owner_item_index", int, index) for index, record in records]
+        if indexes != list(range(len(indexes))):
+            raise ContractError(
+                f"{owner}: split pointer table contains an operand without a symbolic xref record"
+            )
+        owner_definition = definitions.get(owner)
+        if owner_definition is None:
+            raise ContractError(f"{owner}: split pointer table owner definition is missing")
+        owner_file, owner_line, owner_offset = owner_definition
+        later_definitions = [
+            (line, output_offset)
+            for file_name, line, output_offset in ordered_definitions
+            if file_name == owner_file and line > owner_line
+        ]
+        if later_definitions:
+            _, table_end = min(later_definitions)
+            if table_end >= owner_offset and table_end - owner_offset != len(records):
+                raise ContractError(
+                    f"{owner}: split pointer table body contains bytes without symbolic "
+                    "xref records"
+                )
+    return tables
 
-    return tables, errors
 
-
-def emit_rows(lines: list[str]) -> tuple[list[dict[str, object]], list[str]]:
-    label_kinds = build_label_kinds(lines)
-    tables, errors = collect_candidate_tables(lines)
+def inventory_rows(
+    payload: dict[str, Any],
+) -> tuple[list[dict[str, object]], list[str]]:
+    tables = table_records(payload)
     rows: list[dict[str, object]] = []
+    errors: list[str] = []
 
-    for lo_label, lo_table in tables.items():
+    for owner in sorted(tables, key=lambda name: tables[name][0][0]):
+        lo_label = owner
         hi_label = split_counterpart(lo_label, True)
         if not hi_label:
             continue
-        hi_table = tables.get(hi_label)
-        if not hi_table:
+        hi_records = tables.get(hi_label)
+        if hi_records is None:
             continue
-
-        if len(lo_table.operands) != len(hi_table.operands):
+        lo_records = tables[lo_label]
+        if len(lo_records) != len(hi_records):
             errors.append(
                 f"{lo_label}/{hi_label}: split pointer table entry count mismatch "
-                f"({len(lo_table.operands)} low bytes, {len(hi_table.operands)} high bytes)"
+                f"({len(lo_records)} low bytes, {len(hi_records)} high bytes)"
             )
             continue
 
-        for entry, ((lo_line, lo_operand), (hi_line, hi_operand)) in enumerate(
-            zip(lo_table.operands, hi_table.operands)
+        for entry, ((lo_index, lo_record), (hi_index, hi_record)) in enumerate(
+            zip(lo_records, hi_records)
         ):
-            if not lo_operand.startswith("<"):
+            lo_projection = lo_record.get("target_projection")
+            if lo_projection != "low":
                 errors.append(
-                    f"{lo_label}:{lo_line}: entry {entry} must use symbolic <Target; got {lo_operand!r}"
+                    f"{lo_label}: entry {entry} must use symbolic <Target; "
+                    f"got {require(lo_record, 'expression', str, lo_index)!r}"
                 )
                 continue
-            if not hi_operand.startswith(">"):
+            hi_projection = hi_record.get("target_projection")
+            if hi_projection != "high":
                 errors.append(
-                    f"{hi_label}:{hi_line}: entry {entry} must use symbolic >Target; got {hi_operand!r}"
+                    f"{hi_label}: entry {entry} must use symbolic >Target; "
+                    f"got {require(hi_record, 'expression', str, hi_index)!r}"
                 )
                 continue
 
-            lo_expr = canonical_expr(lo_operand)
-            hi_expr = canonical_expr(hi_operand)
+            lo_expr = canonical_expr(require(lo_record, "expression", str, lo_index))
+            hi_expr = canonical_expr(require(hi_record, "expression", str, hi_index))
             if lo_expr != hi_expr:
                 errors.append(
                     f"{lo_label}/{hi_label}: entry {entry} target mismatch: "
@@ -154,50 +158,62 @@ def emit_rows(lines: list[str]) -> tuple[list[dict[str, object]], list[str]]:
                 )
                 continue
 
-            pointer_kind, confidence, notes = target_type(lo_expr, label_kinds)
-            rows.append({
-                "lo_source": lo_label,
-                "hi_source": hi_label,
-                "entry": entry,
-                "target_label": lo_expr,
-                "target_type": pointer_kind,
-                "confidence": confidence,
-                "notes": f"{notes}; split low/high table pair",
-            })
+            lo_kind = lo_record.get("target_kind", "unknown")
+            hi_kind = hi_record.get("target_kind", "unknown")
+            if lo_kind != hi_kind:
+                errors.append(
+                    f"{lo_label}/{hi_label}: entry {entry} target kind mismatch: "
+                    f"{lo_kind!r} vs {hi_kind!r}"
+                )
+                continue
+            pointer_kind, confidence, notes = pointer_metadata(
+                lo_record,
+                lo_index,
+                "auto-extracted from .DB <label,>label pair (target kind unresolved)",
+            )
+            rows.append(
+                {
+                    "lo_source": lo_label,
+                    "hi_source": hi_label,
+                    "entry": entry,
+                    "target_label": lo_expr,
+                    "target_type": pointer_kind,
+                    "confidence": confidence,
+                    "notes": f"{notes}; split low/high table pair",
+                }
+            )
 
     return rows, errors
 
 
-def write_csv(rows: list[dict[str, object]], out_path: str | None) -> None:
-    out = open(out_path, "w", newline="", encoding="utf-8") if out_path else sys.stdout
-    close_out = out is not sys.stdout
-    try:
-        writer = csv.DictWriter(out, fieldnames=FIELDNAMES, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-    finally:
-        if close_out:
-            out.close()
+def write_inventory(rows: list[dict[str, object]], output: TextIO) -> None:
+    writer = csv.DictWriter(output, fieldnames=FIELDNAMES, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
 
 
 def main() -> int:
     if len(sys.argv) not in (2, 3):
-        print("usage: split_pointer_targets.py <asm_file> [out_csv]", file=sys.stderr)
+        print(f"usage: {sys.argv[0]} <xref_v2_json> [out_csv]", file=sys.stderr)
         return 64
 
-    asm_path = Path(sys.argv[1])
-    if not asm_path.is_file():
-        print(f"error: asm file not found: {asm_path}", file=sys.stderr)
+    try:
+        payload = load_xref(Path(sys.argv[1]))
+        rows, errors = inventory_rows(payload)
+        if errors:
+            for error in errors:
+                print(error, file=sys.stderr)
+            return 68
+        if len(sys.argv) == 3:
+            with Path(sys.argv[2]).open(
+                "w", encoding="utf-8", newline=""
+            ) as output:
+                write_inventory(rows, output)
+        else:
+            write_inventory(rows, sys.stdout)
+    except (ContractError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 65
-
-    lines = asm_path.read_text(encoding="utf-8").splitlines()
-    rows, errors = emit_rows(lines)
-    if errors:
-        for error in errors:
-            print(error, file=sys.stderr)
-        return 68
-
-    write_csv(rows, sys.argv[2] if len(sys.argv) == 3 else None)
     return 0
 
 

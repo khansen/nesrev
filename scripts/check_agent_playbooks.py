@@ -306,11 +306,14 @@ ROOT_WORD_CEILING = 6000
 # Full-xref localization snapshots add one workflow capability without dropping
 # the persisted-objective distinction. The shell-runner fix adds no route prose;
 # affected ceilings retain their exact prior measured headroom.
+# Shared xref-v2 `.DB` pointer inventories add the structured-input and
+# standalone-maturity boundary to TOOLING.md. Only TOOLING routes grow, and
+# their ceilings retain their exact prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3422, 24871),
-    "data-recovery": (3112, 23308),
+    "default": (3430, 24932),
+    "data-recovery": (3120, 23369),
     "new-project": (4211, 30926),
-    "project-pass-review": (4474, 31772),
+    "project-pass-review": (4482, 31833),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

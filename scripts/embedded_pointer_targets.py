@@ -1,77 +1,28 @@
 #!/usr/bin/env python3
-"""Emit symbolic pointer pairs embedded in .DB records.
-
-This complements pointer_targets.sh, which owns .DW entries.  Some fixed-stride
-records must remain .DB but can still carry relocatable <label,>label source
-fields; this script makes those fields visible to inventory checks.
-"""
+"""Build adjacent low/high .DB pointer inventory from xasm xref version 2."""
 
 from __future__ import annotations
 
 import csv
-import re
 import sys
 from pathlib import Path
+from typing import Any, TextIO
+
+from data_directive_xref import ContractError, load_xref, pointer_metadata, require
 
 
-LABEL_RE = re.compile(r"^\s*(@@)?([A-Za-z_][A-Za-z0-9_]*):")
-EQU_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\s+", re.IGNORECASE)
-OPCODE_RE = re.compile(r"^[A-Z]{3}(\.[A-Z])?$")
+FIELDNAMES = (
+    "source",
+    "entry",
+    "target_label",
+    "target_type",
+    "confidence",
+    "notes",
+)
 
 
-def strip_comment(line: str) -> str:
-    return line.split(";", 1)[0]
-
-
-def line_label(line: str) -> str:
-    match = LABEL_RE.match(line)
-    if not match:
-        return ""
-    return match.group(2)
-
-
-def strip_label(line: str) -> str:
-    return LABEL_RE.sub("", line, count=1)
-
-
-def token_kind(line: str) -> str:
-    text = line.strip()
-    if not text or text.startswith(";"):
-        return ""
-    if text.startswith("."):
-        return "data"
-    token = text.split(None, 1)[0]
-    return "code" if OPCODE_RE.match(token.upper()) else "unknown"
-
-
-def db_payload(line: str) -> str:
-    text = strip_comment(strip_label(line)).strip()
-    if not re.match(r"^\.DB(\s|$)", text, re.IGNORECASE):
-        return ""
-    return re.sub(r"^\.DB\s*", "", text, count=1, flags=re.IGNORECASE).strip()
-
-
-def split_operands(payload: str) -> list[str]:
-    operands: list[str] = []
-    cur: list[str] = []
-    depth = 0
-    for ch in payload:
-        if ch == "(":
-            depth += 1
-        elif ch == ")" and depth > 0:
-            depth -= 1
-        if ch == "," and depth == 0:
-            operands.append("".join(cur).strip())
-            cur = []
-        else:
-            cur.append(ch)
-    if cur or payload.endswith(","):
-        operands.append("".join(cur).strip())
-    return operands
-
-
-def canonical_expr(token: str) -> str:
-    expr = token.strip()
+def canonical_expr(expression: str) -> str:
+    expr = expression.strip()
     if expr.startswith("<") or expr.startswith(">"):
         expr = expr[1:].strip()
     while expr.startswith("(") and expr.endswith(")"):
@@ -82,130 +33,159 @@ def canonical_expr(token: str) -> str:
     return expr
 
 
-def base_label(expr: str) -> str:
-    base = canonical_expr(expr)
-    for sep in ("+", "-"):
-        if sep in base:
-            base = base.split(sep, 1)[0].strip()
-    return base
-
-
-def build_label_kinds(lines: list[str]) -> dict[str, str]:
-    kinds: dict[str, str] = {}
-    pending: list[str] = []
-
-    def flush(kind: str) -> None:
-        nonlocal pending
-        for label in pending:
-            kinds[label] = kind
-        pending = []
-
-    for line in lines:
-        equ = EQU_RE.match(line)
-        if equ:
-            kinds[equ.group(1)] = "data"
+def db_records(payload: dict[str, Any]) -> list[tuple[int, dict[str, Any]]]:
+    records: list[tuple[int, dict[str, Any]]] = []
+    for index, raw_record in enumerate(payload["data_directive_references"]):
+        if not isinstance(raw_record, dict):
+            raise ContractError(f"data_directive_references[{index}] must be an object")
+        directive = require(raw_record, "directive", str, index)
+        if directive != ".DB":
             continue
-
-        label = line_label(line)
-        rest = line
-        if label:
-            if not line.lstrip().startswith("@@"):
-                pending.append(label)
-            rest = strip_label(line)
-            if not rest.strip():
-                continue
-
-        kind = token_kind(rest)
-        if kind and pending:
-            flush(kind)
-
-    if pending:
-        flush("unknown")
-    return kinds
+        width = require(raw_record, "width_bytes", int, index)
+        if width != 1:
+            raise ContractError(
+                f"data_directive_references[{index}] has .DB width_bytes={width}, expected 1"
+            )
+        records.append((index, raw_record))
+    return records
 
 
-def target_type(expr: str, label_kinds: dict[str, str]) -> tuple[str, str, str]:
-    kind = label_kinds.get(base_label(expr), "unknown")
-    if kind == "code":
-        return "code_pointer", "high confidence", "auto-classified from target label leading instruction"
-    if kind == "data":
-        return "data_pointer", "high confidence", "auto-classified from target label leading data directive"
-    return "unknown_pointer", "inferred", "auto-extracted from .DB <label,>label pair (target kind unresolved)"
+def record_owner(record: dict[str, Any], index: int) -> str | None:
+    owner = record.get("owner_symbol")
+    if owner is None:
+        return None
+    if not isinstance(owner, str) or not owner:
+        raise ContractError(
+            f"data_directive_references[{index}].owner_symbol must be a non-empty string"
+        )
+    return owner
 
 
-def emit_rows(lines: list[str]) -> list[dict[str, object]]:
-    label_kinds = build_label_kinds(lines)
-    current_source = ""
-    entry_by_source: dict[str, int] = {}
+def projected_expr(
+    record: dict[str, Any], index: int, expected_projection: str
+) -> str:
+    projection = require(record, "target_projection", str, index)
+    if projection != expected_projection:
+        raise ContractError(
+            f"data_directive_references[{index}].target_projection must be "
+            f"{expected_projection!r}"
+        )
+    expression = require(record, "expression", str, index)
+    prefix = "<" if projection == "low" else ">"
+    if not expression.lstrip().startswith(prefix):
+        raise ContractError(
+            f"data_directive_references[{index}].expression must preserve its "
+            f"{projection} projection"
+        )
+    result = canonical_expr(expression)
+    if not result:
+        raise ContractError(
+            f"data_directive_references[{index}].expression must not be empty"
+        )
+    return result
+
+
+def inventory_rows(payload: dict[str, Any]) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
+    entry_by_owner: dict[str, int] = {}
+    records = db_records(payload)
 
-    for line in lines:
-        label = line_label(line)
-        if label and not line.lstrip().startswith("@@"):
-            current_source = label
-            entry_by_source.setdefault(current_source, 0)
-
-        payload = db_payload(line)
-        if not payload or not current_source:
+    position = 0
+    while position + 1 < len(records):
+        lo_index, lo_record = records[position]
+        hi_index, hi_record = records[position + 1]
+        if lo_record.get("target_projection") != "low" or hi_record.get(
+            "target_projection"
+        ) != "high":
+            position += 1
             continue
 
-        operands = split_operands(payload)
-        i = 0
-        while i + 1 < len(operands):
-            lo = operands[i].strip()
-            hi = operands[i + 1].strip()
-            if lo.startswith("<") and hi.startswith(">"):
-                lo_expr = canonical_expr(lo)
-                hi_expr = canonical_expr(hi)
-                if lo_expr == hi_expr:
-                    target, confidence, notes = target_type(lo_expr, label_kinds)
-                    entry = entry_by_source[current_source]
-                    rows.append({
-                        "source": current_source,
-                        "entry": entry,
-                        "target_label": lo_expr,
-                        "target_type": target,
-                        "confidence": confidence,
-                        "notes": notes,
-                    })
-                    entry_by_source[current_source] = entry + 1
-                    i += 2
-                    continue
-            i += 1
+        lo_owner = record_owner(lo_record, lo_index)
+        hi_owner = record_owner(hi_record, hi_index)
+        # File/line adjacency plus consecutive owner indexes already implies
+        # one owner in ordinary source. Keep the explicit check for macro
+        # expansions whose operands can share an invocation location while
+        # retaining distinct lexical provenance.
+        if lo_owner is None or hi_owner is None or lo_owner != hi_owner:
+            position += 1
+            continue
+
+        lo_file = require(lo_record, "file", str, lo_index)
+        hi_file = require(hi_record, "file", str, hi_index)
+        lo_line = require(lo_record, "line", int, lo_index)
+        hi_line = require(hi_record, "line", int, hi_index)
+        lo_operand = require(lo_record, "operand_index", int, lo_index)
+        hi_operand = require(hi_record, "operand_index", int, hi_index)
+        lo_owner_item = require(lo_record, "owner_item_index", int, lo_index)
+        hi_owner_item = require(hi_record, "owner_item_index", int, hi_index)
+        if not (
+            lo_file == hi_file
+            and lo_line == hi_line
+            and hi_operand == lo_operand + 1
+            and hi_owner_item == lo_owner_item + 1
+        ):
+            position += 1
+            continue
+
+        lo_expr = projected_expr(lo_record, lo_index, "low")
+        hi_expr = projected_expr(hi_record, hi_index, "high")
+        if lo_expr != hi_expr:
+            position += 1
+            continue
+
+        lo_kind = lo_record.get("target_kind", "unknown")
+        hi_kind = hi_record.get("target_kind", "unknown")
+        if lo_kind != hi_kind:
+            raise ContractError(
+                f"data_directive_references[{lo_index}] and [{hi_index}] "
+                "disagree on target_kind"
+            )
+        pointer_kind, confidence, notes = pointer_metadata(
+            lo_record,
+            lo_index,
+            "auto-extracted from .DB <label,>label pair (target kind unresolved)",
+        )
+        entry = entry_by_owner.get(lo_owner, 0)
+        rows.append(
+            {
+                "source": lo_owner,
+                "entry": entry,
+                "target_label": lo_expr,
+                "target_type": pointer_kind,
+                "confidence": confidence,
+                "notes": notes,
+            }
+        )
+        entry_by_owner[lo_owner] = entry + 1
+        position += 2
 
     return rows
 
 
+def write_inventory(rows: list[dict[str, object]], output: TextIO) -> None:
+    writer = csv.DictWriter(output, fieldnames=FIELDNAMES, lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+
+
 def main() -> int:
     if len(sys.argv) not in (2, 3):
-        print("usage: embedded_pointer_targets.py <asm_file> [out_csv]", file=sys.stderr)
+        print(f"usage: {sys.argv[0]} <xref_v2_json> [out_csv]", file=sys.stderr)
         return 64
 
-    asm_path = Path(sys.argv[1])
-    if not asm_path.is_file():
-        print(f"error: asm file not found: {asm_path}", file=sys.stderr)
-        return 65
-
-    lines = asm_path.read_text(encoding="utf-8").splitlines()
-    rows = emit_rows(lines)
-
-    out = open(sys.argv[2], "w", newline="", encoding="utf-8") if len(sys.argv) == 3 else sys.stdout
-    close_out = out is not sys.stdout
     try:
-        writer = csv.DictWriter(out, fieldnames=[
-            "source",
-            "entry",
-            "target_label",
-            "target_type",
-            "confidence",
-            "notes",
-        ], lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-    finally:
-        if close_out:
-            out.close()
-
+        payload = load_xref(Path(sys.argv[1]))
+        rows = inventory_rows(payload)
+        if len(sys.argv) == 3:
+            with Path(sys.argv[2]).open(
+                "w", encoding="utf-8", newline=""
+            ) as output:
+                write_inventory(rows, output)
+        else:
+            write_inventory(rows, sys.stdout)
+    except (ContractError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 65
     return 0
 
 

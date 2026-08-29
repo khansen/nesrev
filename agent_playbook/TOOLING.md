@@ -700,18 +700,25 @@ tables, preserving lexical owner, width-relative index, expression, and target
 kind. Unowned words and NES vector addresses `$FFFA`/`$FFFC`/`$FFFE` stay
 excluded; inline return payloads retain their dispatching callsite owner.
 
-`embedded_pointer_targets.csv` reports relocatable pointer fields that remain
-inside `.DB` records as adjacent `<label,>label` operands. It is a sibling
+`embedded_pointer_targets.csv` consumes xasm v2 data-directive records for
+adjacent `<label,>label` operands in one `.DB` statement. It is a sibling
 ledger, not a replacement for `pointer_targets.csv`: use it for fixed-stride
 records whose other fields must stay byte-sized, such as source-pointer fields
 mixed with bank, VRAM address, and count bytes. `project-verify` checks the
 ledger when it exists, so reverting such fields to raw low/high bytes fails
-until inventory and source agree.
+until inventory and xref agree.
 
-`split_pointer_targets.csv` reports relocatable targets in paired low/high byte
-tables (`FooPtrLoTable` `<Target` plus `FooPtrHiTable` `>Target`). The sync
-check requires equal counts, symbolic entries, and identical per-index target
-expressions; it is shape-specific, not a general embedded-pointer detector.
+`split_pointer_targets.csv` consumes the same xref for paired low/high byte
+tables (`FooPtrLoTable` `<Target` plus `FooPtrHiTable` `>Target`). NESrev keeps
+the suffix-pairing policy; the sync check requires complete symbolic bodies,
+equal counts, correct projections, and identical per-index target expressions.
+A lone suffix match is outside this paired-table ledger because some low-only
+tables supply a constant high byte elsewhere.
+
+Normal wrappers share one fresh xref across `.DW`, embedded `.DB`, and split
+`.DB` inventories. Leaf consumers never assemble. Standalone
+`project-maturity-check` creates one temporary xref only when either `.DB`
+ledger exists and the caller did not supply `NESREV_XREF_FILE`.
 
 `data_format_targets.csv` is an authored maturity worklist for core data-format
 families. New scaffolds enable `DATA_FORMAT_TARGETS_REQUIRED=1`; process checks
@@ -899,7 +906,8 @@ bash scripts/comment_quality_kpi.sh Game.asm docs/reverse_engineering/inventory/
 bash scripts/constant_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/data_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/data_extent_assertions_check.sh Game.asm docs/reverse_engineering/inventory/data_extent_assertions.csv
-bash scripts/embedded_pointer_targets_check.sh Game.asm docs/reverse_engineering/inventory/embedded_pointer_targets.csv
+bash scripts/embedded_pointer_targets_check.sh xref_with_data.json docs/reverse_engineering/inventory/embedded_pointer_targets.csv
+bash scripts/split_pointer_targets_check.sh xref_with_data.json docs/reverse_engineering/inventory/split_pointer_targets.csv
 bash scripts/global_code_label_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/inferred_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf
 bash scripts/procedure_doc_kpi.sh Game.asm docs/reverse_engineering/inventory/kpis.conf

@@ -12,6 +12,33 @@ source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
 
+pointer_inventory_xref="${NESREV_XREF_FILE:-}"
+pointer_inventory_xref_tmp=""
+if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" || -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
+  if [[ -n "${pointer_inventory_xref}" ]]; then
+    if [[ ! -f "${pointer_inventory_xref}" ]]; then
+      echo "error: shared xref file not found: ${pointer_inventory_xref}" >&2
+      exit 65
+    fi
+  else
+    pointer_inventory_xref_tmp="$(mktemp -d)"
+    trap 'rm -rf "${pointer_inventory_xref_tmp}"' EXIT
+    pointer_inventory_xref="${pointer_inventory_xref_tmp}/xref_with_data.json"
+    XASM_BIN="${XASM_BIN:-xasm}"
+    if ! "${XASM_BIN}" --pure-binary \
+        -o "${pointer_inventory_xref_tmp}/maturity.o" \
+        --xref="${pointer_inventory_xref}" \
+        --xref-format=json \
+        --xref-include-owner=true \
+        --xref-data=true \
+        "${ASM_FILE}" >/dev/null 2>"${pointer_inventory_xref_tmp}/xasm.stderr"; then
+      cat "${pointer_inventory_xref_tmp}/xasm.stderr" >&2
+      echo "error: xasm failed while generating the maturity pointer xref" >&2
+      exit 65
+    fi
+  fi
+fi
+
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
 raw_absrom="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
@@ -44,14 +71,14 @@ if ! data_extent_report="$(bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" 
   fail=1
 fi
 if [[ -f "${EMBEDDED_POINTER_TARGETS_FILE}" ]]; then
-  if ! embedded_targets_report="$(bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" "${ASM_FILE}" "${EMBEDDED_POINTER_TARGETS_FILE}" 2>&1)"; then
+  if ! embedded_targets_report="$(bash "${SCRIPT_DIR}/embedded_pointer_targets_check.sh" "${pointer_inventory_xref}" "${EMBEDDED_POINTER_TARGETS_FILE}" 2>&1)"; then
     printf '%s\n' "${embedded_targets_report}" >&2
     echo "maturity gate failed: embedded pointer target registry is stale" >&2
     fail=1
   fi
 fi
 if [[ -f "${SPLIT_POINTER_TARGETS_FILE}" ]]; then
-  if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" "${ASM_FILE}" "${SPLIT_POINTER_TARGETS_FILE}" 2>&1)"; then
+  if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh" "${pointer_inventory_xref}" "${SPLIT_POINTER_TARGETS_FILE}" 2>&1)"; then
     printf '%s\n' "${split_targets_report}" >&2
     echo "maturity gate failed: split pointer target registry is stale" >&2
     fail=1
