@@ -512,6 +512,44 @@ Universal pass-time enforcement is green:
   notes were pruned from 225 to 64 lines, with stable screen-feature and audio
   facts promoted to canonical format documentation.
 
+The structured-coverage totals above were captured before landing so they do
+not depend on retaining the gitignored pass-prep caches. The measurement used
+minimum size 12, final project tree
+`9da1732d2c774ea3a8b5bce07ffdee5ca1fb96cd`, pre-queue project tree
+`243fc9be1bc339172a69fe1d5de8f9cf92b6e771`, checker blob
+`fd86fe443e991a6f507f459010537471f51837d3`, and xasm 1.6.1 with SHA-256
+`ab69c8376f2ab42e88e7619a7ab035fed1f2b12992bb4ee97f12929a92afe631`.
+"Pre-queue covered" means a candidate matched an exact or glob ledger label
+in the pre-queue tree; "undispositioned" applies the same matching rule to the
+final tree. The cache hashes let a future regeneration prove it is comparing
+the same structured inputs.
+
+| Project | Cache SHA-256 | Candidates | Pre-queue covered | Queued | Undispositioned |
+|---|---|---:|---:|---:|---:|
+| balloon_fight | `f565e50cb679f2d6f86b112933f4ca8727ffbc2a26bc9a205385f56552c02e7d` | 115 | 115 | 0 | 0 |
+| baseball | `75e158fa7b521cc4acf6eb69cb6b56df41962959795959eefd876ef628ba72a2` | 41 | 0 | 41 | 0 |
+| clu_clu_land | `1dafa47cdeb956012c7a14876c6a0cb3e120dbbdcf0e4f480aef146d01f33b95` | 105 | 0 | 105 | 0 |
+| devil_world | `4f3d5e429a24e844b90f89b6e9849fa69e4030c02219577a2df99be38dbdda76` | 60 | 0 | 60 | 0 |
+| donkey_kong | `471b8a82d77dd730d18c067ef54e13f136438a92aa7073f16ed122af164b69e1` | 69 | 0 | 69 | 0 |
+| donkey_kong_3 | `e350a1fca87fdb8e86ae78a602cc186017902e810d9af1c5aa6af850f3c77cd9` | 106 | 0 | 106 | 0 |
+| donkey_kong_jr | `963d48bee631630b2dcc40ddeefb008a67a19af1e6a177f298089da092d77b2d` | 61 | 0 | 61 | 0 |
+| donkey_kong_jr_math | `ad2d5147d109d86a3737ac1bd3b1f4e36b14e434a87dda82c0eb948c7b1c4ccf` | 43 | 0 | 43 | 0 |
+| duck_hunt | `13b8a4ed8f0df5009970d978f5457b86825b81c265115c3d255bf3cc5e8537c0` | 137 | 0 | 137 | 0 |
+| excitebike | `b9c15894e86c14cdcb048f113788a615a7a9d20ff2f388b9fa3fb649b5b89355` | 96 | 0 | 96 | 0 |
+| golf | `92246bec8aab8b06066bcf7f4a58219427a070217b087cd142ee2da1eed338bd` | 87 | 0 | 87 | 0 |
+| hogans_alley | `126666d800aa0dab5f604821170d6ed8daa8779b7f0d164c37622773eedfc406` | 154 | 148 | 6 | 0 |
+| ice_climber | `7c3ae6ebc32a86f534cdbe725f00c571ad640f10b9b0909cb7eb8af4f3eeca69` | 50 | 0 | 50 | 0 |
+| kid_icarus | `07ef7bc790d68a032bde8d42e40d6a83ef76222f0f5e012c846c00d839b95d3f` | 564 | 564 | 0 | 0 |
+| kung_fu | `5e05714699b22099e932d1df7a8693afd71499d845cd9883a434b89efce0883a` | 220 | 0 | 220 | 0 |
+| mario_bros | `aef9d6961f1a4b6a1ddc9e7d5eb949485a54c4e02c9b089c319112dfcb9377ad` | 80 | 0 | 80 | 0 |
+| metroid | `7a74210dffb476c714b0060e0f58924974bd7d263ef123219c1f756d9920d739` | 1,293 | 17 | 1,276 | 0 |
+| pinball | `de437e37ed8dd0b566b9012ae669ee55b77536149adfb1428fdc71632c627e3c` | 65 | 0 | 65 | 0 |
+| popeye | `e9f2885e09bcab408149b241d2060302e6264428e9fffb736f96b13668ea5eb5` | 68 | 0 | 68 | 0 |
+| tennis | `4a61627391990507942cbba2daf28159c834a5d374124278f3b0dd54e11ccbc2` | 114 | 0 | 114 | 0 |
+| urban_champion | `6d515a4241e776ebed284aa6b1b52acf00b8276e18b19ed234b8f406240ac451` | 91 | 0 | 91 | 0 |
+| zelda | `67b03a97c5f6feb677418a781fa4ed0bc40e9350422b3771d2a273051d563185` | 180 | 19 | 161 | 0 |
+| **Total** | — | **3,799** | **863** | **2,936** | **0** |
+
 Maturity was then run separately for every project with fresh pass-prep
 caches. All 22 fail for explicit project debt; none fails because a checker was
 skipped, a canonical artifact was missing, or a structured blob candidate was
