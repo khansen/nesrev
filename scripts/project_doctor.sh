@@ -43,12 +43,23 @@ check_tool() {
     local version
     # Probe with --version, then -version. Redirect stdin from /dev/null so a
     # tool that misinterprets the argument as a search pattern (e.g. rg
-    # treating "-version" as a pattern) cannot block on stdin. Fall back to
-    # "(installed)" if both probes return empty.
-    version="$("$tool" --version </dev/null 2>&1 | head -n 1 || true)"
-    if [[ -z "$version" ]]; then
-      version="$("$tool" -version </dev/null 2>&1 | head -n 1 || true)"
+    # treating "-version" as a pattern) cannot block on stdin.
+    #
+    # stderr is captured because some tools print their version banner there,
+    # so output alone cannot distinguish a version from a usage error. The
+    # probe's exit status can: a tool without the flag (BSD od/dd/sed) exits
+    # non-zero, and its diagnostic must not be reported as a version. Capture
+    # the whole probe before taking the first line; piping into head while the
+    # status is still needed would let SIGPIPE look like a failed probe under
+    # `set -o pipefail`. Fall back to "(installed)" when neither probe yields
+    # a usable line.
+    if ! version="$("$tool" --version </dev/null 2>&1)"; then
+      version=""
     fi
+    if [[ -z "$version" ]] && ! version="$("$tool" -version </dev/null 2>&1)"; then
+      version=""
+    fi
+    version="$(printf '%s\n' "$version" | head -n 1)"
     if [[ -z "$version" ]]; then
       version="(installed)"
     fi
