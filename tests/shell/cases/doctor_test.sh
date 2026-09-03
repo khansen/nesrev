@@ -85,3 +85,29 @@ SH
 
   assert_match "javac .* stderr-version-fixture" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
 }
+
+test_doctor_reports_installed_when_version_probe_fails() {
+  local bindir="${NESREV_TEST_TMPDIR}/stub_bin"
+  _make_stub_bindir "${bindir}" \
+    java javac xasm bash python3 rg od dd awk sed perl make git head
+  # Mimic a BSD utility with no --version flag: diagnose on stderr, exit
+  # non-zero. The diagnostic must never be reported as a version string.
+  rm -f "${bindir}/od"
+  cat > "${bindir}/od" <<'SH'
+#!/usr/bin/env bash
+echo "od: illegal option -- -" >&2
+echo "usage: od [-aBbcDdeFfHhIiLlOosvXx] [file ...]" >&2
+exit 1
+SH
+  chmod +x "${bindir}/od"
+
+  PATH="${bindir}" bash "${DOCTOR}" >"${NESREV_TEST_TMPDIR}/stdout" 2>"${NESREV_TEST_TMPDIR}/stderr"
+
+  local stdout; stdout="$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+  assert_match "od .* \(installed\)" "${stdout}" \
+    "a failed version probe must fall back to (installed)"
+  if [[ "${stdout}" == *"illegal option"* ]]; then
+    printf '%s\n' "${stdout}" >&2
+    fail "doctor reported a usage error as a version string"
+  fi
+}
