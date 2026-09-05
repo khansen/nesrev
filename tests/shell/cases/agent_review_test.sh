@@ -433,6 +433,7 @@ test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
   local external_script="${NESREV_TEST_TMPDIR}/agent_review_external.py"
   mkdir -p "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${external_script}"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${NESREV_TEST_TMPDIR}/process_friction.py"
   chmod +x "${external_script}"
 
   git -C "${repo}" init -q
@@ -762,6 +763,9 @@ Path("decisions.json").write_text(json.dumps(decisions))
 PY
     python3 scripts/process_friction.py triage --project demo --decisions decisions.json
     python3 scripts/process_friction.py prune --project demo
+    git add -u projects/demo
+    git add projects/demo/docs/reverse_engineering/inventory/process_friction_receipts.json
+    git commit -q -m "Record synthetic queue triage"
     python3 scripts/agent_review.py archive --pass-id 10 --force
   )
   if [[ -e "${friction_path}" ]]; then

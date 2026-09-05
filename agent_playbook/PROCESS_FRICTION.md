@@ -49,6 +49,9 @@ it removes the file when no candidates remain. A persistence failure leaves
 the queue available for retry. If receipts saved but queue replacement failed,
 rerun `prune`. Malformed legacy markers and invalid receipts fail closed.
 These commands do not initialize or mutate the project-pass handoff state.
+Commit tracked queue/receipt changes before re-archiving, which still requires
+a clean tracked worktree. If relocating `agent_review.py` outside the repository,
+keep its companion `process_friction.py` in the same directory.
 
 ## Receipt and ingestion contract
 
