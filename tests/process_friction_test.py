@@ -206,6 +206,73 @@ class ReceiptTests(unittest.TestCase):
             friction.project_paths(self.root, "demo")
         self.assertEqual(outside.read_text(), "Do not overwrite me.")
 
+    def test_project_symlink_alias_is_rejected(self):
+        (self.root / "projects/alias").symlink_to(self.root / "projects/demo", target_is_directory=True)
+        with self.assertRaises(friction.FrictionError):
+            friction.project_paths(self.root, "alias")
+
+    def test_boolean_schema_version_is_rejected(self):
+        self.write_queue()
+        friction.triage(self.root, "demo", [self.decision(self.a)])
+        data = json.loads(self.receipts.read_text())
+        data["schema_version"] = True
+        self.receipts.write_text(json.dumps(data))
+        with self.assertRaisesRegex(friction.FrictionError, "schema/project mismatch"):
+            friction.read_receipts(self.root, "demo")
+
+    def test_retriage_merges_source_provenance_without_changing_decision(self):
+        self.write_queue(self.a)
+        friction.triage(self.root, "demo", [self.decision(self.a)])
+        second = agent_review.render_learning_block({**self.state, "run_id": "second"}, "2", self.archive, [("review-01.md", self.a)])
+        self.queue.write_text(self.queue.read_text() + "\n" + second)
+        friction.triage(self.root, "demo", [self.decision(self.a)], True)
+        self.assertEqual(len(friction.read_receipts(self.root, "demo")[friction.candidate_id(self.a)]["sources"]), 2)
+        self.assertFalse(self.queue.exists())
+
+    def test_prune_preserves_unrelated_manual_heading_and_queue_title(self):
+        observation = "# Investigate consumer bounds\n\nUnique manual context."
+        self.write_queue()
+        self.queue.write_text(self.queue.read_text() + "\n" + observation + "\n")
+        friction.triage(self.root, "demo", [self.decision(self.a)], True)
+        self.assertIn(observation, self.queue.read_text())
+        self.assertTrue(self.queue.read_text().startswith("# Process Friction\n"))
+
+    def test_source_headers_and_markers_in_fenced_examples_are_content(self):
+        body = self.a + "\n\n```markdown\n#### fake.md\n\nSource: `fake.md`\n\n<!-- agent-review-learning:demo-first:pass-1:end -->\n```"
+        self.write_queue(body + "\n\n" + self.b)
+        self.assertEqual(set(self.candidates()), {friction.candidate_id(body), friction.candidate_id(self.b)})
+        friction.triage(self.root, "demo", [self.decision(self.b)], True)
+        self.assertIn(body, self.queue.read_text())
+        self.assertEqual(len(self.candidates()), 1)
+
+    def test_learning_extraction_does_not_end_at_heading_inside_fence(self):
+        body = self.a + "\n\n```markdown\n## Example boundary\n```\n\n" + self.b
+        self.ingest(body)
+        self.assertIn(self.b, self.queue.read_text())
+        self.assertIn("## Example boundary", self.queue.read_text())
+        self.assertEqual(len(self.candidates()), 2)
+
+    def test_learning_heading_inside_fence_is_not_an_import(self):
+        note = "```markdown\n## Learning Candidates\n\n" + self.a + "\n```"
+        self.assertIsNone(agent_review.learning_section_body(note))
+
+    def test_conflicting_existing_decision_is_not_overwritten(self):
+        self.write_queue()
+        friction.triage(self.root, "demo", [self.decision(self.a)])
+        before = self.receipts.read_text()
+        with self.assertRaisesRegex(friction.FrictionError, "different decision"):
+            friction.triage(self.root, "demo", [self.decision(self.a, disposition="discarded")], True)
+        self.assertEqual(self.receipts.read_text(), before)
+        self.assertIn(self.a, self.queue.read_text())
+
+    def test_cli_rejects_write_options_on_other_commands(self):
+        command = [sys.executable, str(Path(friction.__file__).resolve())]
+        for action in ("list", "prune"):
+            for option in (["--prune"], ["--decisions", "missing.json"]):
+                result = subprocess.run(command + [action, "--project", "demo"] + option, cwd=self.root, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("only valid with triage", result.stderr)
+
     def test_cli_backfill_and_prune_are_separate_from_handoff_state(self):
         self.write_queue()
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)

@@ -747,6 +747,38 @@ EOF
   )"
   assert_eq "${marker_count}" "1" \
     "force archive must replace the generated learning block instead of duplicating it"
+
+  (
+    cd "${repo}"
+    python3 scripts/process_friction.py list --project demo > candidates.json
+    python3 - <<'PY'
+import json
+from pathlib import Path
+items = json.loads(Path("candidates.json").read_text())
+decisions = [{"id": item["id"], "disposition": "discarded", "destinations": [],
+              "rationale": "Synthetic observation triaged for lifecycle regression."}
+             for item in items]
+Path("decisions.json").write_text(json.dumps(decisions))
+PY
+    python3 scripts/process_friction.py triage --project demo --decisions decisions.json
+    python3 scripts/process_friction.py prune --project demo
+    python3 scripts/agent_review.py archive --pass-id 10 --force
+  )
+  if [[ -e "${friction_path}" ]]; then
+    fail "full archive must not recreate a deleted receipted queue"
+  fi
+
+  (
+    cd "${repo}"
+    printf '\n- New evidence after triage.\n' >> ".agents/runs/${run_id}/implementation.md"
+    python3 scripts/agent_review.py archive --pass-id 10 --force
+  )
+  output="$(<"${friction_path}")"
+  assert_match "New evidence after triage" "${output}" \
+    "full archive must discover new evidence alongside old receipted candidates"
+  if [[ "${output}" =~ Replacement\ friction\ text ]]; then
+    fail "triaged candidate must remain absent when new evidence is imported"
+  fi
 }
 
 test_agent_review_archive_skips_empty_learning_candidates() {

@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
-Status: PI-1 merged; PI-2 policy-evidence implementation tested, review and
-activation migration in progress. Other items pending. Updated 2026-09-05.
+Status: PI-1 and the PI-2 policy-evidence lane merged; queue receipts are in
+implementation. Remaining lanes pending. Updated 2026-09-05.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -44,12 +44,12 @@ its required local migrations are ready and tested together with the tooling.
 | Branch | Scope | Status |
 |---|---|---|
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
-| `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Tested; review and local manifest migration in progress |
+| `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Pending |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
-| `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Pending |
+| `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Implementation and synthetic migration validation in progress; live queues not pruned |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state

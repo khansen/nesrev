@@ -58,20 +58,26 @@ def empty_candidate(text: str) -> bool:
     return all(value in {"none", "n/a", "na", "no learning candidates", "nothing", "no actionable learning candidates"} for value in values)
 
 
+def structural_lines(text: str):
+    """Yield Markdown line indices and text outside fenced examples."""
+    fence = None
+    for index, line in enumerate(text.splitlines(keepends=True)):
+        match = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", line.rstrip("\r\n"))
+        if fence is not None:
+            if match and match[1][0] == fence[0] and len(match[1]) >= len(fence) and not match[2].strip():
+                fence = None
+            continue
+        if match:
+            fence = match[1]
+            continue
+        yield index, line
+
+
 def candidate_chunks(text: str) -> list[str]:
     lines = text.splitlines(keepends=True)
     boundaries = [0]
-    fence = None
-    for index, line in enumerate(lines):
-        match = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
-        if match:
-            token = match[1]
-            if fence is None:
-                fence = token
-            elif token[0] == fence[0] and len(token) >= len(fence):
-                fence = None
-            continue
-        if fence is None and re.match(r"^(?:#{1,6}\s|(?:[-*+]|\d+[.)])\s+\S)", line):
+    for index, line in structural_lines(text):
+        if re.match(r"^(?:#{1,6}|[-*+]|\d+[.)])\s+\S", line):
             if index:
                 boundaries.append(index)
     boundaries.append(len(lines))
@@ -79,6 +85,8 @@ def candidate_chunks(text: str) -> list[str]:
 
 
 def untriaged_body(text: str, receipts: dict[str, dict]) -> str:
+    if empty_candidate(text):
+        return ""
     return "\n\n".join(
         chunk.strip() for chunk in candidate_chunks(text)
         if not empty_candidate(chunk) and candidate_id(chunk) not in receipts
@@ -94,7 +102,13 @@ class Part:
 
 def generated_parts(block: re.Match) -> tuple[str, list[Part]]:
     body = block["body"]
-    matches = list(SOURCE_RE.finditer(body))
+    line_offsets = []
+    offset = 0
+    for line in body.splitlines(keepends=True):
+        line_offsets.append(offset)
+        offset += len(line)
+    structural_offsets = {line_offsets[index] for index, _ in structural_lines(body)}
+    matches = [match for match in SOURCE_RE.finditer(body) if match.start() in structural_offsets]
     if not matches:
         raise FrictionError(f"unrecognized learning block {block['key']}; preserve it for manual review")
     parts = []
@@ -105,29 +119,55 @@ def generated_parts(block: re.Match) -> tuple[str, list[Part]]:
     return prefix, parts
 
 
-def manual_body(text: str) -> str:
+def manual_prefix_and_body(text: str) -> tuple[str, str]:
+    original = text
     text = text.lstrip()
-    if text.startswith("# "):
+    if text.splitlines()[:1] == ["# Process Friction"]:
         text = text.partition("\n")[2].lstrip()
     for prefix in (BOILERPLATE[0], "## Agent Review Learning Candidates", BOILERPLATE[1]):
         if text.startswith(prefix):
             text = text[len(prefix):].lstrip()
-    return text
+    return original[:len(original) - len(text)], text
+
+
+def manual_body(text: str) -> str:
+    return manual_prefix_and_body(text)[1]
 
 
 def queue_sections(document: str):
+    lines = document.splitlines(keepends=True)
+    offsets = []
+    offset = 0
+    for line in lines:
+        offsets.append(offset)
+        offset += len(line)
     position = 0
-    for block in BLOCK_RE.finditer(document):
-        before = document[position:block.start()]
-        if "<!-- agent-review-learning:" in before:
+    start = None
+    key = None
+    for index, line in structural_lines(document):
+        if "<!-- agent-review-learning:" not in line:
+            continue
+        marker = re.fullmatch(r"<!-- agent-review-learning:([^\n<>]+):(start|end) -->\n?", line)
+        if marker is None:
             raise FrictionError("unmatched learning marker; preserve the queue for manual review")
-        yield None, before
-        yield block, block[0]
-        position = block.end()
-    tail = document[position:]
-    if "<!-- agent-review-learning:" in tail:
+        if marker[2] == "start":
+            if start is not None:
+                raise FrictionError("nested learning marker; preserve the queue for manual review")
+            start, key = offsets[index], marker[1]
+        else:
+            if start is None or marker[1] != key:
+                raise FrictionError("unmatched learning marker; preserve the queue for manual review")
+            end = offsets[index] + len(line)
+            block = BLOCK_RE.fullmatch(document[start:end])
+            if block is None:
+                raise FrictionError("unrecognized learning block; preserve the queue for manual review")
+            yield None, document[position:start]
+            yield block, block[0]
+            position = end
+            start = None
+    if start is not None:
         raise FrictionError("unmatched learning marker; preserve the queue for manual review")
-    yield None, tail
+    yield None, document[position:]
 
 
 def queue_candidates(document: str, queue_source: str) -> dict[str, dict]:
@@ -138,6 +178,8 @@ def queue_candidates(document: str, queue_source: str) -> dict[str, dict]:
         else:
             _, parts = generated_parts(block)
         for part in parts:
+            if empty_candidate(part.body):
+                continue
             for chunk in candidate_chunks(part.body):
                 if empty_candidate(chunk):
                     continue
@@ -151,8 +193,10 @@ def queue_candidates(document: str, queue_source: str) -> dict[str, dict]:
 def project_paths(root: Path, project: str) -> tuple[Path, Path]:
     if not re.fullmatch(r"[A-Za-z0-9_-]+", project):
         raise FrictionError("invalid project slug")
-    project_root = (root / "projects" / project).resolve()
-    if not project_root.is_relative_to(root.resolve()) or not project_root.is_dir():
+    root = root.resolve()
+    project_path = root / "projects" / project
+    project_root = project_path.resolve()
+    if project_root != project_path or not project_root.is_dir():
         raise FrictionError("project must be an existing directory within the repository")
     paths = (project_root / "PROCESS_FRICTION.md", project_root / "docs/reverse_engineering/inventory/process_friction_receipts.json")
     if any(not path.resolve().is_relative_to(project_root) for path in paths):
@@ -166,7 +210,8 @@ def read_receipts(root: Path, project: str) -> dict[str, dict]:
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict) or data.get("schema_version") != 1 or data.get("project") != project:
+        if (not isinstance(data, dict) or type(data.get("schema_version")) is not int
+                or data["schema_version"] != 1 or data.get("project") != project):
             raise FrictionError("receipt schema/project mismatch")
         if not isinstance(data.get("receipts"), list):
             raise FrictionError("receipts must be a list")
@@ -217,8 +262,9 @@ def prune_document(document: str, receipts: dict[str, dict]) -> str:
     output = []
     for block, text in queue_sections(document):
         if block is None:
-            output.append("".join(
-                chunk for chunk in candidate_chunks(manual_body(text))
+            prefix, body = manual_prefix_and_body(text)
+            output.append(prefix + "".join(
+                chunk for chunk in candidate_chunks(body)
                 if empty_candidate(chunk) or candidate_id(chunk) not in receipts
             ))
             continue
@@ -276,8 +322,11 @@ def triage(root: Path, project: str, decisions: list[dict], prune_after: bool = 
             path = (root / target.split("#", 1)[0]).resolve()
             if not path.is_relative_to(root) or not path.is_file():
                 raise FrictionError(f"destination does not resolve to a repository file: {target}")
-        if identity in receipts and receipts[identity] != entry:
-            raise FrictionError(f"receipt already exists with a different decision: {identity}")
+        if identity in receipts:
+            previous = receipts[identity]
+            if any(previous[name] != entry[name] for name in ("content", "disposition", "destinations", "rationale")):
+                raise FrictionError(f"receipt already exists with a different decision: {identity}")
+            entry["sources"] = sorted(set(previous["sources"]) | set(entry["sources"]))
         receipts[identity] = entry
     if queue.read_text(encoding="utf-8") != original:
         raise FrictionError("queue changed during triage; retry without pruning")
@@ -295,6 +344,8 @@ def main() -> int:
     parser.add_argument("--decisions", type=Path)
     parser.add_argument("--prune", action="store_true", dest="prune_after")
     args = parser.parse_args()
+    if args.command != "triage" and (args.decisions is not None or args.prune_after):
+        parser.error("--decisions and --prune are only valid with triage")
     try:
         root = Path(subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()).resolve()
         queue, _ = project_paths(root, args.project)

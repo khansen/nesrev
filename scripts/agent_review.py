@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from process_friction import FrictionError, read_receipts, untriaged_body
+from process_friction import FrictionError, read_receipts, structural_lines, untriaged_body
 
 
 VALID_STATUSES = {
@@ -763,10 +763,11 @@ def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[
 
 def learning_section_body(text: str) -> str | None:
     lines = text.splitlines()
+    structural = {index for index, _ in structural_lines(text)}
     bodies: list[str] = []
     i = 0
     while i < len(lines):
-        match = LEARNING_HEADING_RE.match(lines[i].strip())
+        match = LEARNING_HEADING_RE.match(lines[i].strip()) if i in structural else None
         if not match:
             i += 1
             continue
@@ -774,7 +775,7 @@ def learning_section_body(text: str) -> str | None:
         body_start = i + 1
         body_end = body_start
         while body_end < len(lines):
-            heading = re.match(r"^(#{1,6})\s+\S", lines[body_end].strip())
+            heading = re.match(r"^(#{1,6})\s+\S", lines[body_end].strip()) if body_end in structural else None
             if heading and len(heading.group(1)) <= level:
                 break
             body_end += 1

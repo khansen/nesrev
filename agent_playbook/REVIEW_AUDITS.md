@@ -93,8 +93,7 @@ For each candidate that recurs, blocks automation, exposes a false-green
 signal, or costs meaningful operator time, record one disposition:
 
 - **Script/gate fix** — implement or tighten tooling, with bad-direction proof.
-- **Playbook rule** — move the durable rule to the canonical playbook home and
-  delete or mark the raw candidate as promoted.
+- **Playbook rule** — move the durable rule to the canonical playbook home.
 - **Prompt/harness change** — update generated prompts, state transitions, or
   notification behavior when the issue is operator handoff friction.
 - **Project-local note** — keep it in the project when it reflects one game's
@@ -105,6 +104,9 @@ signal, or costs meaningful operator time, record one disposition:
 Do not promote a single raw candidate into a global playbook rule unless it is
 general, repeated, high-risk, or backed by a concrete defect. Prefer a narrow
 script/gate fix when a lesson can be enforced mechanically.
+
+After routing, preserve unique evidence and backfill [import receipts](PROCESS_FRICTION.md),
+then remove candidates—even if implementation remains. Keep only undecided items.
 
 <a id="static-readability-debt-audit"></a>
 ## Static Readability Debt Audit
