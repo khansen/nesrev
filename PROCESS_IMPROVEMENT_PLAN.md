@@ -1,6 +1,6 @@
 # Process Improvement Plan
 
-Status: PI-1 implemented and verified locally; independent review and corpus
+Status: PI-1 implemented, verified, and independently reviewed; corpus
 activation pending. Other items and queue cleanup pending.
 Corpus review snapshot: 2026-09-05, local `projects` head `dfa985afd`.
 
@@ -34,8 +34,9 @@ gates merely to increase coverage.
 
 ## Delivery and tracking
 
-Commit this plan on `docs/process-improvement-plan`, then implement shared
-changes on feature branches from current `master`, using separate worktrees.
+The plan was committed as `683a22c64` on local `master` from
+`docs/process-improvement-plan`. Implement shared changes on feature branches
+from current `master`, using separate worktrees.
 Keep game-specific migrations and eventual queue pruning on local-only
 `projects`. Each implementation branch updates this plan with its status and
 reviewed commit or PR reference. Do not activate a gate on the corpus until
@@ -43,7 +44,7 @@ its required local migrations are ready and tested together with the tooling.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Implemented; review pending; plan commit `683a22c64` |
+| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Reviewed `70e488a7f`; corpus activation pending |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Pending |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
@@ -112,8 +113,10 @@ after the canonical prefix, payload fields inside shared suffixes, and
 annotated same-address aliases. All three fail against `8ebf6fe10` and pass
 with the fixes. A further regression covers either field owner across three
 chained aliases or suffixes, including unrelated-owner refusal; it fails
-against `20c9069e4` and passes with shared ownership context. Independent
-re-review is pending.
+against `20c9069e4` and passes with shared ownership context. Both independent
+reviewers in tmux panes `%0` and `%1` approved `70e488a7f` on 2026-09-05;
+no material implementation findings remain. Approval does not activate the
+gate on the corpus or authorize publication.
 
 Before activating this branch on local-only `projects`, correct these five
 newly exposed stale consumer names using current producer/consumer evidence:
