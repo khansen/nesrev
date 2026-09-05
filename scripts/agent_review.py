@@ -19,6 +19,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+from process_friction import (
+    FrictionError, atomic_write, empty_candidate, queue_candidates, queue_sections,
+    read_receipts, structural_lines, untriaged_body,
+)
+
 
 VALID_STATUSES = {
     "IMPLEMENTING",
@@ -761,10 +766,11 @@ def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[
 
 def learning_section_body(text: str) -> str | None:
     lines = text.splitlines()
+    structural = {index for index, _ in structural_lines(text)}
     bodies: list[str] = []
     i = 0
     while i < len(lines):
-        match = LEARNING_HEADING_RE.match(lines[i].strip())
+        match = LEARNING_HEADING_RE.match(lines[i].strip()) if i in structural else None
         if not match:
             i += 1
             continue
@@ -772,7 +778,7 @@ def learning_section_body(text: str) -> str | None:
         body_start = i + 1
         body_end = body_start
         while body_end < len(lines):
-            heading = re.match(r"^(#{1,6})\s+\S", lines[body_end].strip())
+            heading = re.match(r"^(#{1,6})\s+\S", lines[body_end].strip()) if body_end in structural else None
             if heading and len(heading.group(1)) <= level:
                 break
             body_end += 1
@@ -786,19 +792,7 @@ def learning_section_body(text: str) -> str | None:
 
 
 def learning_body_is_empty(body: str) -> bool:
-    stripped = body.strip()
-    if not stripped:
-        return True
-    normalized: list[str] = []
-    for line in stripped.splitlines():
-        value = re.sub(r"^\s*[-*]\s+", "", line).strip()
-        value = value.strip("_*`").strip().lower().rstrip(".")
-        if value:
-            normalized.append(value)
-    if not normalized:
-        return True
-    none_markers = {"none", "n/a", "na", "no learning candidates", "nothing"}
-    return all(value in none_markers for value in normalized)
+    return empty_candidate(body)
 
 
 def learning_artifacts(root: Path, state: dict[str, Any]) -> list[tuple[str, str]]:
@@ -855,13 +849,14 @@ def learning_block_markers(state: dict[str, Any], pass_id: str) -> tuple[str, st
 
 
 def upsert_learning_block(document: str, state: dict[str, Any], pass_id: str, block: str) -> str:
-    start, end = learning_block_markers(state, pass_id)
-    pattern = re.compile(
-        rf"(?ms)^{re.escape(start)}\n.*?^{re.escape(end)}\n?",
-        re.MULTILINE,
-    )
-    if pattern.search(document):
-        return pattern.sub(lambda _match: block, document).rstrip() + "\n"
+    start, _ = learning_block_markers(state, pass_id)
+    sections = list(queue_sections(document))
+    queue_candidates(document, "PROCESS_FRICTION.md")
+    if any(existing is not None and text.startswith(start + "\n") for existing, text in sections):
+        return "".join(
+            block if existing is not None and text.startswith(start + "\n") else text
+            for existing, text in sections
+        ).rstrip() + "\n"
     if "## Agent Review Learning Candidates" not in document:
         document = document.rstrip() + "\n\n## Agent Review Learning Candidates\n\n"
         document += (
@@ -877,6 +872,17 @@ def update_process_friction(
     candidates = collected_learning_candidates(root, state)
     if not candidates:
         return None
+    try:
+        receipts = read_receipts(root, state.get("project", ""))
+        candidates = [
+            (source, remaining)
+            for source, body in candidates
+            if (remaining := untriaged_body(body, receipts))
+        ]
+    except FrictionError as exc:
+        raise UserError(str(exc)) from exc
+    if not candidates:
+        return None
     out_path = ensure_repo_contained(
         root, project_process_friction_path(root, state), "process friction output"
     )
@@ -889,8 +895,12 @@ def update_process_friction(
             "Entries are raw observations until triaged through process review.\n"
         )
     block = render_learning_block(state, pass_id, archive_path, candidates)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(upsert_learning_block(document, state, pass_id, block))
+    try:
+        updated = upsert_learning_block(document, state, pass_id, block)
+        queue_candidates(updated, rel(root, out_path))
+    except FrictionError as exc:
+        raise UserError(str(exc)) from exc
+    atomic_write(out_path, updated)
     return rel(root, out_path)
 
 

@@ -7,6 +7,7 @@ _init_agent_review_repo() {
   local repo="$1"
   mkdir -p "${repo}/scripts" "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
   chmod +x "${repo}/scripts/agent_review.py"
 
   git -C "${repo}" init -q
@@ -399,6 +400,7 @@ test_agent_review_start_pass_rejects_process_ranges_before_note() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_start_process_repo"
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
@@ -431,6 +433,7 @@ test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
   local external_script="${NESREV_TEST_TMPDIR}/agent_review_external.py"
   mkdir -p "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${external_script}"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${NESREV_TEST_TMPDIR}/process_friction.py"
   chmod +x "${external_script}"
 
   git -C "${repo}" init -q
@@ -745,6 +748,41 @@ EOF
   )"
   assert_eq "${marker_count}" "1" \
     "force archive must replace the generated learning block instead of duplicating it"
+
+  (
+    cd "${repo}"
+    python3 scripts/process_friction.py list --project demo > candidates.json
+    python3 - <<'PY'
+import json
+from pathlib import Path
+items = json.loads(Path("candidates.json").read_text())
+decisions = [{"id": item["id"], "disposition": "discarded", "destinations": [],
+              "rationale": "Synthetic observation triaged for lifecycle regression."}
+             for item in items]
+Path("decisions.json").write_text(json.dumps(decisions))
+PY
+    python3 scripts/process_friction.py triage --project demo --decisions decisions.json
+    python3 scripts/process_friction.py prune --project demo
+    git add -u projects/demo
+    git add projects/demo/docs/reverse_engineering/inventory/process_friction_receipts.json
+    git commit -q -m "Record synthetic queue triage"
+    python3 scripts/agent_review.py archive --pass-id 10 --force
+  )
+  if [[ -e "${friction_path}" ]]; then
+    fail "full archive must not recreate a deleted receipted queue"
+  fi
+
+  (
+    cd "${repo}"
+    printf '\n- New evidence after triage.\n' >> ".agents/runs/${run_id}/implementation.md"
+    python3 scripts/agent_review.py archive --pass-id 10 --force
+  )
+  output="$(<"${friction_path}")"
+  assert_match "New evidence after triage" "${output}" \
+    "full archive must discover new evidence alongside old receipted candidates"
+  if [[ "${output}" =~ Replacement\ friction\ text ]]; then
+    fail "triaged candidate must remain absent when new evidence is imported"
+  fi
 }
 
 test_agent_review_archive_skips_empty_learning_candidates() {
@@ -1506,6 +1544,7 @@ test_agent_review_init_rejects_process_ranges() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_process_repo"
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
