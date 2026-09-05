@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
 Status: PI-1, PI-2 policy evidence, PI-3, and queue receipts merged. Runtime-evidence
-activation is held for unsupported legacy evidence; PI-4 implementation is under validation.
+activation is held for unsupported legacy evidence; PI-4 is approved for landing.
 Updated 2026-09-06.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -48,7 +48,7 @@ its required local migrations are ready and tested together with the tooling.
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
-| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Implementation under validation; independent approval required before PR |
+| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Independently approved `6c0e04186`; landing pending |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 
@@ -263,7 +263,12 @@ Initial independent review found unchecked supporting commands, missing output
 blocks and assembler/metadata contradictions. The revised contract checks every
 command's tool, target and subject, binds build selections to recorded tool
 identity, and requires captured output while permitting genuinely empty output.
-Explicit/reused handoff regressions cover those refusals; reapproval is pending.
+Explicit/reused handoff regressions cover those refusals. Independent re-review
+approved `6c0e04186` with no material findings. Final validation passed 31 focused
+cases, 597 shell tests and 1206 Java tests; both representative cold-cache
+integrations pass without tracked-state changes. Seven new regressions reject
+the old validator for the intended missing-refusal reasons. Independent review
+also passed 46 shell cases, 13 positive controls and 55 malformed-packet refusals.
 
 ## PI-5 — Separate intake snapshots from historical baselines
 
