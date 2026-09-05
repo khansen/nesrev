@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
 Status: PI-1, PI-2 policy evidence, and queue receipts merged. Runtime-evidence
-activation is held for unsupported legacy evidence; PI-3 is in implementation.
+activation is held for unsupported legacy evidence; PI-3 is approved for landing.
 Updated 2026-09-05.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -47,7 +47,7 @@ its required local migrations are ready and tested together with the tooling.
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
-| `feat/pi-3-consumer-audits` | Reusable audit machinery | Implementation and representative reuse validated; independent review pending |
+| `feat/pi-3-consumer-audits` | Reusable audit machinery | Independently approved `bbba2447a` with the local adapter migration; landing pending |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Pending |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
@@ -215,6 +215,9 @@ contracts and stale assembled evidence. Two existing local audits reuse the
 helpers and produce byte-identical before/after reports; all 12 of their existing
 regressions and both canonical verify/strict-CI runs pass. The adapter migration
 changes no assembly or semantic claims and stays on the local corpus branch.
+Independent review additionally checked exhaustive byte arithmetic, all byte
+counter starts, representative old/new adapter equivalence and changed helper
+bytes. It approved implementation and adapter readiness with no material findings.
 
 ## PI-4 — Make review bundles self-contained and reproducible
 
