@@ -51,8 +51,9 @@ indicate that the format puts control flags in the address byte.
 Declared suffix entries share the parent's terminator and can own payload
 fields while the parent is checked. Same-address aliases, unannotated or
 declaring the same canonical format, and inline `.DB` bodies are accepted.
-A named field explicitly declared inside
-the current stream can divide a packet; the fragments must add up to its
+Each entry retains field ownership established by preceding aliases and parent
+streams. A named field explicitly declared inside the current stream can divide
+a packet; the fragments must add up to its
 header-derived length. An unrelated label cannot supply missing payload or
 hide a missing terminator. Checking stops when packet alignment is lost,
 avoiding spurious interpretation of payload zeros as stream terminators.

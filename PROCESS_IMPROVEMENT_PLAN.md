@@ -90,7 +90,7 @@ and identify unsupported cases; see [checker coverage](agent_playbook/CHECKER_CO
 
 Local validation on 2026-09-05:
 
-- `make test`: exit 0; 567 shell and 1206 Java tests passed.
+- `make test`: exit 0; 568 shell and 1206 Java tests passed.
 - Three new regressions fail against the old checkers at `683a22c64`:
   backticked missing consumer, missing consumer behind an unknown dispatch
   qualifier, and malformed packet under a nonstandard label name.
@@ -110,7 +110,10 @@ Initial independent review of `8ebf6fe10` approved the consumer changes and
 identified PPU boundary gaps. Follow-up regressions cover grouped wording
 after the canonical prefix, payload fields inside shared suffixes, and
 annotated same-address aliases. All three fail against `8ebf6fe10` and pass
-with the fixes; independent re-review is pending.
+with the fixes. A further regression covers either field owner across three
+chained aliases or suffixes, including unrelated-owner refusal; it fails
+against `20c9069e4` and passes with shared ownership context. Independent
+re-review is pending.
 
 Before activating this branch on local-only `projects`, correct these five
 newly exposed stale consumer names using current producer/consumer evidence:

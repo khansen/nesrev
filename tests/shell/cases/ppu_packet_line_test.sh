@@ -346,6 +346,29 @@ ASM
   assert_match 'declared_streams=2 line_layout_findings=0' "${out}"
 }
 
+test_ppu_packet_line_shared_entries_accept_either_payload_owner() {
+  PYTHONPATH="${REPO_ROOT}/scripts" python3 - <<'PY'
+from ppu_packet_line_check import analyze_coverage
+
+for suffix in (False, True):
+    for owner in ("Parent", "Middle", "Entry", "Unrelated"):
+        lines = ["; Format: zero-terminated PPU packet stream.", "Parent:"]
+        for entry in ("Middle", "Entry"):
+            if suffix:
+                lines.append(".DB $20,$00,$01,$11")
+            qualifier = " suffix" if suffix else ""
+            lines.extend([f"; Format: zero-terminated PPU packet stream{qualifier}.", f"{entry}:"])
+        lines.extend([
+            ".DB $20,$00,$02,$11",
+            f"; Format: 1-byte field inside {owner}.",
+            "Field:", ".DB $22", ".DB $00",
+        ])
+        coverage = analyze_coverage(lines)
+        assert coverage.checked == 3, coverage
+        assert bool(coverage.findings) == (owner == "Unrelated"), (suffix, owner, coverage.findings)
+PY
+}
+
 test_ppu_packet_line_reports_unresolvable_expression() {
   local asm="${NESREV_TEST_TMPDIR}/unknown.asm"
   cat > "${asm}" <<'EOF'

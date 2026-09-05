@@ -225,12 +225,15 @@ def parse_db_values(
 
 
 def analyze_stream(
-    lines: list[str], label_index: int, resolver: ExpressionResolver
+    lines: list[str], label_index: int, resolver: ExpressionResolver,
+    entry_owners: dict[str, set[str]] | None = None,
 ) -> list[Finding]:
     label_match = LABEL_RE.match(lines[label_index])
     assert label_match is not None
     stream = label_match.group(1)
-    field_owners = {stream}
+    if entry_owners is None:
+        entry_owners = {}
+    field_owners = entry_owners.get(stream, set()) | {stream}
     findings: list[Finding] = []
     terminated = False
     has_body = False
@@ -258,12 +261,14 @@ def analyze_stream(
                 )
             ):
                 field_owners.add(label.group(1))
+                entry_owners.setdefault(label.group(1), set()).update(field_owners)
             elif (
                 not terminated
                 and is_declared_stream_label(lines, index)
                 and suffix_comment_before(lines, index)
             ):
                 field_owners.add(label.group(1))
+                entry_owners.setdefault(label.group(1), set()).update(field_owners)
             else:
                 break
         if label:
@@ -339,6 +344,7 @@ def analyze_stream(
 
 def analyze_coverage(lines: list[str]) -> Coverage:
     resolver = ExpressionResolver(equ_expressions(lines))
+    entry_owners: dict[str, set[str]] = {}
     streams = 0
     candidates = 0
     skipped: list[Finding] = []
@@ -360,7 +366,7 @@ def analyze_coverage(lines: list[str]) -> Coverage:
             skipped.append(Finding(index + 1, label.group(1), reason))
             continue
         streams += 1
-        findings.extend(analyze_stream(lines, index, resolver))
+        findings.extend(analyze_stream(lines, index, resolver, entry_owners))
     return Coverage(candidates, streams, findings, skipped)
 
 
