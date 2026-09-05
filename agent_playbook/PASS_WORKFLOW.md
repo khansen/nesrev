@@ -207,11 +207,10 @@ exists to prevent — an identity gap described as "dynamic" is desk-resolvable
 cross-corridor work. Promotion is deliberate (`--kind runtime`), because
 asserting that evidence cannot be had from the desk should cost a decision.
 
-**Runtime is a scheduling claim.** A static deferral admits nobody has
-assembled the evidence; a runtime deferral asserts it cannot be had from the
-desk, which obliges a trace plan — making it the most attractive deferral
-available — unfalsifiable from the desk — so runtime-classified gaps with no
-trace plan are reported. The definition is narrow
+**Runtime is a scheduling claim.** A static deferral admits the desk work is
+unfinished; runtime asserts the evidence cannot be obtained statically. It
+requires the [active runtime-evidence contract](RUNTIME_EVIDENCE.md).
+The definition is narrow
 ([QUALITY_REVIEW.md#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)):
 identity, liveness and data-format questions rarely meet it, their evidence
 being in the ROM but spread across corridors. Try that route first — placement
