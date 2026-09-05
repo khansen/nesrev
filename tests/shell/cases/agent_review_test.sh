@@ -7,6 +7,7 @@ _init_agent_review_repo() {
   local repo="$1"
   mkdir -p "${repo}/scripts" "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
   chmod +x "${repo}/scripts/agent_review.py"
 
   git -C "${repo}" init -q
@@ -399,6 +400,7 @@ test_agent_review_start_pass_rejects_process_ranges_before_note() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_start_process_repo"
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
@@ -1506,6 +1508,7 @@ test_agent_review_init_rejects_process_ranges() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_process_repo"
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"

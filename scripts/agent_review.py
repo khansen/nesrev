@@ -19,6 +19,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from process_friction import FrictionError, read_receipts, untriaged_body
+
 
 VALID_STATUSES = {
     "IMPLEMENTING",
@@ -875,6 +877,17 @@ def update_process_friction(
     root: Path, state: dict[str, Any], pass_id: str, archive_path: str
 ) -> str | None:
     candidates = collected_learning_candidates(root, state)
+    if not candidates:
+        return None
+    try:
+        receipts = read_receipts(root, state.get("project", ""))
+        candidates = [
+            (source, remaining)
+            for source, body in candidates
+            if (remaining := untriaged_body(body, receipts))
+        ]
+    except FrictionError as exc:
+        raise UserError(str(exc)) from exc
     if not candidates:
         return None
     out_path = ensure_repo_contained(
