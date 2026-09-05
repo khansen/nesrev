@@ -298,7 +298,7 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(self.queue.read_text(), before)
 
     def test_receipt_directory_sync_failure_never_prunes(self):
-        self.write_queue()
+        self.write_queue(self.a)
         before = self.queue.read_text()
         with patch.object(friction.os, "fsync", side_effect=[None, OSError("directory sync failure")]):
             with self.assertRaisesRegex(OSError, "directory sync failure"):

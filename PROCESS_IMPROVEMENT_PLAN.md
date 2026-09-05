@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
-Status: PI-1 and the PI-2 policy-evidence lane merged; queue receipts are in
-implementation. Remaining lanes pending. Updated 2026-09-05.
+Status: PI-1 and the PI-2 policy-evidence lane merged; queue receipts are
+implemented and in final review. Remaining lanes pending. Updated 2026-09-05.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -49,7 +49,7 @@ its required local migrations are ready and tested together with the tooling.
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Pending |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
-| `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Implementation and synthetic migration validation in progress; live queues not pruned |
+| `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Implemented; final independent review pending; migration tests pass; live queues not pruned |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -284,6 +284,15 @@ need the same content-preservation check, even when their linked review is
 already archived.
 
 ### Queue cleanup and ingestion follow-up
+
+The [receipt implementation](agent_playbook/PROCESS_FRICTION.md) now separates
+durable decisions from queue residency. Validation at `bc7db7435` passed
+34 Python cases, 586 shell tests and 1206 Java tests. Copied migration checks
+covered all 20 existing queues without changing their live content. Six named
+regressions fail against pre-receipt ingestion; independent review additionally
+exposed fenced-marker, empty-example, unknown-metadata and atomic-write gaps.
+Those fixes are included in the current candidate and awaiting final approval.
+These are mechanism tests, not dispositions for the actual queue contents.
 
 Execute in this order; steps 1–4 are prerequisites for actual queue pruning.
 
