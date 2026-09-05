@@ -276,6 +276,15 @@ class ReceiptTests(unittest.TestCase):
         self.ingest(body)
         self.assertIn(body, self.queue.read_text())
 
+    def test_fenced_empty_marker_is_retained_by_learning_extraction(self):
+        for delimiter in ("```", "```text", "~~~", "````"):
+            with self.subTest(delimiter=delimiter):
+                closing = delimiter.rstrip("text")
+                body = delimiter + "\nNone\n" + closing
+                self.assertEqual(agent_review.learning_section_body("## Learning Candidates\n\n" + body), body)
+                self.ingest(body)
+                self.assertIn(body, self.queue.read_text())
+
     def test_unrecognized_generated_prefix_is_preserved_by_refusal(self):
         self.write_queue(self.a)
         unique = "Manual migration context: retain this only-copy explanation."

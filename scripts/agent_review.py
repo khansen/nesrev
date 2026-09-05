@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from process_friction import (
-    FrictionError, atomic_write, queue_candidates, queue_sections,
+    FrictionError, atomic_write, empty_candidate, queue_candidates, queue_sections,
     read_receipts, structural_lines, untriaged_body,
 )
 
@@ -792,19 +792,7 @@ def learning_section_body(text: str) -> str | None:
 
 
 def learning_body_is_empty(body: str) -> bool:
-    stripped = body.strip()
-    if not stripped:
-        return True
-    normalized: list[str] = []
-    for line in stripped.splitlines():
-        value = re.sub(r"^\s*[-*]\s+", "", line).strip()
-        value = value.strip("_*`").strip().lower().rstrip(".")
-        if value:
-            normalized.append(value)
-    if not normalized:
-        return True
-    none_markers = {"none", "n/a", "na", "no learning candidates", "nothing"}
-    return all(value in none_markers for value in normalized)
+    return empty_candidate(body)
 
 
 def learning_artifacts(root: Path, state: dict[str, Any]) -> list[tuple[str, str]]:
