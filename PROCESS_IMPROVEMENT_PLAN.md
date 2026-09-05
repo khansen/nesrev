@@ -1,8 +1,8 @@
 # Process Improvement Plan
 
-Status: PI-1, PI-2 policy evidence, and queue receipts merged. Runtime-evidence
-activation is held for unsupported legacy evidence; PI-3 is approved for landing.
-Updated 2026-09-05.
+Status: PI-1, PI-2 policy evidence, PI-3, and queue receipts merged. Runtime-evidence
+activation is held for unsupported legacy evidence; PI-4 implementation is under validation.
+Updated 2026-09-06.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -47,8 +47,8 @@ its required local migrations are ready and tested together with the tooling.
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
-| `feat/pi-3-consumer-audits` | Reusable audit machinery | Independently approved `bbba2447a` with the local adapter migration; landing pending |
-| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Pending |
+| `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
+| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Implementation under validation; independent approval required before PR |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 
@@ -250,6 +250,14 @@ evidence or fails clearly, tool/fixture mismatches are diagnosed, and the
 summary cannot hide a failed or unrun gate behind successful earlier output.
 Producer/consumer fixtures must verify the summary and handoff validation
 agree on the reviewed SHA and each required gate's status.
+
+The implementation records unfiltered history and per-commit changed paths,
+resolved tool/input hashes and optional expected-hash comparisons, explicit
+non-authoring cache preparation, and every required result in a terminal JSON
+summary. The shared parser checks all three gates and four supporting results
+against their fenced sections; failed, unrun, incomplete or contradictory
+evidence blocks handoff, including reused packets. Legacy ephemeral packets
+must be regenerated; archived review judgements remain untouched.
 
 ## PI-5 — Separate intake snapshots from historical baselines
 

@@ -53,7 +53,8 @@ and ingestion; move that text into an ordinary manual queue section first.
 These commands do not initialize or mutate the project-pass handoff state.
 Commit tracked queue/receipt changes before re-archiving, which still requires
 a clean tracked worktree. If relocating `agent_review.py` outside the repository,
-keep its companion `process_friction.py` in the same directory.
+keep its companions `process_friction.py` and `review_packet_evidence.py` in the
+same directory.
 
 ## Receipt and ingestion contract
 

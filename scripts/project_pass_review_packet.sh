@@ -54,12 +54,21 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 2
 fi
 
+PACKET_SCRATCH="$(mktemp -d)"
+trap 'rm -rf "${PACKET_SCRATCH}"' EXIT
+STATE_INTEGRITY=pass
+
+state_is_current() {
+  [[ "$(git rev-parse HEAD)" == "${HEAD_SHA}" ]] && git diff --quiet && git diff --cached --quiet
+}
+
 if ! git diff --quiet "${BASE_SHA}..${HEAD_SHA}" -- "${PROJECT_PATH}"; then
   RANGE_HAS_PROJECT_DIFF=1
 else
   RANGE_HAS_PROJECT_DIFF=0
 fi
 PROJECT_COMMIT_COUNT="$(git rev-list --count "${BASE_SHA}..${HEAD_SHA}" -- "${PROJECT_PATH}")"
+TOTAL_COMMIT_COUNT="$(git rev-list --count "${BASE_SHA}..${HEAD_SHA}")"
 
 shell_quote() {
   printf "%q" "$1"
@@ -81,23 +90,36 @@ emit_command_block() {
   local title="$1"
   local sha_label="$2"
   local command="$3"
-  local output rc
+  local skip_reason="${4:-}"
+  local output rc output_fence
 
   printf '### %s\n\n' "${title}"
   printf 'State: `%s`\n\n' "${sha_label}"
   printf 'Command:\n\n```sh\n%s\n```\n\n' "${command}"
-  set +e
-  output="$(cd "${REPO_ROOT}" && bash -o pipefail -c "${command}" 2>&1)"
-  rc=$?
-  set -e
+  if ! state_is_current; then
+    STATE_INTEGRITY=fail
+    skip_reason="review head or tracked worktree changed; regenerate from the intended clean head"
+  fi
+  if [[ -n "${skip_reason}" ]]; then
+    output="Not run: ${skip_reason}"
+    rc=not-run
+  else
+    set +e
+    output="$(cd "${REPO_ROOT}" && bash -o pipefail -c "${command}" 2>&1)"
+    rc=$?
+    set -e
+    if ! state_is_current; then STATE_INTEGRITY=fail; fi
+  fi
+  LAST_EXIT_STATUS="${rc}"
   printf 'Exit status: `%s`\n\n' "${rc}"
-  printf 'Output:\n\n```text\n'
+  output_fence="$(printf '%s' "${output}" | python3 -c 'import re,sys; print("`" * max(3, 1 + max((len(x) for x in re.findall(r"`+", sys.stdin.read())), default=0)))')"
+  printf 'Output:\n\n%stext\n' "${output_fence}"
   if [[ -n "${output}" ]]; then
     printf '%s\n' "${output}"
   else
     printf '(no output)\n'
   fi
-  printf '```\n\n'
+  printf '%s\n\n' "${output_fence}"
 }
 
 path_exists_in_range() {
@@ -327,6 +349,7 @@ LXXXX_UNMATCHED_REMOVALS="${LXXXX_RECONCILIATION_REST%%$'\n'*}"
 LXXXX_UNMATCHED_SOURCE_RENAMES="${LXXXX_RECONCILIATION_REST#*$'\n'}"
 
 VERIFY_CMD="$(
+  printf 'XASM_BIN=%s ' "$(shell_quote "${XASM_BIN:-xasm}")"
   if [[ -n "${ALLOW_UNRESOLVED_LXXXX:-}" ]]; then
     printf 'ALLOW_UNRESOLVED_LXXXX=%s ' "$(shell_quote "${ALLOW_UNRESOLVED_LXXXX}")"
   fi
@@ -334,9 +357,22 @@ VERIFY_CMD="$(
     "$(shell_quote "${MAKE_BIN}")" \
     "$(shell_quote "${SLUG}")"
 )"
-PROCESS_CMD="$(printf '%s project-process-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
-DOCS_CMD="$(printf '%s project-docs-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
-NEXT_PASS_CMD="$(printf '%s project-next-pass PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+XASM_ENV="XASM_BIN=$(shell_quote "${XASM_BIN:-xasm}")"
+PROCESS_CMD="${XASM_ENV} $(printf '%s project-process-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+DOCS_CMD="${XASM_ENV} $(printf '%s project-docs-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+NEXT_PASS_CMD="${XASM_ENV} $(printf '%s project-next-pass PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+PREP_CMD="PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 ${XASM_ENV} $(printf '%s project-pass-prep PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+PROOF_CMD="python3 scripts/proof_debt.py $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
+CROSSWALK_CMD="python3 scripts/proof_debt.py --crosswalk-only $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
+PREREQUISITE_ARGS=(python3 scripts/review_packet_evidence.py environment
+  --source "${ASM_FILE}" --reference "${REF_NES}" --make "${MAKE_BIN}"
+  --assembler "${XASM_BIN:-xasm}" --output "${PACKET_SCRATCH}/environment.json")
+if [[ -n "${REVIEW_EXPECTED_XASM_SHA256:-}" ]]; then
+  PREREQUISITE_ARGS+=(--expected-assembler "${REVIEW_EXPECTED_XASM_SHA256}")
+fi
+if [[ -n "${REVIEW_EXPECTED_REF_SHA256:-}" ]]; then
+  PREREQUISITE_ARGS+=(--expected-reference "${REVIEW_EXPECTED_REF_SHA256}")
+fi
 
 cat <<EOF
 # Project Pass Review Packet
@@ -361,6 +397,7 @@ section says otherwise.
 
 ## Range Summary
 
+- Total commits in range: \`${TOTAL_COMMIT_COUNT}\`
 - Project commits in range: \`${PROJECT_COMMIT_COUNT}\`
 - Rename ledger rows: \`${RENAME_ROW_SUMMARY}\`
 - Unresolved LXXXX labels: \`${LXXXX_SUMMARY}\`
@@ -374,7 +411,12 @@ EOF
 emit_command_block \
   "Complete Commit List And Diffstat" \
   "range ${BASE_SHORT}..${HEAD_SHORT}" \
-  "git log --oneline --stat $(shell_quote "${BASE_SHA}..${HEAD_SHA}") -- $(shell_quote "${PROJECT_PATH}")"
+  "git log --oneline --stat $(shell_quote "${BASE_SHA}..${HEAD_SHA}")"
+
+emit_command_block \
+  "Complete Changed Path Inventory" \
+  "range ${BASE_SHORT}..${HEAD_SHORT}" \
+  "git log --format='commit %H' --name-status $(shell_quote "${BASE_SHA}..${HEAD_SHA}")"
 
 emit_command_block \
   "Project Diff" \
@@ -397,35 +439,52 @@ No configured review ledgers were present in either endpoint of the range.
 EOF
 fi
 
+emit_command_block "Build and Fixture Prerequisites" "review_head ${HEAD_SHA}" "$(join_quoted "${PREREQUISITE_ARGS[@]}")"
+SKIP_REASON=""
+if [[ "${LAST_EXIT_STATUS}" != 0 ]]; then
+  SKIP_REASON="build/reference prerequisites failed; see prerequisite diagnostics (use only authorized local fixtures)"
+fi
+emit_command_block "Cache Preparation" "review_head ${HEAD_SHA}" "${PREP_CMD}" "${SKIP_REASON}"
+PREP_STATUS="${LAST_EXIT_STATUS}"
+if [[ "${PREP_STATUS}" != 0 ]]; then
+  SKIP_REASON="cache preparation did not pass; no gate may rely on stale generated evidence"
+fi
+
 emit_command_block \
   "Proof Debt Signals" \
   "review_head ${HEAD_SHA}" \
-  "python3 scripts/proof_debt.py $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
+  "${PROOF_CMD}"
+PROOF_STATUS="${LAST_EXIT_STATUS}"
 
 emit_command_block \
   "Crosswalk Currency" \
   "review_head ${HEAD_SHA}" \
-  "python3 scripts/proof_debt.py --crosswalk-only $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
+  "${CROSSWALK_CMD}"
+CROSSWALK_STATUS="${LAST_EXIT_STATUS}"
 
 emit_command_block \
   "Generated Next-Pass Evidence" \
   "review_head ${HEAD_SHA}" \
-  "${NEXT_PASS_CMD}"
+  "${NEXT_PASS_CMD}" "${SKIP_REASON}"
+NEXT_PASS_STATUS="${LAST_EXIT_STATUS}"
 
 emit_command_block \
   "Project Verify Gate" \
   "review_head ${HEAD_SHA}" \
-  "${VERIFY_CMD}"
+  "${VERIFY_CMD}" "${SKIP_REASON}"
+VERIFY_STATUS="${LAST_EXIT_STATUS}"
 
 emit_command_block \
   "Project Process Gate" \
   "review_head ${HEAD_SHA}" \
-  "${PROCESS_CMD}"
+  "${PROCESS_CMD}" "${SKIP_REASON}"
+PROCESS_STATUS="${LAST_EXIT_STATUS}"
 
 emit_command_block \
   "Project Docs Gate" \
   "review_head ${HEAD_SHA}" \
-  "${DOCS_CMD}"
+  "${DOCS_CMD}" "${SKIP_REASON}"
+DOCS_STATUS="${LAST_EXIT_STATUS}"
 
 cat <<EOF
 ## Reviewer Instructions
@@ -435,3 +494,16 @@ full range, the aggregate signals, the ledger deltas, and the SHA-labelled
 gate evidence above. Return \`APPROVED\` only when no blocking issue remains;
 otherwise return \`CHANGES_REQUESTED\` with findings ordered by severity.
 EOF
+
+printf '\n## Required Gate Summary\n\n```json\n'
+python3 scripts/review_packet_evidence.py summary \
+  --head "${HEAD_SHA}" --project "${SLUG}" \
+  --environment "${PACKET_SCRATCH}/environment.json" --state-integrity "${STATE_INTEGRITY}" \
+  --project-verify-command "${VERIFY_CMD}" --project-verify-exit "${VERIFY_STATUS}" \
+  --project-process-check-command "${PROCESS_CMD}" --project-process-check-exit "${PROCESS_STATUS}" \
+  --project-docs-check-command "${DOCS_CMD}" --project-docs-check-exit "${DOCS_STATUS}" \
+  --cache-preparation-command "${PREP_CMD}" --cache-preparation-exit "${PREP_STATUS}" \
+  --next-pass-command "${NEXT_PASS_CMD}" --next-pass-exit "${NEXT_PASS_STATUS}" \
+  --proof-debt-command "${PROOF_CMD}" --proof-debt-exit "${PROOF_STATUS}" \
+  --crosswalk-command "${CROSSWALK_CMD}" --crosswalk-exit "${CROSSWALK_STATUS}"
+printf '```\n\nPacket generation: complete. Required evidence status is reported separately above.\n'

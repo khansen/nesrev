@@ -160,8 +160,8 @@ at the review head. Run the loop from a checkout that has the project sources
 and required untracked reference files; when that checkout predates the worker
 script, invoke the script by absolute path from a tool-bearing worktree.
 `start-pass`, `ready`, and `reready` validate the packet before handoff: the
-packet must name the current review head and its Project Verify Gate must
-report exit status 0. When a generated strict packet fails only because
+packet's terminal summary must match its head, subject and all required
+gate/preparation results. Failed or unrun evidence blocks handoff. When a strict packet fails because
 unresolved `LXXXX` labels are still expected for the project, the worker
 regenerates it once with `ALLOW_UNRESOLVED_LXXXX=1` and records that relaxed
 mode for later rounds. If parity evidence is missing or red, fix the local
