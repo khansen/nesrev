@@ -1,7 +1,8 @@
 # Process Improvement Plan
 
 Status: PI-1, PI-2 policy evidence, PI-3, PI-4, and queue receipts merged.
-Runtime-evidence activation is held; PI-5 is approved for landing.
+PI-5 delivery is tracked in [PR #104](https://github.com/khansen/nesrev/pull/104).
+Runtime-evidence activation remains held.
 Updated 2026-09-06.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -49,7 +50,7 @@ its required local migrations are ready and tested together with the tooling.
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
-| `fix/pi-5-intake-baselines` | Historical measurement protection | Independently approved `28427b0a4` with the receipt-only local migration; landing pending |
+| `fix/pi-5-intake-baselines` | Historical measurement protection | [PR #104](https://github.com/khansen/nesrev/pull/104); independently approved `28427b0a4` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 
 Use ordinary process/tooling branch review, including bad-direction tests
