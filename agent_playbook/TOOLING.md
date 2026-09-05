@@ -303,8 +303,8 @@ and `has_indexed_accesses_without_exact_coverage`. Useful for spotting
 declared spans whose interior bytes have no direct reader (potential
 mis-split blobs or hidden consumers).
 
-Prefer these structured outputs over ad-hoc grep when planning a pass;
-see also [Evidence Order](#xasm-structured-analysis).
+For bounded models, use [consumer audit helpers](CONSUMER_AUDITS.md).
+Pass planning still follows [Evidence Order](#xasm-structured-analysis).
 
 <a id="static-analysis"></a>
 ## Static-Analysis Scanner
