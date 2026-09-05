@@ -256,6 +256,61 @@ class ReceiptTests(unittest.TestCase):
         note = "```markdown\n## Learning Candidates\n\n" + self.a + "\n```"
         self.assertIsNone(agent_review.learning_section_body(note))
 
+    def test_rearchive_fenced_matching_end_marker_is_idempotent(self):
+        body = self.a + "\n\n```markdown\n<!-- agent-review-learning:demo-first:pass-1:end -->\n```\n\n" + self.b
+        self.ingest(body)
+        before = self.queue.read_text()
+        self.ingest(body)
+        self.assertEqual(self.queue.read_text(), before)
+
+    def test_malformed_queue_refuses_ingestion_without_writing(self):
+        self.write_queue()
+        self.queue.write_text(self.queue.read_text().replace(":end -->", ":wrong -->"))
+        before = self.queue.read_text()
+        with self.assertRaisesRegex(agent_review.UserError, "marker|block"):
+            self.ingest(self.c)
+        self.assertEqual(self.queue.read_text(), before)
+
+    def test_fenced_heading_and_none_are_opaque_evidence(self):
+        body = "```\n### Unique failure evidence\nNone\n```"
+        self.ingest(body)
+        self.assertIn(body, self.queue.read_text())
+
+    def test_unrecognized_generated_prefix_is_preserved_by_refusal(self):
+        self.write_queue(self.a)
+        unique = "Manual migration context: retain this only-copy explanation."
+        self.queue.write_text(self.queue.read_text().replace("#### implementation.md", unique + "\n\n#### implementation.md"))
+        before = self.queue.read_text()
+        with self.assertRaisesRegex(friction.FrictionError, "preserve manual content"):
+            friction.triage(self.root, "demo", [self.decision(self.a)], True)
+        self.assertEqual(self.queue.read_text(), before)
+        self.assertFalse(self.receipts.exists())
+        with self.assertRaisesRegex(agent_review.UserError, "preserve manual content"):
+            self.ingest(self.b)
+        self.assertEqual(self.queue.read_text(), before)
+
+    def test_ingestion_replace_failure_preserves_existing_queue(self):
+        self.write_queue()
+        before = self.queue.read_text()
+        with patch.object(friction.os, "replace", side_effect=OSError("simulated ingestion replace failure")):
+            with self.assertRaisesRegex(OSError, "replace failure"):
+                self.ingest(self.c)
+        self.assertEqual(self.queue.read_text(), before)
+
+    def test_receipt_directory_sync_failure_never_prunes(self):
+        self.write_queue()
+        before = self.queue.read_text()
+        with patch.object(friction.os, "fsync", side_effect=[None, OSError("directory sync failure")]):
+            with self.assertRaisesRegex(OSError, "directory sync failure"):
+                friction.triage(self.root, "demo", [self.decision(self.a)], True)
+        self.assertEqual(self.queue.read_text(), before)
+
+    def test_generated_boilerplate_after_manual_context_is_not_a_candidate(self):
+        self.write_queue()
+        text = self.queue.read_text().replace("## Agent Review Learning Candidates", "Manual preamble.\n\n## Agent Review Learning Candidates", 1)
+        entries = friction.queue_candidates(text, "queue.md")
+        self.assertEqual({item["content"] for item in entries.values()}, {"Manual preamble.", self.a, self.b})
+
     def test_conflicting_existing_decision_is_not_overwritten(self):
         self.write_queue()
         friction.triage(self.root, "demo", [self.decision(self.a)])

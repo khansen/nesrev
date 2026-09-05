@@ -48,6 +48,8 @@ can perform both steps in that order. Pruning removes only receipted candidates;
 it removes the file when no candidates remain. A persistence failure leaves
 the queue available for retry. If receipts saved but queue replacement failed,
 rerun `prune`. Malformed legacy markers and invalid receipts fail closed.
+Unrecognized text inserted into generated block metadata also refuses triage
+and ingestion; move that text into an ordinary manual queue section first.
 These commands do not initialize or mutate the project-pass handoff state.
 Commit tracked queue/receipt changes before re-archiving, which still requires
 a clean tracked worktree. If relocating `agent_review.py` outside the repository,
@@ -68,8 +70,9 @@ SHAs are provenance, not identity: re-archiving unchanged text after a rebase
 must not recreate triaged work. Distinct new content remains discoverable.
 Receipts preserve content and source references, including unique manual or
 implementation-note observations. Their schema and content hashes are checked
-before ingestion or pruning. Writes replace the receipt file atomically before
-any queue removal; run one triage/archive writer per project at a time.
+before ingestion or pruning. Receipt writes sync the file and its directory
+before any queue removal; ingestion and pruning also replace queues atomically.
+Run one triage/archive writer per project at a time.
 
 Top-level bullets, numbered items and headings delimit candidates; indented
 details and fenced examples remain attached. Headings, source labels, and

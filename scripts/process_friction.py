@@ -22,6 +22,11 @@ BLOCK_RE = re.compile(
     r"(?P<body>[\s\S]*?)^<!-- agent-review-learning:(?P=key):end -->\n?"
 )
 SOURCE_RE = re.compile(r"(?m)^#### [^\n]+\n\nSource: `(?P<source>[^`\n]+)`\n")
+INTRO_RE = re.compile(
+    r"\A### Pass [^\n]+\n\nArchive: `[^`\n]+`\nReview-time head: `[^`\n]+`\n\n"
+    r"Raw learning candidates captured from agent-review artifacts\. Triage\n"
+    r"through process review before promoting them to playbooks or scripts\.\n\n"
+)
 BOILERPLATE = (
     "Durable queue of process, harness, and tooling learning candidates.\n"
     "Entries are raw observations until triaged through process review.",
@@ -43,6 +48,11 @@ def candidate_id(text: str) -> str:
 
 
 def empty_candidate(text: str) -> bool:
+    if re.search(r"(?m)^ {0,3}(?:`{3,}|~{3,})", text):
+        return False
+    if normalized(text) in (*BOILERPLATE, "## Agent Review Learning Candidates",
+                            "## Agent Review Learning Candidates\n\n" + BOILERPLATE[1]):
+        return True
     values = []
     headings = []
     for line in text.splitlines():
@@ -111,6 +121,9 @@ def generated_parts(block: re.Match) -> tuple[str, list[Part]]:
     matches = [match for match in SOURCE_RE.finditer(body) if match.start() in structural_offsets]
     if not matches:
         raise FrictionError(f"unrecognized learning block {block['key']}; preserve it for manual review")
+    intro = body[:matches[0].start()]
+    if not INTRO_RE.fullmatch(intro):
+        raise FrictionError(f"unrecognized learning block prefix {block['key']}; preserve manual content before triage")
     parts = []
     for index, match in enumerate(matches):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
@@ -253,6 +266,11 @@ def atomic_write(path: Path, text: str) -> None:
             output.flush()
             os.fsync(output.fileno())
         os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)

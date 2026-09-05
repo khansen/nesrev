@@ -19,7 +19,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from process_friction import FrictionError, read_receipts, structural_lines, untriaged_body
+from process_friction import (
+    FrictionError, atomic_write, queue_candidates, queue_sections,
+    read_receipts, structural_lines, untriaged_body,
+)
 
 
 VALID_STATUSES = {
@@ -858,13 +861,14 @@ def learning_block_markers(state: dict[str, Any], pass_id: str) -> tuple[str, st
 
 
 def upsert_learning_block(document: str, state: dict[str, Any], pass_id: str, block: str) -> str:
-    start, end = learning_block_markers(state, pass_id)
-    pattern = re.compile(
-        rf"(?ms)^{re.escape(start)}\n.*?^{re.escape(end)}\n?",
-        re.MULTILINE,
-    )
-    if pattern.search(document):
-        return pattern.sub(lambda _match: block, document).rstrip() + "\n"
+    start, _ = learning_block_markers(state, pass_id)
+    sections = list(queue_sections(document))
+    queue_candidates(document, "PROCESS_FRICTION.md")
+    if any(existing is not None and text.startswith(start + "\n") for existing, text in sections):
+        return "".join(
+            block if existing is not None and text.startswith(start + "\n") else text
+            for existing, text in sections
+        ).rstrip() + "\n"
     if "## Agent Review Learning Candidates" not in document:
         document = document.rstrip() + "\n\n## Agent Review Learning Candidates\n\n"
         document += (
@@ -903,8 +907,12 @@ def update_process_friction(
             "Entries are raw observations until triaged through process review.\n"
         )
     block = render_learning_block(state, pass_id, archive_path, candidates)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(upsert_learning_block(document, state, pass_id, block))
+    try:
+        updated = upsert_learning_block(document, state, pass_id, block)
+        queue_candidates(updated, rel(root, out_path))
+    except FrictionError as exc:
+        raise UserError(str(exc)) from exc
+    atomic_write(out_path, updated)
     return rel(root, out_path)
 
 
