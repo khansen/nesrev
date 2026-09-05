@@ -1,6 +1,7 @@
 # Process Improvement Plan
 
-Status: proposed; implementation and queue cleanup have not started.
+Status: PI-1 implemented and verified locally; independent review and corpus
+activation pending. Other items and queue cleanup pending.
 Corpus review snapshot: 2026-09-05, local `projects` head `dfa985afd`.
 
 Corpus references below are local paths, not links into `master`: the
@@ -42,7 +43,7 @@ its required local migrations are ready and tested together with the tooling.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Pending |
+| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Implemented; review pending; plan commit `683a22c64` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Pending |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
@@ -57,7 +58,7 @@ landing actions, not implicit consequences of creating a local commit.
 
 ## PI-1 — Make checker coverage explicit
 
-Evidence: Tennis has 197 `Used by` annotations, yet its check reports zero
+Baseline evidence: Tennis has 197 `Used by` annotations, yet its check reported zero
 parsed symbol-shaped claims. The
 [parser](scripts/used_by_xref_check.py) accepts a bare consumer name but
 ignores the same name in backticks. Separately,
@@ -78,6 +79,47 @@ Work:
 Done when: an invalid backticked consumer and a malformed stream with a
 different label name fail for the intended reasons; valid direct and
 indirect consumers and valid streams pass; unsupported cases are identified.
+
+### PI-1 implementation and activation prerequisites
+
+The implementation accepts backticked consumers and checks concrete consumer
+names even when their dispatch qualifier is unsupported. Packet discovery now
+uses explicit `Format:` declarations, with support for declared payload fields,
+shared suffixes, and same-address aliases. Both checks report their coverage
+and identify unsupported cases; see [checker coverage](agent_playbook/CHECKER_COVERAGE.md).
+
+Local validation on 2026-09-05:
+
+- `make test`: exit 0; 564 shell and 1206 Java tests passed.
+- Three new regressions fail against the old checkers at `683a22c64`:
+  backticked missing consumer, missing consumer behind an unknown dispatch
+  qualifier, and malformed packet under a nonstandard label name.
+- Read-only fresh-xref scan of all 22 local projects completed. Tennis now
+  checks 173 of 197 annotations, with 24 skipped and 6 partially checked;
+  these counts do not assert semantic ownership. Devil World checks 16 packet
+  declarations and explicitly skips 9 other formats, including grouped data.
+- In an isolated corpus worktree, `make project-ci PROJECT=tennis` and
+  `make project-ci PROJECT=devil_world` both exit 0. Hogan's Alley strict CI
+  exits 2 at its existing 159-unresolved-label gate. Its pass-time
+  `project-verify ALLOW_UNRESOLVED_LXXXX=1`, `project-process-check`, and
+  `project-docs-check` all exit 0; relaxed verification is not strict CI.
+
+Before activating this branch on local-only `projects`, correct these five
+newly exposed stale consumer names using current producer/consumer evidence:
+
+| Project / declaration | Stale consumer names |
+|---|---|
+| Golf / `CourseCollisionData` | `InitCourseDisplay`, `CheckGreenSubtileCollision` |
+| Mario Bros. / `PowSpawnTileScript` | `UpdatePowPrimaryCommandState` |
+| Mario Bros. / `PowTriggerTileScript` | `UpdatePowSecondaryCommandState` |
+| Popeye / `HudDigitPacketTemplate` | `UpdateScoreHudDigits` |
+
+These are real unknown-symbol errors, not reasons to weaken the checker.
+The scan also exposes two packet-layout advisories in Kung Fu and one in
+Metroid; those are formatting debt, not new hard gates or gameplay bugs.
+No game source or friction queues were changed by this implementation.
+Keep the feature branch unmerged until its local activation prerequisites are
+prepared and tested together; publication remains a separate decision.
 
 ## PI-2 — Validate evidence membership and runtime deferrals
 

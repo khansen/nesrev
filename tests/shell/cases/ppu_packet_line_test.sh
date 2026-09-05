@@ -46,8 +46,8 @@ SplitPpuPacketStream:
 EOF
   local out
   out="$(python3 "${CHECK}" "${asm}" 2>&1)"
-  assert_match "line_layout_findings=2" "${out}" \
-    "both halves of a split packet must be review-visible"
+  assert_match "line_layout_findings=1" "${out}" \
+    "a split packet must fail without interpreting its payload as another header"
 }
 
 test_ppu_packet_line_requires_standalone_terminator() {
@@ -127,7 +127,7 @@ EOF
     "the missing terminator must stay attributed to the first stream"
 }
 
-test_ppu_packet_line_ignores_unannotated_or_differently_named_data() {
+test_ppu_packet_line_requires_format_not_label_spelling() {
   local asm="${NESREV_TEST_TMPDIR}/scope.asm"
   cat > "${asm}" <<'EOF'
 UnannotatedPpuPacketStream:
@@ -135,11 +135,14 @@ UnannotatedPpuPacketStream:
 ; Format: zero-terminated PPU packets.
 NotAStream:
 .DB $20,$00,$01,$11,$20,$01,$01,$22
+.DB $00
 EOF
   local out
   out="$(python3 "${CHECK}" "${asm}" 2>/dev/null)"
-  assert_match "declared_streams=0 line_layout_findings=0" "${out}" \
-    "both the format declaration and stream-name contract are required"
+  assert_match "declared_streams=1 line_layout_findings=1" "${out}" \
+    "a declared stream must be checked regardless of its label spelling"
+  assert_match 'format_candidates=1 checked_streams=1 skipped_formats=0' "${out}"
+  assert_exit 68 python3 "${CHECK}" "${asm}" --strict
 }
 
 test_ppu_packet_line_excludes_address_high_flag_variant() {
@@ -154,6 +157,139 @@ EOF
   out="$(python3 "${CHECK}" "${asm}" 2>/dev/null)"
   assert_match "declared_streams=0 line_layout_findings=0" "${out}" \
     "the canonical control-byte decoder must exclude the address-high flag variant"
+  assert_match 'format_candidates=1 checked_streams=0 skipped_formats=1' "${out}"
+}
+
+test_ppu_packet_line_accepts_ppu_hi_field_name_without_assuming_flags() {
+  local asm="${NESREV_TEST_TMPDIR}/canonical_fields.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream [ppu_hi, ppu_lo, control, payload].
+BootPalette:
+.DB $3F,$00,$01,$11
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=1 line_layout_findings=0' "${out}"
+  assert_match 'format_candidates=1 checked_streams=1 skipped_formats=0' "${out}"
+}
+
+test_ppu_packet_line_handles_named_fields_inside_packets() {
+  local asm="${NESREV_TEST_TMPDIR}/fields.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+HudTemplate:
+.DB $22,$4C,$04,$19,$11
+; Format: 2-byte digit field inside HudTemplate.
+TopDigits:
+.DB $24,$24
+.DB $23,$41,$03,$19
+; Format: 2-byte digit field inside HudTemplate.
+BottomDigits:
+.DB $24,$24
+.DB $00
+HudTemplateEnd:
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=1 line_layout_findings=0' "${out}"
+}
+
+test_ppu_packet_line_payload_field_must_complete_its_packet() {
+  local asm="${NESREV_TEST_TMPDIR}/short_field.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+HudTemplate:
+.DB $22,$4C,$04,$19,$11
+; Format: 2-byte digit field inside HudTemplate.
+Digits:
+.DB $24
+.DB $00
+ASM
+  assert_exit 68 python3 "${CHECK}" "${asm}" --strict
+}
+
+test_ppu_packet_line_unrelated_field_cannot_extend_packet() {
+  local asm="${NESREV_TEST_TMPDIR}/other_field.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+HudTemplate:
+.DB $22,$4C,$04,$19,$11
+; Format: 2-byte digit field inside OtherTemplate.
+Digits:
+.DB $24,$24
+.DB $00
+ASM
+  assert_exit 68 python3 "${CHECK}" "${asm}" --strict
+}
+
+test_ppu_packet_line_reports_unsupported_formats_and_zero_coverage() {
+  local asm="${NESREV_TEST_TMPDIR}/unsupported.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packets [ppu_hi|flags, ppu_lo, length, payload].
+AddressFlagTemplate:
+.DB $60,$00,$03,$11
+.DB $00
+; Format: two zero-terminated PPU packet streams.
+PlayerTemplates:
+.DB $00
+OtherPlayerTemplate:
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'format_candidates=2 checked_streams=0 skipped_formats=2' "${out}"
+  assert_match 'NOT CHECKED:.*AddressFlagTemplate' "${out}"
+  assert_match 'NOT CHECKED:.*PlayerTemplates' "${out}"
+  assert_match 'NOT CHECKED: no canonical PPU packet streams checked' "${out}"
+}
+
+test_ppu_packet_line_format_is_not_limited_to_seven_comment_lines() {
+  local asm="${NESREV_TEST_TMPDIR}/long_header.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+; Header line 2.
+; Header line 3.
+; Header line 4.
+; Header line 5.
+; Header line 6.
+; Header line 7.
+; Header line 8.
+; Consumer: Reader.
+Palette:
+.DB $3F,$00,$01,$11
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=1 line_layout_findings=0' "${out}"
+}
+
+test_ppu_packet_line_accepts_consumer_before_format() {
+  local asm="${NESREV_TEST_TMPDIR}/reordered_header.asm"
+  cat > "${asm}" <<'ASM'
+; Consumer: Reader.
+; Format: zero-terminated PPU packet stream.
+Palette:
+.DB $3F,$00,$01,$11
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'format_candidates=1 checked_streams=1 skipped_formats=0' "${out}"
+}
+
+test_ppu_packet_line_supports_inline_body_and_same_address_alias() {
+  local asm="${NESREV_TEST_TMPDIR}/aliases.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+Palette:
+  PaletteAlias: .DB $3F,$00,$01,$11
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=1 line_layout_findings=0' "${out}"
 }
 
 test_ppu_packet_line_reports_unresolvable_expression() {

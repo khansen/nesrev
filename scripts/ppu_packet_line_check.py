@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Check one-packet-per-line formatting for declared PPU packet streams.
 
-The checker is deliberately annotation-gated. It inspects only global labels
-whose nearby ``Format:`` comment says ``zero-terminated PPU ... packet`` and
-whose name contains ``PpuPacketStream``. For the canonical NESrev format, each
-source ``.DB`` line must contain exactly one packet:
+The checker is deliberately annotation-gated, not label-name-gated. It reports
+coverage for PPU packet format declarations and checks the canonical
+``zero-terminated PPU ... packet`` format. Other formats are explicitly not
+checked. Each source ``.DB`` line must contain exactly one packet, except at
+an explicitly declared field inside the current packet:
 
 * three header bytes plus ``control & $3F`` payload bytes;
 * or four total bytes when control bit 6 selects repeat mode;
@@ -25,16 +26,17 @@ from pathlib import Path
 
 
 USAGE = "usage: ppu_packet_line_check.py <asm_file> [--strict]"
-LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*):")
+LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 EQU_RE = re.compile(
     r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\s+(.+?)\s*$", re.IGNORECASE
 )
 DB_RE = re.compile(r"^\s*\.DB\s+(.+?)\s*$", re.IGNORECASE)
-FORMAT_RE = re.compile(r"Format:\s*zero-terminated\s+PPU\b.*\bpacket", re.IGNORECASE)
+FORMAT_RE = re.compile(r"\bFormat:\s*(.*)", re.IGNORECASE)
+PPU_PACKET_RE = re.compile(r"\bPPU\b.*\bpackets?\b", re.IGNORECASE)
+CANONICAL_FORMAT_RE = re.compile(r"^zero-terminated\s+PPU\b.*\bpackets?\b", re.IGNORECASE)
 ADDRESS_HIGH_VARIANT_RE = re.compile(
-    r"(?:flags?.*address\s+high|address\s+high.*flags?|\bppu_hi\b)", re.IGNORECASE
+    r"(?:flags?.*address\s+high|address\s+high.*flags?|\bppu_hi\s*\|\s*flags?\b)", re.IGNORECASE
 )
-STREAM_NAME_RE = re.compile(r"PpuPacketStream", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,14 @@ class Finding:
     line: int
     stream: str
     message: str
+
+
+@dataclass(frozen=True)
+class Coverage:
+    candidates: int
+    checked: int
+    findings: list[Finding]
+    skipped: list[Finding]
 
 
 class ExpressionResolver:
@@ -138,21 +148,34 @@ def equ_expressions(lines: list[str]) -> dict[str, str]:
 
 def comments_before(lines: list[str], label_index: int) -> list[str]:
     comments: list[str] = []
-    for index in range(label_index - 1, max(-1, label_index - 8), -1):
+    for index in range(label_index - 1, -1, -1):
         stripped = lines[index].strip()
         if not stripped:
             continue
         if not stripped.startswith(";"):
             break
         comments.append(stripped)
-    return comments
+    return list(reversed(comments))
+
+
+def format_text_before(lines: list[str], label_index: int) -> str:
+    parts: list[str] = []
+    for comment in comments_before(lines, label_index):
+        match = FORMAT_RE.search(comment)
+        if match:
+            parts = [match.group(1)]
+        elif parts and re.match(r";\s*(?:Used by|Consumer|Index):", comment, re.IGNORECASE):
+            break
+        elif parts:
+            parts.append(comment.lstrip("; "))
+    return " ".join(parts)
 
 
 def format_comment_before(lines: list[str], label_index: int) -> bool:
-    comments = comments_before(lines, label_index)
+    text = format_text_before(lines, label_index)
     return bool(
-        any(FORMAT_RE.search(comment) for comment in comments)
-        and not any(ADDRESS_HIGH_VARIANT_RE.search(comment) for comment in comments)
+        CANONICAL_FORMAT_RE.search(text)
+        and not ADDRESS_HIGH_VARIANT_RE.search(text)
     )
 
 
@@ -167,9 +190,17 @@ def is_declared_stream_label(lines: list[str], index: int) -> bool:
     match = LABEL_RE.match(lines[index])
     return bool(
         match
-        and STREAM_NAME_RE.search(match.group(1))
         and format_comment_before(lines, index)
     )
+
+
+def is_payload_field_label(lines: list[str], index: int, stream: str) -> bool:
+    text = format_text_before(lines, index)
+    return bool(re.search(
+        rf"\b(?:field|payload)\b.*\b(?:inside|within)\s+`?{re.escape(stream)}\b",
+        text,
+        re.IGNORECASE,
+    ))
 
 
 def parse_db_values(
@@ -200,27 +231,63 @@ def analyze_stream(
     findings: list[Finding] = []
     terminated = False
     has_body = False
-    for index in range(label_index + 1, len(lines)):
-        if LABEL_RE.match(lines[index]):
-            if (
-                terminated
-                or not is_declared_stream_label(lines, index)
-                or not suffix_comment_before(lines, index)
-            ):
-                break
-            # A second declared stream may be an entry into the unfinished
-            # suffix of this stream. Continue until the shared terminator.
-            continue
+    pending: tuple[int, int, list[int]] | None = None
+    field_boundary = False
+
+    def incomplete_packet(line: int, expected: int, values: list[int]) -> Finding:
+        control = values[2]
+        mode = "repeat" if control & 0x40 else "literal"
+        return Finding(
+            line, stream,
+            f"{mode} packet control ${control:02X} requires {expected} byte(s) on the line; found {len(values)}",
+        )
+
+    for index in range(label_index, len(lines)):
         raw = lines[index]
+        label = LABEL_RE.match(raw)
+        if label and index != label_index:
+            if pending and is_payload_field_label(lines, index, stream):
+                field_boundary = True
+            elif (
+                not has_body and not format_text_before(lines, index)
+            ):
+                # An unannotated same-address alias does not end the body.
+                pass
+            elif (
+                not terminated
+                and is_declared_stream_label(lines, index)
+                and suffix_comment_before(lines, index)
+            ):
+                pass
+            else:
+                break
+        if label:
+            raw = raw[label.end():]
         stripped = raw.strip()
         if not stripped or stripped.startswith(";"):
             continue
         has_body = True
         line_number = index + 1
         values, error = parse_db_values(raw, resolver)
+        if pending:
+            start_line, expected, previous = pending
+            if (
+                field_boundary and error is None and values is not None
+                and len(previous) + len(values) <= expected
+            ):
+                combined = previous + values
+                pending = (start_line, expected, combined) if len(combined) < expected else None
+                field_boundary = False
+                continue
+            found = previous + values if field_boundary and values is not None else previous
+            findings.append(incomplete_packet(start_line, expected, found))
+            # Once alignment is lost, payload zeros cannot be interpreted as
+            # terminators. Report the boundary defect without cascading noise.
+            return findings
+        field_boundary = False
         if error is not None:
             findings.append(Finding(line_number, stream, error))
-            continue
+            return findings
         assert values is not None
         if terminated:
             if "trailing bytes after stream terminator" not in raw.lower():
@@ -245,19 +312,17 @@ def analyze_stream(
             findings.append(
                 Finding(line_number, stream, f"packet line has {len(values)} byte(s), fewer than the 3-byte header")
             )
-            continue
+            return findings
         control = values[2]
         payload_length = 1 if control & 0x40 else control & 0x3F
         expected = 3 + payload_length
-        if len(values) != expected:
-            mode = "repeat" if control & 0x40 else "literal"
-            findings.append(
-                Finding(
-                    line_number,
-                    stream,
-                    f"{mode} packet control ${control:02X} requires {expected} byte(s) on the line; found {len(values)}",
-                )
-            )
+        if len(values) < expected:
+            pending = (line_number, expected, values)
+        elif len(values) > expected:
+            findings.append(incomplete_packet(line_number, expected, values))
+            return findings
+    if pending:
+        findings.append(incomplete_packet(*pending))
     if not has_body:
         findings.append(Finding(label_index + 1, stream, "declared stream has no body"))
     elif not terminated:
@@ -267,16 +332,36 @@ def analyze_stream(
     return findings
 
 
-def analyze(lines: list[str]) -> tuple[int, list[Finding]]:
+def analyze_coverage(lines: list[str]) -> Coverage:
     resolver = ExpressionResolver(equ_expressions(lines))
     streams = 0
+    candidates = 0
+    skipped: list[Finding] = []
     findings: list[Finding] = []
     for index, raw in enumerate(lines):
+        label = LABEL_RE.match(raw)
+        if not label:
+            continue
+        text = format_text_before(lines, index)
+        if not PPU_PACKET_RE.search(text):
+            continue
+        candidates += 1
         if not is_declared_stream_label(lines, index):
+            reason = (
+                "address-high flag format is not supported by the control-byte decoder"
+                if ADDRESS_HIGH_VARIANT_RE.search(text)
+                else "format is not a single canonical zero-terminated PPU packet stream"
+            )
+            skipped.append(Finding(index + 1, label.group(1), reason))
             continue
         streams += 1
         findings.extend(analyze_stream(lines, index, resolver))
-    return streams, findings
+    return Coverage(candidates, streams, findings, skipped)
+
+
+def analyze(lines: list[str]) -> tuple[int, list[Finding]]:
+    coverage = analyze_coverage(lines)
+    return coverage.checked, coverage.findings
 
 
 def main(argv: list[str]) -> int:
@@ -301,15 +386,27 @@ def main(argv: list[str]) -> int:
         print(f"error: cannot read asm file {path}: {exc}", file=sys.stderr)
         return 65
 
-    streams, findings = analyze(lines)
+    coverage = analyze_coverage(lines)
+    streams, findings = coverage.checked, coverage.findings
+    for skipped in coverage.skipped[:40]:
+        print(
+            f"NOT CHECKED: {path}:{skipped.line}: {skipped.stream}: {skipped.message}",
+            file=sys.stderr,
+        )
+    if len(coverage.skipped) > 40:
+        print(f"... {len(coverage.skipped) - 40} more skipped formats omitted", file=sys.stderr)
     for finding in findings:
         print(
             f"advisory: {path}:{finding.line}: {finding.stream}: {finding.message}",
             file=sys.stderr,
         )
     print(
-        f"[ppu-packet-lines] declared_streams={streams} line_layout_findings={len(findings)}"
+        f"[ppu-packet-lines] declared_streams={streams} line_layout_findings={len(findings)} "
+        f"format_candidates={coverage.candidates} checked_streams={streams} "
+        f"skipped_formats={len(coverage.skipped)}"
     )
+    if not streams:
+        print("NOT CHECKED: no canonical PPU packet streams checked; unannotated data is outside this scan", file=sys.stderr)
     if strict and findings:
         print(
             f"FAIL: {len(findings)} declared PPU packet line-layout issue(s)",

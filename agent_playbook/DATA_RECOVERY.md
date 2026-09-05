@@ -611,7 +611,9 @@ Terminator rule:
 
 When this pattern is identified, normalize declaration layout immediately:
 
-- one `.DB` line per packet
+- one `.DB` line per packet, except where an addressable payload field needs
+  a label: declare `Format: N-byte field inside StreamLabel.` and keep each
+  resulting fragment contiguous; the checker validates their combined length
 - one standalone `.DB $00` line for the terminator
 - keep stream bytes/order identical (parity-preserved)
 - if bytes exist after terminator for parity/layout reasons, keep them on a separate trailing `.DB` line with a comment (for example `; trailing bytes after stream terminator (parity-preserved)`)

@@ -731,11 +731,11 @@ Normal wrappers share one fresh xref across `.DW`, embedded `.DB`, and split
 `project-maturity-check` creates one temporary xref when the caller did not
 supply `NESREV_XREF_FILE`; both canonical `.DB` ledgers consume it.
 
-`Used by:` validation remains hybrid: it reads declaration comments from asm,
-but takes symbols, routine-owned references, and pointer-table owner-to-target
-edges from xref v2. Composite wrappers reuse `NESREV_XREF_FILE` for the docs
-gate. Standalone `project-docs-check` explicitly generates one temporary xref;
-direct checker calls must pass a fresh xref or request `--generate-xref`.
+`Used by:` combines asm comments with xref-v2 symbol/owner/pointer edges.
+Composite wrappers reuse `NESREV_XREF_FILE` for the docs
+gate. `project-docs-check` generates a temporary xref when needed; direct calls
+pass a fresh xref or request `--generate-xref`. See [checker coverage](CHECKER_COVERAGE.md)
+for supported annotation syntax, coverage counts, and PPU line-check limits.
 
 `project-next-pass` builds its low-address `ZP_*` / `RAM_*` symbol map from
 global xref-v2 `equ` symbols and their resolved definition values, including
