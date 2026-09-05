@@ -1,19 +1,12 @@
 # Process Improvement Plan
 
-Status: PI-1 implementation, independent review, and local reference migration
-complete. Other items and queue cleanup pending.
-Corpus review snapshot: 2026-09-05, local `projects` head `dfa985afd`.
+Status: PI-1 merged; local activation migration validated. Other items and
+queue cleanup pending. Updated 2026-09-05.
 
-Corpus references below are local paths, not links into `master`: the
-`projects/` tree and `PROJECT_MATURITY_DEBT_RETIREMENT_PLAN.md` exist only on
-the local-only `projects` branch. Shared tooling and playbook links resolve
-on `master`. Never push the corpus branch or private ROM fixtures.
-
-This plan follows the review of all 20 project `PROCESS_FRICTION.md` files
-after Golf and Tennis completed their maturity-debt work. It prioritizes
-reproducible tooling gaps over repeated reports of already-fixed problems.
-Project progress remains in
-PROJECT_MATURITY_DEBT_RETIREMENT_PLAN.md (`PROJECT_MATURITY_DEBT_RETIREMENT_PLAN.md`).
+This plan prioritizes reproducible tooling gaps found during friction-queue
+review over repeated reports of already-fixed problems. It describes shared
+contracts and acceptance criteria; corpus-specific evidence and progress
+remain on the local-only corpus branch.
 
 ## Recommended order
 
@@ -34,17 +27,19 @@ gates merely to increase coverage.
 
 ## Delivery and tracking
 
-The plan was committed as `683a22c64` on local `master` from
-`docs/process-improvement-plan`. Implement shared changes on feature branches
-from current `master`, using separate worktrees.
-Keep game-specific migrations and eventual queue pruning on local-only
-`projects`. Each implementation branch updates this plan with its status and
+Implement shared changes on feature branches from current `master`, using
+separate worktrees. Shared changes, commit messages, and PR descriptions must
+not name actual games or include corpus-specific symbols, paths, or review
+references. Use synthetic fixtures and generic examples instead. Keep
+game-specific evidence, migrations, and eventual queue pruning on the
+local-only corpus branch; never push that branch or private ROM fixtures.
+Each implementation branch updates this plan with its status and
 reviewed commit or PR reference. Do not activate a gate on the corpus until
 its required local migrations are ready and tested together with the tooling.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Reviewed `70e488a7f`; migration `98358deda` verified |
+| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Pending |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
@@ -59,13 +54,11 @@ landing actions, not implicit consequences of creating a local commit.
 
 ## PI-1 — Make checker coverage explicit
 
-Baseline evidence: Tennis has 197 `Used by` annotations, yet its check reported zero
-parsed symbol-shaped claims. The
-[parser](scripts/used_by_xref_check.py) accepts a bare consumer name but
-ignores the same name in backticks. Separately,
-[PPU packet checking](scripts/ppu_packet_line_check.py) requires a particular
-label substring, excluding documented streams with other semantic names;
-see Devil World pass 165 (`projects/devil_world/docs/reverse_engineering/reviews/pass-165.md`).
+Baseline defects: the [parser](scripts/used_by_xref_check.py) accepted a bare
+consumer name but ignored the same name in backticks, allowing zero parsed
+claims despite many annotations. Separately,
+[PPU packet checking](scripts/ppu_packet_line_check.py) required a particular
+label substring, excluding documented streams with other semantic names.
 
 Work:
 
@@ -95,17 +88,15 @@ Local validation on 2026-09-05:
 - Three new regressions fail against the old checkers at `683a22c64`:
   backticked missing consumer, missing consumer behind an unknown dispatch
   qualifier, and malformed packet under a nonstandard label name.
-- Read-only fresh-xref scan of all 22 local projects completed. Tennis now
-  checks 173 of 197 annotations, with 24 skipped and 6 partially checked;
-  these counts do not assert semantic ownership. Devil World checks 16 packet
-  declarations and explicitly skips 9 other formats, including grouped data.
-  Duck Hunt checks 3 declarations and skips 2; its plural stream declaration
-  describes multiple entries and must not claim coverage of only the first.
-- In an isolated corpus worktree, `make project-ci PROJECT=tennis` and
-  `make project-ci PROJECT=devil_world` both exit 0. Hogan's Alley strict CI
-  exits 2 at its existing 159-unresolved-label gate. Its pass-time
-  `project-verify ALLOW_UNRESOLVED_LXXXX=1`, `project-process-check`, and
-  `project-docs-check` all exit 0; relaxed verification is not strict CI.
+- Fresh-xref corpus scans exercised direct, qualified, partially supported,
+  and unsupported annotations. Packet scans exercised ordinary, grouped,
+  shared-suffix, and alias declarations. Coverage counts do not assert
+  semantic ownership; grouped declarations must not claim coverage of only
+  their first stream.
+- Representative strict CI and applicable pass-time checks were exercised in
+  an isolated corpus worktree. An existing unresolved-label gate still fails
+  strict CI on an unfinished input; relaxed verification is not strict CI.
+  Per-input commands, counts, failures, and migration evidence stay local.
 
 Initial independent review of `8ebf6fe10` approved the consumer changes and
 identified PPU boundary gaps. Follow-up regressions cover grouped wording
@@ -115,34 +106,20 @@ with the fixes. A further regression covers either field owner across three
 chained aliases or suffixes, including unrelated-owner refusal; it fails
 against `20c9069e4` and passes with shared ownership context. Both independent
 reviewers in tmux panes `%0` and `%1` approved `70e488a7f` on 2026-09-05;
-no material implementation findings remain. Approval does not activate the
-gate on the corpus or authorize publication.
+no material implementation findings remain. The implementation landed in
+[PR #98](https://github.com/khansen/nesrev/pull/98).
 
-The five newly exposed stale consumer names were corrected in local-only
-migration `98358deda` on `fix/pi-1-corpus-references`, using current
-producer/consumer evidence:
+The newly exposed stale consumer names and matching current memory-map
+references were corrected in a local-only migration using current
+producer/consumer evidence. Historical pass records remain unchanged.
+With the reviewed checkers overlaid, verification and full CI pass for every
+migrated input. A fresh-xref corpus scan reports zero consumer hard errors;
+unsupported annotations and ownership advisories remain explicit. No assembly
+instructions or data bytes changed. Packet-layout advisories remain advisory,
+not new hard gates or gameplay-bug claims. Friction queues remain unchanged.
 
-| Project / declaration | Current declaration references |
-|---|---|
-| Golf / `CourseCollisionData` | `LoadCourseLayout`; nearby prose identifies the `CheckTerrainType` RAM-copy reader |
-| Mario Bros. / `PowSpawnTileScript` | `UpdatePOWBlock` |
-| Mario Bros. / `PowTriggerTileScript` | `UpdatePOWBlock`, `UpdateKickAnimationState`, `TryInitPlayerDeathFromCollision` |
-| Popeye / `HudDigitPacketTemplate` | `QueueHudDigitPacket` |
-
-The migration also corrects matching current memory-map references; historical
-pass records remain unchanged. With the reviewed PI-1 checkers overlaid,
-`project-verify` and full `project-ci` each pass for Golf, Mario Bros., and
-Popeye. A fresh-xref scan of all 22 projects reports zero consumer hard errors;
-unsupported annotations and ownership advisories are still reported, not
-asserted correct. No assembly instructions or data bytes changed.
-
-The scan also exposes two packet-layout advisories in Kung Fu and one in
-Metroid; those are formatting debt, not new hard gates or gameplay bugs.
-Friction queues remain unchanged. The user authorized pushing and merging
-PI-1, then fetching and rebasing local-only `projects` onto `origin/master`.
-Include the local reference migration before that rebase; never push the
-corpus branch or its private fixtures. The migration commit reference above
-is the pre-rebase snapshot, retained by its local branch.
+Include the verified local migration when updating the corpus to the merged
+tooling, then rerun the affected gates. Keep its detailed evidence local.
 
 ## PI-2 — Validate evidence membership and runtime deferrals
 
@@ -152,9 +129,7 @@ actual membership and dispositions. The
 [blob-disposition row validator](scripts/data_blob_dispositions_check.py)
 accepts a `runtime_gated` row with no artifact when its prose fields are
 populated. That row-level probe does not establish that every other project
-gate can be bypassed. Review examples:
-Tennis pass 54 (`projects/tennis/docs/reverse_engineering/reviews/pass-54.md`)
-and pass 62 (`projects/tennis/docs/reverse_engineering/reviews/pass-62.md`).
+gate can be bypassed.
 
 Work:
 
@@ -175,19 +150,15 @@ runtime plans pass; negative fixtures reject traces missing required signals.
 
 ## PI-3 — Reuse executable consumer-boundary audits
 
-Evidence: Golf's documented 20-byte course tail was actually consumed as
-32 bytes because a helper changes the index; see
-pass 276 (`projects/golf/docs/reverse_engineering/reviews/pass-276.md`).
-Tennis likewise needed caller-state and reader-boundary evidence, not merely
-next-label extents; see its
-contact-asset audit (`projects/tennis/docs/reverse_engineering/CONTACT_ASSET_AUDIT.md`).
+Evidence: physical table extents and documented lengths can differ from the
+actual read range when a helper changes an index or callers select overlapping
+records. Boundary claims need caller-state and consumer evidence, not merely
+the next label's address.
 
 Work:
 
-- Reuse bounded techniques from Golf's
-  course-payload (`projects/golf/scripts/audit_course_payload.py`) and
-  terrain (`projects/golf/scripts/audit_terrain_classification.py`) audits and
-  Tennis's contact-asset audit (`projects/tennis/scripts/audit_contact_assets.py`).
+- Reuse bounded techniques from local consumer audits when their contracts
+  recur; express shared regression cases with synthetic data and consumers.
 - Distinguish physical allocation, selected record, and actual read range.
   Account for carry, eight-bit wrap, helper side effects, overlapping tails,
   and multi-channel timing where the consumer requires them.
@@ -203,13 +174,9 @@ same contract genuinely recurs. Do not attempt a general 6502 proof engine.
 
 Evidence: the [review-packet wrapper](scripts/project_pass_review_packet.sh)
 labels a project-filtered history section “Complete Commit List And
-Diffstat,” omitting root-level changes such as the maturity dashboard. See
-Tennis pass 63 (`projects/tennis/docs/reverse_engineering/reviews/pass-63.md`)
-and Donkey Kong pass 262 (`projects/donkey_kong/docs/reverse_engineering/reviews/pass-262.md`).
-Separate reviews document a
-cold coverage cache (`projects/donkey_kong/docs/reverse_engineering/reviews/pass-265.md`),
-a missing private ROM fixture (`projects/mario_bros/docs/reverse_engineering/reviews/pass-302.md`),
-and different assembler binaries reporting the same version (`projects/hogans_alley/docs/reverse_engineering/reviews/pass-13.md`).
+Diffstat,” omitting root-level changes. Other reproducibility gaps include
+cold coverage caches, missing private ROM fixtures, and different assembler
+binaries reporting the same version.
 
 Work:
 
@@ -238,9 +205,8 @@ agree on the reviewed SHA and each required gate's status.
 ## PI-5 — Separate intake snapshots from historical baselines
 
 Evidence: [project intake](scripts/project_intake.sh) synchronizes pass 0
-after expensive checks. Tennis lacked that legacy row; Golf had historical
-measurements that intake silently replaced. Both cases are recorded in
-Tennis pass 64 (`projects/tennis/docs/reverse_engineering/reviews/pass-64.md`).
+after expensive checks. Legacy scorecards can lack that row, while existing
+historical measurements can be silently replaced with current values.
 
 Work:
 
@@ -284,8 +250,7 @@ tables inside the queues. Once empty, a friction file may be removed: the
 archiver already creates it when new candidates arrive.
 
 Before pruning, check archive coverage and tracking status. Git history does
-not protect untracked notes; the currently untracked Duck Hunt friction file
-needs particular care. Preserve unique useful evidence and its disposition
+not protect untracked notes. Preserve unique useful evidence and its disposition
 in the appropriate durable destination before removing its sole copy.
 Check the relevant content, not just whether an archive file exists:
 `learning_artifacts` in [review ingestion](scripts/agent_review.py) imports
@@ -339,8 +304,8 @@ Migration and ingestion acceptance tests:
   new candidates do create it.
 
 Known cleanup candidates include already-fixed Make dollar transport and
-scoped-owner snapshot issues, Hogan's Alley items already recorded as
-disposed, and superseded blanket worked-example requirements. Do not revive
+scoped-owner snapshot issues, items already recorded as disposed, and
+superseded blanket worked-example requirements. Do not revive
 these without a fresh reproducer. Likewise, a rejected or false-positive
 heuristic is not a pending hard-gate requirement merely because it appears
 in an older review.
