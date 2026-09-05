@@ -1,5 +1,6 @@
 import json
 import argparse
+import re
 import sys
 import tempfile
 import unittest
@@ -125,6 +126,50 @@ class PacketTests(unittest.TestCase):
     def test_gate_command_must_use_recorded_make_tool(self):
         with self.assertRaisesRegex(evidence.PacketError, "recorded make tool"):
             evidence.validate_packet(packet(HEAD, verify_command="true project-verify PROJECT=demo"), HEAD)
+
+    def test_supporting_commands_cannot_be_replaced_by_no_ops(self):
+        for name in evidence.SUPPORTING:
+            value = packet(HEAD)
+            _, record = evidence.gate_evidence(value, name)
+            value = value.replace(record["command"], "true")
+            with self.subTest(name=name), self.assertRaisesRegex(evidence.PacketError, "canonical command"):
+                evidence.validate_packet(value, HEAD)
+
+    def test_every_command_requires_captured_output(self):
+        for title in ("Build and Fixture Prerequisites", *evidence.COMMANDS.values()):
+            value = packet(HEAD)
+            body = evidence.section(value, title, 3)
+            stripped = re.sub(r"Output:\n\n(`{3,})text\n.*?\n\1\n", "", body, flags=re.S)
+            self.assertNotEqual(body, stripped)
+            with self.subTest(title=title), self.assertRaisesRegex(evidence.PacketError, "text evidence block"):
+                evidence.validate_packet(value.replace(body, stripped), HEAD)
+
+    def test_duplicate_outputs_are_refused_but_empty_output_is_valid(self):
+        evidence.validate_packet(packet(HEAD, verify_output=""), HEAD)
+        value = packet(HEAD).replace("Verification complete\n```", "Verification complete\n```\n\n```text\nextra\n```", 1)
+        with self.assertRaisesRegex(evidence.PacketError, "exactly one text evidence block"):
+            evidence.validate_packet(value, HEAD)
+
+    def test_assembler_metadata_and_build_commands_must_agree(self):
+        value = packet(HEAD).replace("XASM_BIN=xasm", "XASM_BIN=/unexpected/bin/assembler")
+        with self.assertRaisesRegex(evidence.PacketError, "recorded assembler"):
+            evidence.validate_packet(value, HEAD)
+
+    def test_missing_or_duplicate_assembler_assignment_is_refused(self):
+        for replacement in ("", "XASM_BIN=xasm XASM_BIN=xasm "):
+            value = packet(HEAD).replace("XASM_BIN=xasm ", replacement)
+            with self.subTest(replacement=replacement), self.assertRaises(evidence.PacketError):
+                evidence.validate_packet(value, HEAD)
+
+    def test_cache_preparation_cannot_enable_authored_queue_writes(self):
+        value = packet(HEAD).replace("PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0", "PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=1")
+        with self.assertRaisesRegex(evidence.PacketError, "preserve the authored"):
+            evidence.validate_packet(value, HEAD)
+
+    def test_supporting_document_inputs_must_match_context(self):
+        value = packet(HEAD).replace("scripts/proof_debt.py docs crosswalk", "scripts/proof_debt.py wrong crosswalk")
+        with self.assertRaisesRegex(evidence.PacketError, "Proof Debt Signals.*canonical command"):
+            evidence.validate_packet(value, HEAD)
 
     def test_changed_worktree_invalidates_even_zero_exit_gates(self):
         with self.assertRaisesRegex(evidence.PacketError, "worktree changed"):

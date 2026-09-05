@@ -210,8 +210,11 @@ Packet generation can exit 0 when the briefing was produced successfully even
 though required evidence failed. That is not gate success or handoff readiness.
 
 `scripts/review_packet_evidence.py` is the shared producer/consumer contract.
-The handoff parser checks summary/section agreement on commands, SHA, statuses,
-subject and complete required membership. Every prerequisite, required gate and
+The handoff parser requires captured output blocks and checks summary/section
+agreement on commands, SHA, statuses, subject and complete required membership.
+Build commands must use the recorded Make/assembler; supporting commands must
+run their canonical targets against the recorded documentation context.
+Every prerequisite, required gate and
 supporting evidence command must succeed before handoff. Missing legacy summaries
 require packet regeneration; archived review judgements are not rewritten.
 

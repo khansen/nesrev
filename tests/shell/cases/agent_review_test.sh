@@ -1174,6 +1174,58 @@ test_agent_review_ready_rejects_failed_process_and_docs_even_with_green_verify()
   done
 }
 
+test_agent_review_ready_and_reused_packet_refuse_incomplete_command_evidence() {
+  local variant repo base head output rc
+  for variant in no-op missing-output assembler wrong-subject write-prep; do
+    repo="${NESREV_TEST_TMPDIR}/evidence_${variant}"
+    _init_agent_review_repo "${repo}"
+    base="$(git -C "${repo}" rev-parse HEAD~1)"
+    head="$(git -C "${repo}" rev-parse HEAD)"
+    (
+      cd "${repo}"
+      python3 scripts/agent_review.py init --project demo --base "${base}" --head "${head}" --run-id evidence
+      printf 'Implementation evidence\n' > .agents/runs/evidence/implementation.md
+      _write_agent_packet .agents/runs/evidence/packet.md "${head}"
+      python3 - "${variant}" "${head}" <<'PY'
+import argparse, re, sys
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+import agent_review
+import review_packet_evidence as evidence
+path = Path('.agents/runs/evidence/packet.md')
+value = path.read_text()
+variant, head = sys.argv[1:]
+if variant == 'no-op':
+    _, record = evidence.gate_evidence(value, 'cache-preparation')
+    value = value.replace(record['command'], 'true')
+elif variant == 'missing-output':
+    body = evidence.section(value, 'Project Verify Gate', 3)
+    value = value.replace(body, re.sub(r'Output:\n\n(`{3,})text\n.*?\n\1\n', '', body, flags=re.S))
+elif variant == 'assembler':
+    value = value.replace('XASM_BIN=xasm', 'XASM_BIN=/unexpected/assembler')
+elif variant == 'wrong-subject':
+    value = value.replace('project-pass-prep PROJECT=demo', 'project-pass-prep PROJECT=another_demo')
+else:
+    value = value.replace('PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0', 'PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=1')
+path.write_text(value)
+state = {'packet': str(path), 'review_head': head, 'project': 'demo'}
+try:
+    agent_review.ensure_packet(Path.cwd(), state, argparse.Namespace(packet=None, generate_packet=False))
+except agent_review.UserError:
+    pass
+else:
+    raise AssertionError('reused packet accepted incomplete command evidence')
+PY
+    )
+    set +e
+    output="$(cd "${repo}" && python3 scripts/agent_review.py ready --note .agents/runs/evidence/implementation.md --packet .agents/runs/evidence/packet.md 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2 "${variant} must refuse handoff"
+    assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
+  done
+}
+
 test_agent_review_ready_does_not_auto_relax_explicit_lxxxx_packet() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_explicit_lxxxx_packet_repo"
   _init_agent_review_repo "${repo}"

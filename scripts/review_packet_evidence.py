@@ -26,6 +26,7 @@ SUPPORTING = {
 }
 COMMANDS = {**GATES, **SUPPORTING}
 TOOLS = {"make", "assembler", "python3", "bash", "git", "rg"}
+MAKE_TARGETS = {**{name: name for name in GATES}, "cache-preparation": "project-pass-prep", "next-pass": "project-next-pass"}
 
 
 class PacketError(ValueError):
@@ -96,6 +97,7 @@ def command_evidence(document, title):
     state = one_field(body, r"^State:\s*`review_head ([0-9a-fA-F]{40})`\s*$", f"{title} state").lower()
     raw = one_field(body, r"^Exit status:\s*`([0-9]+|not-run)`\s*$", f"{title} Exit status")
     command = code_block(body, "sh")
+    code_block(body, "text")
     return body, {"review_head": state, "command": command,
                   "exit_status": None if raw == "not-run" else int(raw)}
 
@@ -115,6 +117,10 @@ def failure_summary(prerequisite, records, state_integrity):
 
 
 def validate_environment(record):
+    context = record.get("context")
+    if (not isinstance(context, dict) or set(context) != {"doc_root", "crosswalk"}
+            or any(not isinstance(value, str) or not value for value in context.values())):
+        raise PacketError("prerequisite evidence requires documentation context")
     for group, required in (("tools", TOOLS), ("inputs", {"source", "reference"})):
         entries = record.get(group)
         if not isinstance(entries, dict) or set(entries) != required:
@@ -132,6 +138,49 @@ def validate_environment(record):
                     raise PacketError(f"prerequisite evidence requires resolved path and hash: {name}")
                 if group == "inputs" and (type(item.get("size")) is not int or item["size"] <= 0):
                     raise PacketError(f"prerequisite evidence requires nonempty input size: {name}")
+
+
+def validate_command(record, environment, project):
+    name, command = record["name"], record["command"]
+    try:
+        argv = shlex.split(command)
+    except ValueError as exc:
+        raise PacketError(f"invalid evidence command: {exc}") from exc
+    assignments = {}
+    while argv and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]):
+        key, value = argv.pop(0).split("=", 1)
+        if key in assignments:
+            raise PacketError(f"duplicate command environment assignment: {key}")
+        assignments[key] = value
+    title = COMMANDS[name]
+    if name in MAKE_TARGETS:
+        if len(argv) != 3 or argv[1:] != [MAKE_TARGETS[name], f"PROJECT={project}"]:
+            raise PacketError(f"{title} does not run its canonical command")
+        make, assembler = environment["tools"]["make"], environment["tools"]["assembler"]
+        if argv[0] not in (make["requested"], make.get("path")):
+            raise PacketError(f"{title} command does not match recorded make tool")
+        allowed = {"XASM_BIN"}
+        if name == "cache-preparation":
+            allowed.add("PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW")
+            if assignments.get("PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW") != "0":
+                raise PacketError("Cache Preparation must preserve the authored raw-RAM queue")
+        if name == "project-verify":
+            allowed.add("ALLOW_UNRESOLVED_LXXXX")
+            if assignments.get("ALLOW_UNRESOLVED_LXXXX", "0") not in {"0", "1"}:
+                raise PacketError("invalid verification mode")
+        selected = assignments.get("XASM_BIN")
+        if selected is None or selected not in (assembler["requested"], assembler.get("path")):
+            raise PacketError(f"{title} command does not match recorded assembler")
+        if set(assignments) - allowed:
+            raise PacketError(f"unexpected {title} command environment")
+    else:
+        python = environment["tools"]["python3"]
+        context = environment["context"]
+        expected = ["scripts/proof_debt.py"] + (["--crosswalk-only"] if name == "crosswalk" else [])
+        expected += [context["doc_root"], context["crosswalk"]]
+        if (assignments or not argv or argv[0] not in (python["requested"], python.get("path"))
+                or argv[1:] != expected):
+            raise PacketError(f"{title} does not run its canonical command")
 
 
 def validate_packet(document, expected_head, expected_project=None):
@@ -157,7 +206,6 @@ def validate_packet(document, expected_head, expected_project=None):
     if not isinstance(supporting, list) or len(supporting) != len(SUPPORTING):
         raise PacketError("terminal summary must include required supporting evidence")
     records = gates + supporting
-    executables = []
     seen, failures = set(), []
     for index, record in enumerate(records):
         domain = GATES if index < len(GATES) else SUPPORTING
@@ -174,16 +222,6 @@ def validate_packet(document, expected_head, expected_project=None):
             raise PacketError(f"terminal summary disagrees with {COMMANDS[name]}")
         if record.get("exit_status") is not None and type(record["exit_status"]) is not int:
             raise PacketError(f"invalid {COMMANDS[name]} exit status")
-        try:
-            argv = shlex.split(actual["command"])
-        except ValueError as exc:
-            raise PacketError(f"invalid gate command: {exc}") from exc
-        while argv and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", argv[0]):
-            argv.pop(0)
-        if name in GATES and (len(argv) != 3 or argv[1:] != [name, f"PROJECT={project}"]):
-            raise PacketError(f"{GATES[name]} does not run its canonical command")
-        if name in GATES:
-            executables.append((name, argv[0]))
         status = actual["exit_status"]
         if status != 0:
             failures.append(f"{COMMANDS[name]} " + ("was not run" if status is None else f"exit status is nonzero: {status}"))
@@ -201,10 +239,8 @@ def validate_packet(document, expected_head, expected_project=None):
     if environment_record.get("status") != prerequisite_status or preflight["exit_status"] != int(prerequisite_status == "fail"):
         raise PacketError("prerequisite status disagrees with observed failures")
     validate_environment(environment_record)
-    make = environment_record["tools"]["make"]
-    for name, executable in executables:
-        if executable not in (make["requested"], make.get("path")):
-            raise PacketError(f"{GATES[name]} command does not match recorded make tool")
+    for record in records:
+        validate_command(record, environment_record, project)
     state_integrity = summary.get("state_integrity")
     if not isinstance(state_integrity, str) or state_integrity not in {"pass", "fail"}:
         raise PacketError("terminal summary requires state integrity result")
@@ -225,8 +261,9 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def environment(source, reference, make, assembler, expected_assembler=None, expected_reference=None):
-    result = {"tools": {}, "inputs": {}, "failures": []}
+def environment(source, reference, make, assembler, expected_assembler=None, expected_reference=None,
+                doc_root="docs", crosswalk="crosswalk"):
+    result = {"tools": {}, "inputs": {}, "failures": [], "context": {"doc_root": doc_root, "crosswalk": crosswalk}}
     for name, executable in (("make", make), ("assembler", assembler), ("python3", "python3"),
                              ("bash", "bash"), ("git", "git"), ("rg", "rg")):
         resolved = shutil.which(executable)
@@ -265,7 +302,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
     preflight = commands.add_parser("environment")
-    for name in ("source", "reference", "make", "assembler", "output"):
+    for name in ("source", "reference", "make", "assembler", "output", "doc-root", "crosswalk"):
         preflight.add_argument("--" + name, required=True)
     preflight.add_argument("--expected-assembler")
     preflight.add_argument("--expected-reference")
@@ -278,7 +315,7 @@ def main():
     args = parser.parse_args()
     if args.action == "environment":
         result = environment(args.source, args.reference, args.make, args.assembler,
-                             args.expected_assembler, args.expected_reference)
+                             args.expected_assembler, args.expected_reference, args.doc_root, args.crosswalk)
         payload = json.dumps(result, indent=2) + "\n"
         Path(args.output).write_text(payload)
         print(payload, end="")

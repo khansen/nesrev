@@ -11,6 +11,7 @@ from review_packet_evidence import COMMANDS, GATES, TOOLS, failure_summary
 
 def environment_fixture():
     return {"status": "pass", "failures": [],
+            "context": {"doc_root": "docs", "crosswalk": "crosswalk"},
             "tools": {name: {"requested": "xasm" if name == "assembler" else name,
                              "path": f"/synthetic/bin/{name}", "sha256": "b" * 64,
                              "status": "present"} for name in TOOLS},
@@ -29,6 +30,10 @@ def packet(head, project="demo", statuses=None, verify_output="Verification comp
                      "crosswalk": "python3 scripts/proof_debt.py --crosswalk-only docs crosswalk"})
     if verify_command is not None:
         commands["project-verify"] = verify_command
+    for name in (*GATES, "cache-preparation", "next-pass"):
+        if "XASM_BIN=" not in commands[name]:
+            commands[name] = "XASM_BIN=xasm " + commands[name]
+    commands["cache-preparation"] = "PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 " + commands["cache-preparation"]
     records = [{"name": name, "review_head": head, "command": commands[name],
                 "exit_status": statuses.get(name, 0)} for name in COMMANDS]
     failures = failure_summary(environment, records, state_integrity)

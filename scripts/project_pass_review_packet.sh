@@ -366,6 +366,7 @@ PROOF_CMD="python3 scripts/proof_debt.py $(shell_quote "${DOC_ROOT}") $(shell_qu
 CROSSWALK_CMD="python3 scripts/proof_debt.py --crosswalk-only $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
 PREREQUISITE_ARGS=(python3 scripts/review_packet_evidence.py environment
   --source "${ASM_FILE}" --reference "${REF_NES}" --make "${MAKE_BIN}"
+  --doc-root "${DOC_ROOT}" --crosswalk "${CROSSWALK_FILE}"
   --assembler "${XASM_BIN:-xasm}" --output "${PACKET_SCRATCH}/environment.json")
 if [[ -n "${REVIEW_EXPECTED_XASM_SHA256:-}" ]]; then
   PREREQUISITE_ARGS+=(--expected-assembler "${REVIEW_EXPECTED_XASM_SHA256}")

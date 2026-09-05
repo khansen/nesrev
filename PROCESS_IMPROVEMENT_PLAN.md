@@ -259,6 +259,12 @@ against their fenced sections; failed, unrun, incomplete or contradictory
 evidence blocks handoff, including reused packets. Legacy ephemeral packets
 must be regenerated; archived review judgements remain untouched.
 
+Initial independent review found unchecked supporting commands, missing output
+blocks and assembler/metadata contradictions. The revised contract checks every
+command's tool, target and subject, binds build selections to recorded tool
+identity, and requires captured output while permitting genuinely empty output.
+Explicit/reused handoff regressions cover those refusals; reapproval is pending.
+
 ## PI-5 — Separate intake snapshots from historical baselines
 
 Evidence: [project intake](scripts/project_intake.sh) synchronizes pass 0
