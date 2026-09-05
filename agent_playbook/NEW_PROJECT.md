@@ -359,9 +359,9 @@ The agent's bootstrap work after the wrapper finishes:
 After bootstrap, treat baseline drift as a required review item —
 do not ignore changes silently.
 `scripts/new_project.sh` writes `PROGRESS_SCORECARD.md` with the
-`Intake baseline` row already present (pass_id 0) and KPI cells empty.
-Populate or confirm that row from the intake metrics; do not create a
-new row for the intake baseline.
+pending `Intake baseline` row (pass_id 0). Intake captures it once;
+later measurements never overwrite history. Legacy migration and snapshot
+ownership live in [INTAKE_BASELINES.md](INTAKE_BASELINES.md).
 <a id="intake-acceptance"></a>
 ## Intake Acceptance Checklist
 
@@ -386,17 +386,11 @@ new row for the intake baseline.
    setup-oriented First Steps body with a Resuming Work section; if that
    section still reads like setup instructions, intake closeout is not
    finished.
-5. The `Intake baseline` row in `PROGRESS_SCORECARD.md` is populated.
-   `project-intake` auto-syncs the supported KPI cells
-   (`labels_remaining`, `raw_rom_calls_remaining`,
-   `raw_indirect_operands_remaining`,
-   `hardcoded_counter_sites_remaining`) and fills the empty outcome
-   cells (`verify` → `pass (intake-relaxed)` since `ALLOW_UNRESOLVED_LXXXX=1`
-   was set, `docs_check` → `pass`; `raw_ptr_immediates_remaining` →
-   `not measured`, since no automated KPI computation exists for that
-   column yet), plus `rework_items` → `0` and a durable note that the
-   intake baseline is captured and semantic naming has not started.
-   Cells that were already filled by a human are preserved.
+5. The fresh `Intake baseline` row is captured once and its pending marker
+   removed; verification is explicitly `pass (intake-relaxed)`, not strict CI.
+   Current measurements and successful gate modes are published separately in
+   `inventory/intake_snapshot.json`. Rerunning intake preserves every historical
+   row; see [INTAKE_BASELINES.md](INTAKE_BASELINES.md) for legacy handling.
 
 Expected residual debt that does **not** disqualify intake:
 

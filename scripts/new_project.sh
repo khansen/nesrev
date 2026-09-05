@@ -295,11 +295,15 @@ Track objective throughput and quality metrics for each major pass.
 
 ## Pass Log
 
+<!-- nesrev:intake-baseline pending -->
+
 | pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
 |---|---|---:|---:|---:|---:|---:|---|---|---|---:|---|
 | 0 | Intake baseline | | | | | | 0 | | | | |
 
-Closeout auto-syncs the supported KPI cells (`labels_remaining`, `raw_rom_calls_remaining`,
+Intake captures the pending baseline once; later intake measurements live in
+`inventory/intake_snapshot.json`, never over the historical pass-zero row.
+Closeout auto-syncs the current semantic pass's supported KPI cells (`labels_remaining`, `raw_rom_calls_remaining`,
 `raw_indirect_operands_remaining`, `hardcoded_counter_sites_remaining`,
 `warnings_baseline_delta`); do not hand-edit those derived values.
 DOC

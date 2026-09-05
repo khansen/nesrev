@@ -1,7 +1,8 @@
 # Process Improvement Plan
 
-Status: PI-1, PI-2 policy evidence, PI-3, and queue receipts merged. Runtime-evidence
-activation is held for unsupported legacy evidence; PI-4 is approved for landing.
+Status: PI-1, PI-2 policy evidence, PI-3, PI-4, and queue receipts merged.
+PI-5 delivery is tracked in [PR #104](https://github.com/khansen/nesrev/pull/104).
+Runtime-evidence activation remains held.
 Updated 2026-09-06.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -48,8 +49,8 @@ its required local migrations are ready and tested together with the tooling.
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
-| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Independently approved `6c0e04186`; landing pending |
-| `fix/pi-5-intake-baselines` | Historical measurement protection | Pending |
+| `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
+| `fix/pi-5-intake-baselines` | Historical measurement protection | [PR #104](https://github.com/khansen/nesrev/pull/104); independently approved `28427b0a4` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 
 Use ordinary process/tooling branch review, including bad-direction tests
@@ -288,6 +289,24 @@ Work:
 Done when: fresh scaffolds, legacy pass-1-only scorecards, and existing
 historical pass-0 rows have tested behavior; current snapshots refresh
 idempotently and historical measurements remain intact.
+
+The [intake-baseline contract](agent_playbook/INTAKE_BASELINES.md) separates a
+once-only marked scaffold capture from current intake snapshots. Existing rows,
+including retrospective measurements, remain unchanged. Missing original
+pass-zero history requires an explicit idempotent migration receipt rather than
+invented counts. Preflight runs before expensive work; publication follows
+successful canonical intake gates and refuses intervening scorecard changes.
+Direct pass-zero synchronization no longer infers unrun outcomes or refreshes
+historical measurements. Active semantic-pass measurement behavior is retained.
+
+Independent review approved `28427b0a4` with no material findings. Final
+validation passed 19 focused cases, 599 shell tests and 1206 Java tests. Two
+old-wrapper regressions and five disposable mutation directions fail as intended.
+All 22 copied scorecards preserve history: 20 require no migration and two
+require explicit receipts reproduced byte-for-byte by independent review.
+Representative canonical intake runs and repeats pass with unchanged historical
+rows and byte-identical repeated snapshots. Independent checks additionally
+cover low-level replacement/file-sync failures and four pass-zero refusal modes.
 
 ## Friction files are triage queues, not archives
 

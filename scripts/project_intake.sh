@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "usage: $0 <project_slug>" >&2
+if [[ $# -lt 1 || $# -gt 2 || ( $# -eq 2 && "${2:-}" != --migrate-legacy ) ]]; then
+  echo "usage: $0 <project_slug> [--migrate-legacy]" >&2
   exit 64
 fi
 
@@ -14,6 +14,12 @@ load_project_conf "$1"
 XASM_BIN="${XASM_BIN:-xasm}"
 
 inv_dir="${DOC_ROOT}/inventory"
+history_receipt="${inv_dir}/intake_history.json"
+baseline_args=(--scorecard "${PROGRESS_SCORECARD_FILE}" --receipt "${history_receipt}")
+if [[ "${2:-}" == --migrate-legacy ]]; then
+  exec python3 "${SCRIPT_DIR}/intake_baseline.py" migrate "${baseline_args[@]}"
+fi
+intake_preflight="$(python3 "${SCRIPT_DIR}/intake_baseline.py" preflight "${baseline_args[@]}")"
 mkdir -p "${inv_dir}"
 
 listing_json="${inv_dir}/intake_listing.json"
@@ -244,8 +250,10 @@ echo "[7/8] Running process/doc checks"
 bash "${SCRIPT_DIR}/project_process_check.sh" "$1"
 bash "${SCRIPT_DIR}/project_docs_check.sh" "$1"
 
-echo "[8/8] Syncing intake-baseline scorecard row"
-bash "${SCRIPT_DIR}/project_scorecard_sync.sh" "$1" 0
+echo "[8/8] Publishing current intake snapshot; preserving historical rows"
+python3 "${SCRIPT_DIR}/intake_baseline.py" publish "${baseline_args[@]}" \
+  --preflight "${intake_preflight}" --snapshot "${inv_dir}/intake_snapshot.json" \
+  --source "${ASM_FILE}" --reference "${REF_NES}" --constant-kpi "${CONST_KPI_FILE}"
 
 # Intake succeeded: clear the rollback snapshot so the trap exits clean
 # and the promoted ONBOARDING line stays on disk.

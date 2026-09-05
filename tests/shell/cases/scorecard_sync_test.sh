@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Tests scripts/project_scorecard_sync.sh for pass-0 fill_when_empty behavior.
-# Builds a synthetic project with a minimal scorecard, runs sync, and inspects
-# the resulting row.
+# Tests active-pass measurements and the historical pass-zero write boundary.
 
 SYNC="${REPO_ROOT}/scripts/project_scorecard_sync.sh"
 
@@ -52,9 +50,9 @@ _write_scorecard() {
 _get_cell() {
   # Reads the column named $2 from the pass-0 row of slug $1's scorecard.
   local slug="$1" col_name="$2"
-  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" "${col_name}" <<'PY'
+  python3 - "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" "${col_name}" "${3:-0}" <<'PY'
 import sys
-path, col = sys.argv[1:]
+path, col, pass_id = sys.argv[1:]
 lines = open(path).read().splitlines()
 header = next(l for l in lines if l.startswith("|") and "pass_id" in l)
 cols = [c.strip() for c in header.strip("|").split("|")]
@@ -62,13 +60,13 @@ idx = cols.index(col)
 for l in lines:
     if not l.startswith("|"): continue
     cells = [c.strip() for c in l.strip("|").split("|")]
-    if cells and cells[0] == "0":
+    if cells and cells[0] == pass_id:
         print(cells[idx])
         break
 PY
 }
 
-test_pass0_fills_empty_outcome_cells() {
+test_pass0_sync_refuses_to_infer_unrun_gate_outcomes() {
   local slug; slug="$(unique_slug pass0_empty)"
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
@@ -76,14 +74,15 @@ test_pass0_fills_empty_outcome_cells() {
   # Empty outcome cells
   _write_scorecard "${slug}" 0 "" "" "" "" "" "" "" "" "" ""
 
-  bash "${SYNC}" "${slug}" 0 >/dev/null
-
-  assert_eq "$(_get_cell "${slug}" "verify")"                       "pass (intake-relaxed)"
-  assert_eq "$(_get_cell "${slug}" "docs_check")"                   "pass"
-  assert_eq "$(_get_cell "${slug}" "raw_ptr_immediates_remaining")" "not measured"
-  assert_eq "$(_get_cell "${slug}" "rework_items")"                 "0"
-  assert_eq "$(_get_cell "${slug}" "notes")" \
-    "Intake baseline captured; semantic naming not started."
+  local before output rc
+  before="$(<"projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md")"
+  set +e
+  output="$(bash "${SYNC}" "${slug}" 0 2>&1)"
+  rc=$?
+  set -e
+  [[ "${rc}" != 0 ]] || fail 'direct sync invented intake outcomes'
+  assert_match 'historical pass 0 is read-only' "${output}"
+  assert_eq "$(<"projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md")" "${before}"
 }
 
 test_scorecard_sync_counts_only_xasm_bracketed_raw_indirect_operands() {
@@ -102,11 +101,11 @@ Reset:
   LDA [$14],Y
   RTS
 ASM
-  _write_scorecard "${slug}" 0 "" "" "" "" "" "" "" "" "" ""
+  _write_scorecard "${slug}" 5 "" "" "" "" "" "" "" "" "" ""
 
-  bash "${SYNC}" "${slug}" 0 >/dev/null
+  bash "${SYNC}" "${slug}" 5 >/dev/null
 
-  assert_eq "$(_get_cell "${slug}" "raw_indirect_operands_remaining")" "3" \
+  assert_eq "$(_get_cell "${slug}" "raw_indirect_operands_remaining" 5)" "3" \
     "raw-indirect count must include bracketed xasm operands and ignore parenthesized operands"
 }
 
@@ -118,7 +117,7 @@ test_pass0_preserves_human_values() {
   # Pre-populated outcome cells
   _write_scorecard "${slug}" 0 "" "" "42" "" "" "" "fail" "manual" "7" "Reviewed manually"
 
-  bash "${SYNC}" "${slug}" 0 >/dev/null
+  assert_exit 1 bash "${SYNC}" "${slug}" 0
 
   assert_eq "$(_get_cell "${slug}" "verify")"                       "fail" \
     "human-entered verify value must not be overwritten"
@@ -230,7 +229,7 @@ test_constant_kpi_failure_reports_clear_error_without_traceback() {
   cleanup_project "${slug}"
   trap "cleanup_project ${slug}" EXIT
   _make_scaffold "${slug}"
-  _write_scorecard "${slug}" 0 "" "" "" "" "" "" "" "" "" ""
+  _write_scorecard "${slug}" 1 "" "" "" "" "" "" "" "" "" ""
   printf 'MAX_ACTIVE_MAGIC_IMMEDIATES=0\n' \
     > "projects/${slug}/docs/reverse_engineering/inventory/constant_kpi.txt"
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
