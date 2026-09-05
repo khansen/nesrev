@@ -136,13 +136,27 @@ _run_maturity() {
     bash "${REPO_ROOT}/scripts/procedure_doc_kpi.sh" "${root}/asm/${slug}.asm" >/dev/null
   KPI_DETAIL_FILE="${global_detail}" \
     bash "${REPO_ROOT}/scripts/global_code_label_doc_kpi.sh" "${root}/asm/${slug}.asm" >/dev/null
-  local proc_count global_count
+  local proc_count global_count retained_count
   proc_count="$(awk 'NF {count++} END {print count+0}' "${proc_detail}")"
   global_count="$(awk 'NF {count++} END {print count+0}' "${global_detail}")"
+  retained_count="$(awk -F: 'NF {seen[$2]=1} END {for (symbol in seen) count++; print count+0}' "${proc_detail}" "${global_detail}")"
+  {
+    printf '%s\n' 'symbol,inventory,disposition,localization,rationale'
+    awk -F: '
+      FILENAME == ARGV[1] && NF {procedures[$2]=1; members[$2]=1}
+      FILENAME == ARGV[2] && NF {globals[$2]=1; members[$2]=1}
+      END {
+        for (symbol in members) {
+          inventory = (symbol in procedures) ? ((symbol in globals) ? "callable+global" : "callable") : "global"
+          print symbol "," inventory ",retained_headerless,retain_global,Synthetic fixture entry retained without a header."
+        }
+      }
+    ' "${proc_detail}" "${global_detail}" | LC_ALL=C sort
+  } > "${root}/docs/reverse_engineering/inventory/policy_baseline.csv"
   cat > "${root}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<EOF
 | pass_id | focus | verify | docs_check | rework_items | notes |
 |---|---|---|---|---:|---|
-| 1 | Fixture policy audit | pass | pass | 0 | policy-baseline-audit: semantic_claims=reviewed; procedures=${proc_count}/${proc_count}; global_code_labels=${global_count}/${global_count}; retained_headerless=0; action=reviewed fixture detail rows. |
+| 1 | Fixture policy audit | pass | pass | 0 | policy-baseline-audit: semantic_claims=reviewed; procedures=${proc_count}/${proc_count}; global_code_labels=${global_count}/${global_count}; retained_headerless=${retained_count}; action=reviewed fixture detail rows. |
 EOF
   bash "${MATURITY_CHECK_SH}" "${slug}"
 }

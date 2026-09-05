@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
-Status: PI-1 merged; local activation migration validated. Other items and
-queue cleanup pending. Updated 2026-09-05.
+Status: PI-1 merged; PI-2 policy-evidence implementation tested, review and
+activation migration in progress. Other items pending. Updated 2026-09-05.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -17,6 +17,10 @@ but queue pruning must wait for the receipt migration, receipt-aware
 ingestion, and acceptance tests described below. Once that prerequisite is
 complete, accepted items leave the queue when routed, without waiting for
 their implementation.
+
+To support incremental pruning, implement queue receipts after the PI-2
+policy-evidence lane and before continuing with runtime evidence and PI-3
+through PI-5. Do not prune during that prerequisite's implementation.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -40,7 +44,7 @@ its required local migrations are ready and tested together with the tooling.
 | Branch | Scope | Status |
 |---|---|---|
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
-| `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Pending |
+| `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Tested; review and local manifest migration in progress |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Pending |
@@ -51,6 +55,12 @@ Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
 machine for these branches. Remote publication and corpus rebases are separate
 landing actions, not implicit consequences of creating a local commit.
+The remaining execution is authorized: obtain review approval before each
+PR, merge only after verification, then fetch and rebase the local corpus onto
+updated `master`. Rerun affected CI after each merge; report pre-existing
+unfinished-input failures separately and never relabel relaxed checks as
+strict-CI success. Prune eligible queue entries incrementally once receipts
+and their migration tests are in place.
 
 ## PI-1 — Make checker coverage explicit
 
@@ -147,6 +157,20 @@ Work:
 Done when: equal-count/wrong-member manifests, invented disposition counts,
 and artifact-free runtime deferrals fail; valid manifests and executable
 runtime plans pass; negative fixtures reject traces missing required signals.
+
+The policy-evidence lane uses a separate [active CSV manifest](agent_playbook/POLICY_BASELINE.md)
+to validate exact live membership, inventory classification, applicable review
+and localization decisions, and distinct retained-headerless accounting.
+Historical snapshots remain unchanged. The runtime-evidence lane is separate;
+implementing policy membership does not resolve runtime deferral validation.
+
+Policy-lane validation: `make test` passes 585 shell and 1206 Java tests.
+Five synthetic regression cases fail against the previous implementation:
+equal-count wrong membership, invented reviewed counts, overlap double
+counting, inapplicable dispositions, and source renames preserving totals.
+The read-only corpus sweep found that every input needs the new active
+manifest; pre-existing incomplete audit fractions remain unfinished work.
+Local migration and joint validation must precede activation.
 
 ## PI-3 — Reuse executable consumer-boundary audits
 

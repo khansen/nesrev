@@ -23,6 +23,7 @@ args=(
   --asm "${ASM_FILE}"
   --scorecard "${PROGRESS_SCORECARD_FILE}"
   --semantic-claims "${SEMANTIC_CLAIMS_FILE}"
+  --manifest "${DOC_ROOT}/inventory/policy_baseline.csv"
   --scripts-dir "${SCRIPT_DIR}"
 )
 if [[ "${MODE_ARG}" == "--require" ]]; then

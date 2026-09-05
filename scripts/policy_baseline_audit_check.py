@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Validate universal policy-baseline audit markers in project scorecards."""
+"""Validate active policy-review membership and scorecard accounting."""
 
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import re
 import subprocess
@@ -21,6 +22,10 @@ MARKER_RE = re.compile(
     r"retained_headerless=(\d+);\s*"
     r"action=(.+?)\s*$"
 )
+MANIFEST_FIELDS = ("symbol", "inventory", "disposition", "localization", "rationale")
+INVENTORIES = {"callable", "global", "callable+global"}
+DISPOSITIONS = {"retained_headerless", "pending"}
+LOCALIZATIONS = {"retain_global", "deferred", "pending"}
 
 
 @dataclass(frozen=True)
@@ -107,8 +112,11 @@ def parse_scorecard_marker(scorecard_path: Path) -> tuple[Marker | None, list[st
     return max(markers, key=lambda m: (m.pass_id, m.line_no)), []
 
 
-def run_detail_kpi(script_path: Path, asm_path: Path, metric_name: str) -> tuple[int, list[str]]:
+def run_detail_kpi(
+    script_path: Path, asm_path: Path, metric_name: str
+) -> tuple[dict[str, int], list[str]]:
     errors: list[str] = []
+    members: dict[str, int] = {}
     with tempfile.NamedTemporaryFile(prefix="policy_baseline_detail.", delete=False) as detail_file:
         detail_path = Path(detail_file.name)
     try:
@@ -126,23 +134,92 @@ def run_detail_kpi(script_path: Path, asm_path: Path, metric_name: str) -> tuple
                 f"{script_path.name} failed with exit {proc.returncode}: "
                 f"{proc.stderr.strip() or proc.stdout.strip()}"
             )
-            return 0, errors
+            return members, errors
 
-        details = detail_path.read_text(encoding="utf-8").splitlines()
-        detail_count = len([line for line in details if line.strip()])
+        details = [line for line in detail_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        detail_count = len(details)
+        for detail in details:
+            match = re.fullmatch(r"([1-9]\d*):([A-Za-z_][A-Za-z0-9_]*)", detail)
+            if match is None:
+                errors.append(f"{script_path.name} emitted malformed detail: {detail!r}")
+                continue
+            line_no, symbol = match.groups()
+            if symbol in members:
+                errors.append(f"{script_path.name} emitted duplicate detail symbol: {symbol}")
+            members[symbol] = int(line_no)
         metric_match = re.search(rf"^{re.escape(metric_name)}=(\d+)$", proc.stdout, re.MULTILINE)
         if metric_match is None:
             errors.append(f"{script_path.name} did not emit {metric_name}")
-            return detail_count, errors
+            return members, errors
         metric_count = int(metric_match.group(1))
         if metric_count != detail_count:
             errors.append(
                 f"{script_path.name} detail line count {detail_count} does not match "
                 f"{metric_name}={metric_count}"
             )
-        return detail_count, errors
+        return members, errors
     finally:
         detail_path.unlink(missing_ok=True)
+
+
+def check_manifest(
+    manifest_path: Path, marker: Marker, procedures: set[str], globals_: set[str]
+) -> list[str]:
+    errors: list[str] = []
+    members: set[str] = set()
+    retained: set[str] = set()
+    expected = procedures | globals_
+    try:
+        with manifest_path.open(encoding="utf-8", newline="") as manifest_file:
+            reader = csv.DictReader(manifest_file, strict=True)
+            if reader.fieldnames != list(MANIFEST_FIELDS):
+                return [f"{manifest_path}: expected CSV header {','.join(MANIFEST_FIELDS)}"]
+            for raw in reader:
+                location = f"{manifest_path}:{reader.line_num}"
+                if None in raw or any(value is None for value in raw.values()):
+                    errors.append(f"{location}: manifest row column count mismatch")
+                    continue
+                row = {key: value.strip() for key, value in raw.items()}
+                symbol = row["symbol"]
+                if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", symbol):
+                    errors.append(f"{location}: invalid global symbol {symbol!r}")
+                if symbol in members:
+                    errors.append(f"{location}: duplicate manifest symbol {symbol}")
+                members.add(symbol)
+                if row["inventory"] not in INVENTORIES:
+                    errors.append(f"{location}: invalid inventory {row['inventory']!r}")
+                elif symbol in expected:
+                    inventory = (
+                        "callable+global" if symbol in procedures and symbol in globals_
+                        else "callable" if symbol in procedures else "global"
+                    )
+                    if row["inventory"] != inventory:
+                        errors.append(f"{location}: {symbol} inventory must be {inventory}")
+                if row["disposition"] not in DISPOSITIONS:
+                    errors.append(f"{location}: invalid disposition {row['disposition']!r}")
+                if row["localization"] not in LOCALIZATIONS:
+                    errors.append(f"{location}: invalid localization {row['localization']!r}")
+                if not row["rationale"]:
+                    errors.append(f"{location}: rationale must not be empty")
+                if row["disposition"] == "retained_headerless":
+                    retained.add(symbol)
+                    if row["localization"] == "pending":
+                        errors.append(f"{location}: reviewed {symbol} requires a localization decision")
+    except (OSError, UnicodeError, csv.Error) as exc:
+        return [f"cannot read active policy manifest {manifest_path}: {exc}"]
+
+    for symbol in sorted(expected - members):
+        errors.append(f"{manifest_path}: missing live detail symbol {symbol}")
+    for symbol in sorted(members - expected):
+        errors.append(f"{manifest_path}: {symbol} is not in the live detail union")
+    for label, recorded, actual in (
+        ("procedures reviewed", marker.procedures_reviewed, len(retained & procedures)),
+        ("global_code_labels reviewed", marker.global_reviewed, len(retained & globals_)),
+        ("retained_headerless", marker.retained_headerless, len(retained)),
+    ):
+        if recorded != actual:
+            errors.append(f"{label} count {recorded} does not match active manifest count {actual}")
+    return errors
 
 
 def check_semantic_claims(marker: Marker, asm_path: Path, claims_path: Path, scripts_dir: Path) -> list[str]:
@@ -190,21 +267,26 @@ def validate(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
-        print("OK: no policy-baseline-audit marker recorded (advisory)")
+        print("NOT CHECKED: no policy-baseline-audit marker recorded (advisory)")
         return 0
 
-    proc_detail_count, proc_errors = run_detail_kpi(
+    procedures, proc_errors = run_detail_kpi(
         scripts_dir / "procedure_doc_kpi.sh",
         asm_path,
         "strict_callable_procedures_undocumented",
     )
-    global_detail_count, global_errors = run_detail_kpi(
+    globals_, global_errors = run_detail_kpi(
         scripts_dir / "global_code_label_doc_kpi.sh",
         asm_path,
         "strict_global_code_labels_undocumented",
     )
     errors.extend(proc_errors)
     errors.extend(global_errors)
+    proc_detail_count = len(procedures)
+    global_detail_count = len(globals_)
+    manifest_path = Path(args.manifest) if args.manifest else scorecard_path.parent / "inventory/policy_baseline.csv"
+    if not proc_errors and not global_errors:
+        errors.extend(check_manifest(manifest_path, marker, set(procedures), set(globals_)))
 
     if marker.procedures_denominator != proc_detail_count:
         errors.append(
@@ -256,7 +338,8 @@ def validate(args: argparse.Namespace) -> int:
         f"(semantic_claims={marker.semantic_claims}; "
         f"procedures={marker.procedures_reviewed}/{marker.procedures_denominator}; "
         f"global_code_labels={marker.global_reviewed}/{marker.global_denominator}; "
-        f"retained_headerless={marker.retained_headerless})"
+        f"retained_headerless={marker.retained_headerless}; "
+        f"manifest={manifest_path}; distinct_candidates={len(set(procedures) | set(globals_))})"
     )
     return 0
 
@@ -267,6 +350,7 @@ def main() -> int:
     parser.add_argument("--scorecard", required=True)
     parser.add_argument("--semantic-claims", required=True)
     parser.add_argument("--scripts-dir", required=True)
+    parser.add_argument("--manifest", help="active CSV; defaults to inventory/policy_baseline.csv beside the scorecard")
     parser.add_argument("--require", action="store_true")
     return validate(parser.parse_args())
 
