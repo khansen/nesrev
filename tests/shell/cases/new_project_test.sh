@@ -226,6 +226,10 @@ test_failed_intake_leaves_onboarding_status_unchanged() {
     "projects/${slug}/docs/reverse_engineering/QUICK_REFERENCE.md"
   rm -f "projects/${slug}/docs/reverse_engineering/QUICK_REFERENCE.md.bak"
 
+  local snapshot="projects/${slug}/docs/reverse_engineering/inventory/intake_snapshot.json"
+  printf '{"prior_successful_snapshot":"retained"}\n' > "${snapshot}"
+  cp "${snapshot}" "${out}/prior-snapshot.json"
+  cp "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" "${out}/prior-scorecard.md"
   set +e
   make project-intake "PROJECT=${slug}" >"${out}/intake.stdout" 2>"${out}/intake.stderr"
   local rc=$?
@@ -251,6 +255,8 @@ test_failed_intake_leaves_onboarding_status_unchanged() {
   grep -qF '# Intake calibration pending.' \
     "projects/${slug}/docs/reverse_engineering/inventory/kpis.conf" \
     || fail "failed intake must restore the pending KPI scaffold"
+  cmp "${snapshot}" "${out}/prior-snapshot.json"
+  cmp "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" "${out}/prior-scorecard.md"
 }
 
 test_fresh_project_init_regenerate_intake_happy_path() {
@@ -345,6 +351,47 @@ test_fresh_project_init_regenerate_intake_happy_path() {
   ! rg -q '=999999$' "${kpis}" \
     || fail "successful intake wrote a disabling KPI sentinel"
   python3 "${REPO_ROOT}/scripts/project_policy_config_check.py" kpis "${kpis}" >/dev/null
+  local scorecard="projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md"
+  local snapshot="projects/${slug}/docs/reverse_engineering/inventory/intake_snapshot.json"
+  [[ -s "${snapshot}" ]] || fail 'successful intake omitted its current snapshot'
+  ! rg -q 'nesrev:intake-baseline pending' "${scorecard}" || fail 'fresh baseline was not captured'
+  cp "${scorecard}" "${out}/captured-scorecard.md"
+  cp "${snapshot}" "${out}/captured-snapshot.json"
+  make project-intake "PROJECT=${slug}" >"${out}/intake-repeat.stdout" 2>"${out}/intake-repeat.stderr"
+  cmp "${scorecard}" "${out}/captured-scorecard.md"
+  cmp "${snapshot}" "${out}/captured-snapshot.json"
+}
+
+test_legacy_intake_preflight_precedes_assembler_and_authored_writes() {
+  local slug; slug="$(unique_slug legacy_preflight)"
+  cleanup_project "${slug}"
+  trap "cleanup_project ${slug}" EXIT
+  make project-init "PROJECT=${slug}" >/dev/null
+  _mark_recovery_none "${slug}"
+  local scorecard="projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md"
+  cat > "${scorecard}" <<'EOF'
+| pass_id | focus | labels_remaining | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|
+| 1 | Existing corridor | 20 / 40 | pass | pass | 0 | Original measurements |
+EOF
+  cp "${scorecard}" "${NESREV_TEST_TMPDIR}/original-scorecard.md"
+  cp "projects/${slug}/docs/reverse_engineering/ONBOARDING.md" "${NESREV_TEST_TMPDIR}/original-onboarding.md"
+  local output rc
+  set +e
+  output="$(XASM_BIN=missing_intake_assembler make project-intake "PROJECT=${slug}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_match 'legacy scorecard has no pass 0' "${output}"
+  assert_not_match 'Seeding warning baseline|Preparing intake registry' "${output}"
+  cmp "${scorecard}" "${NESREV_TEST_TMPDIR}/original-scorecard.md"
+  cmp "projects/${slug}/docs/reverse_engineering/ONBOARDING.md" "${NESREV_TEST_TMPDIR}/original-onboarding.md"
+  make project-intake-migrate "PROJECT=${slug}" >/dev/null
+  local receipt="projects/${slug}/docs/reverse_engineering/inventory/intake_history.json"
+  cp "${receipt}" "${NESREV_TEST_TMPDIR}/receipt.json"
+  make project-intake-migrate "PROJECT=${slug}" >/dev/null
+  cmp "${receipt}" "${NESREV_TEST_TMPDIR}/receipt.json"
+  cmp "${scorecard}" "${NESREV_TEST_TMPDIR}/original-scorecard.md"
 }
 
 test_intake_rejects_pending_recovery_discovery() {

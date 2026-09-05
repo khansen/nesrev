@@ -65,6 +65,11 @@ project-intake:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-intake PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_intake.sh $(PROJECT)
 
+.PHONY: project-intake-migrate
+project-intake-migrate:
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-intake-migrate PROJECT=<slug>"; exit 2; fi
+	bash scripts/project_intake.sh $(PROJECT) --migrate-legacy
+
 project-process-check:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-process-check PROJECT=<slug>"; exit 2; fi
 	bash scripts/project_process_check.sh $(PROJECT)
