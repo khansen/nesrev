@@ -17,6 +17,9 @@ _init_packet_repo() {
   cp "${REPO_ROOT}/scripts/project_common.sh" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/project_policy_config_check.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/proof_debt.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/"
+  printf 'projects/*/reference/\nprojects/*/build/\n' > "${repo}/.gitignore"
 
   cat > "${repo}/projects/${slug}/project.conf" <<EOF
 PROJECT_NAME="${slug}"
@@ -35,7 +38,11 @@ L1234:
 L1235:
   RTS
 EOF
-  : > "${repo}/projects/${slug}/reference/${slug}.nes"
+  python3 - "${repo}/projects/${slug}/reference/${slug}.nes" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_bytes(b'NES\x1a' + bytes([1, 0]) + bytes(10) + bytes(16384))
+PY
   : > "${repo}/projects/${slug}/docs/reverse_engineering/WARNING_BASELINE.txt"
   cat > "${repo}/projects/${slug}/docs/crosswalk/TERMINOLOGY_CROSSWALK.md" <<'EOF'
 | Reference term / aliases | Asm symbol(s) | Mapping confidence | Evidence |
@@ -105,11 +112,20 @@ _write_make_stub() {
 #!/usr/bin/env bash
 set -euo pipefail
 echo "stub make $*"
+if [[ -n "${PACKET_TEST_CACHE_PATH:-}" && "$*" != project-pass-prep* && ! -f "${PACKET_TEST_CACHE_PATH}" ]]; then
+  echo "cold cache was not prepared" >&2
+  exit 27
+fi
 case "$*" in
+  project-pass-prep*)
+    [[ "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-}" == 0 ]] || { echo 'prep would rewrite authored queue'; exit 28; }
+    if [[ -n "${PACKET_TEST_DIRTY_PATH:-}" ]]; then printf '\nchanged\n' >> "${PACKET_TEST_DIRTY_PATH}"; fi
+    if [[ -n "${PACKET_TEST_CACHE_PATH:-}" ]]; then touch "${PACKET_TEST_CACHE_PATH}"; fi
+    exit "${PACKET_TEST_PREP_EXIT:-0}" ;;
   project-next-pass*) echo "Top generated evidence bucket: identity_pass" ;;
-  project-verify*) echo "Verification complete" ;;
-  project-process-check*) echo "OK: project process checks passed" ;;
-  project-docs-check*) echo "Doc consistency checks passed" ;;
+  project-verify*) echo "Verification complete"; exit "${PACKET_TEST_VERIFY_EXIT:-0}" ;;
+  project-process-check*) echo "Process evidence"; exit "${PACKET_TEST_PROCESS_EXIT:-0}" ;;
+  project-docs-check*) echo "Doc consistency checks passed"; exit "${PACKET_TEST_DOCS_EXIT:-0}" ;;
 esac
 EOF
   chmod +x "${path}"
@@ -155,6 +171,106 @@ test_project_pass_review_packet_emits_complete_range_and_head_gates() {
     "packet must expose review-ledger deltas"
   assert_match "Top generated evidence bucket: identity_pass" "${out}" \
     "packet must include generated next-pass evidence"
+  printf '%s\n' "${out}" > "${NESREV_TEST_TMPDIR}/complete-packet.md"
+  python3 - "${NESREV_TEST_TMPDIR}/complete-packet.md" "${head}" "${slug}" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+from review_packet_evidence import validate_packet
+validate_packet(Path(sys.argv[1]).read_text(), sys.argv[2], sys.argv[3])
+PY
+}
+
+test_packet_complete_inventory_includes_root_only_and_reverted_paths() {
+  local repo="${NESREV_TEST_TMPDIR}/root_inventory" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local base head out
+  base="$(git -C "${repo}" rev-parse HEAD~2)"
+  printf 'Root coordination\n' > "${repo}/COORDINATION.md"
+  git -C "${repo}" add COORDINATION.md
+  git -C "${repo}" commit -q -m 'Root-only coordination change'
+  git -C "${repo}" rm -q COORDINATION.md
+  git -C "${repo}" commit -q -m 'Revert coordination text'
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo "${base}" "${head}")"
+  assert_match 'Root-only coordination change' "${out}"
+  assert_match 'COORDINATION.md' "${out}"
+  assert_match 'Complete Changed Path Inventory' "${out}"
+}
+
+test_packet_cold_cache_is_prepared_before_dependent_commands() {
+  local repo="${NESREV_TEST_TMPDIR}/cold_cache" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local head out marker="${NESREV_TEST_TMPDIR}/prepared"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && PACKET_TEST_CACHE_PATH="${marker}" MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 "${head}")"
+  [[ -f "${marker}" ]] || fail 'cache preparation was never run'
+  assert_match '"status": "pass"' "${out}"
+  if [[ "${out}" == *'cold cache was not prepared'* ]]; then fail 'dependent command ran before cache preparation'; fi
+}
+
+test_packet_terminal_summary_retains_every_gate_failure() {
+  local repo="${NESREV_TEST_TMPDIR}/failed_gates" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local head out
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && PACKET_TEST_VERIFY_EXIT=3 PACKET_TEST_PROCESS_EXIT=4 PACKET_TEST_DOCS_EXIT=5 MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 "${head}")"
+  assert_match '"project-verify exit 3"' "${out}"
+  assert_match '"project-process-check exit 4"' "${out}"
+  assert_match '"project-docs-check exit 5"' "${out}"
+  assert_match 'Packet generation: complete' "${out}"
+  assert_match '"status": "fail"' "${out}"
+}
+
+test_packet_missing_fixture_marks_all_gates_not_run() {
+  local repo="${NESREV_TEST_TMPDIR}/missing_fixture" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  rm "${repo}/projects/demo/reference/demo.nes"
+  local head out
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 "${head}")"
+  assert_match 'missing or empty reference input' "${out}"
+  assert_match '"project-verify not run"' "${out}"
+  assert_match '"project-process-check not run"' "${out}"
+  assert_match '"project-docs-check not run"' "${out}"
+  if [[ "${out}" == *'stub make project-verify'* ]]; then fail 'verify ran with missing fixture'; fi
+}
+
+test_packet_failed_cache_preparation_cannot_be_hidden_by_gate_stubs() {
+  local repo="${NESREV_TEST_TMPDIR}/bad_cache" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local head out
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && PACKET_TEST_PREP_EXIT=6 MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 "${head}")"
+  assert_match '"cache-preparation exit 6"' "${out}"
+  assert_match '"project-verify not run"' "${out}"
+}
+
+test_packet_mid_generation_tracked_change_blocks_later_gates() {
+  local repo="${NESREV_TEST_TMPDIR}/changed_state" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local out
+  out="$(cd "${repo}" && PACKET_TEST_DIRTY_PATH="${repo}/projects/demo/asm/demo.asm" MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 HEAD)"
+  assert_match '"state_integrity": "fail"' "${out}"
+  assert_match '"project-verify not run"' "${out}"
+  if [[ "${out}" == *'stub make project-verify'* ]]; then fail 'verify ran after tracked state changed'; fi
+}
+
+test_packet_supplied_tool_and_fixture_hash_mismatches_block_gates() {
+  local repo="${NESREV_TEST_TMPDIR}/mismatched_inputs" slug="demo"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local out
+  out="$(cd "${repo}" && REVIEW_EXPECTED_XASM_SHA256=invalid REVIEW_EXPECTED_REF_SHA256=invalid MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo HEAD~2 HEAD)"
+  assert_match 'assembler SHA-256 mismatch' "${out}"
+  assert_match 'reference SHA-256 mismatch' "${out}"
+  assert_match '"project-verify not run"' "${out}"
 }
 
 test_project_pass_review_packet_rejects_non_checked_out_head() {

@@ -64,6 +64,10 @@ The generator takes:
 - optional `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used relaxed
   semantic-pass verification.
 - optional `OUT=<path>` for writing the packet to an ignored file.
+- optional `REVIEW_EXPECTED_XASM_SHA256` and `REVIEW_EXPECTED_REF_SHA256`
+  environment values to compare the assembler/reference against independently
+  recorded expectations. Without these, hashes are reported, not matched to a
+  claimed approved baseline.
 
 The implementation must resolve `BASE` and `HEAD` to exact SHAs and print those
 SHAs in the packet.
@@ -82,6 +86,8 @@ A compliant packet generator must:
 - include the complete reviewed range, not only a selected commit summary;
 - avoid presenting gate output from an earlier SHA as proof about the review
   head.
+- recheck HEAD and tracked cleanliness around commands; state changes invalidate
+  the bundle and prevent further commands from running against changed inputs.
 
 If historical output from another SHA is included for context, the packet must
 label it as such.
@@ -101,7 +107,7 @@ changes.
 Include range-level counters that make common ledger contradictions visible
 without comparing against another packet:
 
-- project commits in range;
+- total commits in range and the separate project-filtered commit count;
 - rename-ledger row delta and before/after totals;
 - unresolved `LXXXX` definition/reference before/after counts and deltas;
 - added rename rows whose old name is an `LXXXX` label;
@@ -123,12 +129,40 @@ arithmetic that the packet must make visible.
 
 ### Complete Commit List And Diffstat
 
-Include `git log --oneline --stat BASE..HEAD -- projects/<slug>` or an
-equivalent complete commit list for the project path.
+Include unfiltered `git log --oneline --stat BASE..HEAD`. Root/shared changes
+and commits affecting other paths must be visible, not removed by a project
+path filter. Also include an unfiltered per-commit changed-path inventory, such
+as `git log --format='commit %H' --name-status BASE..HEAD`. This retains paths
+changed and later reverted within the range; a net diff alone would omit them.
 
 ### Project Diff
 
-Include the full project diff for `BASE..HEAD`.
+Include the full project-filtered diff for `BASE..HEAD`, clearly distinct from
+the complete unfiltered history and changed-path inventory above.
+
+### Build and Fixture Prerequisites
+
+Record the resolved paths and SHA-256 hashes of the selected assembler, Make,
+Python, Bash, Git and ripgrep, plus the source and reference input paths, sizes
+and hashes. Pass the selected `XASM_BIN` explicitly to build/gate commands.
+An identical version string is not a binary-identity check; compare file hashes.
+
+Collect missing, empty, unreadable and expected-hash-mismatch diagnostics before
+expensive preparation. A reference file's presence/hash is a prerequisite, not
+proof of valid iNES structure or parity; canonical verification owns those
+checks. Missing fixtures are not labelled parity or semantic failures. Provision
+private fixtures only from authorized local inputs; never download or commit
+them, and do not run captures during packet generation.
+
+### Cache Preparation
+
+Run `project-pass-prep` explicitly before dependent evidence and gates, using
+fresh ignored storage in a cold review worktree. Show its exact command and
+exit status. If prerequisites or preparation fail, dependent commands are
+explicitly `not-run`, never implicitly green. This is evidence preparation,
+not `project-pass-start`, mutating closeout or scorecard/history synchronization.
+Set `PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0` so preparation does not rewrite
+the authored raw-RAM review queue.
 
 ### Review Ledger Deltas
 
@@ -154,6 +188,36 @@ output at the review head, with exit status and diagnostics. If the pass is in
 the semantic phase and unresolved `LXXXX` labels remain, the verify command may
 set `ALLOW_UNRESOLVED_LXXXX=1`; the packet must show that mode explicitly.
 
+Do not stop after the first failed gate: when prerequisites permit execution,
+run all three sequentially and retain every actual exit and diagnostic.
+Protect fenced outputs so headings, commands or status-shaped text printed by
+a tool cannot be parsed as packet metadata.
+
+### Required Gate Summary
+
+End with one `## Required Gate Summary` section containing a fenced JSON object
+using schema version 1. It records the project and exact review-head SHA,
+prerequisite/environment evidence, final state-integrity result, three required
+gate records and four supporting-evidence records (cache preparation, next-pass,
+proof-debt and crosswalk currency). Each record includes name, SHA, exact command
+and actual numeric `exit_status`, or JSON `null` for an explicitly unrun command.
+The human-readable command block uses `Exit status: not-run` for that case.
+
+The summary lists every failed/unrun category and an overall evidence status.
+It does not infer hidden sub-check results inside a canonical wrapper: full
+diagnostics are preserved, including any wrapper's own early termination.
+Packet generation can exit 0 when the briefing was produced successfully even
+though required evidence failed. That is not gate success or handoff readiness.
+
+`scripts/review_packet_evidence.py` is the shared producer/consumer contract.
+The handoff parser requires captured output blocks and checks summary/section
+agreement on commands, SHA, statuses, subject and complete required membership.
+Build commands must use the recorded Make/assembler; supporting commands must
+run their canonical targets against the recorded documentation context.
+Every prerequisite, required gate and
+supporting evidence command must succeed before handoff. Missing legacy summaries
+require packet regeneration; archived review judgements are not rewritten.
+
 ### Reviewer Instructions
 
 Tell the reviewer to read `AGENTS.md` and follow the
@@ -173,7 +237,10 @@ sections that expose the issue.
 
 The reviewer should treat a packet as insufficient if it omits a changed commit
 from the range, labels gates with the wrong SHA, hides command failures, or
-fails to expose authored-ledger deltas.
+fails to expose authored-ledger deltas, or contradicts/omits required terminal
+evidence. A zero verify exit cannot hide failed process/docs gates or unrun
+preparation. SHA and command agreement is structural validation of captured
+evidence, not authentication of an arbitrarily hand-forged packet.
 
 ## 8. Relationship To Automation And Prior Art
 

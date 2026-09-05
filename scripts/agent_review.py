@@ -23,6 +23,7 @@ from process_friction import (
     FrictionError, atomic_write, empty_candidate, queue_candidates, queue_sections,
     read_receipts, structural_lines, untriaged_body,
 )
+import review_packet_evidence as packet_evidence
 
 
 VALID_STATUSES = {
@@ -51,13 +52,6 @@ REJECTED_EXACT = {"AGENTS.md", "Makefile"}
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 PROJECT_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 PASS_ID_RE = re.compile(r"^[0-9]+$")
-PACKET_REVIEW_HEAD_RE = re.compile(
-    r"(?im)^-\s*Review head SHA:\s*`?([0-9a-f]{40})`?\s*$"
-)
-PACKET_VERIFY_GATE_RE = re.compile(
-    r"(?ms)^### Project Verify Gate\b(?P<body>.*?)(?=^### |\Z)"
-)
-PACKET_EXIT_STATUS_RE = re.compile(r"(?m)^Exit status:\s*`?([0-9]+)`?\s*$")
 PACKET_LXXXX_FAILURE_RE = re.compile(
     r"(?m)^FAIL: [0-9]+ distinct LXXXX/LXXXXX labels \([0-9]+ refs\)$"
 )
@@ -267,10 +261,10 @@ def require_file(root: Path, value: str, label: str) -> str:
 def validate_packet_head(root: Path, packet: str, expected_head: str) -> None:
     path = resolve_path(root, packet)
     text = path.read_text()
-    match = PACKET_REVIEW_HEAD_RE.search(text)
-    if not match:
-        raise UserError(f"packet does not declare Review head SHA: {packet}")
-    packet_head = match.group(1).lower()
+    try:
+        packet_head = packet_evidence.packet_head(text)
+    except packet_evidence.PacketError as exc:
+        raise UserError(str(exc)) from exc
     if packet_head != expected_head.lower():
         raise UserError(
             "packet review head does not match state\n"
@@ -278,17 +272,14 @@ def validate_packet_head(root: Path, packet: str, expected_head: str) -> None:
         )
 
 
-def packet_verify_gate(root: Path, packet: str) -> tuple[str, int]:
+def packet_verify_gate(root: Path, packet: str) -> tuple[str, int | None]:
     path = resolve_path(root, packet)
     text = path.read_text()
-    section = PACKET_VERIFY_GATE_RE.search(text)
-    if not section:
-        raise UserError(f"packet does not contain Project Verify Gate: {packet}")
-    body = section.group("body")
-    match = PACKET_EXIT_STATUS_RE.search(body)
-    if not match:
-        raise UserError(f"packet Project Verify Gate does not declare Exit status: {packet}")
-    return body, int(match.group(1))
+    try:
+        body, record = packet_evidence.gate_evidence(text, "project-verify")
+        return body, record["exit_status"]
+    except packet_evidence.PacketError as exc:
+        raise UserError(str(exc)) from exc
 
 
 def packet_verify_gate_failed_on_lxxxx(root: Path, packet: str) -> bool:
@@ -305,9 +296,11 @@ def validate_packet_verify_gate(root: Path, packet: str) -> None:
         raise UserError(f"packet Project Verify Gate exit status is nonzero: {status}")
 
 
-def validate_packet(root: Path, packet: str, expected_head: str) -> None:
-    validate_packet_head(root, packet, expected_head)
-    validate_packet_verify_gate(root, packet)
+def validate_packet(root: Path, packet: str, expected_head: str, project: str | None = None) -> None:
+    try:
+        packet_evidence.validate_packet(resolve_path(root, packet).read_text(), expected_head, project)
+    except packet_evidence.PacketError as exc:
+        raise UserError(str(exc)) from exc
 
 
 def verdict_in_file(root: Path, review_file: str, verdict: str) -> None:
@@ -429,11 +422,12 @@ def write_prompt(root: Path, state: dict[str, Any], role: str) -> str:
 def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -> None:
     if getattr(args, "packet", None):
         state["packet"] = require_file(root, args.packet, "packet")
-        validate_packet(root, state["packet"], state["review_head"])
+        validate_packet(root, state["packet"], state["review_head"], state.get("project"))
         return
     if not getattr(args, "generate_packet", False):
         packet = state.get("packet")
         if packet and resolve_path(root, packet).exists():
+            validate_packet(root, packet, state["review_head"], state.get("project"))
             return
         raise UserError("packet is missing; pass --packet or --generate-packet")
 
@@ -445,7 +439,7 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
     generate_packet(root, state, packet_path)
     state["packet"] = rel(root, packet_path)
     try:
-        validate_packet(root, state["packet"], state["review_head"])
+        validate_packet(root, state["packet"], state["review_head"], state.get("project"))
     except UserError:
         if not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
             root, state["packet"]
@@ -457,7 +451,7 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
             )
             state["allow_unresolved_lxxxx"] = True
             generate_packet(root, state, packet_path)
-            validate_packet(root, state["packet"], state["review_head"])
+            validate_packet(root, state["packet"], state["review_head"], state.get("project"))
             return
         raise
 

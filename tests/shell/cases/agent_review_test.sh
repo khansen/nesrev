@@ -5,9 +5,11 @@ AGENT_REVIEW_SCRIPT="${REPO_ROOT}/scripts/agent_review.py"
 
 _init_agent_review_repo() {
   local repo="$1"
-  mkdir -p "${repo}/scripts" "${repo}/projects/demo/asm"
+  mkdir -p "${repo}/scripts" "${repo}/tests" "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
+  cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
+  cp "${REPO_ROOT}/tests/review_packet_fixture.py" "${repo}/tests/review_packet_fixture.py"
   chmod +x "${repo}/scripts/agent_review.py"
 
   git -C "${repo}" init -q
@@ -44,19 +46,9 @@ EOF
 
 _write_agent_packet() {
   local path="$1" head="$2" title="${3:-Packet}" verify_status="${4:-0}"
-  cat > "${path}" <<EOF
-# ${title}
-
-## Reviewed State
-
-- Review head SHA: \`${head}\`
-
-### Project Verify Gate
-
-State: \`review_head ${head}\`
-
-Exit status: \`${verify_status}\`
-EOF
+  python3 "${REPO_ROOT}/tests/review_packet_fixture.py" --output "${path}" \
+    --head "${head}" --title "${title}" --verify-exit "${verify_status}" \
+    --process-exit "${5:-0}" --docs-exit "${6:-0}"
 }
 
 _write_agent_review_make_stub() {
@@ -81,70 +73,21 @@ for arg in "$@"; do
 done
 
 mkdir -p "$(dirname "${out}")"
-if [[ "${mode}" == "lxxxx" && "${allow}" == "0" ]]; then
-  cat > "${out}" <<PACKET
-# Packet
-
-## Reviewed State
-
-- Review head SHA: \`${head}\`
-
-### Project Verify Gate
-
-State: \`review_head ${head}\`
-
-Command:
-
-\`\`\`sh
-make project-verify PROJECT=demo
-\`\`\`
-
-Exit status: \`2\`
-
-Output:
-
-\`\`\`text
-FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)
-\`\`\`
-PACKET
-else
-  command="make project-verify PROJECT=demo"
-  output="FAIL: reference iNES file not found"
-  status=2
-  if [[ "${mode}" == "ok" ]]; then
-    output="OK: binary identity preserved"
-    status=0
-  elif [[ "${mode}" == "lxxxx" ]]; then
-    command="ALLOW_UNRESOLVED_LXXXX=1 make project-verify PROJECT=demo"
-    output="WARN: 491 distinct LXXXX/LXXXXX labels (1000 refs); allowed by ALLOW_UNRESOLVED_LXXXX=1"
-    status=0
-  fi
-  cat > "${out}" <<PACKET
-# Packet
-
-## Reviewed State
-
-- Review head SHA: \`${head}\`
-
-### Project Verify Gate
-
-State: \`review_head ${head}\`
-
-Command:
-
-\`\`\`sh
-${command}
-\`\`\`
-
-Exit status: \`${status}\`
-
-Output:
-
-\`\`\`text
-${output}
-\`\`\`
-PACKET
+command="make project-verify PROJECT=demo"
+output="FAIL: reference iNES file not found"
+status=2
+if [[ "${mode}" == "ok" ]]; then
+  output="OK: binary identity preserved"
+  status=0
+elif [[ "${mode}" == "lxxxx" && "${allow}" == 0 ]]; then
+  output="FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)"
+elif [[ "${mode}" == "lxxxx" ]]; then
+  command="ALLOW_UNRESOLVED_LXXXX=1 make project-verify PROJECT=demo"
+  output="WARN: 491 distinct LXXXX/LXXXXX labels (1000 refs); allowed by ALLOW_UNRESOLVED_LXXXX=1"
+  status=0
 fi
+python3 tests/review_packet_fixture.py --output "${out}" --head "${head}" \
+  --verify-exit "${status}" --verify-output "${output}" --verify-command "${command}"
 EOF
   sed -i.bak \
     -e "s|__MODE__|${mode}|g" \
@@ -401,6 +344,7 @@ test_agent_review_start_pass_rejects_process_ranges_before_note() {
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
+  cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
@@ -434,6 +378,7 @@ test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
   mkdir -p "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${external_script}"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${NESREV_TEST_TMPDIR}/process_friction.py"
+  cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${NESREV_TEST_TMPDIR}/review_packet_evidence.py"
   chmod +x "${external_script}"
 
   git -C "${repo}" init -q
@@ -1202,6 +1147,85 @@ test_agent_review_ready_rejects_packet_with_failed_verify_gate() {
   assert_match "packet Project Verify Gate exit status is nonzero: 2" "${output}"
 }
 
+test_agent_review_ready_rejects_failed_process_and_docs_even_with_green_verify() {
+  local name repo base head output rc process_status docs_status
+  for name in process docs; do
+    repo="${NESREV_TEST_TMPDIR}/agent_failed_${name}"
+    _init_agent_review_repo "${repo}"
+    base="$(git -C "${repo}" rev-parse HEAD~1)"
+    head="$(git -C "${repo}" rev-parse HEAD)"
+    process_status=0
+    docs_status=0
+    if [[ "${name}" == process ]]; then process_status=4; else docs_status=5; fi
+    (
+      cd "${repo}"
+      python3 scripts/agent_review.py init --project demo --base "${base}" --head "${head}" --run-id failed-gate
+      mkdir -p .agents/runs/failed-gate
+      printf 'Implementation evidence\n' > .agents/runs/failed-gate/implementation.md
+      _write_agent_packet .agents/runs/failed-gate/packet.md "${head}" Packet 0 "${process_status}" "${docs_status}"
+    )
+    set +e
+    output="$(cd "${repo}" && python3 scripts/agent_review.py ready --note .agents/runs/failed-gate/implementation.md --packet .agents/runs/failed-gate/packet.md 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2 'all required gates must pass before ready'
+    assert_match 'Gate exit status is nonzero' "${output}"
+    assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
+  done
+}
+
+test_agent_review_ready_and_reused_packet_refuse_incomplete_command_evidence() {
+  local variant repo base head output rc
+  for variant in no-op missing-output assembler wrong-subject write-prep; do
+    repo="${NESREV_TEST_TMPDIR}/evidence_${variant}"
+    _init_agent_review_repo "${repo}"
+    base="$(git -C "${repo}" rev-parse HEAD~1)"
+    head="$(git -C "${repo}" rev-parse HEAD)"
+    (
+      cd "${repo}"
+      python3 scripts/agent_review.py init --project demo --base "${base}" --head "${head}" --run-id evidence
+      printf 'Implementation evidence\n' > .agents/runs/evidence/implementation.md
+      _write_agent_packet .agents/runs/evidence/packet.md "${head}"
+      python3 - "${variant}" "${head}" <<'PY'
+import argparse, re, sys
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+import agent_review
+import review_packet_evidence as evidence
+path = Path('.agents/runs/evidence/packet.md')
+value = path.read_text()
+variant, head = sys.argv[1:]
+if variant == 'no-op':
+    _, record = evidence.gate_evidence(value, 'cache-preparation')
+    value = value.replace(record['command'], 'true')
+elif variant == 'missing-output':
+    body = evidence.section(value, 'Project Verify Gate', 3)
+    value = value.replace(body, re.sub(r'Output:\n\n(`{3,})text\n.*?\n\1\n', '', body, flags=re.S))
+elif variant == 'assembler':
+    value = value.replace('XASM_BIN=xasm', 'XASM_BIN=/unexpected/assembler')
+elif variant == 'wrong-subject':
+    value = value.replace('project-pass-prep PROJECT=demo', 'project-pass-prep PROJECT=another_demo')
+else:
+    value = value.replace('PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0', 'PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=1')
+path.write_text(value)
+state = {'packet': str(path), 'review_head': head, 'project': 'demo'}
+try:
+    agent_review.ensure_packet(Path.cwd(), state, argparse.Namespace(packet=None, generate_packet=False))
+except agent_review.UserError:
+    pass
+else:
+    raise AssertionError('reused packet accepted incomplete command evidence')
+PY
+    )
+    set +e
+    output="$(cd "${repo}" && python3 scripts/agent_review.py ready --note .agents/runs/evidence/implementation.md --packet .agents/runs/evidence/packet.md 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2 "${variant} must refuse handoff"
+    assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
+  done
+}
+
 test_agent_review_ready_does_not_auto_relax_explicit_lxxxx_packet() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_explicit_lxxxx_packet_repo"
   _init_agent_review_repo "${repo}"
@@ -1217,25 +1241,9 @@ test_agent_review_ready_does_not_auto_relax_explicit_lxxxx_packet() {
       --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
     mkdir -p ".agents/runs/${run_id}"
     printf 'Implemented demo pass with an explicit packet.\n' > ".agents/runs/${run_id}/implementation.md"
-    cat > ".agents/runs/${run_id}/packet.md" <<EOF
-# Packet
-
-## Reviewed State
-
-- Review head SHA: \`${head}\`
-
-### Project Verify Gate
-
-State: \`review_head ${head}\`
-
-Exit status: \`2\`
-
-Output:
-
-\`\`\`text
-FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)
-\`\`\`
-EOF
+    python3 tests/review_packet_fixture.py --output ".agents/runs/${run_id}/packet.md" \
+      --head "${head}" --verify-exit 2 \
+      --verify-output 'FAIL: 491 distinct LXXXX/LXXXXX labels (1000 refs)'
   )
 
   set +e
@@ -1399,13 +1407,13 @@ test_agent_review_ready_rejects_packet_without_verify_gate() {
       --project demo --base "${base}" --head "${head}" --run-id "${run_id}"
     mkdir -p ".agents/runs/${run_id}"
     printf 'Implemented demo pass.\n' > ".agents/runs/${run_id}/implementation.md"
-    cat > ".agents/runs/${run_id}/packet.md" <<EOF
-# Packet
-
-## Reviewed State
-
-- Review head SHA: \`${head}\`
-EOF
+    _write_agent_packet ".agents/runs/${run_id}/packet.md" "${head}"
+    python3 - ".agents/runs/${run_id}/packet.md" <<'PY'
+import re, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+path.write_text(re.sub(r'(?ms)^### Project Verify Gate\n.*?(?=^### )', '', path.read_text(), count=1))
+PY
   )
 
   set +e
@@ -1415,7 +1423,7 @@ EOF
   rc=$?
   set -e
   assert_eq "${rc}" "2" "ready must reject packets without verify evidence"
-  assert_match "packet does not contain Project Verify Gate" "${output}"
+  assert_match "packet requires exactly one Project Verify Gate section" "${output}"
 }
 
 test_agent_review_reready_rejects_process_paths_added_by_fix() {
@@ -1545,6 +1553,7 @@ test_agent_review_init_rejects_process_ranges() {
   mkdir -p "${repo}/scripts"
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
+  cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
