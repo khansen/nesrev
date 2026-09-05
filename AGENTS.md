@@ -209,6 +209,7 @@ Every active project uses this fixed set; process gates validate it.
 | `docs/reverse_engineering/MEMORY_MAP.md` | RAM/ZP ownership by subsystem |
 | `docs/reverse_engineering/*_DX_Systems.md` | per-subsystem stable behavior docs |
 | `docs/reverse_engineering/SEMANTIC_CLAIMS.md` | maturity-time semantic-claims ledger ([QUALITY_REVIEW.md#semantic-claims](agent_playbook/QUALITY_REVIEW.md#semantic-claims); validated by `project-maturity-check`) |
+| `docs/reverse_engineering/inventory/policy_baseline.csv` | active per-symbol policy-audit decisions ([POLICY_BASELINE.md](agent_playbook/POLICY_BASELINE.md)); required once an audit marker is recorded |
 | `docs/reverse_engineering/inventory/renames.csv` | rename ledger (closeout reads this) |
 | `docs/reverse_engineering/inventory/data_format_targets.csv` | core data-format family disposition worklist |
 | `docs/reverse_engineering/inventory/data_blob_dispositions.csv` | blob worklist |

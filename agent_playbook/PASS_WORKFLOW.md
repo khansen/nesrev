@@ -466,13 +466,11 @@ the earlier number.
 <a id="policy-baseline-scorecard-artifact"></a>
 ### Policy Baseline Audit
 
-Every project's maturity audit uses a scorecard `notes` marker
-`policy-baseline-audit:` with fields `semantic_claims`, `procedures`,
-`global_code_labels`, `retained_headerless`, and `action`. Denominators are
-live detail-line counts; `0/0` is complete; zero undocumented headers are not
-required. Maturity requires `semantic_claims=created` or `reviewed` and validates
-the live ledger. Validate with
-`make project-policy-baseline-check PROJECT=<slug> REQUIRE=1`.
+Record `policy-baseline-audit:` in scorecard `notes` using `semantic_claims`,
+`procedures`, `global_code_labels`, `retained_headerless`, and `action`.
+The [active manifest contract](POLICY_BASELINE.md) defines live membership,
+reviewed fractions, retained-headerless accounting, and maturity requirements.
+Validate with `make project-policy-baseline-check PROJECT=<slug> REQUIRE=1`.
 
 <a id="raw-ram-prioritization"></a>
 ## Raw-RAM Symbolization Prioritization
