@@ -43,6 +43,14 @@ new claim of complete 6502 control-flow analysis.
 
 The scorecard marker retains the syntax at
 [Policy Baseline Audit](PASS_WORKFLOW.md#policy-baseline-scorecard-artifact).
+For example, a reviewed union with one callable and two global candidates:
+
+```text
+policy-baseline-audit: semantic_claims=reviewed; procedures=1/1; global_code_labels=2/2; retained_headerless=2; action=reviewed the active manifest.
+```
+
+`semantic_claims` accepts `created`, `reviewed`, or `advisory`. The first two
+require a maturity-valid live ledger; `advisory` is not accepted at maturity.
 For each inventory, its denominator is the live detail count and its reviewed
 numerator is the number of manifest members marked `retained_headerless` in
 that inventory. `retained_headerless` counts their distinct union, not the sum
