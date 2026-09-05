@@ -32,7 +32,7 @@ Reader:
   RTS
 
 ; Format: one byte.
-; Used by: FakeMissingConsumer.
+; Used by: `FakeMissingConsumer`.
 DataTable:
 .DB $01
 ASM
@@ -61,6 +61,138 @@ DataTable:
 ASM
 
   python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" >/dev/null
+}
+
+test_used_by_xref_check_accepts_backticked_direct_and_indirect_consumers() {
+  local asm="${NESREV_TEST_TMPDIR}/quoted.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  LDA RequestPointerTable
+  RTS
+RequestPointerTable:
+.DW Payload
+; Used by: `Reader`.
+DataTable:
+.DB $01
+; Used by: `Reader` through `RequestPointerTable`.
+Payload:
+.DB $02
+; Used by: `Reader`.
+OtherPayload:
+.DB $03
+ASM
+  # The last claim is syntactically valid but not proved by the graph.
+  local out
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref "${asm}" 2>&1)"
+  assert_match 'annotations=3 parsed_annotations=3 checked_annotations=3 skipped_annotations=0' "${out}"
+  assert_match 'OtherPayload.*Reader' "${out}"
+  assert_exit 2 python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}"
+}
+
+test_used_by_xref_check_rejects_backticked_unknown_consumer() {
+  local asm="${NESREV_TEST_TMPDIR}/quoted_missing.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+; Used by: `Reader` and `MissingConsumer`.
+DataTable:
+.DB $01
+ASM
+  local out rc
+  set +e
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref "${asm}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_match 'unknown consumer symbol MissingConsumer' "${out}"
+  assert_match 'parsed_consumers=2' "${out}"
+}
+
+test_used_by_xref_check_unknown_dispatch_does_not_hide_unknown_consumer() {
+  local asm="${NESREV_TEST_TMPDIR}/unknown_dispatch.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+; Used by: `MissingConsumer` through the runtime pointer.
+DataTable:
+.DB $01
+ASM
+  local out rc
+  set +e
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref "${asm}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_match 'unknown consumer symbol MissingConsumer' "${out}"
+  assert_match 'checked_annotations=0 skipped_annotations=1' "${out}"
+}
+
+test_used_by_xref_check_reports_partial_and_unattached_annotations() {
+  local asm="${NESREV_TEST_TMPDIR}/partial.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Reader:
+  LDA DataTable
+  RTS
+; Used by: `Reader`, the gameplay rendering path.
+DataTable:
+.DB $01
+; Used by: `Reader`.
+.DB $02
+; Used by:
+ASM
+  local out
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" 2>&1)"
+  assert_match 'annotations=3 parsed_annotations=1 checked_annotations=1 skipped_annotations=2 partial_annotations=1 parsed_consumers=1' "${out}"
+  assert_match 'unsupported consumer fragment' "${out}"
+  assert_match 'not attached to a global declaration' "${out}"
+}
+
+test_used_by_xref_check_zero_coverage_is_not_synchronization() {
+  local asm="${NESREV_TEST_TMPDIR}/unparsed.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+; Used by: the general rendering path.
+DataTable:
+.DB $01
+ASM
+  local out
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref --strict "${asm}" 2>&1)"
+  assert_match 'annotations=1 parsed_annotations=0 checked_annotations=0 skipped_annotations=1' "${out}"
+  assert_match 'NOT CHECKED: no Used by annotation reached ownership validation' "${out}"
+  assert_not_match 'OK:.*synchronized' "${out}"
+}
+
+test_used_by_xref_check_balanced_backticks_do_not_normalize_bad_syntax() {
+  PYTHONPATH="${REPO_ROOT}/scripts" python3 - <<'PY'
+from used_by_xref_check import parse_consumers
+assert parse_consumers('`Reader`, Reader AND `OtherReader`') == (['Reader', 'OtherReader'], [])
+for text in ('`Reader', 'Reader`', '``Reader``', '`Reader*`'):
+    consumers, unsupported = parse_consumers(text)
+    assert consumers == [], (text, consumers)
+    assert unsupported == [text], (text, unsupported)
+PY
+}
+
+test_used_by_xref_check_disposition_words_do_not_hide_consumer_claims() {
+  local asm="${NESREV_TEST_TMPDIR}/disposition_words.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+; Used by: ReadUnreferencedData, no active indirect path.
+DataTable:
+.DB $01
+ASM
+  local out rc
+  set +e
+  out="$(python3 "${USED_BY_CHECK}" --generate-xref "${asm}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_match 'unknown consumer symbol ReadUnreferencedData' "${out}"
+  assert_match 'partial_annotations=1 parsed_consumers=1' "${out}"
 }
 
 test_used_by_xref_check_accepts_direct_claim_through_derived_equ() {

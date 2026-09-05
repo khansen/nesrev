@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from data_directive_xref import ContractError, load_xref
@@ -24,7 +25,7 @@ USAGE = (
 )
 GLOBAL_DEF_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 EQU_DEF_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s+\.EQU\b", re.IGNORECASE)
-USED_BY_RE = re.compile(r";\s*Used by:\s*(.+)", re.IGNORECASE)
+USED_BY_RE = re.compile(r";\s*Used by:\s*(.*)", re.IGNORECASE)
 CONSUMER_SYMBOL_RE = re.compile(r"^[A-Z_][A-Za-z0-9_]*$")
 CONNECTOR_RE = re.compile(r"\b(via|through)\b", re.IGNORECASE)
 UNRESOLVED_LABEL_RE = re.compile(r"^L[0-9A-Fa-f]{4,5}$")
@@ -54,16 +55,25 @@ def sentence_prefix(text: str) -> str:
     return text.split(".", 1)[0].strip()
 
 
-def split_symbols(text: str) -> list[str]:
+def parse_consumers(text: str) -> tuple[list[str], list[str]]:
     normalized = re.sub(r"\band\b", ",", text, flags=re.IGNORECASE)
     out: list[str] = []
     seen: set[str] = set()
+    unsupported: list[str] = []
     for part in normalized.split(","):
         candidate = part.strip()
+        if candidate.startswith("`") and candidate.endswith("`"):
+            candidate = candidate[1:-1]
         if CONSUMER_SYMBOL_RE.fullmatch(candidate) and candidate not in seen:
             out.append(candidate)
             seen.add(candidate)
-    return out
+        elif not CONSUMER_SYMBOL_RE.fullmatch(candidate):
+            unsupported.append(part.strip() or "<empty consumer>")
+    return out, unsupported
+
+
+def split_symbols(text: str) -> list[str]:
+    return parse_consumers(text)[0]
 
 
 def collect_used_by_annotations(asm_path: Path) -> list[dict[str, object]]:
@@ -90,7 +100,11 @@ def collect_used_by_annotations(asm_path: Path) -> list[dict[str, object]]:
             continue
 
         if stripped:
+            for comment_line, text in pending:
+                annotations.append({"target": None, "line": comment_line, "text": text})
             pending = []
+    for comment_line, text in pending:
+        annotations.append({"target": None, "line": comment_line, "text": text})
     return annotations
 
 
@@ -237,6 +251,15 @@ def is_unresolved_label(symbol: str) -> bool:
     return bool(UNRESOLVED_LABEL_RE.fullmatch(symbol))
 
 
+@dataclass
+class AnnotationCheck:
+    failures: list[str] = field(default_factory=list)
+    advisories: list[str] = field(default_factory=list)
+    consumers: list[str] = field(default_factory=list)
+    uncovered: list[str] = field(default_factory=list)
+    owner_check: bool = False
+
+
 def check_annotation(
     annotation: dict[str, object],
     symbols: set[str],
@@ -244,48 +267,66 @@ def check_annotation(
     xref_refs: dict[str, set[str]],
     *,
     strict: bool,
-) -> tuple[list[str], list[str], bool]:
+) -> AnnotationCheck:
+    result = AnnotationCheck()
     target = str(annotation["target"])
     line = int(annotation["line"])
     text = str(annotation["text"])
     sentence = sentence_prefix(text)
     lower_sentence = sentence.lower()
-    if not sentence or any(phrase in lower_sentence for phrase in SKIP_PHRASES):
-        return [], [], False
+    if annotation["target"] is None:
+        result.uncovered.append("annotation is not attached to a global declaration")
+        return result
+    if not sentence or any(
+        re.match(rf"{re.escape(phrase)}\b", lower_sentence) for phrase in SKIP_PHRASES
+    ):
+        result.uncovered.append("empty annotation or non-consumer disposition prose")
+        return result
 
     connector = CONNECTOR_RE.search(sentence)
+    lhs = sentence[: connector.start()].strip() if connector else sentence
+    consumers, unsupported = parse_consumers(lhs)
+    result.consumers = consumers
+    result.uncovered.extend(f"unsupported consumer fragment {part!r}" for part in unsupported)
+    # A dispatch qualifier cannot make a misspelled consumer disappear.
+    for consumer in consumers:
+        if is_unresolved_label(consumer):
+            result.failures.append(
+                f"{line}: Used by comment for {target} cites unresolved consumer label {consumer}"
+            )
+        elif consumer not in symbols:
+            result.failures.append(
+                f"{line}: Used by comment for {target} names unknown consumer symbol {consumer}"
+            )
     producer_for_target: str | None = None
     if connector:
-        lhs = sentence[: connector.start()].strip()
         rhs = sentence[connector.end() :].strip()
-        consumers = split_symbols(lhs)
         if not consumers:
             if "prg banking" in rhs.lower():
-                return [f"{line}: Used by comment for {target} names PRG banking but no concrete consumer symbol"], [], False
-            return [], [], False
+                result.failures.append(f"{line}: Used by comment for {target} names PRG banking but no concrete consumer symbol")
+            return result
         producer = first_symbol(rhs)
         if producer and is_unresolved_label(producer):
-            return [
+            result.failures.append(
                 f"{line}: Used by comment for {target} cites unresolved producer label {producer}"
-            ], [], False
+            )
+            result.uncovered.append("ownership check requires a resolved producer")
+            return result
         if not producer or producer not in symbols:
-            if rhs.lower().startswith(UNRESOLVED_INDIRECT_PREFIXES):
-                return [], [], False
-            if "prg banking" in rhs.lower():
-                return [f"{line}: Used by comment for {target} names PRG banking instead of a concrete producer symbol"], [], False
-            return [], [], False
+            if "prg banking" in rhs.lower() and not rhs.lower().startswith(UNRESOLVED_INDIRECT_PREFIXES):
+                result.failures.append(f"{line}: Used by comment for {target} names PRG banking instead of a concrete producer symbol")
+            result.uncovered.append(f"ownership check has no concrete known producer in {rhs!r}")
+            return result
         producer_for_target = producer
         checked_symbol = producer
         context = f"{target} via {producer}"
     else:
-        consumers = split_symbols(sentence)
         if not consumers:
-            return [], [], False
+            return result
         checked_symbol = target
         context = target
 
-    failures: list[str] = []
-    advisories: list[str] = []
+    result.owner_check = True
     if producer_for_target:
         producer_refs = xref_refs.get(producer_for_target, set())
         if target not in producer_refs:
@@ -299,18 +340,10 @@ def check_annotation(
                 f"but {producer_for_target} does not reference {target}; "
                 f"xref references are: {rendered_refs}"
             )
-            (failures if strict else advisories).append(msg)
+            (result.failures if strict else result.advisories).append(msg)
     actual_owners = owners.get(checked_symbol, set())
     for consumer in consumers:
-        if is_unresolved_label(consumer):
-            failures.append(
-                f"{line}: Used by comment for {target} cites unresolved consumer label {consumer}"
-            )
-        elif consumer not in symbols:
-            failures.append(
-                f"{line}: Used by comment for {target} names unknown consumer symbol {consumer}"
-            )
-        else:
+        if consumer in symbols and not is_unresolved_label(consumer):
             pointer_table_edge = (
                 producer_for_target is None
                 and reaches_through_symbolic_pointer_table(consumer, target, xref_refs)
@@ -323,10 +356,10 @@ def check_annotation(
                 f"but xref owners are: {rendered_owners}"
             )
             if strict:
-                failures.append(msg)
+                result.failures.append(msg)
             else:
-                advisories.append(msg)
-    return failures, advisories, True
+                result.advisories.append(msg)
+    return result
 
 
 def main(argv: list[str]) -> int:
@@ -365,19 +398,42 @@ def main(argv: list[str]) -> int:
 
     failures: list[str] = []
     advisories: list[str] = []
+    uncovered: list[str] = []
+    parsed = 0
+    partial = 0
+    claims = 0
     checked = 0
     for annotation in annotations:
-        new_failures, new_advisories, was_checked = check_annotation(
+        result = check_annotation(
             annotation,
             symbols,
             owners,
             xref_refs,
             strict=strict,
         )
-        failures.extend(new_failures)
-        advisories.extend(new_advisories)
-        if was_checked:
+        failures.extend(result.failures)
+        advisories.extend(result.advisories)
+        parsed += bool(result.consumers)
+        claims += len(result.consumers)
+        for reason in result.uncovered:
+            uncovered.append(f"{annotation['line']}: {annotation['target'] or '<unattached>'}: {reason}")
+        if result.owner_check:
             checked += 1
+            partial += bool(result.uncovered)
+
+    print(
+        f"[used-by-coverage] annotations={len(annotations)} parsed_annotations={parsed} "
+        f"checked_annotations={checked} skipped_annotations={len(annotations) - checked} "
+        f"partial_annotations={partial} parsed_consumers={claims}"
+    )
+    if uncovered:
+        print("NOT CHECKED: Used by coverage gaps:", file=sys.stderr)
+        for reason in uncovered[:40]:
+            print(f"{asm_path}:{reason}", file=sys.stderr)
+        if len(uncovered) > 40:
+            print(f"... {len(uncovered) - 40} more coverage gaps omitted", file=sys.stderr)
+    if annotations and not checked:
+        print("NOT CHECKED: no Used by annotation reached ownership validation", file=sys.stderr)
 
     if failures:
         print("FAIL: Used by xref annotations are stale or uncheckable:", file=sys.stderr)
@@ -387,8 +443,10 @@ def main(argv: list[str]) -> int:
             print(f"... {len(failures) - 120} more failures omitted", file=sys.stderr)
         return 2
 
-    if strict:
-        print(f"OK: Used by xref annotations are synchronized ({checked} strict claims checked)")
+    if not checked:
+        print("Used by: no ownership checks performed; see coverage summary")
+    elif strict:
+        print(f"OK: Used by checked xref annotations are synchronized ({checked} annotations checked; see coverage summary)")
     else:
         if advisories:
             print("ADVISORY: Used by xref (unverifiable indirect dispatch or owner mismatch):", file=sys.stderr)
@@ -398,7 +456,7 @@ def main(argv: list[str]) -> int:
                 print(f"... {len(advisories) - 40} more advisories omitted", file=sys.stderr)
         print(
             "OK: Used by hard-error scan passed "
-            f"({checked} symbol-shaped claims parsed; strict owner matching is opt-in)"
+            f"({checked} annotations checked; strict owner matching is opt-in; see coverage summary)"
         )
     return 0
 
