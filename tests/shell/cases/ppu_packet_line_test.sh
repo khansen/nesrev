@@ -108,6 +108,25 @@ EOF
     "a stream may fall through a separately declared suffix entry"
 }
 
+test_ppu_packet_line_accepts_payload_field_inside_shared_suffix() {
+  local asm="${NESREV_TEST_TMPDIR}/suffix_field.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+Parent:
+.DB $20,$00,$01,$11
+; Format: zero-terminated PPU packet stream suffix.
+Suffix:
+.DB $20,$01,$02,$22
+; Format: 1-byte payload field inside Suffix.
+Payload:
+.DB $33
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=2 line_layout_findings=0' "${out}"
+}
+
 test_ppu_packet_line_does_not_treat_unrelated_stream_as_suffix() {
   local asm="${NESREV_TEST_TMPDIR}/unrelated_stream.asm"
   cat > "${asm}" <<'EOF'
@@ -244,6 +263,23 @@ ASM
   assert_match 'NOT CHECKED: no canonical PPU packet streams checked' "${out}"
 }
 
+test_ppu_packet_line_skips_grouped_declaration_after_canonical_prefix() {
+  local asm="${NESREV_TEST_TMPDIR}/grouped_hidden.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet streams (PLAYER 1 + PLAYER 2 attract labels).
+PlayerTemplates:
+.DB $20,$00,$01,$11
+.DB $00
+OtherPlayerTemplate:
+.DB $20,$01,$02,$22
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'format_candidates=1 checked_streams=0 skipped_formats=1' "${out}"
+  assert_match 'NOT CHECKED:.*PlayerTemplates' "${out}"
+}
+
 test_ppu_packet_line_format_is_not_limited_to_seven_comment_lines() {
   local asm="${NESREV_TEST_TMPDIR}/long_header.asm"
   cat > "${asm}" <<'ASM'
@@ -290,6 +326,24 @@ ASM
   local out
   out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
   assert_match 'declared_streams=1 line_layout_findings=0' "${out}"
+}
+
+test_ppu_packet_line_accepts_annotated_same_address_alias() {
+  local asm="${NESREV_TEST_TMPDIR}/annotated_alias.asm"
+  cat > "${asm}" <<'ASM'
+; Format: zero-terminated PPU packet stream.
+Parent:
+; Format: zero-terminated PPU packet stream.
+Alias:
+.DB $20,$00,$02,$11
+; Format: 1-byte field inside Alias.
+Field:
+.DB $22
+.DB $00
+ASM
+  local out
+  out="$(python3 "${CHECK}" "${asm}" --strict 2>&1)"
+  assert_match 'declared_streams=2 line_layout_findings=0' "${out}"
 }
 
 test_ppu_packet_line_reports_unresolvable_expression() {

@@ -90,7 +90,7 @@ and identify unsupported cases; see [checker coverage](agent_playbook/CHECKER_CO
 
 Local validation on 2026-09-05:
 
-- `make test`: exit 0; 564 shell and 1206 Java tests passed.
+- `make test`: exit 0; 567 shell and 1206 Java tests passed.
 - Three new regressions fail against the old checkers at `683a22c64`:
   backticked missing consumer, missing consumer behind an unknown dispatch
   qualifier, and malformed packet under a nonstandard label name.
@@ -98,11 +98,19 @@ Local validation on 2026-09-05:
   checks 173 of 197 annotations, with 24 skipped and 6 partially checked;
   these counts do not assert semantic ownership. Devil World checks 16 packet
   declarations and explicitly skips 9 other formats, including grouped data.
+  Duck Hunt checks 3 declarations and skips 2; its plural stream declaration
+  describes multiple entries and must not claim coverage of only the first.
 - In an isolated corpus worktree, `make project-ci PROJECT=tennis` and
   `make project-ci PROJECT=devil_world` both exit 0. Hogan's Alley strict CI
   exits 2 at its existing 159-unresolved-label gate. Its pass-time
   `project-verify ALLOW_UNRESOLVED_LXXXX=1`, `project-process-check`, and
   `project-docs-check` all exit 0; relaxed verification is not strict CI.
+
+Initial independent review of `8ebf6fe10` approved the consumer changes and
+identified PPU boundary gaps. Follow-up regressions cover grouped wording
+after the canonical prefix, payload fields inside shared suffixes, and
+annotated same-address aliases. All three fail against `8ebf6fe10` and pass
+with the fixes; independent re-review is pending.
 
 Before activating this branch on local-only `projects`, correct these five
 newly exposed stale consumer names using current producer/consumer evidence:

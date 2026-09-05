@@ -34,6 +34,7 @@ DB_RE = re.compile(r"^\s*\.DB\s+(.+?)\s*$", re.IGNORECASE)
 FORMAT_RE = re.compile(r"\bFormat:\s*(.*)", re.IGNORECASE)
 PPU_PACKET_RE = re.compile(r"\bPPU\b.*\bpackets?\b", re.IGNORECASE)
 CANONICAL_FORMAT_RE = re.compile(r"^zero-terminated\s+PPU\b.*\bpackets?\b", re.IGNORECASE)
+GROUPED_STREAM_RE = re.compile(r"\b(?:streams|group(?:ed)?)\b", re.IGNORECASE)
 ADDRESS_HIGH_VARIANT_RE = re.compile(
     r"(?:flags?.*address\s+high|address\s+high.*flags?|\bppu_hi\s*\|\s*flags?\b)", re.IGNORECASE
 )
@@ -175,6 +176,7 @@ def format_comment_before(lines: list[str], label_index: int) -> bool:
     text = format_text_before(lines, label_index)
     return bool(
         CANONICAL_FORMAT_RE.search(text)
+        and not GROUPED_STREAM_RE.search(text)
         and not ADDRESS_HIGH_VARIANT_RE.search(text)
     )
 
@@ -228,6 +230,7 @@ def analyze_stream(
     label_match = LABEL_RE.match(lines[label_index])
     assert label_match is not None
     stream = label_match.group(1)
+    field_owners = {stream}
     findings: list[Finding] = []
     terminated = False
     has_body = False
@@ -246,19 +249,21 @@ def analyze_stream(
         raw = lines[index]
         label = LABEL_RE.match(raw)
         if label and index != label_index:
-            if pending and is_payload_field_label(lines, index, stream):
+            if pending and any(is_payload_field_label(lines, index, owner) for owner in field_owners):
                 field_boundary = True
             elif (
-                not has_body and not format_text_before(lines, index)
+                not has_body and (
+                    not format_text_before(lines, index)
+                    or is_declared_stream_label(lines, index)
+                )
             ):
-                # An unannotated same-address alias does not end the body.
-                pass
+                field_owners.add(label.group(1))
             elif (
                 not terminated
                 and is_declared_stream_label(lines, index)
                 and suffix_comment_before(lines, index)
             ):
-                pass
+                field_owners.add(label.group(1))
             else:
                 break
         if label:

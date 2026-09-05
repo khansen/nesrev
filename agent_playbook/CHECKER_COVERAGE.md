@@ -7,7 +7,8 @@ semantic ownership. A successful exit does not prove skipped content correct.
 
 `scripts/used_by_xref_check.py` reads full-line `; Used by:` comments attached
 to global label or equate declarations. It accepts bare or singly backticked
-consumer identifiers, comma/`and` lists, and `via`/`through` qualifiers.
+consumer identifiers beginning with an uppercase letter or underscore,
+comma/`and` lists, and `via`/`through` qualifiers.
 Only the first sentence is interpreted. General prose, unsupported syntax,
 and unattached annotations appear as `NOT CHECKED`; `Consumer:` annotations
 and inline instruction comments are outside this check's scope.
@@ -42,12 +43,15 @@ canonical `zero-terminated PPU ... packet` declarations against the
 counts the rest. `declared_streams` retains its earlier meaning of supported
 canonical declarations and equals `checked_streams`. Counts are declarations,
 not inferred numbers of streams inside grouped data. Address-high flags,
-grouped declarations, and other unsupported formats are `NOT CHECKED`.
+grouped declarations (including plural `packet streams` after the canonical
+prefix), and other unsupported formats are `NOT CHECKED`.
 Unannotated data is outside the scan. The field name `ppu_hi` alone does not
 indicate that the format puts control flags in the address byte.
 
-Declared suffix entries share the parent's terminator. Same-address aliases
-and inline `.DB` bodies are accepted. A named field explicitly declared inside
+Declared suffix entries share the parent's terminator and can own payload
+fields while the parent is checked. Same-address aliases, unannotated or
+declaring the same canonical format, and inline `.DB` bodies are accepted.
+A named field explicitly declared inside
 the current stream can divide a packet; the fragments must add up to its
 header-derived length. An unrelated label cannot supply missing payload or
 hide a missing terminator. Checking stops when packet alignment is lost,
