@@ -1,7 +1,7 @@
 # Process Improvement Plan
 
-Status: PI-1 implemented, verified, and independently reviewed; corpus
-activation pending. Other items and queue cleanup pending.
+Status: PI-1 implementation, independent review, and local reference migration
+complete. Other items and queue cleanup pending.
 Corpus review snapshot: 2026-09-05, local `projects` head `dfa985afd`.
 
 Corpus references below are local paths, not links into `master`: the
@@ -44,7 +44,7 @@ its required local migrations are ready and tested together with the tooling.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Reviewed `70e488a7f`; corpus activation pending |
+| `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Reviewed `70e488a7f`; migration `98358deda` verified |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Pending |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Pending |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Pending |
@@ -118,22 +118,31 @@ reviewers in tmux panes `%0` and `%1` approved `70e488a7f` on 2026-09-05;
 no material implementation findings remain. Approval does not activate the
 gate on the corpus or authorize publication.
 
-Before activating this branch on local-only `projects`, correct these five
-newly exposed stale consumer names using current producer/consumer evidence:
+The five newly exposed stale consumer names were corrected in local-only
+migration `98358deda` on `fix/pi-1-corpus-references`, using current
+producer/consumer evidence:
 
-| Project / declaration | Stale consumer names |
+| Project / declaration | Current declaration references |
 |---|---|
-| Golf / `CourseCollisionData` | `InitCourseDisplay`, `CheckGreenSubtileCollision` |
-| Mario Bros. / `PowSpawnTileScript` | `UpdatePowPrimaryCommandState` |
-| Mario Bros. / `PowTriggerTileScript` | `UpdatePowSecondaryCommandState` |
-| Popeye / `HudDigitPacketTemplate` | `UpdateScoreHudDigits` |
+| Golf / `CourseCollisionData` | `LoadCourseLayout`; nearby prose identifies the `CheckTerrainType` RAM-copy reader |
+| Mario Bros. / `PowSpawnTileScript` | `UpdatePOWBlock` |
+| Mario Bros. / `PowTriggerTileScript` | `UpdatePOWBlock`, `UpdateKickAnimationState`, `TryInitPlayerDeathFromCollision` |
+| Popeye / `HudDigitPacketTemplate` | `QueueHudDigitPacket` |
 
-These are real unknown-symbol errors, not reasons to weaken the checker.
+The migration also corrects matching current memory-map references; historical
+pass records remain unchanged. With the reviewed PI-1 checkers overlaid,
+`project-verify` and full `project-ci` each pass for Golf, Mario Bros., and
+Popeye. A fresh-xref scan of all 22 projects reports zero consumer hard errors;
+unsupported annotations and ownership advisories are still reported, not
+asserted correct. No assembly instructions or data bytes changed.
+
 The scan also exposes two packet-layout advisories in Kung Fu and one in
 Metroid; those are formatting debt, not new hard gates or gameplay bugs.
-No game source or friction queues were changed by this implementation.
-Keep the feature branch unmerged until its local activation prerequisites are
-prepared and tested together; publication remains a separate decision.
+Friction queues remain unchanged. The user authorized pushing and merging
+PI-1, then fetching and rebasing local-only `projects` onto `origin/master`.
+Include the local reference migration before that rebase; never push the
+corpus branch or its private fixtures. The migration commit reference above
+is the pre-rebase snapshot, retained by its local branch.
 
 ## PI-2 — Validate evidence membership and runtime deferrals
 
