@@ -129,7 +129,9 @@ def publish(path, receipt, snapshot, expected, metrics, source, reference):
         row.update({key: value for key, value in {**metrics, **OUTCOMES}.items() if key in header})
         lines = text.splitlines(keepends=True)
         lines[index] = "| " + " | ".join(row[key] for key in header) + " |\n"
-        updated = "".join(lines).replace(PENDING + "\n", "").encode()
+        marker_index = next(index for index, line in structural_lines(text) if line.strip() == PENDING)
+        lines[marker_index] = ""
+        updated = "".join(lines).encode()
     record = {"schema_version": 1, "kind": "current-intake-snapshot", "metrics": metrics,
               "source_sha256": digest(source.read_bytes()), "reference_sha256": digest(reference.read_bytes()),
               "gates": {"project-verify": {"exit_status": 0, "mode": "intake-relaxed"},

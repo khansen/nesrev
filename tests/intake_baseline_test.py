@@ -137,6 +137,13 @@ class IntakeTests(unittest.TestCase):
         baseline.migrate(self.scorecard, self.receipt)
         self.assertEqual(self.state()["mode"], "preserve-history")
 
+    def test_fresh_capture_removes_only_the_structural_pending_marker(self):
+        example = "```markdown\n" + FRESH + "```\n"
+        self.scorecard.write_text(FRESH + "\n" + example)
+        self.publish()
+        self.assertIn(example, self.scorecard.read_text())
+        self.assertEqual(baseline.pending_count(self.scorecard.read_text()), 0)
+
     def test_repeated_identical_headers_preserve_chunked_history(self):
         text = HISTORY.replace("| 1 |", HEADER + "| 1 |")
         self.scorecard.write_text(text)
