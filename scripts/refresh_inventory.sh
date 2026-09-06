@@ -19,9 +19,13 @@ project_slug="$1"
 XASM_BIN="${XASM_BIN:-xasm}"
 
 const_tmp="$(mktemp)"
+const_counts_tmp=""
 pointer_xref_tmp=""
 cleanup_inventory_tmp() {
   rm -f "${const_tmp}"
+  if [[ -n "${const_counts_tmp}" ]]; then
+    rm -f "${const_counts_tmp}"
+  fi
   if [[ -n "${pointer_xref_tmp}" ]]; then
     rm -rf "${pointer_xref_tmp}"
   fi
@@ -59,9 +63,12 @@ awk '
 }
 ' "${ASM_FILE}" | sort -u > "$const_tmp"
 
+const_counts_tmp="$(mktemp)"
+python3 "${SCRIPT_DIR}/constant_usage_counts.py" "${ASM_FILE}" "${const_tmp}" > "${const_counts_tmp}"
+
 {
   echo "constant_name,value,domain,usage_sites"
-  while IFS=$'\t' read -r name val; do
+  while IFS=$'\t' read -r name uses val; do
     [[ -z "$name" ]] && continue
     domain="misc"
     case "$name" in
@@ -73,17 +80,8 @@ awk '
       JOYPAD*|PAD_*|BTN_*) domain="input" ;;
       AUDIO_*|SFX_*|MUSIC_*) domain="audio" ;;
     esac
-    matches="$(rg -n "\\b${name}\\b" "${ASM_FILE}" || true)"
-    if [[ -n "${matches}" ]]; then
-      uses="$(printf '%s\n' "${matches}" | wc -l | tr -d ' ')"
-    else
-      uses=0
-    fi
-    if [[ "$uses" -gt 0 ]]; then
-      uses=$((uses - 1))
-    fi
     printf "%s,%s,%s,%s\n" "$name" "$val" "$domain" "$uses"
-  done < "$const_tmp"
+  done < "$const_counts_tmp"
 } > "${inv_dir}/constants_catalog.csv"
 
 bash "${SCRIPT_DIR}/pointer_targets.sh" \

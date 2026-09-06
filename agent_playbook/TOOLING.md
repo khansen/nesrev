@@ -788,7 +788,8 @@ any generated inventory snapshot exists, the complete generated set is required:
 `split_pointer_targets.csv`, `branch_literal_sites.csv`, and `unknowns.md`. The
 guard regenerates those snapshots into a temporary directory and fails when a
 project copy is missing or stale; run `scripts/refresh_inventory.sh <slug>` and
-commit the complete synchronized output.
+commit the complete synchronized output. Catalog counting and compatibility:
+[constant_usage_counts.py](../scripts/constant_usage_counts.py).
 It also validates active `raw_ram_review.csv` `top_readers` / `top_writers`
 owners still resolve to live labels, catching stale owner columns after renames
 that bypassed closeout. Owner tokens should name a global label, or a scoped
