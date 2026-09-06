@@ -32,7 +32,7 @@ levels_rooms_maps,documented,ROOM_FORMAT.md,room format doc covers the level map
 objects_actors_enemies_hazards,absent_not_applicable,,project has no actor or enemy system
 items_pickups_powerups,absent_not_applicable,,project has no collectible item system
 projectiles_collision,absent_not_applicable,,project has no projectile or collision data
-behavior_state_movement_animation,runtime_gated,,static tables are absent; runtime traces would be needed if behavior appears later
+behavior_state_movement_animation,absent_not_applicable,,synthetic project has no behavior tables or open runtime questions
 metasprites_sprite_animation,documented,METASPRITE_FORMAT.md,metasprite records are documented with parser evidence
 graphics_tiles_chr_nametables,documented,GRAPHICS_FORMAT.md,graphics data formats are documented with consumer evidence
 ppu_packet_update_streams,documented,PPU_FORMAT.md,PPU packet stream format is documented

@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from runtime_evidence_check import validate_runtime_evidence
+
 
 FIELDS = [
     "label",
@@ -399,6 +401,9 @@ def validate_rows(path: Path, doc_root: Path, rows: list[dict[str, str]], mode: 
             if not artifact:
                 error(f"{path}:{idx}: structural disposition '{disposition}' requires an artifact")
                 ok = False
+        if disposition == "runtime_gated" and not artifact:
+            error(f"{path}:{idx}: runtime_gated requires an executable trace-plan artifact")
+            ok = False
         if artifact and not validate_artifact(path, doc_root, idx, artifact):
             ok = False
 
@@ -444,7 +449,10 @@ def validate(
         if required:
             error(f"required data-blob disposition inventory missing: {path}")
             return 1
-        return 0
+        runtime_errors = validate_runtime_evidence(doc_root, [], mode)
+        for message in runtime_errors:
+            error(message)
+        return int(bool(runtime_errors))
 
     rows, ok = read_rows(path)
     if not ok:
@@ -452,6 +460,10 @@ def validate(
 
     rows_ok, dispositioned_patterns = validate_rows(path, doc_root, rows, mode)
     ok = ok and rows_ok
+    runtime_errors = validate_runtime_evidence(doc_root, rows, mode)
+    for message in runtime_errors:
+        error(message)
+    ok = ok and not runtime_errors
 
     current_labels: set[str] | None = None
     formatted_data_labels: set[str] = set()

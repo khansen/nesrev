@@ -1,8 +1,8 @@
 # Process Improvement Plan
 
-Status: PI-1, PI-2 policy evidence, PI-3, PI-4, and queue receipts merged.
-PI-5 delivery is tracked in [PR #104](https://github.com/khansen/nesrev/pull/104).
-Runtime-evidence activation remains held.
+Status: PI-1, PI-2 policy evidence, PI-3 through PI-5, and queue receipts merged.
+PI-2 runtime delivery is tracked in [PR #105](https://github.com/khansen/nesrev/pull/105),
+with activation approved under the explicit failing-evidence-debt boundary.
 Updated 2026-09-06.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -40,17 +40,22 @@ references. Use synthetic fixtures and generic examples instead. Keep
 game-specific evidence, migrations, and eventual queue pruning on the
 local-only corpus branch; never push that branch or private ROM fixtures.
 Each implementation branch updates this plan with its status and
-reviewed commit or PR reference. Do not activate a gate on the corpus until
-its required local migrations are ready and tested together with the tooling.
+reviewed commit or PR reference. Before activating a gate on the corpus,
+prepare supported local migrations and test them together with the tooling.
+For PI-2 runtime activation, the user explicitly accepts newly exposed missing
+evidence as failing CI debt. This changes the landing prerequisite, not the
+checker: unsupported inputs must fail, never skip or pass by exemption.
+Record the before/after failure set and independently review the supported
+migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
-| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Implementation `7b19459aa` independently approved; activation held, unmerged |
+| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
-| `fix/pi-5-intake-baselines` | Historical measurement protection | [PR #104](https://github.com/khansen/nesrev/pull/104); independently approved `28427b0a4` with the receipt-only local migration |
+| `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 
 Use ordinary process/tooling branch review, including bad-direction tests
@@ -166,12 +171,45 @@ and localization decisions, and distinct retained-headerless accounting.
 Historical snapshots remain unchanged. The runtime-evidence lane is separate;
 implementing policy membership does not resolve runtime deferral validation.
 
-The runtime implementation is held unmerged: independent activation review
-found a legacy runtime classification without matching trace infrastructure.
-Do not invent a manifest, substitute unrelated assets, or reclassify to restore
-green. The supported local migration is prepared; unsupported evidence remains
-explicit debt. Continue independent PI-3 through PI-5 work without activating
-this gate or starting semantic passes or captures.
+The runtime lane introduces an [active question manifest](agent_playbook/RUNTIME_EVIDENCE.md)
+that reconciles open runtime deferrals and runtime-gated blob/family artifacts.
+Maturity executes tracked analyzer acceptance/refusal fixtures; process checks
+report structural coverage without claiming fixture execution. Capture plans
+can remain legitimately pending; fixtures never establish a live result.
+
+Activation review identified a legacy runtime classification without matching
+trace infrastructure. Keep that unsupported evidence failing; do not invent a
+manifest, substitute unrelated trace assets, or reclassify merely for green.
+The supported manifest migration is prepared locally. On 2026-09-06 the user
+authorized lifting the activation hold while retaining newly exposed missing
+evidence as genuine CI failures. Rebase, rerun shared tests and joint corpus
+checks, then obtain fresh approval before PR creation and merge. This rollout
+does not authorize new semantic passes or captures, and it must not describe
+accepted failing debt as green or runtime questions as resolved.
+
+Prior implementation validation at `7b19459aa`: 39 focused Python cases, 587
+shell tests and 1206 Java tests passed. Four regressions failed against
+pre-change tooling: artifact-free
+blob, existing plan without question manifest, artifact-free runtime family,
+and missing optional blob inventory hiding an open runtime deferral. Preliminary
+independent review confirmed the activation boundary and executable-fixture
+mutation sensitivity; its optional-inventory finding is fixed and tested.
+
+Fresh independent review approved `c405c932a` and supported migration readiness
+with no material findings. Rebased validation passed 39 focused cases, 600 shell
+tests and 1206 Java tests. Four unchanged-base validator regressions and four
+disposable mutation directions (six intended assertions) reject the weakened
+behavior. Independent execution reproduced these controls and the complete
+runtime-contract sweep: 20 of 22 inputs pass; two retain missing evidence.
+
+Prepared joint strict CI passes 17 of 22 inputs: the same four unfinished-input
+failures plus one newly exposed, user-accepted runtime-evidence failure. All 22
+binary comparisons pass. Independent review checked that exact delta against
+the baseline's 18 passing inputs and reviewed the supported positive fixture
+plus six isolated refusals. The initial cold-cache run is retained as failed
+setup, not activation evidence; canonical non-authoring preparation and the
+corrected run preserve tracked state. These results establish tooling delivery,
+not completed runtime questions or green corpus CI.
 
 Policy-lane validation: `make test` passes 585 shell and 1206 Java tests.
 Five synthetic regression cases fail against the previous implementation:

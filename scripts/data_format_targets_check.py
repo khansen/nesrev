@@ -139,8 +139,8 @@ def validate(path: Path, doc_root: Path, mode: str, required: bool) -> int:
             error(f"{path}:{idx}: evidence is required")
             ok = False
 
-        if disposition == "documented" and not artifact:
-            error(f"{path}:{idx}: documented rows require an artifact")
+        if disposition in {"documented", "runtime_gated"} and not artifact:
+            error(f"{path}:{idx}: {disposition} rows require an artifact")
             ok = False
         if disposition == "absent_not_applicable" and artifact:
             error(f"{path}:{idx}: absent_not_applicable rows must leave artifact empty")
