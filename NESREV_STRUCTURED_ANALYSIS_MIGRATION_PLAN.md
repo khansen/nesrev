@@ -1,5 +1,8 @@
 # NESrev Structured-Analysis Migration Plan
 
+Status: Phase 1 is complete. Phase 2's instruction-operand artifact is the next
+dependency; Phase 2 consumer migrations and Phase 3 remain planned.
+
 ## Purpose
 
 Move process checks away from reparsing assembly text when they are trying to
@@ -40,21 +43,20 @@ records with directive width, operand and owner-relative indices, lexical
 owner, expression, referenced symbols, target symbol/kind/projection/
 displacement, addresses, offsets, segment identity, and emitted value.
 
-The corresponding NESrev consumer has replaced the `.DW` pointer-target
-scanner. The xasm producer, NESrev consumer, and Kung Fu terminal-vector
-inventory correction are landed, so the pinned projects baseline is
-self-consistent and passes its own generator gate.
+The `.DW` pointer inventory and all four Phase 1 consumers now use structured
+xref data. Their completed implementation anchors are `fa805bd84` (`.DW`),
+`3c80da22a` (embedded/split `.DB`), `3cc5b72f6` (`Used by`), and `4d0393e89`
+(pass-selection RAM/ZP map).
 
-The intermediate state after rebasing `projects` onto the v2 consumer but
-before replaying the Kung Fu correction is explicitly unsupported: the v2
-generator correctly emits 227 Kung Fu rows while the unreplayed CSV still has
-229, so `project-verify`, `project-ci`, and pass closeout fail. Treat the rebase
-and correction replay as one atomic operator action, run no project gates
-between them, and pin corpus evidence only to the post-replay projects commit.
+Corpus-specific corrections, pinned inputs, and historical results belong in
+the local-only `projects/STRUCTURED_ANALYSIS_MIGRATION_EVIDENCE.md` companion,
+which is not published on `master`. Keep game names, project symbols, and
+private commit references out of shared plan changes and PR descriptions.
 
 ## Phase 1: Consume Data-Directive Xref v2
 
-These migrations require no additional xasm schema.
+Completed migrations; the contracts below record their intended behavior.
+They required no additional xasm schema beyond data-directive xref v2.
 
 ### 1. Embedded `.DB` pointer pairs
 
@@ -71,15 +73,15 @@ These migrations require no additional xasm schema.
 ### 2. Split low/high `.DB` tables
 
 - Migrate `scripts/split_pointer_targets.py` in the same workstream as embedded
-  pointer pairs because both currently share the same source parser.
+  pointer pairs because both previously shared the same source parser.
 - Use xref operand records for table ownership, projection, target expression,
   target kind, and entry order.
 - Keep NESrev's suffix-based low/high table pairing policy and mismatch
   diagnostics; these are repository conventions, not assembler facts.
 - Prove exact corpus parity and retain refusal tests for incomplete symbolic
   bodies, unequal lengths, wrong projections, and mismatched targets. Preserve
-  the existing behavior that ignores a lone suffix match: Balloon Fight has a
-  legitimate low-only table whose high byte is supplied elsewhere.
+  existing behavior that ignores a lone suffix match: a legitimate low-only
+  table can receive its shared high byte from a separate consumer.
 
 ### 3. `Used by` pointer-table edges
 
@@ -169,6 +171,26 @@ Migrate these consumers after that artifact exists:
   instruction, destination symbol, and equate values.
 - Keep NESrev's semantic-name matching and exclusion policy in the consumer.
 
+### Follow-up: Embedded-pointer audit proof heuristics
+
+`scripts/embedded_pointer_audit.py` is a hybrid, not a completed structured
+migration. Besides listing/index-pattern inputs, `struct_copy_deref_proof()`
+and `pointer_store_proof()` scan instruction text; `routine_block()` and
+`build_equ_aliases()` reconstruct scope and aliases from source.
+
+- Replace those assembler-fact parsers with instruction records and structured
+  symbol/scope information once the required fields exist. Alias dependency
+  gaps also depend on Phase 3; do not replace regex with expression-string
+  parsing under another name.
+- Ordered instructions and paired reads alone do not prove that a later
+  indirect read consumes the same pointer. Preserve explicit evidence limits
+  for register flow, scratch reuse, clobbers, and cross-routine reachability;
+  unsupported relationships remain advisory rather than confirmed proof.
+- Retain byte-run discovery as candidate evidence. Add positive and independent
+  refusal fixtures for different copy indices, overwritten pointer bytes,
+  unrelated scratch dereferences, and alias/scope ambiguity before changing
+  confirmation behavior. Explain any resulting confidence or KPI deltas.
+
 ## Phase 3: Structured Equate Provenance and Shared Corpus Facts
 
 ### 10. Semantic-evidence assembler checks
@@ -216,6 +238,11 @@ Each migration must satisfy all of the following before the source parser is
 removed:
 
 - Pin producer and consumer versions and fail clearly on incompatible input.
+- Establish whether each entry point runs only after successful assembly or
+  must support intake before the source assembles. Preserve a required
+  pre-assembly path only as an explicit, separately tested, limited text mode;
+  never silently substitute it when structured input is missing, stale, or
+  incompatible in a post-assembly flow.
 - Use one shared xasm result per wrapper invocation; do not hide extra
   assemblies inside leaf scripts.
 - Compare warning and diagnostic sets with and without each structured-output
@@ -234,17 +261,17 @@ removed:
   before trusting bad-direction results.
 - Delete the superseded semantic parser. Do not keep two authoritative paths
   indefinitely under a silent fallback.
-- Preserve source parsing only for explicitly documented lexical policy.
+- Preserve source parsing only for explicitly documented lexical policy or
+  the separately tested pre-assembly mode above; the latter cannot certify
+  assembler-derived semantic facts.
 - Run repository gates and the affected project/corpus verification after the
   final edit.
 
 ## Planned Order
 
 - [x] Land xasm data-directive xref v2.
-- [x] Merge the NESrev `.DW` consumer, then update local `projects` and replay
-      the Kung Fu correction without running gates in the unsupported
-      intermediate state. The `projects` branch is local-only and must never be
-      pushed.
+- [x] Merge the NESrev `.DW` consumer and reconcile its local inventory
+      baselines atomically. Keep the corpus branch local-only.
 - [x] Migrate embedded and split `.DB` pointer inventories together.
 - [x] Migrate the `Used by` pointer-table source graph.
 - [x] Replace pass-selection low-address equate parsing with xref symbols.
@@ -252,72 +279,27 @@ removed:
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
+- [ ] Migrate the embedded-pointer audit's proof heuristics after its
+      instruction, scope, alias, and required dataflow evidence is available.
 - [ ] Introduce a shared cross-project constant cache, then migrate hardware
       drift and prior-project reuse where useful.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.
 
 ## Existing Spec Disposition
 
-The earlier `feat/structured-analysis-migration-spec` remains useful as prior
-analysis but is superseded by this plan where the two differ:
+The draft on `feat/structured-analysis-migration-spec` contains no implementation
+and is superseded by this plan. Its history is retained in
+the local cleanup archive; the branch need not remain active or be merged.
+Useful requirements are incorporated here, with these corrections:
 
 - mark `.DW` pointer inventory as completed by the xref-v2 work;
 - add the embedded and split `.DB` migrations;
 - add the `Used by`, pass-selection, raw-address, negative-offset,
   raw-immediate, and semantic-evidence candidates;
 - state that branch literals require literal-bearing instruction records, not
-  ordinary symbol xref; and
+  ordinary symbol xref;
 - remove base-readability from the assembler-fact migration list because it is
-  intentionally a source-spelling check.
-
-## Phase 1 Corpus Evidence
-
-The embedded/split migration is pinned to local-only `projects` commit
-`9a6c1f649`. Using xasm `9a404e1`, all 22 projects were assembled read-only and
-the old source consumers were compared byte-for-byte with the new xref-v2
-consumers per project:
-
-- embedded `.DB` pairs: 608 rows, exact in 22/22 projects
-- split low/high tables: 394 rows, exact in 22/22 projects
-- combined: 1,002 rows, zero missing, zero extra, zero reordered
-
-The first outlier was investigated rather than normalized away: Balloon
-Fight's `HighScoreEntryBasePtrLoTable` has no high-table counterpart because
-its three entries share a high byte supplied outside the table. That evidence
-corrected the planned missing-counterpart refusal without weakening the
-refusals for malformed paired tables. The `projects` branch remains local-only
-and must never be pushed.
-
-### `Used by` graph evidence
-
-The graph migration is pinned to local-only `projects` commit `9a6c1f649` and
-xasm `9a404e1`. Normal and strict exit statuses match in 22/22 projects. Claim
-outcomes match exactly in 21/22; Donkey Kong gains two non-blocking advisories
-for `via` clauses naming derived `.EQU` offsets. Xref resolves those uses to
-the two row labels but does not yet expose equate-dependency edges. Re-parsing
-the expression string would violate Phase 3, so the conservative advisories
-remain until structured equate provenance lands. No prior claim disappears.
-
-Rendered reference lists change in six projects because the xref graph omits
-resolved RAM/ZP equates that the retired token scanner treated as edges. Those
-lists are diagnostic context only; claim outcomes change solely for the two
-Donkey Kong cases above. Composite wrappers reuse their fresh xref, while
-standalone docs-check makes its fallback explicit.
-
-### Pass-selection RAM/ZP map evidence
-
-The pass-selection migration uses the same pinned `projects` commit and xasm
-build. Across all 22 projects, the xref-v2 map retains every one of the 5,850
-literal-source aliases and adds 605 resolved derived aliases; no prior mapping
-disappears. Complete `next_pass.json` payloads and explicit
-`raw_ram_review.csv` refresh output remain byte-for-byte equivalent in 22/22
-projects. The additional aliases do not affect current review rows, but allow
-future derived `ZP_*` / `RAM_*` equates to refresh factual owner/count columns
-without extending NESrev's source parser.
-
-The accompanying mixed-path audit found no second low-address equate parser in
-`project_pass_residue_check.sh`. Its asm reads enforce literal raw-operand
-residue and lexical rename/local-label policy. In `project_next_pass.sh`, raw
-literal discovery, label-layout ownership, and LXXXX counting likewise remain
-textual because spelling or physical source layout is part of the fact; the
-planned instruction artifact owns any later migration of operand structure.
+  intentionally a source-spelling check;
+- explicitly retain the pre-assembly intake compatibility check; and
+- classify the embedded-pointer audit as a remaining hybrid migration, not a
+  fully structured reference implementation.
