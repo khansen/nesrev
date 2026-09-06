@@ -1,7 +1,8 @@
 # NESrev Structured-Analysis Migration Plan
 
 Status: Phase 1 is complete. Phase 2's instruction-operand artifact is the next
-dependency; Phase 2 consumer migrations and Phase 3 remain planned.
+dependency, with shared fresh-artifact production designed alongside it;
+Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -35,6 +36,38 @@ A check should continue reading source text when it evaluates:
 
 Hybrid checks should use structured output for assembler facts and source text
 only for the lexical or authored portion of the rule.
+
+## Performance Work and Migration Priority
+
+CI-P1's bounded lexical-counting fix is merged in
+[PR #107](https://github.com/khansen/nesrev/pull/107). Next, prioritize shared
+structured artifacts and consumer migrations, then re-profile. Do not treat a
+performance backlog as a requirement to optimize every existing text parser
+before replacing it.
+
+This plan owns architectural sequencing. The
+[CI performance plan](PROJECT_CI_PERFORMANCE_PLAN.md) records performance scope,
+acceptance criteria, and measurements; it is not a competing migration roadmap.
+
+- Design shared fresh-artifact production alongside the general instruction
+  stream. Minimal sharing of existing outputs may land independently when its
+  contract remains useful to migrated consumers; a general caching framework
+  must not become a prerequisite for the instruction artifact.
+- Remove straightforward duplicate work during wrapper/consumer wiring where
+  safe. Defer elaborate result caching around consumers awaiting replacement.
+  Further reuse must be justified by post-migration measurements and preserve
+  phase-specific policy, coverage, diagnostics, and failure propagation.
+- Do not build owner/alias/source-position indexes around the embedded-pointer
+  audit's current regex matchers as a standalone performance project. At most,
+  allow a trivial immutable-preprocessing hoist with immediate measured benefit
+  and exact current-behavior equivalence, no new parser/index/cache design, and
+  no delay to migration.
+- Re-profile after migrations and optimize the remaining supported paths.
+  Exact reproduction of an old parser's output is a compatibility check, not
+  sufficient justification for substantial investment in that parser.
+
+This sequencing does not weaken the migration/refusal contracts below or
+authorize implementation, publication, or merges without their normal approval.
 
 ## Current Boundary
 
@@ -110,7 +143,9 @@ They required no additional xasm schema beyond data-directive xref v2.
 
 Do not create a separate xasm feature for every remaining NESrev regex. Add one
 versioned instruction stream or instruction-operand record that can support the
-whole group.
+whole group. Design its production and freshness contract with the shared
+invocation-local analysis bundle so consumer migrations do not add assemblies
+or require a second, incompatible artifact-sharing framework.
 
 At minimum, each record should provide:
 
@@ -178,6 +213,10 @@ migration. Besides listing/index-pattern inputs, `struct_copy_deref_proof()`
 and `pointer_store_proof()` scan instruction text; `routine_block()` and
 `build_equ_aliases()` reconstruct scope and aliases from source.
 
+- Prioritize replacing these parsers, not indexing their current text matches.
+  The limited preprocessing exception in
+  [Performance Work and Migration Priority](#performance-work-and-migration-priority)
+  must not become a competing implementation workstream.
 - Replace those assembler-fact parsers with instruction records and structured
   symbol/scope information once the required fields exist. Alias dependency
   gaps also depend on Phase 3; do not replace regex with expression-string
@@ -223,6 +262,10 @@ Do not migrate these merely because they open an asm file:
 - `constant_kpi.sh`: raw literal spelling and reviewed source allowlists are
   central to the rule, unless a future structured record explicitly preserves
   the original operand spelling.
+- The current constant catalog's `usage_sites` counts matching source lines,
+  including comments, rather than semantic references. Do not silently replace
+  it with xref use counts. This lexical definition does not exempt constant
+  definition/kind/value discovery from the structured classification rule.
 - comment-quality, stale-comment, inferred-prose, documentation, and naming
   checks
 - source-format checks for packet boundaries, table-body representation, and
@@ -231,6 +274,12 @@ Do not migrate these merely because they open an asm file:
 
 Structured output may narrow these checks to relevant source locations, but it
 must not erase the lexical evidence they are intended to inspect.
+
+Before further investment in the catalog's usage metric, identify its consumer
+and useful decision. Decide explicitly whether to retain lexical counts, replace
+them with a defined semantic-reference metric, or retire the field. A change
+requires a reviewed inventory-schema/policy migration; legacy compatibility
+alone does not justify indefinite retention or more optimization work.
 
 ## Migration Contract for Each Work Item
 
@@ -275,12 +324,15 @@ removed:
 - [x] Migrate embedded and split `.DB` pointer inventories together.
 - [x] Migrate the `Used by` pointer-table source graph.
 - [x] Replace pass-selection low-address equate parsing with xref symbols.
-- [ ] Specify and implement the general xasm instruction-operand artifact.
+- [ ] Specify and implement the general xasm instruction-operand artifact,
+      designing shared fresh-artifact production alongside it.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
 - [ ] Migrate the embedded-pointer audit's proof heuristics after its
       instruction, scope, alias, and required dataflow evidence is available.
+- [ ] Re-profile migrated paths; select remaining duplication/performance work
+      from measurements rather than optimizing the superseded text parsers.
 - [ ] Introduce a shared cross-project constant cache, then migrate hardware
       drift and prior-project reuse where useful.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.
