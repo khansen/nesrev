@@ -1,8 +1,9 @@
 # Project CI Performance Plan
 
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
-CI-P2 is planned; CI-P3 is conditional; CI-P4's text indexes are deferred.
-Updated 2026-09-06.
+CI-P2's instruction-producer prerequisite is complete; its validated bundle is
+next. CI-P3 is conditional; CI-P4's text indexes are deferred.
+Updated 2026-09-08.
 
 ## Purpose and ownership
 
@@ -71,6 +72,14 @@ definition/kind/value discovery from structured migration.
 ## CI-P2 — Planned: one fresh analysis bundle per invocation
 
 Design production and freshness with the general instruction-operand artifact.
+The [xasm version 1 producer](https://github.com/khansen/xorcyst/blob/c753b565572a9ea5ea9ebc346381c5b6c7f80710/XASM_INSTRUCTION_RECORDS_SPEC.md)
+now provides that artifact and specifies the follow-on bundle boundary. It does
+not yet hash the full consumed dependency set or certify freshness, and no
+NESrev consumer has switched to it. This producer-only unit makes no CI
+speedup claim. Next implement producer-side dependency hashing and validated
+bundle production, then migrate the first branch-literal consumer under the
+[migration contract](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#migration-contract-for-each-work-item).
+
 Minimal sharing of existing outputs may land independently if the contract stays
 useful to migrated consumers; a general caching framework must not block the
 instruction artifact. [Pass-prep bundling](scripts/project_pass_prep.sh) is prior
@@ -81,6 +90,10 @@ by later consumers, including listing, indexed patterns, and data-consumer facts
 Keep parity and warning-baseline verification on that assembly. Compare bytes
 and warning/error sets with and without analysis options: outputs must remain
 observational.
+
+Measure artifact size and consumer loading cost as well as assembly counts.
+The optional instruction section must not make every legacy consumer repeatedly
+decode facts it does not need; keep sharing scoped to the required outputs.
 
 Required contract:
 

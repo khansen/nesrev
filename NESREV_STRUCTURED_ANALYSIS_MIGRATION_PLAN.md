@@ -1,8 +1,8 @@
 # NESrev Structured-Analysis Migration Plan
 
-Status: Phase 1 is complete. Phase 2's instruction-operand artifact is the next
-dependency, with shared fresh-artifact production designed alongside it;
-Phase 2 consumer migrations and Phase 3 remain planned.
+Status: Phase 1 and Phase 2's xasm instruction-record producer are complete.
+Content-hashed dependencies and a validated invocation-local analysis bundle
+are next; Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -81,6 +81,20 @@ xref data. Their completed implementation anchors are `fa805bd84` (`.DW`),
 `3c80da22a` (embedded/split `.DB`), `3cc5b72f6` (`Used by`), and `4d0393e89`
 (pass-selection RAM/ZP map).
 
+The opt-in xasm instruction producer is implemented in
+[`c753b56`](https://github.com/khansen/xorcyst/commit/c753b565572a9ea5ea9ebc346381c5b6c7f80710).
+Its [version 1 contract](https://github.com/khansen/xorcyst/blob/c753b565572a9ea5ea9ebc346381c5b6c7f80710/XASM_INSTRUCTION_RECORDS_SPEC.md)
+provides an ordered stream of active emitted instructions, parser-owned source
+and operand spans, pre-fold expression trees, lexical owners, and final
+opcode/mode/value/byte/address facts. It requires pure-binary JSON xref and
+`--xref-instructions=true`; existing xref sections are unchanged.
+
+This is a producer prerequisite, not a completed consumer migration or a CI
+speedup. Source snapshots are not dependency hashes or a freshness certificate.
+No gate has switched to this stream. Origin IDs survive folding within one
+assembly, not across edits; structural bases describe written syntax, not
+resolved symbol bindings, alias lifetimes, bank visibility, or dataflow proof.
+
 Corpus-specific corrections, pinned inputs, and historical results belong in
 the local-only `projects/STRUCTURED_ANALYSIS_MIGRATION_EVIDENCE.md` companion,
 which is not published on `master`. Keep game names, project symbols, and
@@ -139,17 +153,17 @@ They required no additional xasm schema beyond data-directive xref v2.
   function for similar mixed paths; do not attempt a wholesale rewrite because
   both scripts also perform legitimate textual residue and readability checks.
 
-## Phase 2: Add a General Instruction-Operand Artifact to xasm
+## Phase 2: Instruction Producer, Fresh Bundle, and Consumers
 
-Do not create a separate xasm feature for every remaining NESrev regex. Add one
-versioned instruction stream or instruction-operand record that can support the
-whole group. Design its production and freshness contract with the shared
-invocation-local analysis bundle so consumer migrations do not add assemblies
-or require a second, incompatible artifact-sharing framework.
+The general producer is implemented; do not create a separate xasm feature for
+every remaining NESrev regex. Complete its production and freshness contract
+with the shared invocation-local analysis bundle before switching consumers,
+so migrations do not add assemblies or incompatible artifact-sharing paths.
 
 At minimum, each record should provide:
 
-- source file, line, column, and durable origin identity
+- source file, line, column, and assembly-local origin identity retained through
+  folding and tied to source/use spans
 - lexical owner
 - CPU address and output offset
 - opcode and addressing mode
@@ -164,7 +178,27 @@ raw literal from a symbol. Resolved values alone are insufficient. Macro and
 debug/non-debug behavior must be deterministic, and conservative omission is
 preferred to a guessed base or displacement.
 
-Migrate these consumers after that artifact exists:
+### Next dependency: trustworthy shared production
+
+Extend xasm's actual input-resolution/read paths to enumerate and content-hash
+root/transitive source, binary includes, character maps, and other consumed
+inputs. Record effective options and producer identity; do not reconstruct
+dependencies with an include regex. Then implement the
+[CI-P2 bundle contract](PROJECT_CI_PERFORMANCE_PLAN.md#ci-p2--planned-one-fresh-analysis-bundle-per-invocation):
+the wrapper adds configuration/policy identity, validates consistent inputs and
+successful output hashes, and rejects invalid supplied bundles without fallback.
+Keep the separately tested no-bundle standalone path explicit.
+
+The producer's optional section is larger than legacy xref. Choose output
+sharing and loading deliberately so each legacy consumer does not repeatedly
+decode an instruction tree it does not use. Measure wrapper invocation counts,
+artifact sizes, and parse costs when wiring consumers; no new persistent cache
+or text-parser index is needed to complete this dependency.
+
+Migrate the branch-literal consumer first after this boundary is implemented
+and tested, then the remaining consumers below. Review active-code, macro,
+same-line, and lexical-policy coverage differences explicitly; a changed count
+is not automatically equivalent behavior.
 
 ### 5. Branch-literal inventory and KPI
 
@@ -324,8 +358,10 @@ removed:
 - [x] Migrate embedded and split `.DB` pointer inventories together.
 - [x] Migrate the `Used by` pointer-table source graph.
 - [x] Replace pass-selection low-address equate parsing with xref symbols.
-- [ ] Specify and implement the general xasm instruction-operand artifact,
+- [x] Specify and implement the general xasm instruction-operand artifact,
       designing shared fresh-artifact production alongside it.
+- [ ] Add producer-side content-hashed dependency tracking and the validated
+      invocation-local bundle before switching any instruction consumer.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
