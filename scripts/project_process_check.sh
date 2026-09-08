@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+validate_project_analysis_bundle "$1"
 
 required_files=(
   "${CROSSWALK_FILE}"

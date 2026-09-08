@@ -8,6 +8,12 @@ fi
 
 ASM_FILE="$1"
 ASSERTIONS_FILE="$2"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" \
+    --source "${ASM_FILE}" --policy "${ASSERTIONS_FILE}"
+fi
 
 if [[ ! -f "${ASM_FILE}" ]]; then
   echo "error: asm file not found: ${ASM_FILE}" >&2
@@ -28,7 +34,7 @@ out_bin="${tmpdir}/out.o"
 xasm_stdout="${tmpdir}/xasm.stdout"
 xasm_stderr="${tmpdir}/xasm.stderr"
 
-if ! xasm --pure-binary \
+if [[ -z "${NESREV_ANALYSIS_BUNDLE+x}" ]] && ! "${XASM_BIN:-xasm}" --pure-binary \
     -o "${out_bin}" \
     --data-consumers \
     --data-consumers-output="${data_json}" \
@@ -39,7 +45,7 @@ if ! xasm --pure-binary \
   exit 66
 fi
 
-python3 - "${data_json}" "${ASSERTIONS_FILE}" <<'PY'
+python3 - "${data_json}" "${ASSERTIONS_FILE}" "${SCRIPT_DIR}" "${ASM_FILE}" <<'PY'
 import csv
 import json
 import sys
@@ -47,8 +53,13 @@ from pathlib import Path
 
 data_path = Path(sys.argv[1])
 assertions_path = Path(sys.argv[2])
+sys.path.insert(0, sys.argv[3])
+from analysis_bundle import supplied
 
-entries = json.loads(data_path.read_text(encoding="utf-8"))
+bundle = supplied(sys.argv[4])
+if bundle is not None:
+    bundle.require_policy(assertions_path)
+entries = bundle.load("data_consumers") if bundle is not None else json.loads(data_path.read_text(encoding="utf-8"))
 sizes = {entry["label"]: int(entry["declared_size"]) for entry in entries}
 
 raw_lines = [
@@ -56,6 +67,9 @@ raw_lines = [
     for line in assertions_path.read_text(encoding="utf-8").splitlines()
     if line.strip() and not line.lstrip().startswith("#")
 ]
+
+if bundle is not None:
+    bundle.validate()
 
 if not raw_lines:
     print("data_extent_assertions_total=0")

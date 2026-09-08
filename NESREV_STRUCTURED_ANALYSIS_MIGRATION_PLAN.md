@@ -1,8 +1,9 @@
 # NESrev Structured-Analysis Migration Plan
 
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
-manifest producers are complete. The validated invocation-local analysis
-bundle is next; Phase 2 consumer migrations and Phase 3 remain planned.
+manifest producers and the validated invocation-local data-analysis bundle are
+implemented. Branch-literal migration is next; other Phase 2 consumer migrations
+and Phase 3 remain planned.
 
 ## Purpose
 
@@ -93,13 +94,12 @@ The separate opt-in [dependency-manifest producer](https://github.com/khansen/xo
 snapshots and hashes actual consumed files and the running executable, records
 original arguments and missing lookup probes, and revalidates before publication.
 It currently supports macOS and Linux and requires pure-binary mode with JSON
-xref when requested. It is not a validated NESrev bundle: output hashes,
-configuration/policy identity, schema/completeness checks, and reuse validation
-remain wrapper responsibilities. The instruction stream alone carries no such
-dependency certificate.
+xref when requested. The [NESrev data-analysis bundle](ANALYSIS_BUNDLE_SPEC.md)
+adds output hashes, configuration/policy identity, required schema checks, and
+reuse validation in `project-ci`. The instruction stream alone carries no such
+dependency certificate, and the current data-only profile does not emit it.
 
-These are producer prerequisites, not a completed consumer migration or a CI
-speedup. No gate has switched to this stream. Origin IDs survive folding within one
+No gate has switched to the instruction stream. Origin IDs survive folding within one
 assembly, not across edits; structural bases describe written syntax, not
 resolved symbol bindings, alias lifetimes, bank visibility, or dataflow proof.
 
@@ -186,19 +186,22 @@ raw literal from a symbol. Resolved values alone are insufficient. Macro and
 debug/non-debug behavior must be deterministic, and conservative omission is
 preferred to a guessed base or displacement.
 
-### Next dependency: trustworthy shared production
+### Implemented dependency: trustworthy shared data production
 
 Use xasm's consumed-input manifest; do not reconstruct dependencies with an
 include regex. Its original arguments, working directory, executable digest,
 content hashes, and missing lookup probes identify the producer invocation and
 its observed inputs, not future filesystem state. Implement the
-[CI-P2 bundle contract](PROJECT_CI_PERFORMANCE_PLAN.md#ci-p2--planned-one-fresh-analysis-bundle-per-invocation):
+[CI-P2 bundle contract](PROJECT_CI_PERFORMANCE_PLAN.md#ci-p2--one-fresh-analysis-bundle-per-invocation):
 the wrapper adds configuration/policy identity, validates consistent inputs and
 successful output hashes, and rejects invalid supplied bundles without fallback.
 Validate negative lookup probes as well as file hashes, since a newly present
 candidate can change include resolution without changing the old inputs.
 Require producer exit success even if an older manifest remains at the supplied
-path. Keep the separately tested no-bundle standalone path explicit.
+path. Keep the separately tested no-bundle standalone path explicit. The
+[version 1 bundle](ANALYSIS_BUNDLE_SPEC.md) implements this boundary for existing
+data consumers; add an instruction-bearing profile with the first instruction
+consumer, without making unrelated xref readers load the larger section.
 
 The producer's optional section is larger than legacy xref. Choose output
 sharing and loading deliberately so each legacy consumer does not repeatedly
@@ -372,7 +375,7 @@ removed:
 - [x] Specify and implement the general xasm instruction-operand artifact,
       designing shared fresh-artifact production alongside it.
 - [x] Add producer-side content-hashed dependency tracking.
-- [ ] Add the validated invocation-local bundle before switching any
+- [x] Add the validated invocation-local data bundle before switching any
       instruction consumer.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.

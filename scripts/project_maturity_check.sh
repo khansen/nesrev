@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+validate_project_analysis_bundle "$1"
 
 pointer_inventory_xref="${NESREV_XREF_FILE:-}"
 pointer_inventory_xref_tmp=""

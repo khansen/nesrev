@@ -93,7 +93,7 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
     index_patterns = os.path.join(workdir, "index_patterns.json")
     out_bin = os.path.join(workdir, "out.bin")
     cmd = [
-        "xasm",
+        os.environ.get("XASM_BIN", "xasm"),
         "--pure-binary",
         "-o",
         out_bin,
@@ -523,8 +523,14 @@ def main() -> int:
         return 65
 
     min_run = int(sys.argv[2]) if len(sys.argv) == 3 else DEFAULT_MIN_RUN
-    with tempfile.TemporaryDirectory(prefix="nesrev_embedded_ptr.") as workdir:
-        records, patterns = run_xasm_analysis(str(asm_path), workdir)
+    from analysis_bundle import supplied
+    bundle = supplied(str(asm_path))
+    if bundle is not None:
+        records = bundle.load("listing")["records"]
+        patterns = bundle.load("index_patterns")
+    else:
+        with tempfile.TemporaryDirectory(prefix="nesrev_embedded_ptr.") as workdir:
+            records, patterns = run_xasm_analysis(str(asm_path), workdir)
 
     fixed_bank = prg_bank_count(records) - 1
     bank_windows = compute_bank_windows(records)
@@ -557,6 +563,9 @@ def main() -> int:
             enriched["consumer_proof"] = proof
             confirmed.append(enriched)
 
+    if bundle is not None:
+        bundle.validate()
+
     print(f"embedded_pointer_raw_runs_total={len(hits)}")
     print(f"embedded_pointer_raw_runs_strong={len(strong)}")
     print(f"embedded_pointer_struct_candidates={len(struct_candidates)}")
@@ -580,4 +589,9 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from analysis_bundle import BundleError
+    try:
+        raise SystemExit(main())
+    except (BundleError, OSError, ValueError, KeyError, TypeError) as exc:
+        print(f"error: embedded pointer analysis refused: {exc}", file=sys.stderr)
+        raise SystemExit(65)
