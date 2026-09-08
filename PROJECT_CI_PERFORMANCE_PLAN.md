@@ -5,7 +5,7 @@ CI-P2's producers, separate instruction output, and validated data bundle are
 implemented, and branch-literal consumers now use the instruction stream.
 The raw-address KPI is next; CI-P3 is conditional and CI-P4's
 text indexes are deferred.
-Updated 2026-09-08.
+Updated 2026-09-09.
 
 ## Purpose and ownership
 
@@ -219,6 +219,52 @@ legacy-plus-separate, and separate-only modes: emitted bytes/reference parity,
 warnings, all 173,322 instruction records, and legacy xref except timestamps.
 The full assembler regression suite passed, including 25 instruction and 25
 dependency tests. Keep corpus pins and raw receipts in the local companion.
+
+### Branch-literal consumer results
+
+The first instruction consumer removes both assembly-text branch scanners.
+The [policy contract](BRANCH_LITERAL_POLICY.md) defines active emitted uses,
+typed literal selection, portable CSV v2 provenance, and operational refusal.
+CI/verification, inventory, intake/calibration and pass preparation now own
+compatible fresh instruction production; existing data consumers still load
+only their selected sidecar. Normal complete CI retains one assembly, with a
+second diagnostic assembly only on parity mismatch.
+
+Profiling the first implementation identified duplicate structured work:
+verification decoded/validated the stream separately for the KPI and registry,
+and inventory did the same for its count and CSV. Each pair now collects once
+within its owning call, preserving threshold ordering and late publication
+validation. Source-membership checks also share the typed schema traversal.
+This is bounded consumer wiring, not a persistent cache, shared verdict, or
+another assembly-text optimization. Tests count loads and exercise real late
+source changes, including malformed provenance on nonmatching instructions.
+
+Post-consolidation warm-workspace measurements on the same arm64 macOS/Python
+environment, with the reviewed separate-output producer on both sides: three
+alternating measured pairs after warmup, with no competing verification.
+
+| Local input / reached path | Median wall seconds, data-only baseline → instruction consumer | Range, baseline → consumer |
+|---|---|---|
+| Larger banked input; existing maturity failure | 20.15 → 22.60 | 20.06–20.19 → 22.53–22.66 |
+| Small input; complete passing CI | 3.37 → 4.12 | 3.36–3.38 → 4.11–4.15 |
+
+The remaining cost is 2.45 seconds (about 12%) and 0.75 seconds (about 22%),
+respectively. This migration is not an end-to-end speedup: producing and
+validating the richer instruction evidence costs more than the removed narrow
+text scans. Keep the measured cost visible while proceeding with the remaining
+structured consumers; do not start a cache framework or optimize the retiring
+parsers to hide it. Re-profile the supported path after the next migration.
+
+All 22 local inputs retain exact reference parity, unchanged branch counts and
+qualifying source-line membership, and matching KPI/CSV results. Full CI has
+byte-identical diagnostics and matching exits across the corpus: 18 pass and
+four retain their existing failures. No maturity waiver or ratchet widening is
+included. The larger timing input still fails its policy-baseline audit and
+does not reach documentation checks. Synthetic controls cover the newly
+included macro/loop/include and alternate-syntax cases that the corpus alone
+cannot establish. Corpus pins, corrected harness setup, raw timing/review
+receipts and the local-only CSV baseline migration belong in the evidence
+companion, not in shared commits.
 
 ## CI-P3 — Conditional: reuse measurements, not verdicts
 

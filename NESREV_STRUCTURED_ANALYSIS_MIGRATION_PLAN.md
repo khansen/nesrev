@@ -234,6 +234,10 @@ Both old parsers are removed. Coverage is active emitted direct-mode
 nested/unary RHS forms are excluded. CSV v2 retains portable template/use
 provenance. Pending calibration precedes final-policy verification; intake
 reuses the listing, and prep separates fact production from failed comparison.
+Each owning KPI/CSV pair shares one typed collection, with no cross-phase
+verdict cache. The [measured migration cost](PROJECT_CI_PERFORMANCE_PLAN.md#branch-literal-consumer-results)
+remains explicit; raw-address migration stays next, not another text-parser
+optimization project.
 The acceptance requirements below remain the regression contract, not a second
 implementation backlog.
 
