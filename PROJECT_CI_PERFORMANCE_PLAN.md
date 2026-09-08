@@ -1,8 +1,8 @@
 # Project CI Performance Plan
 
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
-CI-P2's instruction-producer prerequisite is complete; its validated bundle is
-next. CI-P3 is conditional; CI-P4's text indexes are deferred.
+CI-P2's instruction and consumed-input manifest producers are complete; its
+validated bundle is next. CI-P3 is conditional; CI-P4's text indexes are deferred.
 Updated 2026-09-08.
 
 ## Purpose and ownership
@@ -73,11 +73,14 @@ definition/kind/value discovery from structured migration.
 
 Design production and freshness with the general instruction-operand artifact.
 The [xasm version 1 producer](https://github.com/khansen/xorcyst/blob/c753b565572a9ea5ea9ebc346381c5b6c7f80710/XASM_INSTRUCTION_RECORDS_SPEC.md)
-now provides that artifact and specifies the follow-on bundle boundary. It does
-not yet hash the full consumed dependency set or certify freshness, and no
-NESrev consumer has switched to it. This producer-only unit makes no CI
-speedup claim. Next implement producer-side dependency hashing and validated
-bundle production, then migrate the first branch-literal consumer under the
+now provides that artifact and specifies the follow-on bundle boundary. The
+separate [consumed-input manifest](https://github.com/khansen/xorcyst/blob/fd9d1100b9b8f88a33d6fa3dee41394924e03aee/XASM_DEPENDENCY_MANIFEST_SPEC.md)
+adds immutable snapshots, content hashes, producer/invocation identity, and
+missing lookup probes through xasm's actual read paths. Neither artifact alone
+certifies downstream output/configuration/schema completeness or future reuse,
+and no NESrev consumer has switched to the instruction stream. These producer
+units make no CI speedup claim. Next implement validated bundle production,
+then migrate the first branch-literal consumer under the
 [migration contract](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#migration-contract-for-each-work-item).
 
 Minimal sharing of existing outputs may land independently if the contract stays
@@ -103,6 +106,11 @@ Required contract:
   domain, dependency closure, and output hashes. Content-hash root source,
   transitive includes, binary inputs, and configuration; existence, size, path
   lists, or timestamps alone cannot establish freshness.
+- Consume the producer manifest, including negative lookup probes; validate
+  them during production and reuse. A newly present higher-priority include
+  candidate invalidates the bundle even when all previous file hashes match.
+  Require the producer's successful exit, not merely a manifest path left by
+  an earlier run. Preserve explicit refusal on unsupported producer platforms.
 - Embedded-pointer and extent consumers validate supplied bundles. Missing,
   malformed, partial, mismatched, changed-input, or incompatible supplied
   artifacts must refuse, not silently reassemble or use stale pass-prep files.
