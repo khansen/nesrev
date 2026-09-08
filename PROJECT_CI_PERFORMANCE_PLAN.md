@@ -74,7 +74,7 @@ definition/kind/value discovery from structured migration.
 Design production and freshness with the general instruction-operand artifact.
 The [xasm version 1 producer](https://github.com/khansen/xorcyst/blob/c753b565572a9ea5ea9ebc346381c5b6c7f80710/XASM_INSTRUCTION_RECORDS_SPEC.md)
 now provides that artifact and specifies the follow-on bundle boundary. The
-separate [consumed-input manifest](https://github.com/khansen/xorcyst/blob/3adde81e01a62d03b44d4268521a22513c5744cb/XASM_DEPENDENCY_MANIFEST_SPEC.md)
+separate [consumed-input manifest](https://github.com/khansen/xorcyst/blob/fd9d1100b9b8f88a33d6fa3dee41394924e03aee/XASM_DEPENDENCY_MANIFEST_SPEC.md)
 adds immutable snapshots, content hashes, producer/invocation identity, and
 missing lookup probes through xasm's actual read paths. Neither artifact alone
 certifies downstream output/configuration/schema completeness or future reuse,

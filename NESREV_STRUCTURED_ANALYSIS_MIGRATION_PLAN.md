@@ -89,7 +89,7 @@ and operand spans, pre-fold expression trees, lexical owners, and final
 opcode/mode/value/byte/address facts. It requires pure-binary JSON xref and
 `--xref-instructions=true`; existing xref sections are unchanged.
 
-The separate opt-in [dependency-manifest producer](https://github.com/khansen/xorcyst/blob/3adde81e01a62d03b44d4268521a22513c5744cb/XASM_DEPENDENCY_MANIFEST_SPEC.md)
+The separate opt-in [dependency-manifest producer](https://github.com/khansen/xorcyst/blob/fd9d1100b9b8f88a33d6fa3dee41394924e03aee/XASM_DEPENDENCY_MANIFEST_SPEC.md)
 snapshots and hashes actual consumed files and the running executable, records
 original arguments and missing lookup probes, and revalidates before publication.
 It currently supports macOS and Linux and requires pure-binary mode with JSON
