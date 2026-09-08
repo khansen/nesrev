@@ -183,20 +183,29 @@ class BundleTests(unittest.TestCase):
         self.assertFalse(self.path.exists())
 
     def test_supplied_leaf_refusals_do_not_invoke_xasm(self):
-        shared = self.produce()
         spy = self.root / "xasm"
         shutil.copyfile(ROOT / "tests/fixtures/analysis_count_xasm.py", spy)
         spy.chmod(0o755)
         calls = self.root / "calls.jsonl"
         env = dict(os.environ, BUNDLE_TEST_REAL_XASM=bundle.executable(), BUNDLE_TEST_CALLS=str(calls),
-                   PATH=str(self.root) + os.pathsep + os.environ["PATH"])
-        env["XASM_BIN"] = bundle.executable()
+                   XASM_BIN=str(spy), PATH=str(self.root) + os.pathsep + os.environ["PATH"])
+        with patch.dict(os.environ, env):
+            shared = self.produce()
+        self.assertEqual(len(calls.read_text().splitlines()), 1)
+        calls.unlink()
+        leaves = [("embedded_pointer_audit.py", [str(self.source)]),
+                  ("data_extent_assertions_check.sh", [str(self.source), str(self.policy)])]
+        env["NESREV_ANALYSIS_BUNDLE"] = str(self.path)
+        for script, args in leaves:
+            command = [sys.executable if script.endswith(".py") else "bash", str(ROOT / "scripts" / script)] + args
+            run = subprocess.run(command, env=env, capture_output=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertFalse(calls.exists())
         for supplied_path in ("", str(self.root / "missing.json"), str(self.path)):
             if supplied_path == str(self.path):
                 Path(shared.data["outputs"]["listing"]["path"]).write_text("{")
             env["NESREV_ANALYSIS_BUNDLE"] = supplied_path
-            for script, args in [("embedded_pointer_audit.py", [str(self.source)]),
-                                 ("data_extent_assertions_check.sh", [str(self.source), str(self.policy)])]:
+            for script, args in leaves:
                 command = [sys.executable if script.endswith(".py") else "bash", str(ROOT / "scripts" / script)] + args
                 run = subprocess.run(command, env=env, capture_output=True)
                 self.assertEqual(run.returncode, 65, run.stderr)
@@ -245,9 +254,11 @@ class BundleTests(unittest.TestCase):
             result = actual_run(command)
             self.config.write_text('NESREV_RECOVERY_STATUS="configured"\n')
             return result
-        with patch.object(bundle.subprocess, "run", side_effect=change_after_run):
+        with patch.object(bundle.subprocess, "run", side_effect=change_after_run), \
+                patch.object(bundle, "write_json", wraps=bundle.write_json) as publish:
             with self.assertRaisesRegex(bundle.BundleError, "changed input or output"):
                 bundle.produce(str(self.directory), str(self.source), str(self.root / "out.bin"))
+            publish.assert_not_called()
         self.assertFalse(self.path.exists())
 
     def test_selected_producer_change(self):
