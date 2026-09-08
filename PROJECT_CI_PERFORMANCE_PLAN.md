@@ -1,8 +1,9 @@
 # Project CI Performance Plan
 
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
-CI-P2's producers and validated data bundle are implemented. Branch-literal
-migration is next; CI-P3 is conditional and CI-P4's text indexes are deferred.
+CI-P2's producers, separate instruction output, and validated data bundle are
+implemented. Branch-literal migration is next; CI-P3 is conditional and CI-P4's
+text indexes are deferred.
 Updated 2026-09-08.
 
 ## Purpose and ownership
@@ -83,6 +84,9 @@ units alone make no CI speedup claim. The [validated data bundle](ANALYSIS_BUNDL
 now shares existing data-analysis outputs in CI. Next migrate the first
 branch-literal consumer under the
 [migration contract](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#migration-contract-for-each-work-item).
+The [separate instruction output](https://github.com/khansen/xorcyst/blob/903c02a2acefc2dfaccb1ed3d3abf4512acdeeb3/XASM_INSTRUCTION_RECORDS_SPEC.md#separate-output)
+reuses the existing collector/serializer and leaves legacy xref narrow; use it
+when adding the instruction-bearing profile, without a NESrev partition/cache.
 
 Minimal sharing of existing outputs may land independently if the contract stays
 useful to migrated consumers; a general caching framework must not block the
@@ -178,6 +182,41 @@ equivalence, and complete synthetic CI. Corpus inputs and raw receipts remain
 in the local evidence companion. Subsequent instruction migration should retain
 this boundary; do not pursue legacy text-parser optimization to hide the small
 fixed overhead.
+
+### Instruction-output packaging results
+
+The separate-output extension preserves the existing combined opt-in and can
+produce instructions without an otherwise unused xref. Version 1 requires a
+dependency manifest so the new destination receives the existing collision and
+failure protections. No consumer has migrated, and current CI still leaves
+instruction output off.
+
+Artifact costs on the same machine/tool environment as the data-bundle study;
+one warmup and ten JSON decodes from warm byte buffers per artifact:
+
+| Local input | Combined xref: MB / median decode | Legacy xref: MB / median decode | Separate instructions: MB / median decode |
+|---|---:|---:|---:|
+| Larger banked input | 40.73 / 189 ms | 7.68 / 28 ms | 33.05 / 159 ms |
+| Small complete input | 5.51 / 25 ms | 0.45 / 1.8 ms | 5.05 / 23 ms |
+
+These are decimal MB and decode-only costs, not validated consumer loads or
+additive CI phases. The benefit is selective loading by future consumers, not
+smaller total facts or a measured end-to-end speedup from packaging alone.
+
+Disabled-path CI controls used one warmup plus three alternating measured runs,
+without competing verification, against the preceding and extended native
+producer builds. Median wall seconds were 21.67 → 20.95 on the existing-failing
+larger path (ranges 21.60–21.82 → 19.54–20.95) and 3.37 → 3.36 on the complete
+passing path (3.35–3.38 → 3.34–3.38). Median user/system seconds were
+20.36/1.16 → 19.62/1.15 and 2.47/0.73 → 2.45/0.73, respectively. Diagnostics,
+exits, and pinned inputs matched exactly; these observations do not establish
+a causal speedup for an output those wrappers do not yet request.
+
+All 22 local inputs matched across baseline combined, extended combined,
+legacy-plus-separate, and separate-only modes: emitted bytes/reference parity,
+warnings, all 173,322 instruction records, and legacy xref except timestamps.
+The full assembler regression suite passed, including 25 instruction and 25
+dependency tests. Keep corpus pins and raw receipts in the local companion.
 
 ## CI-P3 — Conditional: reuse measurements, not verdicts
 

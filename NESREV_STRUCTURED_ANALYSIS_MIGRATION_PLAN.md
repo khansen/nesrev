@@ -1,9 +1,9 @@
 # NESrev Structured-Analysis Migration Plan
 
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
-manifest producers and the validated invocation-local data-analysis bundle are
-implemented. Branch-literal migration is next; other Phase 2 consumer migrations
-and Phase 3 remain planned.
+manifest producers, separate instruction output, and validated invocation-local
+data-analysis bundle are implemented. Branch-literal migration is next; other
+Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -89,6 +89,15 @@ provides an ordered stream of active emitted instructions, parser-owned source
 and operand spans, pre-fold expression trees, lexical owners, and final
 opcode/mode/value/byte/address facts. It requires pure-binary JSON xref and
 `--xref-instructions=true`; existing xref sections are unchanged.
+
+The separate-output extension in
+[`903c02a`](https://github.com/khansen/xorcyst/commit/903c02a2acefc2dfaccb1ed3d3abf4512acdeeb3)
+adds `--instruction-records-output=FILE`: the same versioned document, without
+requiring legacy xref. Both outputs share one collected context and serializer;
+the existing combined opt-in remains compatible. The separate output requires
+`--dependency-manifest` in version 1 so its destination participates in the
+producer's input, negative-lookup, and output-collision protections. This is
+packaging, not a new semantic model or a consumer migration.
 
 The separate opt-in [dependency-manifest producer](https://github.com/khansen/xorcyst/blob/fd9d1100b9b8f88a33d6fa3dee41394924e03aee/XASM_DEPENDENCY_MANIFEST_SPEC.md)
 snapshots and hashes actual consumed files and the running executable, records
@@ -203,11 +212,12 @@ path. Keep the separately tested no-bundle standalone path explicit. The
 data consumers; add an instruction-bearing profile with the first instruction
 consumer, without making unrelated xref readers load the larger section.
 
-The producer's optional section is larger than legacy xref. Choose output
-sharing and loading deliberately so each legacy consumer does not repeatedly
-decode an instruction tree it does not use. Measure wrapper invocation counts,
-artifact sizes, and parse costs when wiring consumers; no new persistent cache
-or text-parser index is needed to complete this dependency.
+Use the separate instruction document in the instruction-bearing profile;
+legacy readers must not repeatedly decode instruction trees they do not use.
+Bind both outputs to the same successful producer invocation and validate their
+hashes and schemas. Do not partition a combined document in NESrev or introduce
+a new derived-artifact cache. Measure wrapper invocation counts, artifact sizes,
+and parse costs when wiring consumers.
 
 Migrate the branch-literal consumer first after this boundary is implemented
 and tested, then the remaining consumers below. Review active-code, macro,
@@ -217,9 +227,41 @@ is not automatically equivalent behavior.
 ### 5. Branch-literal inventory and KPI
 
 - Replace `scripts/branch_literal_sites.sh` and the corresponding KPI parser.
-- Cover literal-only operands such as `$+23`, which ordinary symbol-reference
-  xref cannot currently represent.
-- Preserve source spelling and lexical owner in the generated inventory.
+- Use one typed classifier for both: a direct raw-PC-offset expression such as
+  `$+23`, not merely a relative-branch opcode. The old scans also cover valid
+  direct-addressing instructions with this syntax. Settle radices, grouping,
+  whitespace, unary integers, and immediate/indexed/indirect exclusions in
+  explicit synthetic and corpus comparisons; numerical equivalence alone is
+  not raw-literal identity.
+- Count active emitted uses. Explain inactive text, same-line labels, repeated
+  includes, macro/loop expansion, and substituted-argument coverage changes;
+  matching totals do not establish equivalent site membership.
+- Upgrade the CSV once, retaining producer source/use spans, lexical owner,
+  assembly-local origin ID, emitted position/segment, and operand provenance.
+  Define portable path presentation, emitted ordering, and the meaning of any
+  legacy `line` field. Distinguish template spelling from invocation evidence;
+  do not fabricate contiguous expanded source text. Any presentation-only
+  source reread must validate against the bundle's consumed-input hashes.
+- Wire each owning entry point, including standalone verification, CI,
+  pass preparation, inventory refresh/synchronization, maturity summaries, and
+  intake/calibration. Share one production across the KPI and CSV consumers;
+  do not hide assembly in a leaf or treat persistent pass-prep output as fresh.
+- Define intake's assembly, measurement, calibration, and final-policy-binding
+  order. Calibration changes hashed policy inputs: an earlier descriptor must
+  not silently survive that change. Never calibrate an active-emitted count
+  from a lexical fallback without an explicitly reviewed different contract.
+- Distinguish a measured threshold failure from unavailable/refused evidence.
+  Existing `2>/dev/null || true` collection must not turn invalid supplied
+  artifacts into a normal-looking unknown count or a completed inventory.
+  Advisory summaries must show refusal; certification and writing paths must
+  propagate it. Preserve source-mapped compare-mismatch diagnostics and their
+  distinct production-versus-comparison status.
+
+The producer packaging lands independently. The consumer unit owns the new
+bundle profile, parser deletion, schema/coverage decisions, atomic inventory
+replacement, corpus comparison, and justified local baseline corrections. Both
+units require exact-head and public-title/body approvals before PR creation and
+merge; neither licenses a project semantic pass or maturity-policy waiver.
 
 ### 6. Raw-address KPI
 
@@ -377,6 +419,8 @@ removed:
 - [x] Add producer-side content-hashed dependency tracking.
 - [x] Add the validated invocation-local data bundle before switching any
       instruction consumer.
+- [x] Add independently requestable instruction output using the existing
+      producer context and serializer, keeping legacy xref narrow.
 - [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
       immediates, and raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
