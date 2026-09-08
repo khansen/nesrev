@@ -2,8 +2,9 @@
 
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
-data-analysis bundle are implemented. Branch-literal migration is next; other
-Phase 2 consumer migrations and Phase 3 remain planned.
+data-analysis bundle are implemented. Branch-literal consumers now use validated
+instruction records. The raw-address KPI is next; other Phase 2 consumer
+migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -226,6 +227,20 @@ is not automatically equivalent behavior.
 
 ### 5. Branch-literal inventory and KPI
 
+Implemented contract: [BRANCH_LITERAL_POLICY.md](BRANCH_LITERAL_POLICY.md),
+with [fixed bundle profiles and owning-wrapper lifecycle](ANALYSIS_BUNDLE_SPEC.md).
+Both old parsers are removed. Coverage is active emitted direct-mode
+`current_pc +/- integer` uses; immediate/indexed/indirect and symbolic or
+nested/unary RHS forms are excluded. CSV v2 retains portable template/use
+provenance. Pending calibration precedes final-policy verification; intake
+reuses the listing, and prep separates fact production from failed comparison.
+Each owning KPI/CSV pair shares one typed collection, with no cross-phase
+verdict cache. The [measured migration cost](PROJECT_CI_PERFORMANCE_PLAN.md#branch-literal-consumer-results)
+remains explicit; raw-address migration stays next, not another text-parser
+optimization project.
+The acceptance requirements below remain the regression contract, not a second
+implementation backlog.
+
 - Replace `scripts/branch_literal_sites.sh` and the corresponding KPI parser.
 - Use one typed classifier for both: a direct raw-PC-offset expression such as
   `$+23`, not merely a relative-branch opcode. The old scans also cover valid
@@ -421,8 +436,10 @@ removed:
       instruction consumer.
 - [x] Add independently requestable instruction output using the existing
       producer context and serializer, keeping legacy xref narrow.
-- [ ] Migrate branch literals, raw-address KPI, negative offsets, suspicious
-      immediates, and raw-immediate/store analysis.
+- [x] Migrate branch literals with one typed classifier, CSV v2 provenance,
+      validated instruction profiles, and explicit refusal in owning wrappers.
+- [ ] Migrate raw-address KPI, negative offsets, suspicious immediates, and
+      raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
 - [ ] Migrate the embedded-pointer audit's proof heuristics after its
       instruction, scope, alias, and required dataflow evidence is available.

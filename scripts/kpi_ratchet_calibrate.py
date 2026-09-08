@@ -4,9 +4,13 @@
 from __future__ import annotations
 
 import re
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+
+import analysis_bundle as analysis
 
 
 PENDING_MARKER = "# Intake calibration pending."
@@ -35,7 +39,7 @@ MEASUREMENTS = (
 )
 
 
-def measure(script_dir: Path, asm: Path) -> dict[str, int]:
+def measure(script_dir: Path, asm: Path, branch_bundle=None) -> dict[str, int]:
     reports: dict[str, str] = {}
     values: dict[str, int] = {}
     for script, metric, ceiling in MEASUREMENTS:
@@ -45,6 +49,8 @@ def measure(script_dir: Path, asm: Path) -> dict[str, int]:
                 check=True,
                 text=True,
                 stdout=subprocess.PIPE,
+                env=(dict(os.environ, NESREV_ANALYSIS_BUNDLE=str(branch_bundle))
+                     if script == "branch_literal_kpi.sh" and branch_bundle is not None else None),
             )
             reports[script] = result.stdout
         match = re.search(rf"(?:^|\s){re.escape(metric)}=(\d+)(?:\s|$)", reports[script])
@@ -54,7 +60,7 @@ def measure(script_dir: Path, asm: Path) -> dict[str, int]:
     return values
 
 
-def calibrate(path: Path, values: dict[str, int]) -> None:
+def calibrate(path: Path, values: dict[str, int], before_publish=lambda: None) -> None:
     text = path.read_text(encoding="utf-8")
     if PENDING_MARKER not in text:
         raise ValueError(
@@ -70,7 +76,15 @@ def calibrate(path: Path, values: dict[str, int]) -> None:
         "# Finite intake baseline; tighten only with semantic/readability progress.",
         1,
     )
-    path.write_text(text, encoding="utf-8")
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as stream:
+        staged = Path(stream.name)
+        try:
+            stream.write(text)
+            stream.close()
+            before_publish()
+            os.replace(staged, path)
+        finally:
+            staged.unlink(missing_ok=True)
 
 
 def main(argv: list[str]) -> int:
@@ -79,8 +93,19 @@ def main(argv: list[str]) -> int:
         return 64
     asm, kpis = map(Path, argv)
     try:
-        values = measure(Path(__file__).resolve().parent, asm)
-        calibrate(kpis, values)
+        if PENDING_MARKER not in kpis.read_text(encoding="utf-8"):
+            raise ValueError(f"{kpis} is not an uncalibrated intake scaffold; refusing to reset reviewed ratchets")
+        with tempfile.TemporaryDirectory(prefix="nesrev-calibrate-") as directory:
+            shared = analysis.supplied(asm)
+            if shared is None:
+                analysis.prepare_source(directory, asm, [kpis])
+                rc = analysis.produce(directory, asm, Path(directory) / "output.bin")
+                if rc:
+                    raise ValueError(f"instruction production failed (exit {rc})")
+                shared = analysis.Bundle(Path(directory) / "bundle.json", asm)
+            shared.require_policy(kpis)
+            values = measure(Path(__file__).resolve().parent, asm, shared.path)
+            calibrate(kpis, values, shared.validate)
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         print(f"kpi_ratchet_calibrate: {exc}", file=sys.stderr)
         return 1

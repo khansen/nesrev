@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 XASM_BIN="${XASM_BIN:-xasm}"
 
 inv_dir="${DOC_ROOT}/inventory"
@@ -18,6 +18,10 @@ history_receipt="${inv_dir}/intake_history.json"
 baseline_args=(--scorecard "${PROGRESS_SCORECARD_FILE}" --receipt "${history_receipt}")
 if [[ "${2:-}" == --migrate-legacy ]]; then
   exec python3 "${SCRIPT_DIR}/intake_baseline.py" migrate "${baseline_args[@]}"
+fi
+if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" || -n "${NESREV_ANALYSIS_BUILD_DIR+x}" || -n "${NESREV_XREF_FILE+x}" ]]; then
+  echo "error: intake requires fresh owned analysis; do not supply analysis inputs" >&2
+  exit 65
 fi
 intake_preflight="$(python3 "${SCRIPT_DIR}/intake_baseline.py" preflight "${baseline_args[@]}")"
 mkdir -p "${inv_dir}"
@@ -103,6 +107,7 @@ ONBOARDING_SNAPSHOT=""
 KPI_SNAPSHOT=""
 xasm_seed_log=""
 baseline_tmp=""
+intake_analysis_dir=""
 _intake_cleanup() {
   local rc=$?
   # Disable errexit so a failure in any cleanup command cannot abort
@@ -110,6 +115,9 @@ _intake_cleanup() {
   # cleanup step is best-effort: if it fails, we proceed to the next
   # step with the original rc preserved.
   set +e
+  if [[ -n "${intake_analysis_dir}" ]]; then
+    rm -rf "${intake_analysis_dir}"
+  fi
   if [[ -n "${xasm_seed_log}" ]]; then
     rm -f "${xasm_seed_log}"
   fi
@@ -227,18 +235,23 @@ if grep -qF '# Intake calibration pending.' "${KPI_FILE}"; then
   cp "${KPI_FILE}" "${KPI_SNAPSHOT}"
   python3 "${SCRIPT_DIR}/kpi_ratchet_calibrate.py" "${ASM_FILE}" "${KPI_FILE}"
 fi
-export NESREV_XREF_FILE="${xref_json}"
+intake_analysis_dir="$(mktemp -d)"
+prepare_project_analysis_bundle "$1" "${intake_analysis_dir}" ci-instructions-v1
+export NESREV_XREF_FILE="${intake_analysis_dir}/xref_with_data.json"
+NESREV_ANALYSIS_BUILD_DIR="${intake_analysis_dir}" \
 PROJECT_VERIFY_REFRESH_INVENTORY=1 \
 PROJECT_VERIFY_REFRESH_SCRIPT="${SCRIPT_DIR}/refresh_inventory.sh" \
 ALLOW_UNRESOLVED_LXXXX=1 \
   bash "${SCRIPT_DIR}/project_verify.sh" "$1"
+export NESREV_ANALYSIS_BUNDLE="${intake_analysis_dir}/bundle.json"
 
-echo "[3/8] Generating structured listing"
-mkdir -p "$(dirname "${OUT_BIN}")"
-"${XASM_BIN}" --pure-binary -o "${OUT_BIN}" --listing="${listing_json}" --listing-format=json "${ASM_FILE}" >/dev/null
+echo "[3/8] Reusing validated structured listing"
+validate_project_analysis_bundle "$1"
+cp "${intake_analysis_dir}/listing.json" "${listing_json}"
+cp "${NESREV_XREF_FILE}" "${xref_json}"
 
 echo "[4/8] Reusing verification xref"
-bash "${SCRIPT_DIR}/pointer_targets.sh" "${xref_json}" >/dev/null
+bash "${SCRIPT_DIR}/pointer_targets.sh" "${NESREV_XREF_FILE}" >/dev/null
 
 echo "[5/8] Auditing raw addresses"
 bash "${SCRIPT_DIR}/project_audit.sh" "$1" json > "${audit_json}"
@@ -251,6 +264,7 @@ bash "${SCRIPT_DIR}/project_process_check.sh" "$1"
 bash "${SCRIPT_DIR}/project_docs_check.sh" "$1"
 
 echo "[8/8] Publishing current intake snapshot; preserving historical rows"
+validate_project_analysis_bundle "$1"
 python3 "${SCRIPT_DIR}/intake_baseline.py" publish "${baseline_args[@]}" \
   --preflight "${intake_preflight}" --snapshot "${inv_dir}/intake_snapshot.json" \
   --source "${ASM_FILE}" --reference "${REF_NES}" --constant-kpi "${CONST_KPI_FILE}"
@@ -265,6 +279,4 @@ if [[ -n "${KPI_SNAPSHOT}" ]]; then
   rm -f "${KPI_SNAPSHOT}"
   KPI_SNAPSHOT=""
 fi
-trap - EXIT
-
 echo "intake complete: $1"

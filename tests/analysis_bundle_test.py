@@ -341,9 +341,6 @@ class BundleTests(unittest.TestCase):
         legacy = self.root / "scripts" / "baseline_ci.sh"
         legacy.write_text('''#!/usr/bin/env bash
 set -euo pipefail
-scratch="$(mktemp -d)"
-trap 'rm -rf "${scratch}"' EXIT
-export NESREV_XREF_FILE="${scratch}/xref_with_data.json"
 bash scripts/project_verify.sh "$1"
 bash scripts/project_process_check.sh "$1"
 bash scripts/project_maturity_check.sh "$1"
@@ -352,7 +349,7 @@ bash scripts/project_docs_check.sh "$1"
         calls.write_text("")
         baseline = subprocess.run(["bash", str(legacy), "synthetic"], env=env, capture_output=True)
         self.assertEqual(baseline.returncode, 0, baseline.stdout.decode() + baseline.stderr.decode())
-        self.assertEqual(len(calls.read_text().splitlines()), 5)
+        self.assertEqual(len(calls.read_text().splitlines()), 6)
         self.assertEqual(baseline.stdout, run.stdout.split(b"\n", 1)[1])
         self.assertEqual(baseline.stderr, run.stderr)
         reference = project / "reference/input.nes"
@@ -365,6 +362,129 @@ bash scripts/project_docs_check.sh "$1"
         invocations = [json.loads(line) for line in calls.read_text().splitlines()]
         self.assertEqual(len(invocations), 2)
         self.assertTrue(any(arg.startswith("--compare=") for arg in invocations[1]))
+
+    def counted_environment(self):
+        spy = self.root / "xasm"
+        shutil.copyfile(ROOT / "tests/fixtures/analysis_count_xasm.py", spy)
+        spy.chmod(0o755)
+        self.calls = self.root / "calls.jsonl"
+        return dict(os.environ, BUNDLE_TEST_REAL_XASM=bundle.executable(), BUNDLE_TEST_CALLS=str(self.calls),
+                    XASM_BIN=str(spy), PATH=str(self.root) + os.pathsep + os.environ["PATH"])
+
+    def test_pass_prep_fresh_facts_survive_parity_failure(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        reference = project / "reference/input.nes"
+        original = reference.read_bytes()
+        cache = project / "docs/reverse_engineering/inventory/pass"
+        for kind, raw, expected_calls, parity in (
+                ("match", original, 2, "pass"),
+                ("mismatch", original[:16] + b"\xea" + original[17:], 3, "fail"),
+                ("truncated", original[:100], 2, "fail")):
+            with self.subTest(kind=kind):
+                reference.write_bytes(raw)
+                self.calls.write_text("")
+                run = subprocess.run(["bash", "scripts/project_pass_prep.sh", "synthetic"],
+                                     env=env, capture_output=True)
+                self.assertEqual(run.returncode, 0, run.stdout.decode() + run.stderr.decode())
+                calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+                self.assertEqual(len(calls), expected_calls, calls)
+                self.assertTrue(any(a.startswith("--instruction-records-output=") for a in calls[0]))
+                self.assertFalse(any(a.startswith("--compare=") for a in calls[0]))
+                status = json.loads((cache / "baseline_status.json").read_text())
+                self.assertEqual(status["checks"]["parity"]["status"], parity)
+                if kind == "mismatch":
+                    comparison = json.loads((cache / "compare.stdout").read_text())
+                    self.assertFalse(comparison["match"])
+                    self.assertTrue(comparison["mismatches"])
+                    self.assertIn("input.asm", json.dumps(comparison["mismatches"]))
+                    self.assertEqual(status["checks"]["parity"]["exit_code"], 5)
+                for name in ("xref_with_data.json", "xref_summary_all.json", "data_coverage.json"):
+                    self.assertTrue((cache / name).is_file())
+
+    def test_refresh_once_and_invalid_supplied_evidence_preserves_inventory(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        inventory = project / "docs/reverse_engineering/inventory"
+        command = ["bash", "scripts/refresh_inventory.sh", "synthetic"]
+        run = subprocess.run(command, env=env, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertEqual(len(self.calls.read_text().splitlines()), 1)
+        generated = {p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}
+        self.calls.write_text("")
+        for supplied in ({"NESREV_ANALYSIS_BUNDLE": ""}, {"NESREV_ANALYSIS_BUNDLE": "missing.json"},
+                         {"NESREV_XREF_FILE": str(self.directory / "xref_with_data.json")}):
+            run = subprocess.run(command, env=dict(env, **supplied), capture_output=True)
+            self.assertEqual(run.returncode, 65, run.stderr)
+            self.assertEqual({p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}, generated)
+            self.assertFalse(self.calls.read_text())
+
+    def test_intake_pending_calibration_and_repeat_assembly_budgets(self):
+        project = self.make_ci_fixture()
+        docs = project / "docs/reverse_engineering"
+        inventory = docs / "inventory"
+        env = self.counted_environment()
+        scorecard = docs / "PROGRESS_SCORECARD.md"
+        scorecard.write_text("| pass_id | focus | labels_remaining | verify | docs_check | rework_items | notes |\n"
+                            "|---|---|---|---|---|---|---|\n"
+                            "| 0 | Intake baseline | 0 / 0 | pass | pass | 0 | Original synthetic snapshot |\n")
+        original_scorecard = scorecard.read_bytes()
+        kpis = inventory / "kpis.conf"
+        original_kpis = kpis.read_text()
+        source = project / "asm/input.asm"
+        # A real unused label makes both seeded and prepopulated warning baselines nonempty.
+        source.write_text(source.read_text().replace(".DSB 16377",
+            "; Image tail reserves the unused test cartridge area.\nUnusedFixture:\n.DSB 16377"))
+        for seeded in (False, True):
+            for pending in (False, True):
+                with self.subTest(seeded=seeded, pending=pending):
+                    (docs / "WARNING_BASELINE.txt").write_text(
+                        "UnusedFixture|Intentional synthetic data boundary\n" if seeded else "")
+                    kpis.write_text(("# Intake calibration pending.\n" if pending else "") + original_kpis)
+                    before_kpis = kpis.read_bytes()
+                    self.calls.write_text("")
+                    run = subprocess.run(["bash", "scripts/project_intake.sh", "synthetic"],
+                                         env=env, capture_output=True)
+                    self.assertEqual(run.returncode, 0 if seeded else 2, run.stdout.decode() + run.stderr.decode())
+                    calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+                    self.assertEqual(len(calls), 2 + int(not seeded) + int(pending), calls)
+                    self.assertEqual(scorecard.read_bytes(), original_scorecard)
+                    self.assertTrue((inventory / "intake_listing.json").is_file())
+                    self.assertTrue((inventory / "intake_xref.json").is_file())
+                    if seeded:
+                        self.assertNotIn("# Intake calibration pending.", kpis.read_text())
+                        self.assertTrue((inventory / "intake_snapshot.json").is_file())
+                    else:
+                        self.assertIn(b"auto-seed rationale", run.stderr)
+                        self.assertEqual(kpis.read_bytes(), before_kpis)
+                        self.assertFalse((inventory / "intake_snapshot.json").exists())
+
+    def test_refresh_propagates_branch_refusal_even_with_a_printed_count(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        inventory = project / "docs/reverse_engineering/inventory"
+        before = {p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}
+        (self.root / "scripts/branch_literals.py").write_text(
+            "print('[branch-kpi] strict_active_branch_literals=0')\nraise SystemExit(65)\n")
+        run = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"], env=env, capture_output=True)
+        self.assertEqual(run.returncode, 65, run.stdout.decode() + run.stderr.decode())
+        self.assertEqual({p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}, before)
+
+    def test_summary_distinguishes_refusal_from_measured_threshold_failure(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        command = ["bash", "scripts/project_maturity_summary.sh", "synthetic"]
+        refused = subprocess.run(command, env=dict(env, NESREV_ANALYSIS_BUNDLE=""), capture_output=True)
+        self.assertEqual(refused.returncode, 0, refused.stderr)
+        self.assertIn(b"branch literals: REFUSED/UNAVAILABLE(exit=65)", refused.stdout)
+        self.assertFalse(self.calls.exists())
+        source = project / "asm/input.asm"
+        source.write_text(source.read_text().replace(" RTS", " BNE $+2\n RTS"))
+        measured = subprocess.run(command, env=env, capture_output=True)
+        self.assertEqual(measured.returncode, 0, measured.stderr)
+        self.assertIn(b"branch literals: 1\n", measured.stdout)
+        self.assertNotIn(b"REFUSED/UNAVAILABLE", measured.stdout)
+        self.assertEqual(len(self.calls.read_text().splitlines()), 1)
 
 
 if __name__ == "__main__":

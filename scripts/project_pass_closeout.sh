@@ -26,7 +26,7 @@ cd "${REPO_ROOT}"
 source "${SCRIPT_DIR}/project_common.sh"
 
 SLUG="$1"
-load_project_conf "${SLUG}"
+load_project_analysis_conf "${SLUG}"
 
 PASS_ID_ARG="${2:-}"
 VERIFY_MODE="${3:-${VERIFY_MODE:-strict}}"
@@ -402,6 +402,8 @@ fi
 TMPDIR_PASS_CLOSEOUT="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_PASS_CLOSEOUT}"' EXIT
 export NESREV_XREF_FILE="${TMPDIR_PASS_CLOSEOUT}/xref_with_data.json"
+prepare_project_analysis_bundle "${SLUG}" "${TMPDIR_PASS_CLOSEOUT}" ci-instructions-v1
+export NESREV_ANALYSIS_BUILD_DIR="${TMPDIR_PASS_CLOSEOUT}"
 
 if [[ "${VERIFY_MODE}" == "relaxed" ]]; then
   PROJECT_VERIFY_REFRESH_INVENTORY=1 \
@@ -414,6 +416,8 @@ else
     bash "${RUN_SCRIPT_DIR}/project_verify.sh" "${SLUG}"
 fi
 
+export NESREV_ANALYSIS_BUNDLE="${TMPDIR_PASS_CLOSEOUT}/bundle.json"
+unset NESREV_ANALYSIS_BUILD_DIR
 bash "${RUN_SCRIPT_DIR}/project_pass_residue_check.sh" "${SLUG}" "${PASS_ID}"
 bash "${RUN_SCRIPT_DIR}/project_docs_check.sh" "${SLUG}"
 DATA_BLOB_RENAMED_PASS="${PASS_ID}" \
