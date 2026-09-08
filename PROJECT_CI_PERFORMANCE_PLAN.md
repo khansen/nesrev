@@ -2,7 +2,8 @@
 
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
 CI-P2's producers, separate instruction output, and validated data bundle are
-implemented. Branch-literal migration is next; CI-P3 is conditional and CI-P4's
+implemented, and branch-literal consumers now use the instruction stream.
+The raw-address KPI is next; CI-P3 is conditional and CI-P4's
 text indexes are deferred.
 Updated 2026-09-08.
 
@@ -78,15 +79,15 @@ now provides that artifact and specifies the follow-on bundle boundary. The
 separate [consumed-input manifest](https://github.com/khansen/xorcyst/blob/fd9d1100b9b8f88a33d6fa3dee41394924e03aee/XASM_DEPENDENCY_MANIFEST_SPEC.md)
 adds immutable snapshots, content hashes, producer/invocation identity, and
 missing lookup probes through xasm's actual read paths. Neither artifact alone
-certifies downstream output/configuration/schema completeness or future reuse,
-and no NESrev consumer has switched to the instruction stream. These producer
-units alone make no CI speedup claim. The [validated data bundle](ANALYSIS_BUNDLE_SPEC.md)
-now shares existing data-analysis outputs in CI. Next migrate the first
-branch-literal consumer under the
+certifies downstream output/configuration/schema completeness or future reuse.
+These producer units alone make no CI speedup claim. The
+[validated bundle](ANALYSIS_BUNDLE_SPEC.md) now shares data-analysis and separate
+instruction outputs in CI. The [branch-literal consumer](BRANCH_LITERAL_POLICY.md)
+is the first instruction migration under the
 [migration contract](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#migration-contract-for-each-work-item).
 The [separate instruction output](https://github.com/khansen/xorcyst/blob/903c02a2acefc2dfaccb1ed3d3abf4512acdeeb3/XASM_INSTRUCTION_RECORDS_SPEC.md#separate-output)
-reuses the existing collector/serializer and leaves legacy xref narrow; use it
-when adding the instruction-bearing profile, without a NESrev partition/cache.
+reuses the existing collector/serializer and leaves legacy xref narrow. The
+instruction-bearing profiles use it without a NESrev partition/cache.
 
 Minimal sharing of existing outputs may land independently if the contract stays
 useful to migrated consumers; a general caching framework must not block the

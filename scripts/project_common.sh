@@ -174,6 +174,18 @@ project_analysis_policy_paths() {
   )
 }
 
+load_project_analysis_conf() {
+  PROJECT_ANALYSIS_CONFIG_DIGEST="$(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" fingerprint "projects/$1/project.conf")"
+  load_project_conf "$1"
+}
+
+prepare_project_analysis_bundle() {
+  project_analysis_policy_paths
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" prepare \
+    --profile "$3" "$2" "$1" "projects/$1/project.conf" "${PROJECT_ANALYSIS_CONFIG_DIGEST}" \
+    "${ASM_FILE}" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}" "${analysis_policy_paths[@]}"
+}
+
 validate_project_analysis_bundle() {
   if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
     local policy

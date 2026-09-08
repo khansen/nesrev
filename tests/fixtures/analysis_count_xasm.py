@@ -12,9 +12,15 @@ from pathlib import Path
 import subprocess
 import sys
 
-with open(os.environ["BUNDLE_TEST_CALLS"], "a") as stream:
-    stream.write(json.dumps(sys.argv[1:]) + "\n")
+with open(os.environ.get("BUNDLE_TEST_CALLS") or os.environ["XASM_LOG"], "a") as stream:
+    stream.write((json.dumps(sys.argv[1:]) if os.environ.get("BUNDLE_TEST_CALLS") else
+                  "CALL\t" + "\t".join(sys.argv[1:])) + "\n")
 run = subprocess.run([os.environ["BUNDLE_TEST_REAL_XASM"], *sys.argv[1:]])
+if run.returncode == 0 and any(arg.startswith("--xref=") for arg in sys.argv[1:]):
+    forced = int(os.environ.get("XASM_STUB_PRIMARY_EXIT", "0"))
+    if forced:
+        print(f"stub primary failure {forced}", file=sys.stderr)
+        raise SystemExit(forced)
 if run.returncode == 0:
     for argument in sys.argv[1:]:
         if argument.startswith("--dependency-manifest="):

@@ -250,6 +250,10 @@ the filtered generic-label xref summary stays separate because summary context
 is computed after the include filter is applied. Only `data_consumers.json` is
 loaded by `make project-next-pass` (consumer rollups for generated evidence);
 `index_patterns.json` and `data_coverage.json` are manual evidence artifacts.
+The [bundle contract](../ANALYSIS_BUNDLE_SPEC.md) also supplies the instruction
+stream to inventory checks. Prep compares validated output bytes separately:
+normal prep uses two assemblies, with an additional source-mapped diagnostic
+only on mismatch. Fresh planning facts never imply that baseline parity passed.
 
 ### Index-pattern analysis
 
@@ -728,8 +732,15 @@ tables supply a constant high byte elsewhere.
 
 Wrappers share xref across pointer inventories; leaves never assemble. Standalone
 maturity creates one xref when `NESREV_XREF_FILE` is absent. CI's
-[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) shares listing/index/extent facts;
+[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) shares listing/index/extent and instruction facts;
 invalid artifacts refuse. See that contract for producer and standalone requirements.
+
+Branch-literal KPI and CSV generation use one typed instruction predicate;
+see [policy and CSV v2](../BRANCH_LITERAL_POLICY.md). Direct standalone wrappers
+produce fresh instruction facts once. Inventory refresh requires a compatible
+descriptor for supplied xref reuse; a legacy xref file alone is insufficient.
+Regenerate reviewed branch inventories with `make project-inventory` after
+the schema migration; review coverage differences before changing ratchets.
 
 `Used by:` combines asm comments with xref-v2 symbol/owner/pointer edges.
 Composite wrappers reuse `NESREV_XREF_FILE` for the docs

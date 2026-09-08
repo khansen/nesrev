@@ -57,7 +57,7 @@ if [[ -n "${XREF_FILE}" ]]; then
 fi
 if [[ -n "${NESREV_ANALYSIS_BUILD_DIR:-}" ]]; then
   python3 "${SCRIPT_DIR}/analysis_bundle.py" produce \
-    "${NESREV_ANALYSIS_BUILD_DIR}" "${ASM_FILE}" "${OUT_BIN}" 2>&1 | tee "${XASM_LOG}"
+    --profile ci-instructions-v1 "${NESREV_ANALYSIS_BUILD_DIR}" "${ASM_FILE}" "${OUT_BIN}" 2>&1 | tee "${XASM_LOG}"
   if [[ "${XREF_FILE}" != "${NESREV_ANALYSIS_BUILD_DIR}/xref_with_data.json" ]]; then
     echo "error: shared xref path must belong to the analysis bundle" >&2
     exit 65

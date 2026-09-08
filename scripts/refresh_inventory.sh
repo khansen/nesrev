@@ -10,11 +10,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 validate_project_analysis_bundle "$1"
 
-inv_dir="${NESREV_INVENTORY_OUT_DIR:-${DOC_ROOT}/inventory}"
-mkdir -p "${inv_dir}"
+inventory_destination="${NESREV_INVENTORY_OUT_DIR:-${DOC_ROOT}/inventory}"
+mkdir -p "${inventory_destination}"
+inv_dir="$(mktemp -d "${inventory_destination}/.inventory-stage.XXXXXX")"
 
 project_slug="$1"
 XASM_BIN="${XASM_BIN:-xasm}"
@@ -23,6 +24,7 @@ const_tmp="$(mktemp)"
 const_counts_tmp=""
 pointer_xref_tmp=""
 cleanup_inventory_tmp() {
+  rm -rf "${inv_dir}"
   rm -f "${const_tmp}"
   if [[ -n "${const_counts_tmp}" ]]; then
     rm -f "${const_counts_tmp}"
@@ -33,27 +35,31 @@ cleanup_inventory_tmp() {
 }
 trap cleanup_inventory_tmp EXIT
 
-pointer_xref="${NESREV_XREF_FILE:-}"
-if [[ -n "${pointer_xref}" ]]; then
-  if [[ ! -f "${pointer_xref}" ]]; then
-    echo "error: shared xref file not found: ${pointer_xref}" >&2
+if [[ -z "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
+    echo "error: inventory refresh requires a compatible bundle for supplied xref reuse" >&2
     exit 65
   fi
-else
   pointer_xref_tmp="$(mktemp -d)"
-  pointer_xref="${pointer_xref_tmp}/xref_with_data.json"
-  if ! "${XASM_BIN}" --pure-binary \
-      -o "${pointer_xref_tmp}/inventory.o" \
-      --xref="${pointer_xref}" \
-      --xref-format=json \
-      --xref-include-owner=true \
-      --xref-data=true \
-      "${ASM_FILE}" >/dev/null 2>"${pointer_xref_tmp}/xasm.stderr"; then
+  prepare_project_analysis_bundle "$1" "${pointer_xref_tmp}" inventory-instructions-v1
+  if ! python3 "${SCRIPT_DIR}/analysis_bundle.py" produce "${pointer_xref_tmp}" \
+      "${ASM_FILE}" "${pointer_xref_tmp}/inventory.o" >/dev/null 2>"${pointer_xref_tmp}/xasm.stderr"; then
     cat "${pointer_xref_tmp}/xasm.stderr" >&2
-    echo "error: xasm failed while generating the pointer inventory xref" >&2
+    echo "error: xasm failed while generating inventory analysis" >&2
     exit 65
   fi
+  export NESREV_ANALYSIS_BUNDLE="${pointer_xref_tmp}/bundle.json"
 fi
+python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" --artifact xref --artifact instructions
+pointer_xref="$(python3 "${SCRIPT_DIR}/analysis_bundle.py" artifact "${NESREV_ANALYSIS_BUNDLE}" xref)"
+export NESREV_XREF_FILE="${pointer_xref}"
+branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}")"
+branch_literals="$(printf '%s\n' "$branch_report" | awk -F= '/strict_active_branch_literals=/{print $2}')"
+if [[ ! "${branch_literals}" =~ ^[0-9]+$ ]]; then
+  echo "error: branch-literal analysis returned no measured count" >&2
+  exit 65
+fi
+bash "${SCRIPT_DIR}/branch_literal_sites.sh" "${ASM_FILE}" "${inv_dir}/branch_literal_sites.csv"
 
 awk '
 /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]+/ {
@@ -112,9 +118,6 @@ global_code_undoc="$(printf '%s\n' "$global_code_doc_report" | awk -F= '/strict_
 global_code_total="$(printf '%s\n' "$global_code_doc_report" | awk -F= '/strict_global_code_labels_total=/{print $2}')"
 global_code_undoc="${global_code_undoc:-unknown}"
 global_code_total="${global_code_total:-unknown}"
-branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
-branch_literals="$(printf '%s\n' "$branch_report" | awk -F= '/strict_active_branch_literals=/{print $2}')"
-branch_literals="${branch_literals:-unknown}"
 inferred_report="$(bash "${SCRIPT_DIR}/inferred_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 inferred_annotations="$(printf '%s\n' "$inferred_report" | awk -F= '/strict_inferred_annotations=/{print $2}')"
 inferred_annotations="${inferred_annotations:-unknown}"
@@ -138,10 +141,6 @@ refs = len(re.findall(r"\bL[0-9A-F]{4,5}\b", text))
 print(defs, refs)
 PY
 )
-
-bash "${SCRIPT_DIR}/branch_literal_sites.sh" \
-  "${ASM_FILE}" \
-  "${inv_dir}/branch_literal_sites.csv"
 
 cat > "${inv_dir}/unknowns.md" <<DOC
 # Unknowns
@@ -186,4 +185,8 @@ if [ "${split_unknown_pointer_count}" != "0" ]; then
 DOC
 fi
 
-echo "inventory refreshed: ${project_slug} -> ${inv_dir}"
+validate_project_analysis_bundle "$1"
+for generated in constants_catalog.csv pointer_targets.csv embedded_pointer_targets.csv split_pointer_targets.csv branch_literal_sites.csv unknowns.md; do
+  mv "${inv_dir}/${generated}" "${inventory_destination}/${generated}"
+done
+echo "inventory refreshed: ${project_slug} -> ${inventory_destination}"

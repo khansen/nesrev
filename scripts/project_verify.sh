@@ -10,13 +10,29 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 validate_project_analysis_bundle "$1"
+if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  echo "error: project-verify requires fresh verification production, not a supplied bundle" >&2
+  exit 65
+fi
 python3 "${SCRIPT_DIR}/project_policy_config_check.py" kpis "${KPI_FILE}"
 
 TMPDIR_PROJECT_VERIFY="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_PROJECT_VERIFY}"' EXIT
-verification_xref="${NESREV_XREF_FILE:-${TMPDIR_PROJECT_VERIFY}/xref_with_data.json}"
+if [[ -z "${NESREV_ANALYSIS_BUILD_DIR+x}" ]]; then
+  export NESREV_ANALYSIS_BUILD_DIR="${TMPDIR_PROJECT_VERIFY}"
+  prepare_project_analysis_bundle "$1" "${NESREV_ANALYSIS_BUILD_DIR}" ci-instructions-v1
+elif [[ -z "${NESREV_ANALYSIS_BUILD_DIR}" ]]; then
+  echo "error: empty supplied analysis build directory" >&2
+  exit 65
+fi
+verification_xref="${NESREV_ANALYSIS_BUILD_DIR}/xref_with_data.json"
+if [[ -n "${NESREV_XREF_FILE+x}" && "${NESREV_XREF_FILE}" != "${verification_xref}" ]]; then
+  echo "error: verification xref must use its owning analysis directory" >&2
+  exit 65
+fi
+export NESREV_XREF_FILE="${verification_xref}"
 
 bash "${SCRIPT_DIR}/verify.sh" \
   "${ASM_FILE}" \
@@ -29,6 +45,8 @@ bash "${SCRIPT_DIR}/verify.sh" \
 if [[ -n "${NESREV_ANALYSIS_BUILD_DIR:-}" ]]; then
   export NESREV_ANALYSIS_BUNDLE="${NESREV_ANALYSIS_BUILD_DIR}/bundle.json"
 fi
+python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" --profile ci-instructions-v1
+validate_project_analysis_bundle "$1"
 
 if [[ "${PROJECT_VERIFY_REFRESH_INVENTORY:-0}" == "1" ]]; then
   refresh_script="${PROJECT_VERIFY_REFRESH_SCRIPT:-${SCRIPT_DIR}/refresh_inventory.sh}"

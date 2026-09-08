@@ -101,72 +101,12 @@ EOF
 }
 
 _write_pass_prep_xasm_stub() {
-  local stubdir="$1"
+  local stubdir="$1" slug="$2"
   mkdir -p "${stubdir}"
-  cat > "${stubdir}/xasm" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-
-printf 'CALL' >> "${XASM_LOG}"
-for arg in "$@"; do
-  printf '\t%s' "${arg}" >> "${XASM_LOG}"
-done
-printf '\n' >> "${XASM_LOG}"
-
-write_json() {
-  local path="$1" kind="$2"
-  mkdir -p "$(dirname "${path}")"
-  case "${kind}" in
-    summary)
-      printf '{"top_callables":[],"top_jump_targets":[],"top_data_labels":[]}\n' > "${path}"
-      ;;
-    xref)
-      printf '{"version":"2","symbols":[],"references":[],"data_directive_references":[],"data_reads":[],"data_writes":[],"indirect_data_flows":[]}\n' > "${path}"
-      ;;
-    array)
-      printf '[]\n' > "${path}"
-      ;;
-  esac
-}
-
-out=""
-is_primary=0
-while (( $# > 0 )); do
-  case "$1" in
-    -o)
-      out="$2"
-      shift 2
-      ;;
-    --xref-summary-output=*)
-      write_json "${1#*=}" summary
-      shift
-      ;;
-    --xref=*)
-      is_primary=1
-      write_json "${1#*=}" xref
-      shift
-      ;;
-    --index-patterns-output=*|--data-consumers-output=*|--data-coverage-output=*)
-      write_json "${1#*=}" array
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-
-if [[ -n "${out}" ]]; then
-  mkdir -p "$(dirname "${out}")"
-  : > "${out}"
-fi
-
-if [[ "${is_primary}" == "1" && "${XASM_STUB_PRIMARY_EXIT:-0}" != "0" ]]; then
-  echo "stub primary failure ${XASM_STUB_PRIMARY_EXIT}" >&2
-  exit "${XASM_STUB_PRIMARY_EXIT}"
-fi
-STUB
+  export BUNDLE_TEST_REAL_XASM="${XASM_BIN:-$(command -v xasm)}"
+  cp "${REPO_ROOT}/tests/fixtures/analysis_count_xasm.py" "${stubdir}/xasm"
   chmod +x "${stubdir}/xasm"
+  printf '.ORG $C000\nReset: BRK\n' > "projects/${slug}/asm/${slug}.asm"
 }
 
 _write_compare_size_xasm_stub() {
@@ -652,26 +592,39 @@ test_project_inventory_reuses_one_xref_for_all_pointer_ledgers() {
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
 
-  local xref="${NESREV_TEST_TMPDIR}/shared-xref.json"
+  local analysis_dir="${NESREV_TEST_TMPDIR}/analysis"
   local out_dir="${NESREV_TEST_TMPDIR}/inventory"
-  cat > "${xref}" <<'JSON'
-{"version":"2","symbols":[
-  {"name":"DispatchRecord","kind":"label","scope":"global","definition":{"file":"game.asm","line":10,"output_offset":0}},
-  {"name":"FramePtrLoTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":20,"output_offset":2}},
-  {"name":"FramePtrHiTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":30,"output_offset":3}},
-  {"name":"AfterTables","kind":"label","scope":"global","definition":{"file":"game.asm","line":40,"output_offset":4}}
-],"data_directive_references":[
-  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"DispatchRecord","owner_item_index":0,"expression":"<DataTarget","target_projection":"low","target_kind":"data"},
-  {"file":"game.asm","line":11,"directive":".DB","width_bytes":1,"operand_index":1,"owner_symbol":"DispatchRecord","owner_item_index":1,"expression":">DataTarget","target_projection":"high","target_kind":"data"},
-  {"file":"game.asm","line":21,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"FramePtrLoTable","owner_item_index":0,"expression":"<CodeTarget","target_projection":"low","target_kind":"code"},
-  {"file":"game.asm","line":31,"directive":".DB","width_bytes":1,"operand_index":0,"owner_symbol":"FramePtrHiTable","owner_item_index":0,"expression":">CodeTarget","target_projection":"high","target_kind":"code"}
-]}
-JSON
-
-  NESREV_XREF_FILE="${xref}" \
+  local spy="${NESREV_TEST_TMPDIR}/count-xasm"
+  mkdir -p "${analysis_dir}"
+  cp "${REPO_ROOT}/tests/fixtures/analysis_count_xasm.py" "${spy}"
+  chmod +x "${spy}"
+  export BUNDLE_TEST_REAL_XASM="${XASM_BIN:-$(command -v xasm)}"
+  export BUNDLE_TEST_CALLS="${NESREV_TEST_TMPDIR}/calls.jsonl"
+  export XASM_BIN="${spy}"
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+CodeTarget:
+ RTS
+DispatchRecord:
+ .DB <DataTarget,>DataTarget
+FramePtrLoTable:
+ .DB <CodeTarget
+FramePtrHiTable:
+ .DB >CodeTarget
+AfterTables:
+ .DB 0
+DataTarget:
+ .DB 1,2
+ASM
+  source "${REPO_ROOT}/scripts/project_common.sh"
+  load_project_analysis_conf "${slug}"
+  prepare_project_analysis_bundle "${slug}" "${analysis_dir}" inventory-instructions-v1
+  python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce "${analysis_dir}" "${ASM_FILE}" "${analysis_dir}/out.bin"
+  NESREV_ANALYSIS_BUNDLE="${analysis_dir}/bundle.json" \
+  NESREV_XREF_FILE="${analysis_dir}/xref_with_data.json" \
   NESREV_INVENTORY_OUT_DIR="${out_dir}" \
-  XASM_BIN=/usr/bin/false \
     bash "${REPO_ROOT}/scripts/refresh_inventory.sh" "${slug}" >/dev/null
+  assert_eq "$(wc -l < "${BUNDLE_TEST_CALLS}" | tr -d ' ')" 1 "refresh must reuse the producer's one xref"
 
   grep -qF 'DispatchRecord,0,DataTarget,data_pointer' \
     "${out_dir}/embedded_pointer_targets.csv" \
@@ -691,7 +644,8 @@ test_project_pass_prep_bundles_compatible_xasm_outputs() {
 
   local stubdir="${NESREV_TEST_TMPDIR}/xasm_stub"
   local log="${NESREV_TEST_TMPDIR}/xasm_calls.tsv"
-  _write_pass_prep_xasm_stub "${stubdir}"
+  _write_pass_prep_xasm_stub "${stubdir}" "${slug}"
+  printf '.ORG $C000\nReset: LDA #0\n RTS\n' > "projects/${slug}/asm/${slug}.asm"
 
   PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
     bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
@@ -717,24 +671,24 @@ if len(analysis_calls) != 2:
 
 bundle = [
     args for args in analysis_calls
-    if f"--xref={pass_dir}/xref_with_data.json" in args
+    if any(arg.startswith("--xref=") for arg in args)
 ]
 if len(bundle) != 1:
     raise SystemExit(f"expected exactly one bundled xref/data-analysis call, got {bundle!r}")
 bundle = bundle[0]
 for required in (
-    "--compare-format=json",
-    "--compare-cpu-base=$8000",
-    f"--xref-summary-output={pass_dir}/xref_summary_all.json",
-    f"--xref={pass_dir}/xref_with_data.json",
-    f"--index-patterns-output={pass_dir}/index_patterns.json",
-    f"--data-consumers-output={pass_dir}/data_consumers.json",
-    f"--data-coverage-output={pass_dir}/data_coverage.json",
+    "--xref-summary-output=",
+    "--xref=",
+    "--index-patterns-output=",
+    "--data-consumers-output=",
+    "--data-coverage-output=",
+    "--instruction-records-output=",
+    "--dependency-manifest=",
 ):
-    if required not in bundle:
+    if not any(arg.startswith(required) for arg in bundle):
         raise SystemExit(f"bundled xasm call missing {required}: {bundle!r}")
-if not any(arg.startswith("--compare=") for arg in bundle):
-    raise SystemExit(f"bundled xasm call must include parity compare: {bundle!r}")
+if any(arg.startswith("--compare=") for arg in bundle):
+    raise SystemExit(f"fact production must remain valid independently of comparison: {bundle!r}")
 if any(arg.startswith("--xref-summary-include=") for arg in bundle):
     raise SystemExit(f"all-symbol bundle must not include the generic-label filter: {bundle!r}")
 
@@ -762,7 +716,7 @@ test_project_pass_prep_fails_non_compare_xasm_error_even_when_artifacts_exist() 
 
   local stubdir="${NESREV_TEST_TMPDIR}/xasm_fail_stub"
   local log="${NESREV_TEST_TMPDIR}/xasm_fail_calls.tsv"
-  _write_pass_prep_xasm_stub "${stubdir}"
+  _write_pass_prep_xasm_stub "${stubdir}" "${slug}"
 
   local out="${NESREV_TEST_TMPDIR}/pass_prep_fail.stdout"
   local err="${NESREV_TEST_TMPDIR}/pass_prep_fail.stderr"
@@ -802,7 +756,7 @@ PY
 
   local stubdir="${NESREV_TEST_TMPDIR}/xasm_truncated_stub"
   local log="${NESREV_TEST_TMPDIR}/xasm_truncated_calls.tsv"
-  _write_pass_prep_xasm_stub "${stubdir}"
+  _write_pass_prep_xasm_stub "${stubdir}" "${slug}"
 
   PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
     bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
@@ -854,7 +808,7 @@ PY
 
   local stubdir="${NESREV_TEST_TMPDIR}/xasm_zero_prg_stub"
   local log="${NESREV_TEST_TMPDIR}/xasm_zero_prg_calls.tsv"
-  _write_pass_prep_xasm_stub "${stubdir}"
+  _write_pass_prep_xasm_stub "${stubdir}" "${slug}"
 
   PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
     bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
@@ -899,7 +853,7 @@ test_project_pass_prep_accepts_nes2_prg_high_units_before_compare() {
 
   local stubdir="${NESREV_TEST_TMPDIR}/xasm_nes2_prg_high_stub"
   local log="${NESREV_TEST_TMPDIR}/xasm_nes2_prg_high_calls.tsv"
-  _write_pass_prep_xasm_stub "${stubdir}"
+  _write_pass_prep_xasm_stub "${stubdir}" "${slug}"
 
   PATH="${stubdir}:${PATH}" XASM_BIN="${stubdir}/xasm" XASM_LOG="${log}" \
     bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >/dev/null
@@ -918,8 +872,8 @@ calls = [
     line.rstrip("\n").split("\t")[1:]
     for line in log_path.read_text(encoding="utf-8").splitlines()
 ]
-if not any(any(arg.startswith("--compare=") for arg in args) for args in calls):
-    raise SystemExit(f"NES 2.0 PRG high-unit reference should be passed to xasm --compare: {calls!r}")
+if any(any(arg.startswith("--compare=") for arg in args) for args in calls):
+    raise SystemExit(f"a matching prefix should not require a diagnostic assembly: {calls!r}")
 
 baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
 parity = baseline["checks"]["parity"]

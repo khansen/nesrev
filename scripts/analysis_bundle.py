@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 
+import instruction_records
+
 
 class BundleError(ValueError):
     pass
@@ -22,6 +24,14 @@ class BundleError(ValueError):
 
 PROFILE = "ci-data-v1"
 ARTIFACTS = {"binary", "xref", "listing", "index_patterns", "data_consumers"}
+PROFILES = {
+    PROFILE: ARTIFACTS,
+    "ci-instructions-v1": ARTIFACTS | {"instructions"},
+    "inventory-instructions-v1": {"binary", "xref", "instructions"},
+    "instructions-v1": {"binary", "instructions"},
+    "pass-prep-instructions-v1": ARTIFACTS | {"instructions", "summary", "coverage"},
+}
+STRICT_PROFILES = {PROFILE, "ci-instructions-v1"}
 ROLES = {"source", "binary", "charmap", "analysis_source", "comparison", "producer"}
 
 
@@ -62,6 +72,7 @@ def pairs_unique(pairs):
 
 
 READER_ID = fingerprint(__file__)
+INSTRUCTION_READER_ID = fingerprint(instruction_records.__file__)
 
 
 def decode(raw):
@@ -155,14 +166,26 @@ def fields(row, types, name):
 
 
 def check_schema(name, payload):
-    if name == "xref":
+    if name == "instructions":
+        instruction_records.validate(payload)
+    elif name == "summary":
+        require(isinstance(payload, dict) and all(isinstance(payload.get(key), list) for key in
+                ("top_callables", "top_jump_targets", "top_data_labels")), "complete summary object required")
+    elif name == "coverage":
+        require(isinstance(payload, list), "coverage array required")
+        for row in payload:
+            fields(row, {"label": str, "declared_start": str, "declared_end_exclusive": str,
+                         "declared_size": int, "covered_ranges": list, "covered_size": int,
+                         "uncovered_ranges": list, "uncovered_size": int, "access_count": int,
+                         "has_indexed_accesses_without_exact_coverage": bool}, name)
+    elif name == "xref":
         require(isinstance(payload, dict) and payload.get("version") == "2",
                 "xref version 2 required")
         require(all(isinstance(payload.get(key), list) for key in
                     ("symbols", "references", "data_directive_references")), "incomplete xref")
         require(isinstance(payload.get("build"), dict)
                 and payload["build"].get("pure_binary") is True, "non-binary xref")
-        require("instruction_records" not in payload, "unexpected instruction section for ci-data-v1")
+        require("instruction_records" not in payload, "instruction records must use the separate output")
     elif name == "listing":
         require(isinstance(payload, dict) and payload.get("version") == "1"
                 and isinstance(payload.get("records"), list), "listing version 1 required")
@@ -186,18 +209,24 @@ def check_schema(name, payload):
 
 
 def check_context(context, source=None):
-    require(isinstance(context, dict) and context.get("profile") == PROFILE,
+    require(isinstance(context, dict) and context.get("profile") in PROFILES,
             "unsupported bundle profile")
-    for key in ("source", "source_argument", "config", "project", "rom_range", "cpu_base"):
+    for key in ("source", "source_argument"):
         require(isinstance(context.get(key), str) and context[key], f"missing context: {key}")
-    require(os.path.isabs(context["source"]) and os.path.isabs(context["config"]),
-            "context paths must be absolute")
+    require(os.path.isabs(context["source"]), "source path must be absolute")
     require(absolute(context["source_argument"]) == context["source"], "source argument mismatch")
     if source is not None:
         require(context["source"] == absolute(source), "bundle source/project mismatch")
-    require(isinstance(context.get("policies"), list) and context["policies"], "missing policy inputs")
+    require(isinstance(context.get("policies"), list), "missing policy inputs")
     for policy in context["policies"]:
         check_stamp(policy, optional=True)
+    if context["profile"] == "instructions-v1":
+        require(all(context.get(key) is None for key in ("config", "project", "rom_range", "cpu_base")),
+                "source-only profile cannot certify project context")
+        return
+    for key in ("config", "project", "rom_range", "cpu_base"):
+        require(isinstance(context.get(key), str) and context[key], f"missing context: {key}")
+    require(os.path.isabs(context["config"]), "configuration path must be absolute")
     require(context["config"] in [p["path"] for p in context["policies"]
                                    if not p.get("missing")], "configuration fingerprint missing")
 
@@ -226,20 +255,31 @@ class Bundle:
         check_stamp(self.data.get("reader"))
         require(self.data["reader"]["sha256"] == READER_ID["sha256"], "bundle reader build mismatch")
         outputs = self.data.get("outputs")
-        require(isinstance(outputs, dict) and set(outputs) == ARTIFACTS, "incomplete bundle outputs")
+        require(isinstance(outputs, dict) and set(outputs) == PROFILES[self.data["context"]["profile"]],
+                "incomplete bundle outputs")
         for entry in outputs.values():
             check_stamp(entry)
+        if "instructions" in outputs:
+            check_stamp(self.data.get("instruction_reader"))
+            require(self.data["instruction_reader"]["sha256"] == INSTRUCTION_READER_ID["sha256"],
+                    "instruction reader build mismatch")
 
     def require_policy(self, path):
         require(absolute(path) in [p["path"] for p in self.data["context"]["policies"]],
                 f"policy input not bound to bundle: {path}")
 
     def load(self, name):
+        require(name in self.data["outputs"], f"bundle profile lacks required artifact: {name}")
         entry = self.data["outputs"][name]
         raw = read_bytes(entry["path"])
         require(hashlib.sha256(raw).hexdigest() == entry["sha256"], f"changed artifact: {name}")
         payload = decode(raw)
         check_schema(name, payload)
+        if name == "instructions":
+            dependencies = read_json(self.data["dependencies"]["path"])
+            sources = {entry["path"] for entry in dependencies["inputs"] if "source" in entry["roles"]}
+            instruction_records.check_sources(payload, sources, absolute)
+            instruction_records.check_binary(payload, read_bytes(self.data["outputs"]["binary"]["path"]))
         return payload
 
 
@@ -252,24 +292,53 @@ def supplied(source):
 
 
 def expected_argv(context, outputs, manifest, producer):
-    require(isinstance(outputs, dict) and set(outputs) == ARTIFACTS, "incomplete bundle outputs")
-    return [producer, "--pure-binary", "--Werror=unused-equ", "-o", outputs["binary"]["path"],
-            "--xref=" + outputs["xref"]["path"], "--xref-format=json",
-            "--xref-include-owner=true", "--xref-data=true",
-            "--listing=" + outputs["listing"]["path"], "--listing-format=json",
-            "--analyze-index-patterns", "--index-patterns-output=" + outputs["index_patterns"]["path"],
-            "--index-patterns-format=json", "--data-consumers",
-            "--data-consumers-output=" + outputs["data_consumers"]["path"],
-            "--data-consumers-format=json", "--dependency-manifest=" + manifest, context["source_argument"]]
+    require(isinstance(outputs, dict) and set(outputs) == PROFILES[context["profile"]],
+            "incomplete bundle outputs")
+    argv = [producer, "--pure-binary"]
+    if context["profile"] in STRICT_PROFILES:
+        argv += ["--Werror=unused-equ"]
+    argv += ["-o", outputs["binary"]["path"]]
+    if "xref" in outputs:
+        argv += ["--xref=" + outputs["xref"]["path"], "--xref-format=json",
+                 "--xref-include-owner=true", "--xref-data=true"]
+    if "listing" in outputs:
+        argv += ["--listing=" + outputs["listing"]["path"], "--listing-format=json"]
+    if "index_patterns" in outputs:
+        argv += ["--analyze-index-patterns", "--index-patterns-output=" + outputs["index_patterns"]["path"],
+                 "--index-patterns-format=json"]
+    if "data_consumers" in outputs:
+        argv += ["--data-consumers", "--data-consumers-output=" + outputs["data_consumers"]["path"],
+                 "--data-consumers-format=json"]
+    if "instructions" in outputs:
+        argv += ["--instruction-records-output=" + outputs["instructions"]["path"]]
+    if "summary" in outputs:
+        argv += ["--xref-summary", "--xref-summary-output=" + outputs["summary"]["path"],
+                 "--xref-summary-format=json"]
+    if "coverage" in outputs:
+        argv += ["--analyze-data-coverage", "--data-coverage-output=" + outputs["coverage"]["path"],
+                 "--data-coverage-format=json"]
+    return argv + ["--dependency-manifest=" + manifest, context["source_argument"]]
 
 
-def produce(directory, source, output):
+def prepare_source(directory, source, policies):
+    context = {"profile": "instructions-v1", "project": None, "config": None,
+               "source": absolute(source), "source_argument": str(source),
+               "rom_range": None, "cpu_base": None,
+               "policies": [fingerprint(p) for p in dict.fromkeys(policies)]}
+    check_context(context)
+    write_json(Path(directory) / "context.json", context)
+
+
+def produce(directory, source, output, profile=None):
     directory = Path(absolute(directory))
     context = read_json(directory / "context.json")
     check_context(context, source)
+    if profile is not None:
+        require(context["profile"] == profile, "production profile mismatch")
     require(not (directory / "bundle.json").exists(), "bundle already published")
-    outputs = {name: {"path": str(directory / (name + ".json"))} for name in ARTIFACTS}
-    outputs["xref"] = {"path": str(directory / "xref_with_data.json")}
+    outputs = {name: {"path": str(directory / (name + ".json"))} for name in PROFILES[context["profile"]]}
+    if "xref" in outputs:
+        outputs["xref"] = {"path": str(directory / "xref_with_data.json")}
     outputs["binary"] = {"path": absolute(output)}
     for policy in context["policies"]:
         target = outputs["binary"]["path"]
@@ -292,6 +361,8 @@ def produce(directory, source, output):
     data = {"schema": "nesrev-analysis", "version": "1", "complete": True,
             "context": context, "dependencies": fingerprint(manifest), "argv": argv,
             "outputs": outputs, "reader": READER_ID}
+    if "instructions" in outputs:
+        data["instruction_reader"] = INSTRUCTION_READER_ID
     check_context(context, source)
     check_dependencies(dependencies, context["source"], argv)
     write_json(directory / "bundle.json", data)
@@ -312,9 +383,18 @@ def main():
     for arg in ("directory", "project", "config", "config_digest", "source", "rom_range", "cpu_base"):
         prepare.add_argument(arg)
     prepare.add_argument("policies", nargs="*")
+    prepare.add_argument("--profile", choices=sorted(PROFILES), default=PROFILE)
+    source_prepare = commands.add_parser("prepare-source")
+    source_prepare.add_argument("directory")
+    source_prepare.add_argument("source")
+    source_prepare.add_argument("policies", nargs="*")
+    artifact = commands.add_parser("artifact")
+    artifact.add_argument("path")
+    artifact.add_argument("name")
     produce_cmd = commands.add_parser("produce")
     for arg in ("directory", "source", "output"):
         produce_cmd.add_argument(arg)
+    produce_cmd.add_argument("--profile", choices=sorted(PROFILES))
     validate = commands.add_parser("validate")
     validate.add_argument("path")
     validate.add_argument("--source")
@@ -324,23 +404,36 @@ def main():
     validate.add_argument("--cpu-base")
     validate.add_argument("--policy", action="append", default=[])
     validate.add_argument("--xref")
+    validate.add_argument("--artifact", action="append", default=[])
+    validate.add_argument("--profile", choices=sorted(PROFILES))
     args = parser.parse_args()
     if args.command == "fingerprint":
         print(fingerprint(args.path)["sha256"])
     elif args.command == "prepare":
         config = fingerprint(args.config)
         require(config["sha256"] == args.config_digest, "configuration changed while loading")
-        context = {"profile": PROFILE, "project": args.project, "config": absolute(args.config),
+        require(args.profile != "instructions-v1", "use prepare-source for the source-only profile")
+        context = {"profile": args.profile, "project": args.project, "config": absolute(args.config),
                    "source": absolute(args.source), "source_argument": args.source,
                    "rom_range": args.rom_range, "cpu_base": args.cpu_base,
                    "policies": [fingerprint(p, optional=True) for p in
                                 dict.fromkeys([args.config] + args.policies)]}
         check_context(context)
         write_json(Path(args.directory) / "context.json", context)
+    elif args.command == "prepare-source":
+        prepare_source(args.directory, args.source, args.policies)
     elif args.command == "produce":
-        return produce(args.directory, args.source, args.output)
+        return produce(args.directory, args.source, args.output, args.profile)
+    elif args.command == "artifact":
+        bundle = Bundle(args.path)
+        require(args.name in bundle.data["outputs"], f"bundle profile lacks required artifact: {args.name}")
+        print(bundle.data["outputs"][args.name]["path"])
     else:
         bundle = Bundle(args.path, args.source)
+        if args.profile:
+            require(bundle.data["context"]["profile"] == args.profile, "bundle profile mismatch")
+        for artifact in args.artifact:
+            require(artifact in bundle.data["outputs"], f"bundle profile lacks required artifact: {artifact}")
         for policy in args.policy:
             bundle.require_policy(policy)
         if args.xref is not None:

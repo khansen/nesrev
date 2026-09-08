@@ -28,7 +28,11 @@ inferred_report="$(bash "${SCRIPT_DIR}/inferred_kpi.sh" "${ASM_FILE}" "${INFERRE
 comment_report="$(bash "${SCRIPT_DIR}/comment_quality_kpi.sh" "${ASM_FILE}" "${COMMENT_KPI_FILE}" 2>/dev/null || true)"
 proc_report="$(bash "${SCRIPT_DIR}/procedure_doc_kpi.sh" "${ASM_FILE}" "${PROC_DOC_KPI_FILE}" 2>/dev/null || true)"
 global_report="$(bash "${SCRIPT_DIR}/global_code_label_doc_kpi.sh" "${ASM_FILE}" "${GLOBAL_CODE_LABEL_DOC_KPI_FILE}" 2>/dev/null || true)"
-branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" "${BRANCH_KPI_FILE}" 2>/dev/null || true)"
+branch_status=0
+branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" "${BRANCH_KPI_FILE}")" || branch_status=$?
+if (( branch_status != 0 && branch_status != 68 )); then
+  branch_report="strict_active_branch_literals=REFUSED/UNAVAILABLE(exit=${branch_status})"
+fi
 
 pass_dir="${DOC_ROOT}/inventory/pass"
 

@@ -10,7 +10,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
+if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" || -n "${NESREV_ANALYSIS_BUILD_DIR+x}" || -n "${NESREV_XREF_FILE+x}" ]]; then
+  echo "error: pass prep requires fresh owned analysis; do not supply analysis inputs" >&2
+  exit 65
+fi
 
 pass_dir="${DOC_ROOT}/inventory/pass"
 mkdir -p "${pass_dir}" "$(dirname "${OUT_BIN}")"
@@ -21,6 +25,7 @@ XASM_BIN="${XASM_BIN:-xasm}"
 XASM_COMPARE_MISMATCH_EXIT=5
 TMPDIR_PASS_PREP="$(mktemp -d)"
 trap 'rm -rf "${TMPDIR_PASS_PREP}"' EXIT
+prepare_project_analysis_bundle "$1" "${TMPDIR_PASS_PREP}" pass-prep-instructions-v1
 
 status_json() {
   local status="$1"
@@ -77,78 +82,53 @@ else
   compare_status="fail"
 fi
 
-bundle_stdout_file="/dev/null"
-bundle_stderr_file="${TMPDIR_PASS_PREP}/primary_bundle.stderr"
-if (( ${#compare_args[@]} > 0 )); then
-  bundle_stdout_file="${compare_stdout_file}"
-  bundle_stderr_file="${compare_stderr_file}"
-fi
-
-primary_artifacts=(
-  "${pass_dir}/xref_summary_all.json"
-  "${pass_dir}/xref_with_data.json"
-  "${pass_dir}/index_patterns.json"
-  "${pass_dir}/data_consumers.json"
-  "${pass_dir}/data_coverage.json"
-)
-
-echo "[1/5] Generating primary xasm analysis/compare bundle"
-bundle_cmd=("${XASM_BIN}" --pure-binary -o "${OUT_BIN}")
-if (( ${#compare_args[@]} > 0 )); then
-  bundle_cmd+=("${compare_args[@]}")
-fi
-bundle_cmd+=(
-  --xref-summary
-  --xref-summary-output="${pass_dir}/xref_summary_all.json"
-  --xref-summary-format=json
-  --xref="${pass_dir}/xref_with_data.json"
-  --xref-format=json
-  --xref-include-owner=true
-  --xref-data=true
-  --analyze-index-patterns
-  --index-patterns-output="${pass_dir}/index_patterns.json"
-  --index-patterns-format=json
-  --data-consumers
-  --data-consumers-output="${pass_dir}/data_consumers.json"
-  --data-consumers-format=json
-  --analyze-data-coverage
-  --data-coverage-output="${pass_dir}/data_coverage.json"
-  --data-coverage-format=json
-  "${ASM_FILE}"
-)
-bundle_exit_code=0
-if "${bundle_cmd[@]}" >"${bundle_stdout_file}" 2>"${bundle_stderr_file}"; then
-  bundle_exit_code=0
+echo "[1/5] Generating primary xasm analysis bundle"
+if python3 "${SCRIPT_DIR}/analysis_bundle.py" produce --profile pass-prep-instructions-v1 \
+    "${TMPDIR_PASS_PREP}" "${ASM_FILE}" "${OUT_BIN}" >"${TMPDIR_PASS_PREP}/primary.stdout" 2>"${TMPDIR_PASS_PREP}/primary.stderr"; then
+  :
 else
   bundle_exit_code=$?
-  if (( ${#compare_args[@]} > 0 )); then
+  cat "${TMPDIR_PASS_PREP}/primary.stderr" >&2
+  exit "${bundle_exit_code}"
+fi
+export NESREV_ANALYSIS_BUNDLE="${TMPDIR_PASS_PREP}/bundle.json"
+export NESREV_XREF_FILE="${TMPDIR_PASS_PREP}/xref_with_data.json"
+if (( ${#compare_args[@]} > 0 )); then
+  cp "${TMPDIR_PASS_PREP}/primary.stderr" "${compare_stderr_file}"
+  if python3 "${SCRIPT_DIR}/analysis_prefix_compare.py" "${NESREV_ANALYSIS_BUNDLE}" "${compare_ref_prg}" \
+      >"${compare_stdout_file}" 2>>"${compare_stderr_file}"; then
+    :
+  else
+    compare_exit_code=$?
     compare_status="fail"
-    compare_exit_code="${bundle_exit_code}"
+    if (( compare_exit_code == XASM_COMPARE_MISMATCH_EXIT )); then
+      diagnostic_exit_code=0
+      "${XASM_BIN}" --pure-binary -o "${TMPDIR_PASS_PREP}/diagnostic.o" "${compare_args[@]}" "${ASM_FILE}" \
+        >"${compare_stdout_file}" 2>>"${compare_stderr_file}" || diagnostic_exit_code=$?
+      if (( diagnostic_exit_code != XASM_COMPARE_MISMATCH_EXIT )); then
+        echo "error: mismatch diagnostic returned unexpected exit ${diagnostic_exit_code}" >>"${compare_stderr_file}"
+        if (( diagnostic_exit_code == 0 )); then
+          exit 65
+        fi
+        exit "${diagnostic_exit_code}"
+      fi
+    else
+      cat "${compare_stderr_file}" >&2
+      exit "${compare_exit_code}"
+    fi
   fi
 fi
-
-if (( bundle_exit_code != 0 )); then
-  missing_primary=0
-  for path in "${primary_artifacts[@]}"; do
-    if [[ ! -f "${path}" ]]; then
-      echo "error: primary xasm analysis bundle did not produce ${path}" >&2
-      missing_primary=1
-    fi
-  done
-  if (( ${#compare_args[@]} == 0 || bundle_exit_code != XASM_COMPARE_MISMATCH_EXIT || missing_primary != 0 )); then
-    if [[ -s "${bundle_stderr_file}" ]]; then
-      cat "${bundle_stderr_file}" >&2
-    fi
-    exit "${bundle_exit_code}"
-  fi
-fi
-
-export NESREV_XREF_FILE="${pass_dir}/xref_with_data.json"
+validate_project_analysis_bundle "$1"
+cp "${TMPDIR_PASS_PREP}/summary.json" "${pass_dir}/xref_summary_all.json"
+cp "${TMPDIR_PASS_PREP}/coverage.json" "${pass_dir}/data_coverage.json"
+for artifact in xref_with_data index_patterns data_consumers; do
+  cp "${TMPDIR_PASS_PREP}/${artifact}.json" "${pass_dir}/${artifact}.json"
+done
 echo "[2/5] Refreshing inventory from the primary xref"
 bash "${SCRIPT_DIR}/refresh_inventory.sh" "${slug}"
 
 echo "[3/5] Generating xref summary (generic labels)"
-"${XASM_BIN}" --pure-binary -o "${OUT_BIN}" \
+"${XASM_BIN}" --pure-binary -o "${TMPDIR_PASS_PREP}/generic.o" \
   --xref-summary \
   --xref-summary-output="${pass_dir}/xref_summary_generic.json" \
   --xref-summary-format=json \
@@ -171,6 +151,7 @@ docs_status_json="$(run_status docs_check bash "${SCRIPT_DIR}/project_docs_check
 process_status_json="$(run_status process_check bash "${SCRIPT_DIR}/project_process_check.sh" "${slug}")"
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}")"
 raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
+validate_project_analysis_bundle "$1"
 
 python3 - \
   "${slug}" \

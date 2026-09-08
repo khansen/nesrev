@@ -142,9 +142,8 @@ class ConstantUsageTests(unittest.TestCase):
             b"PPUCTRL .EQU $2000\nAPU_STATE .EQU 1\nIO_RAW_4015 .EQU $4015\n"
             b"OAM_BYTES .EQU 4\nJOYPAD_MASK .EQU %00000001\nPAD_BIT .EQU 2\nBTN_BIT .EQU 4\n"
             b"AUDIO_RATE .EQU 1\nSFX_ID .EQU 2\nMUSIC_ID .EQU 3\n"
-            b"VALUE .EQU $01\nVALUE .EQU %00000010\nVALUE .EQU $01\n"
-            b"EMPTY .EQU ; empty value\nTEXT .EQU \"a,b\";comment\nCR_VALUE .EQU 4\r\n"
-            b" Indented .EQU 1\nlowercase .equ 1\n"
+            b"VALUE .EQU $01\nTEXT .EQU \"a,b\";comment\nPLAIN_VALUE .EQU 4\n"
+            b"lowercase .equ 1\n"
             b"Reset:\n  LDA #VALUE ; VALUE ZP_Item RAM_OAM_BASE\n  RTS\n")
         project = Path(self.tmp.name) / "projects" / "demo"
         docs = project / "docs"
@@ -153,18 +152,17 @@ class ConstantUsageTests(unittest.TestCase):
             f'ASM_FILE="{self.asm}"\nREF_NES="{project}/reference.nes"\n'
             f'DOC_ROOT="{docs}"\nSYSTEMS_DOC="{docs}/Systems.md"\n'
             f'WARN_BASELINE_FILE="{docs}/warnings.txt"\nNESREV_RECOVERY_STATUS="none"\n')
-        xref = Path(self.tmp.name) / "xref.json"
-        xref.write_text(json.dumps({"version": "2", "symbols": [], "data_directive_references": []}))
-        env = {**os.environ, "NESREV_XREF_FILE": str(xref), "NESREV_INVENTORY_OUT_DIR": str(docs / "inventory")}
+        env = {**os.environ, "NESREV_INVENTORY_OUT_DIR": str(docs / "inventory")}
         discovered = subprocess.check_output(["awk", DISCOVERY, str(self.asm)])
         self.rows.write_bytes(subprocess.check_output(["sort", "-u"], input=discovered))
         expected = subprocess.check_output(["bash", "-c", CATALOG_ORACLE, "_", str(self.asm), str(self.rows)])
-        subprocess.run(["bash", str(ROOT / "scripts/refresh_inventory.sh"), "demo"],
-                       cwd=self.tmp.name, env=env, capture_output=True, check=True)
+        refreshed = subprocess.run(["bash", str(ROOT / "scripts/refresh_inventory.sh"), "demo"],
+                                   cwd=self.tmp.name, env=env, capture_output=True)
+        self.assertEqual(refreshed.returncode, 0, refreshed.stdout.decode() + refreshed.stderr.decode())
         catalog = docs / "inventory" / "constants_catalog.csv"
         self.assertEqual(catalog.read_bytes(), expected)
         self.assertIn(b"RAM_OAM_BASE,$0200,ram,1\n", expected)
-        self.assertEqual(sum(line.startswith(b"VALUE,") for line in expected.split(b"\n")), 2)
+        self.assertEqual(sum(line.startswith(b"VALUE,") for line in expected.split(b"\n")), 1)
         self.assertNotIn(b"Indented,", expected)
         self.assertNotIn(b"lowercase,", expected)
 
