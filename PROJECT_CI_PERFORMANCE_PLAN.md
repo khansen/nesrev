@@ -142,7 +142,8 @@ producer facts before removing the old production path.
 The [data-only bundle contract](ANALYSIS_BUNDLE_SPEC.md) is implemented. A
 synthetic complete CI fixture proves one assembly versus five in the equivalent
 unshared flow, identical diagnostics, and two assemblies on parity mismatch.
-Existing consumers share facts, not verdicts; instruction records remain off.
+At that checkpoint, consumers shared facts, not verdicts, with instruction
+records still off.
 
 Warm-workspace measurements on arm64 macOS 26.6.2, Python 3.14.7, and the same
 xasm 1.6.1 dependency-manifest build: one warmup plus three measured runs per
@@ -189,8 +190,8 @@ fixed overhead.
 The separate-output extension preserves the existing combined opt-in and can
 produce instructions without an otherwise unused xref. Version 1 requires a
 dependency manifest so the new destination receives the existing collision and
-failure protections. No consumer has migrated, and current CI still leaves
-instruction output off.
+failure protections. At this packaging checkpoint no instruction consumer had
+migrated, and CI still left instruction output off.
 
 Artifact costs on the same machine/tool environment as the data-bundle study;
 one warmup and ten JSON decodes from warm byte buffers per artifact:

@@ -81,52 +81,77 @@ def write_csv(path, data, bundle):
                 os.unlink(temporary)
 
 
-def main():
+def report_kpi(bundle, records, path):
+    maximum = None
+    if path:
+        bundle.require_policy(path)
+        for line in read_bytes(path).decode("utf-8").splitlines():
+            key, separator, value = line.partition("=")
+            if separator and key.strip() == "MAX_ACTIVE_BRANCH_LITERALS":
+                require(value.strip().isdigit(), "MAX_ACTIVE_BRANCH_LITERALS must be a nonnegative integer")
+                maximum = int(value)
+                break
+        if maximum is None:
+            print(f"error: KPI config must define MAX_ACTIVE_BRANCH_LITERALS: {path}", file=sys.stderr)
+            return 67
+    bundle.validate()
+    count = len(records)
+    print(f"[branch-kpi] strict_active_branch_literals={count}")
+    if maximum is not None:
+        if count > maximum:
+            print(f"FAIL: strict_active_branch_literals ({count}) exceeds KPI max ({maximum})", file=sys.stderr)
+            return 68
+        print("OK: branch-literal KPI gate passed")
+    return 0
+
+
+def check_csv(bundle, records, path):
+    require(path is not None, "sites registry path required")
+    if not Path(path).is_file():
+        print(f"error: branch-literal check input not found: {path}", file=sys.stderr)
+        return 66
+    current = read_bytes(path)
+    bundle.validate()
+    if current != csv_bytes(records):
+        print(f"FAIL: branch-literal site registry is stale: {path}", file=sys.stderr)
+        print("hint: run make project-inventory PROJECT=<slug>", file=sys.stderr)
+        return 67
+    print("OK: branch-literal site registry synchronized")
+    return 0
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("kpi", "sites", "check"))
+    parser.add_argument("mode", choices=("kpi", "sites", "check", "verify", "inventory"))
     parser.add_argument("source")
     parser.add_argument("path", nargs="?")
-    args = parser.parse_args()
+    parser.add_argument("--registry")
+    args = parser.parse_args(argv)
+    if args.mode == "verify":
+        require(args.path and args.registry, "verification requires KPI policy and registry paths")
+        if not Path(args.path).is_file():
+            print(f"error: branch-literal kpi input not found: {args.path}", file=sys.stderr)
+            return 66
+    else:
+        require(args.registry is None, "--registry is only valid for verification")
+    if args.mode == "inventory":
+        require(args.path, "inventory destination required")
     bundle = supplied(args.source)
     require(bundle is not None, "instruction bundle required; invoke the shell wrapper for fresh standalone analysis")
     records = rows(bundle)
-    if args.mode == "kpi":
-        maximum = None
-        if args.path:
-            bundle.require_policy(args.path)
-            for line in read_bytes(args.path).decode("utf-8").splitlines():
-                key, separator, value = line.partition("=")
-                if separator and key.strip() == "MAX_ACTIVE_BRANCH_LITERALS":
-                    require(value.strip().isdigit(), "MAX_ACTIVE_BRANCH_LITERALS must be a nonnegative integer")
-                    maximum = int(value)
-                    break
-            if maximum is None:
-                print(f"error: KPI config must define MAX_ACTIVE_BRANCH_LITERALS: {args.path}", file=sys.stderr)
-                return 67
-        bundle.validate()
-        count = len(records)
-        print(f"[branch-kpi] strict_active_branch_literals={count}")
-        if maximum is not None:
-            if count > maximum:
-                print(f"FAIL: strict_active_branch_literals ({count}) exceeds KPI max ({maximum})", file=sys.stderr)
-                return 68
-            print("OK: branch-literal KPI gate passed")
-    elif args.mode == "sites":
+    if args.mode in {"kpi", "verify", "inventory"}:
+        status = report_kpi(bundle, records, None if args.mode == "inventory" else args.path)
+        if status:
+            return status
+    if args.mode in {"sites", "inventory"}:
         data = csv_bytes(records)
         if args.path:
             write_csv(args.path, data, bundle)
         else:
             bundle.validate()
             sys.stdout.buffer.write(data)
-    else:
-        require(args.path is not None, "sites registry path required")
-        current = read_bytes(args.path)
-        bundle.validate()
-        if current != csv_bytes(records):
-            print(f"FAIL: branch-literal site registry is stale: {args.path}", file=sys.stderr)
-            print("hint: run make project-inventory PROJECT=<slug>", file=sys.stderr)
-            return 67
-        print("OK: branch-literal site registry synchronized")
+    elif args.mode in {"check", "verify"}:
+        return check_csv(bundle, records, args.registry if args.mode == "verify" else args.path)
     return 0
 
 

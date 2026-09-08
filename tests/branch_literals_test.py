@@ -2,6 +2,7 @@
 """Typed policy, provenance, freshness and standalone-production controls."""
 
 import copy
+from contextlib import redirect_stdout, redirect_stderr
 import csv
 import io
 import json
@@ -178,6 +179,86 @@ Start: bne ($ + $02) : BEQ $+%10
         run = self.run_cli("kpi", self.policy)
         self.assertEqual(run.returncode, 65, run.stderr)
         self.assertNotIn(b"strict_active_branch_literals=", run.stdout)
+
+    def test_paired_consumers_load_once_and_preserve_diagnostics(self):
+        shared = self.produce()
+        target = self.root / "sites.csv"
+        with patch.object(branch, "supplied", return_value=shared):
+            with patch.object(shared, "load", wraps=shared.load) as load, redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(branch.main(["inventory", str(self.source), str(target)]), 0)
+                load.assert_called_once_with("instructions")
+                self.assertEqual(out.getvalue(), "[branch-kpi] strict_active_branch_literals=1\n")
+            with patch.object(shared, "load", wraps=shared.load) as load, redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(branch.main(["verify", str(self.source), str(self.policy),
+                                              "--registry", str(target)]), 0)
+                load.assert_called_once_with("instructions")
+                self.assertEqual(out.getvalue(), "[branch-kpi] strict_active_branch_literals=1\n"
+                                 "OK: branch-literal KPI gate passed\n"
+                                 "OK: branch-literal site registry synchronized\n")
+
+    def test_paired_verification_threshold_precedes_registry_and_late_inventory_refuses(self):
+        self.policy.write_text("MAX_ACTIVE_BRANCH_LITERALS=0\n")
+        shared = self.produce()
+        target = self.root / "missing.csv"
+        with patch.object(branch, "supplied", return_value=shared), \
+                redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()) as error:
+            self.assertEqual(branch.main(["verify", str(self.source), str(self.policy),
+                                          "--registry", str(target)]), 68)
+            self.assertIn("strict_active_branch_literals=1", out.getvalue())
+            self.assertIn("exceeds KPI max", error.getvalue())
+            self.assertNotIn("not found", error.getvalue())
+            target.write_bytes(b"original registry\n")
+            actual_report = branch.report_kpi
+            def changed_after_report(*args):
+                status = actual_report(*args)
+                self.source.write_text(self.source.read_text() + "; changed\n")
+                return status
+            with patch.object(branch, "report_kpi", side_effect=changed_after_report):
+                with self.assertRaisesRegex(analysis.BundleError, "changed input"):
+                    branch.main(["inventory", str(self.source), str(target)])
+            self.assertEqual(target.read_bytes(), b"original registry\n")
+
+    def test_every_typed_span_requires_consumed_source_membership(self):
+        self.source.write_text(".ORG $C000\nStart: LDA Target+0\nTarget: RTS\n")
+        shared = self.produce()
+        document = shared.load("instructions")
+        path = Path(shared.data["outputs"]["instructions"]["path"])
+        original_descriptor = copy.deepcopy(shared.data)
+        for field in ("use", "source", "operand_source", "expression", "child"):
+            with self.subTest(field=field):
+                changed = copy.deepcopy(document)
+                record = changed["records"][0]
+                if field == "use":
+                    span = record["use"]
+                elif field in {"source", "operand_source"}:
+                    span = record[field]["span"]
+                else:
+                    node = record["expression"]
+                    if field == "child":
+                        node = node["children"][1]
+                    span = node["source"]["span"]
+                span["file"] = str(self.root / "unconsumed.asm")
+                analysis.write_json(path, changed)
+                descriptor = copy.deepcopy(original_descriptor)
+                descriptor["outputs"]["instructions"] = analysis.fingerprint(path)
+                analysis.write_json(self.path, descriptor)
+                fresh = analysis.Bundle(self.path, self.source)
+                with self.assertRaisesRegex(ValueError, "source span absent from consumed source inputs"):
+                    branch.rows(fresh)
+
+    def test_nonmatching_record_bytes_must_agree_with_bound_binary(self):
+        self.source.write_text(".ORG $C000\nStart: LDA Target\nTarget: RTS\n")
+        shared = self.produce()
+        document = shared.load("instructions")
+        document["records"][0]["bytes"][-1] ^= 1
+        path = Path(shared.data["outputs"]["instructions"]["path"])
+        analysis.write_json(path, document)
+        descriptor = copy.deepcopy(shared.data)
+        descriptor["outputs"]["instructions"] = analysis.fingerprint(path)
+        analysis.write_json(self.path, descriptor)
+        fresh = analysis.Bundle(self.path, self.source)
+        with self.assertRaisesRegex(ValueError, "instruction bytes differ from output"):
+            branch.rows(fresh)
 
     def test_malformed_nonmatching_records_are_not_zero(self):
         self.source.write_text(".ORG $C000\n RTS\n")

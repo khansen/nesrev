@@ -14,23 +14,25 @@ def require(condition, message):
         raise ValueError("invalid instruction records: " + message)
 
 
-def span(value):
+def span(value, check_source=None):
     require(isinstance(value, dict), "source span required")
     require(isinstance(value.get("file"), str) and value["file"], "span file required")
     for key in ("line", "column", "end_line", "end_column"):
         require(type(value.get(key)) is int and value[key] > 0, "invalid span " + key)
     require((value["end_line"], value["end_column"]) >= (value["line"], value["column"]),
             "reversed source span")
+    if check_source is not None:
+        check_source(value["file"])
 
 
-def source(value):
+def source(value, check_source=None):
     require(isinstance(value, dict) and isinstance(value.get("text"), str), "source text required")
-    span(value.get("span"))
+    span(value.get("span"), check_source)
 
 
-def expression(value):
+def expression(value, check_source=None):
     require(isinstance(value, dict) and value.get("kind") in KINDS, "unknown expression kind")
-    source(value.get("source"))
+    source(value.get("source"), check_source)
     children = value.get("children")
     require(isinstance(children, list), "expression children required")
     kind = value["kind"]
@@ -45,10 +47,10 @@ def expression(value):
         unary = value["operator"] in {"bit_not", "logical_not", "low_byte", "high_byte", "negate", "bank"}
         require(len(children) == (1 if unary else 2), "invalid operator arity")
     for child in children:
-        expression(child)
+        expression(child, check_source)
 
 
-def validate(payload):
+def validate(payload, check_source=None):
     require(isinstance(payload, dict) and payload.get("version") == "1", "version 1 required")
     records = payload.get("records")
     require(isinstance(records, list), "complete records array required")
@@ -87,13 +89,13 @@ def validate(payload):
                 "invalid emitted size")
         require(all(type(b) is int and 0 <= b <= 255 for b in octets) and octets[0] == record["opcode"],
                 "invalid emitted bytes")
-        span(record.get("use"))
-        source(record.get("source"))
+        span(record.get("use"), check_source)
+        source(record.get("source"), check_source)
         require("operand_source" in record and "expression" in record, "missing operand provenance")
         if record["operand_source"] is not None:
-            source(record["operand_source"])
+            source(record["operand_source"], check_source)
         if record["expression"] is not None:
-            expression(record["expression"])
+            expression(record["expression"], check_source)
         operandless = record["addressing_mode"] in {"implied", "accumulator"}
         require((record["expression"] is None) == operandless, "operand/mode mismatch")
         require((record["operand_source"] is None) == (record["parsed_addressing_mode"] == "implied"),
@@ -104,19 +106,6 @@ def validate(payload):
                           "Y" if mode.endswith("_y") or mode == "postindexed_indirect" else None)
         require(record["index_register"] == expected_index, "index/mode mismatch")
     return records
-
-
-def check_sources(payload, paths, absolute):
-    def walk(value):
-        if isinstance(value, dict):
-            if "file" in value:
-                require(absolute(value["file"]) in paths, "source span absent from consumed source inputs")
-            for child in value.values():
-                walk(child)
-        elif isinstance(value, list):
-            for child in value:
-                walk(child)
-    walk(payload["records"])
 
 
 def check_binary(payload, binary):

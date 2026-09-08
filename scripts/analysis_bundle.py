@@ -274,12 +274,16 @@ class Bundle:
         raw = read_bytes(entry["path"])
         require(hashlib.sha256(raw).hexdigest() == entry["sha256"], f"changed artifact: {name}")
         payload = decode(raw)
-        check_schema(name, payload)
         if name == "instructions":
             dependencies = read_json(self.data["dependencies"]["path"])
             sources = {entry["path"] for entry in dependencies["inputs"] if "source" in entry["roles"]}
-            instruction_records.check_sources(payload, sources, absolute)
+            def check_source(path):
+                instruction_records.require(absolute(path) in sources,
+                                            "source span absent from consumed source inputs")
+            instruction_records.validate(payload, check_source)
             instruction_records.check_binary(payload, read_bytes(self.data["outputs"]["binary"]["path"]))
+        else:
+            check_schema(name, payload)
         return payload
 
 

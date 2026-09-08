@@ -464,8 +464,8 @@ bash scripts/project_docs_check.sh "$1"
         env = self.counted_environment()
         inventory = project / "docs/reverse_engineering/inventory"
         before = {p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}
-        (self.root / "scripts/branch_literal_kpi.sh").write_text(
-            "#!/usr/bin/env bash\nprintf '[branch-kpi] strict_active_branch_literals=0\\n'\nexit 65\n")
+        (self.root / "scripts/branch_literals.py").write_text(
+            "print('[branch-kpi] strict_active_branch_literals=0')\nraise SystemExit(65)\n")
         run = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"], env=env, capture_output=True)
         self.assertEqual(run.returncode, 65, run.stdout.decode() + run.stderr.decode())
         self.assertEqual({p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}, before)

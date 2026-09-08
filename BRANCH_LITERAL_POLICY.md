@@ -62,6 +62,13 @@ never falls back to assembly. Missing, malformed, incomplete, incompatible or
 stale evidence refuses, including an explicitly empty descriptor path or a
 data-only bundle. A KPI config used for a limit must be bound to the bundle.
 
+Verification collects rows once for the KPI and registry comparison, preserving
+threshold-before-registry diagnostics. Inventory likewise collects once for its
+count and staged CSV. These paired operations share in-memory facts only within
+that call: no cross-phase verdict/result cache or relaxed publication check.
+Schema validation checks every typed provenance span during the same traversal,
+including nested expressions and nonmatching records.
+
 The KPI retains `strict_active_branch_literals` and threshold exit 68. Refusal
 is not a measured threshold failure and emits no count. Inventory refresh
 collects branch evidence before publishing any generated ledger, stages all

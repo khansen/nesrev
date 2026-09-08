@@ -69,13 +69,9 @@ bash "${SCRIPT_DIR}/global_code_label_doc_kpi.sh" \
   "${ASM_FILE}" \
   "${GLOBAL_CODE_LABEL_DOC_KPI_FILE}"
 
-bash "${SCRIPT_DIR}/branch_literal_kpi.sh" \
+python3 "${SCRIPT_DIR}/branch_literals.py" verify \
   "${ASM_FILE}" \
-  "${BRANCH_KPI_FILE}"
-
-bash "${SCRIPT_DIR}/branch_literal_sites_check.sh" \
-  "${ASM_FILE}" \
-  "${BRANCH_SITES_FILE}"
+  "${BRANCH_KPI_FILE}" --registry "${BRANCH_SITES_FILE}"
 
 bash "${SCRIPT_DIR}/pointer_targets_check.sh" \
   "${verification_xref}" \

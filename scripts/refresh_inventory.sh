@@ -53,13 +53,13 @@ fi
 python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" --artifact xref --artifact instructions
 pointer_xref="$(python3 "${SCRIPT_DIR}/analysis_bundle.py" artifact "${NESREV_ANALYSIS_BUNDLE}" xref)"
 export NESREV_XREF_FILE="${pointer_xref}"
-branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}")"
+branch_report="$(python3 "${SCRIPT_DIR}/branch_literals.py" inventory \
+  "${ASM_FILE}" "${inv_dir}/branch_literal_sites.csv")"
 branch_literals="$(printf '%s\n' "$branch_report" | awk -F= '/strict_active_branch_literals=/{print $2}')"
 if [[ ! "${branch_literals}" =~ ^[0-9]+$ ]]; then
   echo "error: branch-literal analysis returned no measured count" >&2
   exit 65
 fi
-bash "${SCRIPT_DIR}/branch_literal_sites.sh" "${ASM_FILE}" "${inv_dir}/branch_literal_sites.csv"
 
 awk '
 /^[A-Za-z_][A-Za-z0-9_]*[ \t]+\.EQU[ \t]+/ {
