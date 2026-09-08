@@ -242,18 +242,12 @@ xasm --pure-binary -o "${TMPDIR:-/tmp}/<slug>-analysis.o" \
 <a id="data-consumer-analysis"></a>
 ## Data-Consumer, Data-Coverage, and Index-Pattern Analysis
 
-`make project-pass-prep` emits baseline parity status, both xref summaries,
-owner-enriched xref, and three structured-analysis outputs into
-`docs/reverse_engineering/inventory/pass/`. Compatible outputs are bundled into
-one xasm process so the wrapper does not repeat the same parse/assemble work;
-the filtered generic-label xref summary stays separate because summary context
-is computed after the include filter is applied. Only `data_consumers.json` is
-loaded by `make project-next-pass` (consumer rollups for generated evidence);
-`index_patterns.json` and `data_coverage.json` are manual evidence artifacts.
-The [bundle contract](../ANALYSIS_BUNDLE_SPEC.md) also supplies the instruction
-stream to inventory checks. Prep compares validated output bytes separately:
-normal prep uses two assemblies, with an additional source-mapped diagnostic
-only on mismatch. Fresh planning facts never imply that baseline parity passed.
+`make project-pass-prep` writes parity status, both xref summaries, owner xref,
+and data/index/coverage outputs to `docs/reverse_engineering/inventory/pass/`.
+One xasm process bundles compatible outputs; the filtered generic-label summary
+stays separate because filtering changes summary context. `project-next-pass`
+loads only `data_consumers.json`; index/coverage outputs are manual evidence.
+See the [bundle lifecycle](../ANALYSIS_BUNDLE_SPEC.md) for comparison and freshness.
 
 ### Index-pattern analysis
 
@@ -730,17 +724,11 @@ equal counts, correct projections, and identical per-index target expressions.
 A lone suffix match is outside this paired-table ledger because some low-only
 tables supply a constant high byte elsewhere.
 
-Wrappers share xref across pointer inventories; leaves never assemble. Standalone
-maturity creates one xref when `NESREV_XREF_FILE` is absent. CI's
-[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) shares listing/index/extent and instruction facts;
-invalid artifacts refuse. See that contract for producer and standalone requirements.
-
-Branch-literal KPI and CSV generation use one typed instruction predicate;
-see [policy and CSV v2](../BRANCH_LITERAL_POLICY.md). Direct standalone wrappers
-produce fresh instruction facts once. Inventory refresh requires a compatible
-descriptor for supplied xref reuse; a legacy xref file alone is insufficient.
-Regenerate reviewed branch inventories with `make project-inventory` after
-the schema migration; review coverage differences before changing ratchets.
+Pointer-inventory leaves never assemble. Standalone maturity creates an xref
+when `NESREV_XREF_FILE` is absent. Owners share the
+[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) for data and instruction facts;
+invalid supplied evidence refuses. [Branch-literal policy and CSV v2](../BRANCH_LITERAL_POLICY.md)
+define standalone production, required instruction bundles, and reviewed inventory regeneration.
 
 `Used by:` combines asm comments with xref-v2 symbol/owner/pointer edges.
 Composite wrappers reuse `NESREV_XREF_FILE` for the docs
