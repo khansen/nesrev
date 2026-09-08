@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+validate_project_analysis_bundle "$1"
 
 inv_dir="${NESREV_INVENTORY_OUT_DIR:-${DOC_ROOT}/inventory}"
 mkdir -p "${inv_dir}"

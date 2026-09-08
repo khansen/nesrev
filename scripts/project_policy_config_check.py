@@ -107,6 +107,8 @@ ALLOWED_CONDITIONAL_FIELDS = {
     "RENAMES_FILE",
     "RAW_RAM_REVIEW_FILE",
     "NESREV_XREF_FILE",  # shared-artifact reuse, never check applicability
+    "NESREV_ANALYSIS_BUNDLE",  # validated invocation-local facts, never a verdict
+    "NESREV_ANALYSIS_BUILD_DIR",  # CI-owned fresh production workspace
     "DATA_FORMAT_TARGETS_FILE",
     "DATA_BLOB_DISPOSITIONS_FILE",
     "TMPDIR_CHECK_DOCS",  # wrapper-owned temporary workspace

@@ -1,8 +1,8 @@
 # Project CI Performance Plan
 
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
-CI-P2's instruction and consumed-input manifest producers are complete; its
-validated bundle is next. CI-P3 is conditional; CI-P4's text indexes are deferred.
+CI-P2's producers and validated data bundle are implemented. Branch-literal
+migration is next; CI-P3 is conditional and CI-P4's text indexes are deferred.
 Updated 2026-09-08.
 
 ## Purpose and ownership
@@ -69,7 +69,7 @@ identify its useful consumer and explicitly choose retention, semantic
 replacement, or retirement. Lexical compatibility does not exempt constant
 definition/kind/value discovery from structured migration.
 
-## CI-P2 — Planned: one fresh analysis bundle per invocation
+## CI-P2 — One fresh analysis bundle per invocation
 
 Design production and freshness with the general instruction-operand artifact.
 The [xasm version 1 producer](https://github.com/khansen/xorcyst/blob/c753b565572a9ea5ea9ebc346381c5b6c7f80710/XASM_INSTRUCTION_RECORDS_SPEC.md)
@@ -79,8 +79,9 @@ adds immutable snapshots, content hashes, producer/invocation identity, and
 missing lookup probes through xasm's actual read paths. Neither artifact alone
 certifies downstream output/configuration/schema completeness or future reuse,
 and no NESrev consumer has switched to the instruction stream. These producer
-units make no CI speedup claim. Next implement validated bundle production,
-then migrate the first branch-literal consumer under the
+units alone make no CI speedup claim. The [validated data bundle](ANALYSIS_BUNDLE_SPEC.md)
+now shares existing data-analysis outputs in CI. Next migrate the first
+branch-literal consumer under the
 [migration contract](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#migration-contract-for-each-work-item).
 
 Minimal sharing of existing outputs may land independently if the contract stays
@@ -130,6 +131,53 @@ diagnostics, and exit statuses must remain equivalent. Independently mutate
 same-size root source, transitive includes, binary inputs, and configuration
 while preserving timestamps; each must invalidate reuse. Resolve missing
 producer facts before removing the old production path.
+
+### Data-bundle implementation results
+
+The [data-only bundle contract](ANALYSIS_BUNDLE_SPEC.md) is implemented. A
+synthetic complete CI fixture proves one assembly versus five in the equivalent
+unshared flow, identical diagnostics, and two assemblies on parity mismatch.
+Existing consumers share facts, not verdicts; instruction records remain off.
+
+Warm-workspace measurements on arm64 macOS 26.6.2, Python 3.14.7, and the same
+xasm 1.6.1 dependency-manifest build: one warmup plus three measured runs per
+case/mode, alternating before/after with no competing verification.
+
+| Local input / reached path | Median wall seconds, before → after | Range, before → after |
+|---|---|---|
+| Larger banked input; existing maturity failure | 37.07 → 22.03 | 36.86–37.60 → 21.34–22.31 |
+| Small input; complete passing CI | 3.09 → 3.47 | 3.07–3.25 → 3.38–3.47 |
+
+The larger case is about 41% faster; the small case regresses by 0.38 seconds
+(about 12%) because validation overhead outweighs its cheaper removed assemblies.
+This is a measured tradeoff, not a universal speedup claim. Median user/system
+seconds are 35.86/1.17 → 20.68/1.24 for the larger case and 2.35/0.61 →
+2.57/0.73 for the small case. Complete diagnostics and exits match byte-for-byte;
+pinned source/configuration/reference/ledger contents are unchanged. The existing
+maturity failure is not waived, and its documentation phase remains unreached.
+
+Larger-input artifact costs, measured separately with warm files/buffers:
+
+| Artifact | Size, decimal MB | JSON decode median | Validated load median |
+|---|---:|---:|---:|
+| Listing | 17.98 | 68 ms | 249 ms |
+| Xref | 7.68 | 28 ms | 79 ms |
+| Index patterns | 0.094 | 0.28 ms | 28 ms |
+| Data consumers | 0.454 | 1.7 ms | 31 ms |
+
+Decode uses ten measured samples; validated load uses three, each after a
+warmup. Validated load includes descriptor/dependency/output validation, the
+selected artifact's read/decode/schema check, and final revalidation, but not
+Python startup or the audit algorithm. These are separate operations, not
+additive CI phase timings. The small input's listing/xref are 2.35/0.45 MB with
+33/7 ms validated loads. No unused instruction trees are emitted or decoded.
+
+Repository verification passed 602 shell tests and 1,206 Java tests. The bundle
+suite covers production, independent staleness/refusal conditions, standalone
+equivalence, and complete synthetic CI. Corpus inputs and raw receipts remain
+in the local evidence companion. Subsequent instruction migration should retain
+this boundary; do not pursue legacy text-parser optimization to hide the small
+fixed overhead.
 
 ## CI-P3 — Conditional: reuse measurements, not verdicts
 

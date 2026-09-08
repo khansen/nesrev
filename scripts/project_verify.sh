@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_conf "$1"
+validate_project_analysis_bundle "$1"
 python3 "${SCRIPT_DIR}/project_policy_config_check.py" kpis "${KPI_FILE}"
 
 TMPDIR_PROJECT_VERIFY="$(mktemp -d)"
@@ -24,6 +25,10 @@ bash "${SCRIPT_DIR}/verify.sh" \
   "${WARN_BASELINE_FILE}" \
   "${XASM_COMPARE_CPU_BASE:-}" \
   "${verification_xref}"
+
+if [[ -n "${NESREV_ANALYSIS_BUILD_DIR:-}" ]]; then
+  export NESREV_ANALYSIS_BUNDLE="${NESREV_ANALYSIS_BUILD_DIR}/bundle.json"
+fi
 
 if [[ "${PROJECT_VERIFY_REFRESH_INVENTORY:-0}" == "1" ]]; then
   refresh_script="${PROJECT_VERIFY_REFRESH_SCRIPT:-${SCRIPT_DIR}/refresh_inventory.sh}"
@@ -97,3 +102,7 @@ bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" \
 bash "${SCRIPT_DIR}/data_extent_assertions_check.sh" \
   "${ASM_FILE}" \
   "${DATA_EXTENT_ASSERTIONS_FILE}"
+
+if [[ -n "${NESREV_ANALYSIS_BUNDLE:-}" ]]; then
+  python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" --source "${ASM_FILE}"
+fi

@@ -55,7 +55,17 @@ if [[ -n "${XREF_FILE}" ]]; then
     --xref-data=true
   )
 fi
-"${XASM_BIN}" "${xasm_args[@]}" "${ASM_FILE}" 2>&1 | tee "${XASM_LOG}"
+if [[ -n "${NESREV_ANALYSIS_BUILD_DIR:-}" ]]; then
+  python3 "${SCRIPT_DIR}/analysis_bundle.py" produce \
+    "${NESREV_ANALYSIS_BUILD_DIR}" "${ASM_FILE}" "${OUT_BIN}" 2>&1 | tee "${XASM_LOG}"
+  if [[ "${XREF_FILE}" != "${NESREV_ANALYSIS_BUILD_DIR}/xref_with_data.json" ]]; then
+    echo "error: shared xref path must belong to the analysis bundle" >&2
+    exit 65
+  fi
+  xref_stage=""
+else
+  "${XASM_BIN}" "${xasm_args[@]}" "${ASM_FILE}" 2>&1 | tee "${XASM_LOG}"
+fi
 if [[ -n "${xref_stage}" ]]; then
   mv "${xref_stage}" "${XREF_FILE}"
 fi

@@ -453,6 +453,14 @@ test_maturity_check_generates_or_reuses_one_pointer_xref() {
   cat > "${stub_dir}/xasm" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
+has_xref=0
+for arg in "$@"; do
+  [[ "${arg}" != --xref=* ]] || has_xref=1
+done
+if (( has_xref == 0 )); then
+  exec "${MATURITY_TEST_REAL_XASM}" "$@"
+fi
+[[ "${MATURITY_TEST_REJECT_XREF:-0}" == 0 ]] || exit 99
 printf 'call\n' >> "${XASM_LOG}"
 while (( $# > 0 )); do
   case "$1" in
@@ -473,7 +481,9 @@ done
 STUB
   chmod +x "${stub_dir}/xasm"
 
-  XASM_BIN="${stub_dir}/xasm" XASM_LOG="${xasm_log}" \
+  local real_xasm
+  real_xasm="$(command -v xasm)"
+  XASM_BIN="${stub_dir}/xasm" XASM_LOG="${xasm_log}" MATURITY_TEST_REAL_XASM="${real_xasm}" \
     _run_maturity "${slug}" >/dev/null
   assert_eq "$(wc -l < "${xasm_log}" | tr -d ' ')" "1" \
     "standalone maturity must generate one shared xref for both .DB ledgers"
@@ -481,7 +491,8 @@ STUB
   local shared_xref="${NESREV_TEST_TMPDIR}/shared-maturity-xref.json"
   printf '{"version":"2","symbols":[],"data_directive_references":[]}\n' \
     > "${shared_xref}"
-  NESREV_XREF_FILE="${shared_xref}" XASM_BIN=/usr/bin/false \
+  NESREV_XREF_FILE="${shared_xref}" XASM_BIN="${stub_dir}/xasm" \
+    XASM_LOG="${xasm_log}" MATURITY_TEST_REAL_XASM="${real_xasm}" MATURITY_TEST_REJECT_XREF=1 \
     _run_maturity "${slug}" >/dev/null
 }
 

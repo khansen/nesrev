@@ -164,6 +164,35 @@ load_project_conf() {
   fi
 }
 
+project_analysis_policy_paths() {
+  analysis_policy_paths=(
+    "${REF_NES}" "${WARN_BASELINE_FILE}" "${KPI_FILE}"
+    "${RAW_KPI_FILE}" "${CONST_KPI_FILE}" "${PROC_DOC_KPI_FILE}"
+    "${GLOBAL_CODE_LABEL_DOC_KPI_FILE}" "${BRANCH_KPI_FILE}" "${INFERRED_KPI_FILE}"
+    "${COMMENT_KPI_FILE}" "${DATA_LABEL_DOC_KPI_FILE}" "${DATA_EXTENT_ASSERTIONS_FILE}"
+    "$(dirname "${CONST_KPI_FILE}")/constant_magic_allowlist.csv"
+  )
+}
+
+validate_project_analysis_bundle() {
+  if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+    local policy
+    local -a validation_args
+    project_analysis_policy_paths
+    validation_args=()
+    for policy in "${analysis_policy_paths[@]}"; do
+      validation_args+=(--policy "${policy}")
+    done
+    if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
+      validation_args+=(--xref "${NESREV_XREF_FILE}")
+    fi
+    python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" validate \
+      "${NESREV_ANALYSIS_BUNDLE}" --source "${ASM_FILE}" --project "$1" \
+      --config "projects/$1/project.conf" --rom-range "${XASM_AUDIT_ROM_RANGE}" --cpu-base "${XASM_COMPARE_CPU_BASE}" \
+      "${validation_args[@]}"
+  fi
+}
+
 extract_reference_prg_from_ines() {
   if [[ $# -ne 2 ]]; then
     echo "usage: extract_reference_prg_from_ines <ref_nes> <out_prg>" >&2

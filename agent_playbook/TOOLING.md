@@ -726,10 +726,10 @@ equal counts, correct projections, and identical per-index target expressions.
 A lone suffix match is outside this paired-table ledger because some low-only
 tables supply a constant high byte elsewhere.
 
-Normal wrappers share one fresh xref across `.DW`, embedded `.DB`, and split
-`.DB` inventories. Leaf consumers never assemble. Standalone
-`project-maturity-check` creates one temporary xref when the caller did not
-supply `NESREV_XREF_FILE`; both canonical `.DB` ledgers consume it.
+Wrappers share xref across pointer inventories; leaves never assemble. Standalone
+maturity creates one xref when `NESREV_XREF_FILE` is absent. CI's
+[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) shares listing/index/extent facts;
+invalid artifacts refuse. See that contract for producer and standalone requirements.
 
 `Used by:` combines asm comments with xref-v2 symbol/owner/pointer edges.
 Composite wrappers reuse `NESREV_XREF_FILE` for the docs
