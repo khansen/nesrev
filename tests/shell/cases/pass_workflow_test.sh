@@ -2635,6 +2635,10 @@ test_project_maturity_summary_reports_blockers_inventory_and_clusters() {
   _make_workflow_project "${slug}" "none"
   _write_pass_one_scorecard "${slug}" "Closed the first gameplay corridor."
 
+  printf '%s\n' 'MAX_ACTIVE_RAW_LOWADDR=5' 'MAX_ACTIVE_RAW_ABSROM=0' \
+    'MAX_ACTIVE_BRANCH_LITERALS=0' \
+    >> "projects/${slug}/docs/reverse_engineering/inventory/kpis.conf"
+
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
 Reset:
@@ -2670,6 +2674,8 @@ EOF
   assert_match "Hard blockers" "${out}"
   assert_match "raw low-address operands: 5" "${out}" \
     "hard blockers must report the canonical raw low-address count"
+  assert_match "raw absolute-ROM operands: 0" "${out}"
+  assert_match "branch literals: 0" "${out}"
   assert_match "noncompliant data labels: 0" "${out}"
   assert_match "Soft review inventory" "${out}"
   assert_match "raw indirect operands: 2" "${out}" \
