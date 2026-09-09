@@ -280,6 +280,10 @@ merge; neither licenses a project semantic pass or maturity-policy waiver.
 
 ### 6. Raw-address KPI
 
+Implementation in progress: [policy and recognition corrections](RAW_ADDRESS_KPI_POLICY.md).
+The existing instruction producer supplies the required facts; no xasm extension
+is needed. Validation and review remain required before marking this unit complete.
+
 - Replace `scripts/raw_address_kpi.sh`'s opcode/addressing parser.
 - Preserve its exact policy: exclude immediates, count all qualifying raw low
   addresses, and exclude mapper-style absolute-ROM stores where configured.

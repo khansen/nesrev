@@ -530,8 +530,8 @@ test_raw_address_kpi_excludes_mapper_register_stores_from_absrom_count() {
 .ORG $C000
 Reset:
   STA $E000
-  STX $A000
-  STY $8000
+  STX $E000
+  STY $E000
   LDA $E000
   JSR $C000
   RTS

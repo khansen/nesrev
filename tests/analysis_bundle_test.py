@@ -349,7 +349,7 @@ bash scripts/project_docs_check.sh "$1"
         calls.write_text("")
         baseline = subprocess.run(["bash", str(legacy), "synthetic"], env=env, capture_output=True)
         self.assertEqual(baseline.returncode, 0, baseline.stdout.decode() + baseline.stderr.decode())
-        self.assertEqual(len(calls.read_text().splitlines()), 6)
+        self.assertEqual(len(calls.read_text().splitlines()), 4)
         self.assertEqual(baseline.stdout, run.stdout.split(b"\n", 1)[1])
         self.assertEqual(baseline.stderr, run.stderr)
         reference = project / "reference/input.nes"
@@ -477,14 +477,85 @@ bash scripts/project_docs_check.sh "$1"
         refused = subprocess.run(command, env=dict(env, NESREV_ANALYSIS_BUNDLE=""), capture_output=True)
         self.assertEqual(refused.returncode, 0, refused.stderr)
         self.assertIn(b"branch literals: REFUSED/UNAVAILABLE(exit=65)", refused.stdout)
+        self.assertIn(b"raw low-address operands: REFUSED/UNAVAILABLE(exit=65)", refused.stdout)
+        self.assertIn(b"raw absolute-ROM operands: REFUSED/UNAVAILABLE(exit=65)", refused.stdout)
         self.assertFalse(self.calls.exists())
         source = project / "asm/input.asm"
-        source.write_text(source.read_text().replace(" RTS", " BNE $+2\n RTS"))
+        source.write_text(source.read_text().replace(" RTS", " BNE $+2\n LDA $20\n LDA $C000\n RTS"))
         measured = subprocess.run(command, env=env, capture_output=True)
         self.assertEqual(measured.returncode, 0, measured.stderr)
         self.assertIn(b"branch literals: 1\n", measured.stdout)
+        self.assertIn(b"raw low-address operands: 1\n", measured.stdout)
+        self.assertIn(b"raw absolute-ROM operands: 1\n", measured.stdout)
         self.assertNotIn(b"REFUSED/UNAVAILABLE", measured.stdout)
         self.assertEqual(len(self.calls.read_text().splitlines()), 1)
+
+    def test_standalone_maturity_once_with_ordinary_warnings(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        refreshed = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"], env=env, capture_output=True)
+        self.assertEqual(refreshed.returncode, 0, refreshed.stderr)
+        self.calls.write_text("")
+        source = project / "asm/input.asm"
+        source.write_text("Unused .EQU 42\n" + source.read_text())
+        command = ["bash", "scripts/project_maturity_check.sh", "synthetic"]
+        run = subprocess.run(command, env=env, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stdout.decode() + run.stderr.decode())
+        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn("--Werror=unused-equ", calls[0])
+        self.assertTrue(any(arg.startswith("--instruction-records-output=") for arg in calls[0]))
+        self.calls.write_text("")
+        for supplied in ({"NESREV_ANALYSIS_BUNDLE": ""}, {"NESREV_ANALYSIS_BUNDLE": "missing.json"},
+                         {"NESREV_XREF_FILE": "missing.json"}):
+            run = subprocess.run(command, env=dict(env, **supplied), capture_output=True)
+            self.assertEqual(run.returncode, 65, run.stderr)
+            self.assertNotIn(b"maturity hard gates passed", run.stdout)
+            self.assertFalse(self.calls.read_text())
+
+    def test_raw_measurement_failure_cannot_publish_or_certify_zeros(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        inventory = project / "docs/reverse_engineering/inventory"
+        refresh = ["bash", "scripts/refresh_inventory.sh", "synthetic"]
+        run = subprocess.run(refresh, env=env, capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        before = {p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}
+        baseline = inventory / "pass/baseline_status.json"
+        baseline.write_text('{"original": true}\n')
+        original_baseline = baseline.read_bytes()
+        policy = inventory / "kpis.conf"
+        original_policy = policy.read_bytes()
+        leaf = self.root / "scripts/raw_addresses.py"
+        for output, exit_code in (("[raw-kpi] strict_active_raw_lowaddr=0\n[raw-kpi] strict_active_raw_absrom=0\n", 65),
+                                  ("", 0),
+                                  ("strict_active_raw_lowaddr=0\nstrict_active_raw_lowaddr=0\nstrict_active_raw_absrom=0\n", 0),
+                                  ("strict_active_raw_lowaddr=no\nstrict_active_raw_absrom=0\n", 0)):
+            with self.subTest(output=output, exit_code=exit_code):
+                leaf.write_text(f"print({output!r}, end='')\nraise SystemExit({exit_code})\n")
+                run = subprocess.run(refresh, env=env, capture_output=True)
+                self.assertEqual(run.returncode, 65, run.stdout.decode() + run.stderr.decode())
+                self.assertEqual({p.name: p.read_bytes() for p in inventory.iterdir() if p.is_file()}, before)
+                run = subprocess.run(["bash", "scripts/project_maturity_check.sh", "synthetic"],
+                                     env=env, capture_output=True)
+                self.assertEqual(run.returncode, 65, run.stderr)
+                self.assertNotIn(b"maturity hard gates passed", run.stdout)
+                run = subprocess.run(["bash", "scripts/project_maturity_summary.sh", "synthetic"],
+                                     env=env, capture_output=True)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertIn(b"raw low-address operands: REFUSED/UNAVAILABLE(exit=65)", run.stdout)
+                self.assertIn(b"raw absolute-ROM operands: REFUSED/UNAVAILABLE(exit=65)", run.stdout)
+                run = subprocess.run(["bash", "scripts/project_pass_prep.sh", "synthetic"],
+                                     env=env, capture_output=True)
+                self.assertEqual(run.returncode, 65, run.stdout.decode() + run.stderr.decode())
+                self.assertEqual(baseline.read_bytes(), original_baseline)
+                pending_policy = b"# Intake calibration pending.\n" + original_policy
+                policy.write_bytes(pending_policy)
+                run = subprocess.run(["python3", "scripts/kpi_ratchet_calibrate.py", str(project / "asm/input.asm"),
+                                      str(policy)], env=env, capture_output=True)
+                self.assertNotEqual(run.returncode, 0, run.stdout.decode() + run.stderr.decode())
+                self.assertEqual(policy.read_bytes(), pending_policy)
+                policy.write_bytes(original_policy)
 
 
 if __name__ == "__main__":

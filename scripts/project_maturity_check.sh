@@ -10,39 +10,36 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 validate_project_analysis_bundle "$1"
 
-pointer_inventory_xref="${NESREV_XREF_FILE:-}"
-pointer_inventory_xref_tmp=""
-if [[ -n "${pointer_inventory_xref}" ]]; then
-  if [[ ! -f "${pointer_inventory_xref}" ]]; then
-    echo "error: shared xref file not found: ${pointer_inventory_xref}" >&2
+if [[ -z "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
+    echo "error: maturity requires a compatible bundle for supplied xref reuse" >&2
     exit 65
   fi
-else
   pointer_inventory_xref_tmp="$(mktemp -d)"
   trap 'rm -rf "${pointer_inventory_xref_tmp}"' EXIT
-  pointer_inventory_xref="${pointer_inventory_xref_tmp}/xref_with_data.json"
-  XASM_BIN="${XASM_BIN:-xasm}"
-  if ! "${XASM_BIN}" --pure-binary \
-      -o "${pointer_inventory_xref_tmp}/maturity.o" \
-      --xref="${pointer_inventory_xref}" \
-      --xref-format=json \
-      --xref-include-owner=true \
-      --xref-data=true \
-      "${ASM_FILE}" >/dev/null 2>"${pointer_inventory_xref_tmp}/xasm.stderr"; then
+  prepare_project_analysis_bundle "$1" "${pointer_inventory_xref_tmp}" maturity-instructions-v1
+  if ! python3 "${SCRIPT_DIR}/analysis_bundle.py" produce "${pointer_inventory_xref_tmp}" \
+      "${ASM_FILE}" "${pointer_inventory_xref_tmp}/maturity.o" >/dev/null 2>"${pointer_inventory_xref_tmp}/xasm.stderr"; then
     cat "${pointer_inventory_xref_tmp}/xasm.stderr" >&2
-    echo "error: xasm failed while generating the maturity pointer xref" >&2
+    echo "error: xasm failed while generating maturity analysis" >&2
     exit 65
   fi
+  export NESREV_ANALYSIS_BUNDLE="${pointer_inventory_xref_tmp}/bundle.json"
 fi
+python3 "${SCRIPT_DIR}/analysis_bundle.py" validate "${NESREV_ANALYSIS_BUNDLE}" --artifact xref --artifact instructions
+pointer_inventory_xref="$(python3 "${SCRIPT_DIR}/analysis_bundle.py" artifact "${NESREV_ANALYSIS_BUNDLE}" xref)"
+export NESREV_XREF_FILE="${pointer_inventory_xref}"
 
-raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
+raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}")"
 raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
 raw_absrom="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
-raw_lowaddr="${raw_lowaddr:-unknown}"
-raw_absrom="${raw_absrom:-unknown}"
+if [[ ! "${raw_lowaddr}" =~ ^[0-9]+$ || ! "${raw_absrom}" =~ ^[0-9]+$ ]]; then
+  echo "error: raw-address analysis returned no measured counts" >&2
+  exit 65
+fi
 
 data_doc_report="$(bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 data_noncompliant="$(printf '%s\n' "${data_doc_report}" | awk -F= '/strict_data_labels_noncompliant=/{print $2}')"
@@ -163,6 +160,7 @@ if [[ "${magic_count:-x}" == "0" && "${allowlist_rows}" == "0" ]]; then
   echo "warn: strict_active_magic_immediates=0 with an empty constant_magic_allowlist.csv — likely over-constantisation (every literal symbolized rather than judged); expect a game of any size to retain some intentional raw literals (see agent_playbook/ASM_STYLE.md readability-first constantization)" >&2
 fi
 
+validate_project_analysis_bundle "$1"
 if [[ ${fail} -ne 0 ]]; then
   exit 1
 fi
