@@ -115,6 +115,8 @@ Start: LDA $20 : LDA $21
  REPT 2
   FETCH $23
  ENDM
+ - STA $24,X
+ BNE -
  INCLUDE "part.asm"
  INCLUDE "part.asm"
  IF 0
@@ -125,10 +127,11 @@ Start: LDA $20 : LDA $21
 ''')
         bundle = self.produce()
         records = [r for r in bundle.load("instructions")["records"] if raw.category(r)]
-        self.assertEqual(len(records), 7)
+        self.assertEqual(len(records), 8)
         self.assertEqual(records[2]["operand_source"]["text"], "address")
         self.assertEqual(records[2]["expression"]["source"]["text"], "$22")
-        self.assertEqual(len({r["origin_id"] for r in records}), 7)
+        self.assertEqual(len({r["origin_id"] for r in records}), 8)
+        self.assertEqual(records[5]["source"]["text"], "STA $24,X")
         self.assertEqual(records[-1]["source"], records[-2]["source"])
 
     def test_complete_empty_stream(self):

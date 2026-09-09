@@ -3,7 +3,7 @@
 Status: CI-P1 merged in [PR #107](https://github.com/khansen/nesrev/pull/107).
 CI-P2's producers, separate instruction output, and validated data bundle are
 implemented, and branch-literal consumers now use the instruction stream.
-The raw-address KPI is next; CI-P3 is conditional and CI-P4's
+The raw-address KPI implementation is under validation/review; CI-P3 is conditional and CI-P4's
 text indexes are deferred.
 Updated 2026-09-09.
 
@@ -265,6 +265,29 @@ included macro/loop/include and alternate-syntax cases that the corpus alone
 cannot establish. Corpus pins, corrected harness setup, raw timing/review
 receipts and the local-only CSV baseline migration belong in the evidence
 companion, not in shared commits.
+
+### Raw-address consumer measurements
+
+The [raw-address consumer](RAW_ADDRESS_KPI_POLICY.md) reuses existing instruction
+production in CI, verification, inventory, prep and calibration. Standalone
+maturity combines its xref, listing/index and instruction needs into one ordinary-
+warning production; the dashboard shares production between raw and branch metrics.
+The normal CI assembly budget remains one. Verification's gate order is unchanged.
+
+Three alternating warm measured pairs after warmup, using the same installed
+producer and source inputs without competing verification:
+
+| Local input / reached path | Median wall seconds, branch-migration baseline → raw consumer | Change |
+|---|---|---|
+| Larger banked input; existing maturity failure | 22.45 → 24.31 | +1.85 seconds (8%) |
+| Small input; complete passing CI | 4.05 → 4.58 | +0.53 seconds (13%) |
+
+Both paths retain identical complete diagnostics and exits. The additional cost
+is structured stream decoding/validation at raw measurement sites; this is not
+a speedup. Keep phase-local validation and do not introduce a cross-phase cache
+or gate reordering to hide the cost. Subsequent consolidation should target
+supported structured consumers only, after measurement establishes a worthwhile
+shared collection boundary. Corpus pins and full receipts remain local-only.
 
 ## CI-P3 — Conditional: reuse measurements, not verdicts
 

@@ -286,7 +286,7 @@ is needed. Validation and review remain required before marking this unit comple
 
 - Replace `scripts/raw_address_kpi.sh`'s opcode/addressing parser.
 - Preserve its exact policy: exclude immediates, count all qualifying raw low
-  addresses, and exclude mapper-style absolute-ROM stores where configured.
+  address spellings, and retain the fixed absolute-ROM store exclusion.
 - Do not substitute the existing raw-address audit blindly: its A100/A120
   findings are narrower than the KPI's counting contract. Either consume the
   general instruction records or extend the audit with the exact categories
