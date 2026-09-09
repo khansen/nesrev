@@ -53,6 +53,7 @@ Limits retain low-address-first order and exits 68/69. Missing source or refused
 evidence uses 65, missing policy 66, missing required limit keys 67, CLI misuse
 64. Limits must be nonnegative decimal integers. Operational refusal must not
 be interpreted as measured zero or as a threshold failure.
+Fresh assembly failure propagates the producer's nonzero exit without counts.
 
 CI, verification, prep, inventory refresh and pending intake calibration reuse
 their existing instruction-bearing production. Standalone maturity owns one

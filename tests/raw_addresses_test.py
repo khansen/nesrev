@@ -232,6 +232,13 @@ Start: LDA $20 : LDA $21
         self.assertIn(b"lacks required artifact: instructions", run.stderr)
         self.assertNotIn(b"strict_active_raw_", run.stdout)
 
+    def test_unassembled_source_is_unavailable_not_a_lexical_count(self):
+        self.source.write_text(".ORG $C000\n LDA ($20,X)\n")
+        run = self.run_cli(supplied=False)
+        self.assertNotEqual(run.returncode, 0, run.stderr)
+        self.assertIn(b"syntax error", run.stderr)
+        self.assertNotIn(b"strict_active_raw_", run.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

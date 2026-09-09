@@ -2640,7 +2640,7 @@ test_project_maturity_summary_reports_blockers_inventory_and_clusters() {
 Reset:
   LDA $30
   STA ($10),Y
-  LDA ($11,X)
+  LDA ($11),Y
   LDA [$12,X]
   LDA [$13],Y
   LDA #5
