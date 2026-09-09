@@ -3,7 +3,8 @@
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
 data-analysis bundle are implemented. Branch-literal consumers now use validated
-instruction records. The raw-address KPI is next; other Phase 2 consumer
+instruction records, as does the raw-address KPI. Negative indexed offsets are
+next; other Phase 2 consumer
 migrations and Phase 3 remain planned.
 
 ## Purpose
@@ -109,7 +110,7 @@ adds output hashes, configuration/policy identity, required schema checks, and
 reuse validation in `project-ci`. The instruction stream alone carries no such
 dependency certificate, and the current data-only profile does not emit it.
 
-No gate has switched to the instruction stream. Origin IDs survive folding within one
+Branch-literal and raw-address gates use the instruction stream. Origin IDs survive folding within one
 assembly, not across edits; structural bases describe written syntax, not
 resolved symbol bindings, alias lifetimes, bank visibility, or dataflow proof.
 
@@ -236,7 +237,7 @@ provenance. Pending calibration precedes final-policy verification; intake
 reuses the listing, and prep separates fact production from failed comparison.
 Each owning KPI/CSV pair shares one typed collection, with no cross-phase
 verdict cache. The [measured migration cost](PROJECT_CI_PERFORMANCE_PLAN.md#branch-literal-consumer-results)
-remains explicit; raw-address migration stays next, not another text-parser
+remains explicit; subsequent work migrates consumers, not another text-parser
 optimization project.
 The acceptance requirements below remain the regression contract, not a second
 implementation backlog.
@@ -280,9 +281,14 @@ merge; neither licenses a project semantic pass or maturity-policy waiver.
 
 ### 6. Raw-address KPI
 
-Implementation in progress: [policy and recognition corrections](RAW_ADDRESS_KPI_POLICY.md).
+Implemented contract: [policy and recognition corrections](RAW_ADDRESS_KPI_POLICY.md).
 The existing instruction producer supplies the required facts; no xasm extension
-is needed. Validation and review remain required before marking this unit complete.
+is needed. One typed classifier replaces the old opcode/addressing parser;
+owning wrappers share validated production and propagate refused measurements.
+The lexical width/case policy and fixed ROM-store exclusion remain explicit.
+Active anonymous-label uses and forced-width stores have reviewed recognition
+corrections, not widened ratchets. The [measured cost](PROJECT_CI_PERFORMANCE_PLAN.md#raw-address-consumer-measurements)
+remains visible. The requirements below are the regression contract.
 
 - Replace `scripts/raw_address_kpi.sh`'s opcode/addressing parser.
 - Preserve its exact policy: exclude immediates, count all qualifying raw low
@@ -442,7 +448,8 @@ removed:
       producer context and serializer, keeping legacy xref narrow.
 - [x] Migrate branch literals with one typed classifier, CSV v2 provenance,
       validated instruction profiles, and explicit refusal in owning wrappers.
-- [ ] Migrate raw-address KPI, negative offsets, suspicious immediates, and
+- [x] Migrate the raw-address KPI and its owning-wrapper measurement paths.
+- [ ] Migrate negative offsets, suspicious immediates, and
       raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
 - [ ] Migrate the embedded-pointer audit's proof heuristics after its
