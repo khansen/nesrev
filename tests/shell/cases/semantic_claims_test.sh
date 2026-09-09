@@ -437,63 +437,46 @@ test_maturity_check_every_project_requires_semantic_claims() {
   assert_exit 1 _run_maturity "${slug}"
 }
 
-test_maturity_check_generates_or_reuses_one_pointer_xref() {
+test_maturity_check_requires_validated_bundle_for_xref_reuse() {
   local slug; slug="$(unique_slug sc_mat_pointer_xref)"
   trap "cleanup_project ${slug}" EXIT
   _make_sc_project "${slug}" "1"
   _write_valid_claim "${slug}"
-  printf 'source,entry,target_label,target_type,confidence,notes\n' \
-    > "projects/${slug}/docs/reverse_engineering/inventory/embedded_pointer_targets.csv"
-  printf 'lo_source,hi_source,entry,target_label,target_type,confidence,notes\n' \
-    > "projects/${slug}/docs/reverse_engineering/inventory/split_pointer_targets.csv"
 
-  local stub_dir="${NESREV_TEST_TMPDIR}/maturity-xasm"
-  local xasm_log="${NESREV_TEST_TMPDIR}/maturity-xasm.log"
-  mkdir -p "${stub_dir}"
-  cat > "${stub_dir}/xasm" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-has_xref=0
-for arg in "$@"; do
-  [[ "${arg}" != --xref=* ]] || has_xref=1
-done
-if (( has_xref == 0 )); then
-  exec "${MATURITY_TEST_REAL_XASM}" "$@"
-fi
-[[ "${MATURITY_TEST_REJECT_XREF:-0}" == 0 ]] || exit 99
-printf 'call\n' >> "${XASM_LOG}"
-while (( $# > 0 )); do
-  case "$1" in
-    -o)
-      : > "$2"
-      shift 2
-      ;;
-    --xref=*)
-      printf '{"version":"2","symbols":[],"data_directive_references":[]}\n' \
-        > "${1#*=}"
-      shift
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-STUB
-  chmod +x "${stub_dir}/xasm"
-
+  local spy="${NESREV_TEST_TMPDIR}/xasm"
+  local calls="${NESREV_TEST_TMPDIR}/calls.jsonl"
   local real_xasm
   real_xasm="$(command -v xasm)"
-  XASM_BIN="${stub_dir}/xasm" XASM_LOG="${xasm_log}" MATURITY_TEST_REAL_XASM="${real_xasm}" \
+  cp "${REPO_ROOT}/tests/fixtures/analysis_count_xasm.py" "${spy}"
+  chmod +x "${spy}"
+  XASM_BIN="${spy}" BUNDLE_TEST_CALLS="${calls}" BUNDLE_TEST_REAL_XASM="${real_xasm}" \
     _run_maturity "${slug}" >/dev/null
-  assert_eq "$(wc -l < "${xasm_log}" | tr -d ' ')" "1" \
-    "standalone maturity must generate one shared xref for both .DB ledgers"
+  assert_eq "$(wc -l < "${calls}" | tr -d ' ')" "1" \
+    "standalone maturity must share one production across assembled-fact checks"
 
-  local shared_xref="${NESREV_TEST_TMPDIR}/shared-maturity-xref.json"
-  printf '{"version":"2","symbols":[],"data_directive_references":[]}\n' \
-    > "${shared_xref}"
-  NESREV_XREF_FILE="${shared_xref}" XASM_BIN="${stub_dir}/xasm" \
-    XASM_LOG="${xasm_log}" MATURITY_TEST_REAL_XASM="${real_xasm}" MATURITY_TEST_REJECT_XREF=1 \
+  local directory="${NESREV_TEST_TMPDIR}/shared-analysis"
+  mkdir -p "${directory}"
+  XASM_BIN="${spy}" BUNDLE_TEST_CALLS="${calls}" BUNDLE_TEST_REAL_XASM="${real_xasm}" \
+    bash -c 'set -euo pipefail
+      source scripts/project_common.sh
+      load_project_analysis_conf "$1"
+      prepare_project_analysis_bundle "$1" "$2" maturity-instructions-v1
+      python3 scripts/analysis_bundle.py produce "$2" "$ASM_FILE" "$2/output.bin"
+    ' _ "${slug}" "${directory}"
+  local before
+  before="$(wc -l < "${calls}" | tr -d ' ')"
+  NESREV_ANALYSIS_BUNDLE="${directory}/bundle.json" NESREV_XREF_FILE="${directory}/xref_with_data.json" \
+    XASM_BIN="${spy}" BUNDLE_TEST_CALLS="${calls}" BUNDLE_TEST_REAL_XASM="${real_xasm}" \
     _run_maturity "${slug}" >/dev/null
+  assert_eq "$(wc -l < "${calls}" | tr -d ' ')" "${before}" "supplied valid bundle must not assemble"
+
+  local output rc=0
+  output="$(NESREV_XREF_FILE="${directory}/xref_with_data.json" XASM_BIN="${spy}" \
+    BUNDLE_TEST_CALLS="${calls}" BUNDLE_TEST_REAL_XASM="${real_xasm}" \
+    bash "${MATURITY_CHECK_SH}" "${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" "65" "bare xref cannot certify raw-address instruction freshness"
+  assert_match "compatible bundle" "${output}"
+  assert_eq "$(wc -l < "${calls}" | tr -d ' ')" "${before}" "bare xref must refuse without fallback"
 }
 
 test_maturity_check_fails_project_with_zero_procedure_contracts() {
