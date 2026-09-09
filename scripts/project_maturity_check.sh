@@ -34,12 +34,8 @@ pointer_inventory_xref="$(python3 "${SCRIPT_DIR}/analysis_bundle.py" artifact "$
 export NESREV_XREF_FILE="${pointer_inventory_xref}"
 
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}")"
-raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
-raw_absrom="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
-if [[ ! "${raw_lowaddr}" =~ ^[0-9]+$ || ! "${raw_absrom}" =~ ^[0-9]+$ ]]; then
-  echo "error: raw-address analysis returned no measured counts" >&2
-  exit 65
-fi
+raw_counts="$(parse_raw_address_report <<< "${raw_report}")"
+read -r raw_lowaddr raw_absrom <<< "${raw_counts}"
 
 data_doc_report="$(bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 data_noncompliant="$(printf '%s\n' "${data_doc_report}" | awk -F= '/strict_data_labels_noncompliant=/{print $2}')"

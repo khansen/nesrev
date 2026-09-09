@@ -44,10 +44,8 @@ raw_status=${instruction_status}
 branch_status=${instruction_status}
 if (( instruction_status == 0 )); then
   raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" "${RAW_KPI_FILE}")" || raw_status=$?
-  raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
-  raw_absrom="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
-  if [[ ! "${raw_lowaddr}" =~ ^[0-9]+$ || ! "${raw_absrom}" =~ ^[0-9]+$ ]]; then
-    raw_status=65
+  if (( raw_status == 0 || raw_status == 68 || raw_status == 69 )); then
+    parse_raw_address_report <<< "${raw_report}" >/dev/null || raw_status=$?
   fi
   branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" "${BRANCH_KPI_FILE}")" || branch_status=$?
   validate_project_analysis_bundle "$1" || { raw_status=$?; branch_status=${raw_status}; }
