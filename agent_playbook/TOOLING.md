@@ -724,11 +724,12 @@ equal counts, correct projections, and identical per-index target expressions.
 A lone suffix match is outside this paired-table ledger because some low-only
 tables supply a constant high byte elsewhere.
 
-Pointer-inventory leaves never assemble. Standalone maturity creates an xref
-when `NESREV_XREF_FILE` is absent. Owners share the
-[validated bundle](../ANALYSIS_BUNDLE_SPEC.md) for data and instruction facts;
-invalid supplied evidence refuses. [Branch-literal policy and CSV v2](../BRANCH_LITERAL_POLICY.md)
-define standalone production, required instruction bundles, and reviewed inventory regeneration.
+Pointer-inventory leaves never assemble. Owners share the
+[validated bundle](../ANALYSIS_BUNDLE_SPEC.md); standalone maturity produces one
+ordinary-warning bundle. Invalid supplied evidence refuses without fallback.
+[Branch-literal policy and CSV v2](../BRANCH_LITERAL_POLICY.md) and
+[raw-address KPI policy](../RAW_ADDRESS_KPI_POLICY.md) define coverage, standalone
+production, failure propagation and inventory publication.
 
 `Used by:` combines asm comments with xref-v2 symbol/owner/pointer edges.
 Composite wrappers reuse `NESREV_XREF_FILE` for the docs

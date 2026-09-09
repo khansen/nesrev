@@ -103,11 +103,9 @@ python3 "${SCRIPT_DIR}/split_pointer_targets.py" \
   "${pointer_xref}" \
   "${inv_dir}/split_pointer_targets.csv"
 
-raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
-raw_lowaddr="$(printf '%s\n' "$raw_report" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
-raw_absrom="$(printf '%s\n' "$raw_report" | awk -F= '/strict_active_raw_absrom=/{print $2}')"
-raw_lowaddr="${raw_lowaddr:-unknown}"
-raw_absrom="${raw_absrom:-unknown}"
+raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}")"
+raw_counts="$(parse_raw_address_report <<< "${raw_report}")"
+read -r raw_lowaddr raw_absrom <<< "${raw_counts}"
 proc_doc_report="$(bash "${SCRIPT_DIR}/procedure_doc_kpi.sh" "${ASM_FILE}" 2>/dev/null || true)"
 proc_undoc="$(printf '%s\n' "$proc_doc_report" | awk -F= '/strict_callable_procedures_undocumented=/{print $2}')"
 proc_total="$(printf '%s\n' "$proc_doc_report" | awk -F= '/strict_callable_procedures_total=/{print $2}')"

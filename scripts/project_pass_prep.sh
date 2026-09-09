@@ -150,7 +150,8 @@ compare_status_json="$(status_json "${compare_status}" "${compare_exit_code}" "$
 docs_status_json="$(run_status docs_check bash "${SCRIPT_DIR}/project_docs_check.sh" "${slug}")"
 process_status_json="$(run_status process_check bash "${SCRIPT_DIR}/project_process_check.sh" "${slug}")"
 raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}")"
-raw_lowaddr="$(printf '%s\n' "${raw_report}" | awk -F= '/strict_active_raw_lowaddr=/{print $2}')"
+raw_counts="$(parse_raw_address_report <<< "${raw_report}")"
+read -r raw_lowaddr raw_absrom <<< "${raw_counts}"
 validate_project_analysis_bundle "$1"
 
 python3 - \

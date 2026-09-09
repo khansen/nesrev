@@ -39,7 +39,7 @@ MEASUREMENTS = (
 )
 
 
-def measure(script_dir: Path, asm: Path, branch_bundle=None) -> dict[str, int]:
+def measure(script_dir: Path, asm: Path, instruction_bundle=None) -> dict[str, int]:
     reports: dict[str, str] = {}
     values: dict[str, int] = {}
     for script, metric, ceiling in MEASUREMENTS:
@@ -49,14 +49,15 @@ def measure(script_dir: Path, asm: Path, branch_bundle=None) -> dict[str, int]:
                 check=True,
                 text=True,
                 stdout=subprocess.PIPE,
-                env=(dict(os.environ, NESREV_ANALYSIS_BUNDLE=str(branch_bundle))
-                     if script == "branch_literal_kpi.sh" and branch_bundle is not None else None),
+                env=(dict(os.environ, NESREV_ANALYSIS_BUNDLE=str(instruction_bundle))
+                     if script in {"branch_literal_kpi.sh", "raw_address_kpi.sh"}
+                     and instruction_bundle is not None else None),
             )
             reports[script] = result.stdout
-        match = re.search(rf"(?:^|\s){re.escape(metric)}=(\d+)(?:\s|$)", reports[script])
-        if not match:
+        matches = re.findall(rf"(?:^|\s){re.escape(metric)}=([^\s]+)", reports[script])
+        if len(matches) != 1 or re.fullmatch(r"[0-9]+", matches[0]) is None:
             raise ValueError(f"{script} did not report {metric}")
-        values[ceiling] = int(match.group(1), 10)
+        values[ceiling] = int(matches[0], 10)
     return values
 
 

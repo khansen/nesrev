@@ -19,20 +19,50 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 
-raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" "${RAW_KPI_FILE}" 2>/dev/null || true)"
+instruction_status=0
+if [[ -z "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  summary_analysis_dir="$(mktemp -d)"
+  trap 'rm -rf "${summary_analysis_dir}"' EXIT
+  if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
+    echo "error: summary requires a compatible bundle for supplied xref reuse" >&2
+    instruction_status=65
+  else
+    prepare_project_analysis_bundle "$1" "${summary_analysis_dir}" inventory-instructions-v1 || instruction_status=$?
+    if (( instruction_status == 0 )); then
+      python3 "${SCRIPT_DIR}/analysis_bundle.py" produce "${summary_analysis_dir}" \
+        "${ASM_FILE}" "${summary_analysis_dir}/summary.o" >&2 || instruction_status=$?
+    fi
+  fi
+  export NESREV_ANALYSIS_BUNDLE="${summary_analysis_dir}/bundle.json"
+fi
+if (( instruction_status == 0 )); then
+  validate_project_analysis_bundle "$1" || instruction_status=$?
+fi
+raw_status=${instruction_status}
+branch_status=${instruction_status}
+if (( instruction_status == 0 )); then
+  raw_report="$(bash "${SCRIPT_DIR}/raw_address_kpi.sh" "${ASM_FILE}" "${RAW_KPI_FILE}")" || raw_status=$?
+  if (( raw_status == 0 || raw_status == 68 || raw_status == 69 )); then
+    parse_raw_address_report <<< "${raw_report}" >/dev/null || raw_status=$?
+  fi
+  branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" "${BRANCH_KPI_FILE}")" || branch_status=$?
+  validate_project_analysis_bundle "$1" || { raw_status=$?; branch_status=${raw_status}; }
+fi
+if (( raw_status != 0 && raw_status != 68 && raw_status != 69 )); then
+  raw_report="strict_active_raw_lowaddr=REFUSED/UNAVAILABLE(exit=${raw_status})
+strict_active_raw_absrom=REFUSED/UNAVAILABLE(exit=${raw_status})"
+fi
+if (( branch_status != 0 && branch_status != 68 )); then
+  branch_report="strict_active_branch_literals=REFUSED/UNAVAILABLE(exit=${branch_status})"
+fi
 data_report="$(bash "${SCRIPT_DIR}/data_label_doc_kpi.sh" "${ASM_FILE}" "${DATA_LABEL_DOC_KPI_FILE}" 2>/dev/null || true)"
 const_report="$(bash "${SCRIPT_DIR}/constant_kpi.sh" "${ASM_FILE}" "${CONST_KPI_FILE}" 2>/dev/null || true)"
 inferred_report="$(bash "${SCRIPT_DIR}/inferred_kpi.sh" "${ASM_FILE}" "${INFERRED_KPI_FILE}" 2>/dev/null || true)"
 comment_report="$(bash "${SCRIPT_DIR}/comment_quality_kpi.sh" "${ASM_FILE}" "${COMMENT_KPI_FILE}" 2>/dev/null || true)"
 proc_report="$(bash "${SCRIPT_DIR}/procedure_doc_kpi.sh" "${ASM_FILE}" "${PROC_DOC_KPI_FILE}" 2>/dev/null || true)"
 global_report="$(bash "${SCRIPT_DIR}/global_code_label_doc_kpi.sh" "${ASM_FILE}" "${GLOBAL_CODE_LABEL_DOC_KPI_FILE}" 2>/dev/null || true)"
-branch_status=0
-branch_report="$(bash "${SCRIPT_DIR}/branch_literal_kpi.sh" "${ASM_FILE}" "${BRANCH_KPI_FILE}")" || branch_status=$?
-if (( branch_status != 0 && branch_status != 68 )); then
-  branch_report="strict_active_branch_literals=REFUSED/UNAVAILABLE(exit=${branch_status})"
-fi
 
 pass_dir="${DOC_ROOT}/inventory/pass"
 

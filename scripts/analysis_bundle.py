@@ -28,6 +28,7 @@ PROFILES = {
     PROFILE: ARTIFACTS,
     "ci-instructions-v1": ARTIFACTS | {"instructions"},
     "inventory-instructions-v1": {"binary", "xref", "instructions"},
+    "maturity-instructions-v1": ARTIFACTS | {"instructions"},
     "instructions-v1": {"binary", "instructions"},
     "pass-prep-instructions-v1": ARTIFACTS | {"instructions", "summary", "coverage"},
 }

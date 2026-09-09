@@ -164,6 +164,28 @@ load_project_conf() {
   fi
 }
 
+parse_raw_address_report() {
+  awk '
+    {
+      line=$0
+      sub(/^\[raw-kpi\] /, "", line)
+      fields=split(line, parts, "=")
+      key=parts[1]
+      if (key == "strict_active_raw_lowaddr" || key == "strict_active_raw_absrom") {
+        if (fields != 2 || parts[2] !~ /^[0-9]+$/ || seen[key]++) bad=1
+        value[key]=parts[2]
+      }
+    }
+    END {
+      if (bad || !seen["strict_active_raw_lowaddr"] || !seen["strict_active_raw_absrom"]) {
+        print "error: raw-address analysis returned invalid measured counts" > "/dev/stderr"
+        exit 65
+      }
+      print value["strict_active_raw_lowaddr"], value["strict_active_raw_absrom"]
+    }
+  '
+}
+
 project_analysis_policy_paths() {
   analysis_policy_paths=(
     "${REF_NES}" "${WARN_BASELINE_FILE}" "${KPI_FILE}"
