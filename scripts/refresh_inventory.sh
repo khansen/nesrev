@@ -68,7 +68,7 @@ awk '
   gsub(/[,;]/, "", val)
   print name "\t" val
 }
-' "${ASM_FILE}" | sort -u > "$const_tmp"
+' "${ASM_FILE}" | LC_ALL=C sort -u > "$const_tmp"
 
 const_counts_tmp="$(mktemp)"
 python3 "${SCRIPT_DIR}/constant_usage_counts.py" "${ASM_FILE}" "${const_tmp}" > "${const_counts_tmp}"
