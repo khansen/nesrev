@@ -1128,7 +1128,7 @@ mechanics:
 Do not write `renames.csv` rows, markdown bullet lists, or scorecard
 rows via shell-constructed strings that embed literal `\n`. Use
 `apply_patch` or another file-safe editor so each logical row/bullet
-is written as an actual line in the target file.
+is written as an actual line in the target file (same for a ledger row: use `scripts/csv_row_update.py`, not regex splicing).
 ### Dollar-sign text safety
 
 Do not use shell interpolation to inject documentation text

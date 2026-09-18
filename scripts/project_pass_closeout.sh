@@ -40,7 +40,7 @@ fi
 
 RUN_SCRIPT_DIR="${PROJECT_PASS_CLOSEOUT_SCRIPT_DIR:-${SCRIPT_DIR}}"
 
-PASS_ID="$(python3 - "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/pass/current_pass_plan.json" "${PASS_ID_ARG}" <<'PY'
+PASS_ID="$(python3 - "${PROGRESS_SCORECARD_FILE}" "${DOC_ROOT}/inventory/pass/current_pass_plan.json" "${PASS_ID_ARG}" "${SCRIPT_DIR}" <<'PY'
 import json
 import os
 import re
@@ -50,6 +50,7 @@ from pathlib import Path
 scorecard_path = Path(sys.argv[1])
 plan_path = Path(sys.argv[2])
 pass_id_arg = sys.argv[3].strip()
+scripts_dir_arg = sys.argv[4]
 focus_env = os.environ.get("FOCUS", "").strip()
 notes_env = os.environ.get("NOTES", "").strip()
 
@@ -246,6 +247,27 @@ for _, row, _, row_header_index in rows:
 
 focus = cell(focus_env) or objective_focus(plan) or f"Pass {pass_id} corridor"
 notes = cell(notes_env) or objective_notes(plan, focus)
+
+# A malformed policy-baseline-audit marker is invisible to every check this
+# script runs itself; only `project-ci` / `project-policy-baseline-check`
+# would ever catch it, potentially many passes later. Validate against the
+# same grammar the standalone checker enforces, before the row is written,
+# so a bad marker fails the pass that wrote it instead of a distant one.
+if "policy-baseline-audit:" in notes:
+    sys.path.insert(0, scripts_dir_arg)
+    from policy_baseline_audit_check import MARKER_RE
+
+    marker_start = notes.find("policy-baseline-audit:")
+    marker_text = notes[marker_start:].strip()
+    if MARKER_RE.match(marker_text) is None:
+        raise SystemExit(
+            "error: malformed policy-baseline-audit marker in NOTES.\n"
+            "  got:      " + marker_text + "\n"
+            "  expected: policy-baseline-audit: semantic_claims=<created|reviewed|"
+            "advisory>; procedures=<n>/<n>; global_code_labels=<n>/<n>; "
+            "retained_headerless=<n>; action=<summary>\n"
+            "  (action=<summary> must be the trailing field)"
+        )
 
 if not lines:
     header = HEADER

@@ -351,7 +351,13 @@ def validate_rows(path: Path, doc_root: Path, rows: list[dict[str, str]], mode: 
 
     for idx, row in enumerate(rows, start=2):
         if None in row:
-            error(f"{path}:{idx}: too many CSV columns; quote note or evidence text that contains commas")
+            extra = row[None]
+            known = {k: v for k, v in row.items() if k is not None}
+            error(
+                f"{path}:{idx}: too many CSV columns (expected {len(FIELDS)}, "
+                f"got {len(known) + len(extra)}); an unquoted comma in a prose "
+                f"field likely split it. Parsed fields: {known!r}; extra: {extra!r}"
+            )
             ok = False
 
         label = (row.get("label") or "").strip()

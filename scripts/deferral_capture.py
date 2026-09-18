@@ -8,11 +8,13 @@ the same edge starts from nothing and defers again. Repeated indefinitely, that
 is how a structural placeholder fossilises while every individual pass remains
 defensible.
 
-The operator already writes the deferral, in the closeout notes ("left broad
-RAM ownership out of scope"). This turns that sentence into a ledger row at the
-moment it is written, rather than asking a later audit to reconstruct it from
-pass history. `revisit_condition` starts empty and is the operator's to fill:
-the proof-debt signal keeps raising it until they do.
+The operator states the deferral directly, either as `--explicit` (the
+`DEFERRALS=` contract: `subject :: what would close it`) or as a `Deferred:
+<subject>` tag opening a sentence in the closeout NOTES. This turns that
+statement into a ledger row at the moment it is written, rather than asking a
+later audit to reconstruct it from pass history. `revisit_condition` starts
+empty and is the operator's to fill: the proof-debt signal keeps raising it
+until they do.
 
 The ledger is deliberately not WORKING_NOTES.md. Those notes are curated prose
 under a maturity line budget, and appending every deferral would turn them into
@@ -48,6 +50,48 @@ _STOP = {
     "were", "be", "been", "as", "by", "from", "into", "per", "via", "not",
     "no", "any", "all", "some", "more", "most", "well", "yet", "now",
 }
+
+
+_NOTES_TAG_RE = re.compile(r"deferred\s*:\s*", re.IGNORECASE)
+
+
+def deferral_sentences(notes: str) -> list[str]:
+    """The individual gaps a `Deferred:` tag in NOTES names, one string each.
+
+    Earlier versions tried to guess the deferred subject out of arbitrary
+    closeout prose using clause regexes anchored on words like "deferred" or
+    "remains". Measured against every "deferred" sentence recorded in this
+    repo's own scorecards across every project (over 200), those heuristics
+    produced a plausible subject for a small minority; the rest were
+    truncated fragments of an unrelated trailing clause ("with clear
+    reasons", "as their bit meaning is inferred") captured as if it were the
+    subject, because real closeout prose overwhelmingly says "kept/left
+    <subject> deferred" — subject first — not "deferred <subject>". Two of
+    those false subjects reached `deferrals.csv` as garbage rows that needed
+    a manual re-read to find and remove.
+
+    A regex that guesses the subject out of free-form English is exactly as
+    reliable as English syntax is regular, which is to say, not reliable
+    enough for an unattended ledger write. Requiring a deliberate tag instead
+    trades recall for zero garbage: a closeout that wants auto-capture writes
+    `Deferred: <subject>[, <subject>]` starting a sentence in NOTES; anything
+    else is the operator's cue to use `--explicit` (`DEFERRALS=`) instead,
+    which is unambiguous by construction. The tag must open the sentence —
+    "Widget deferred: needs a trace" does not count, since the subject there
+    precedes the tag, not follows it.
+    """
+    out: list[str] = []
+    for sentence in re.split(r"(?<=[.;])\s+|\n+", notes.strip()):
+        s = sentence.strip()
+        match = _NOTES_TAG_RE.match(s)
+        if not match:
+            continue
+        segment = s[match.end():]
+        for item in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s+plus\s+", segment):
+            item = item.strip(" .,;")
+            if len(item) > 3:
+                out.append(item)
+    return out
 
 
 def _normalise(word: str) -> str:
@@ -92,53 +136,6 @@ def subject_key(sentence: str) -> str:
 # Promotion to `runtime` is an explicit operator act (`--kind runtime`, or
 # editing the row), which is the point: asserting that evidence cannot be had
 # from the desk should cost a deliberate decision, not a word choice.
-
-# One definition of "this sentence describes a deferral", shared with the
-# signal that reads the resulting ledger. Two copies of a regex drift exactly
-# like two copies of a rule: measured against one real scorecard, the two
-# definitions that existed before this consolidation matched 49 rows and 41.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from proof_debt import DEFERRAL_RE  # noqa: E402
-
-
-# What was deferred, not what was accomplished. A closeout note is mostly a
-# list of work done with the gap as a trailing clause, so capturing the whole
-# sentence buries the subject under accomplishments and makes the ledger
-# unqueryable.
-_CLAUSE_RES = [
-    re.compile(r"\bleft\s+(.+?)\s+(?:out of scope|for (?:a )?later|for now)\b", re.I),
-    re.compile(r"\b(.+?)\s+(?:remains?|stays?|stayed)\s+(?:out of scope|deferred|unresolved)\b", re.I),
-    re.compile(r"\bdeferr?(?:ed|ing)\s+(.+?)(?:[.;]|$)", re.I),
-    re.compile(r"\b(.+?)\s+(?:still needs?|needs? a later|awaits?)\s+(.+?)(?:[.;]|$)", re.I),
-]
-
-
-def deferral_sentences(notes: str) -> list[str]:
-    """The individual gaps a note defers, one string each.
-
-    A single clause routinely defers several things ("left A, B, and C out of
-    scope"), and each is a separate gap that a later pass may close
-    independently, so the list is split rather than stored whole.
-    """
-    out: list[str] = []
-    for sentence in re.split(r"(?<=[.;])\s+", notes.strip()):
-        s = sentence.strip()
-        if not s or not DEFERRAL_RE.search(s):
-            continue
-        clause = None
-        for rx in _CLAUSE_RES:
-            m = rx.search(s)
-            if m:
-                clause = m.group(1).strip()
-                break
-        if clause is None:
-            out.append(s.rstrip(".").strip())
-            continue
-        for item in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s+plus\s+", clause):
-            item = item.strip(" .,;")
-            if len(item) > 3:
-                out.append(item)
-    return out
 
 
 # `subject :: revisit condition [:: kind]`, one per line or separated by `;`.
