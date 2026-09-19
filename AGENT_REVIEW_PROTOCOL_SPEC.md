@@ -161,6 +161,8 @@ Implemented v1 pieces:
   already-running, bracketed-paste-aware agent panes.
 - `scripts/agent_review_tmux.py` creates the agent panes and watchers, supplies
   role prompts and an implementation objective, and handles startup confirmation.
+  It scaffolds missing projects through the canonical wrappers and reconnects
+  to an existing checkout/project workspace when invoked again.
 - `agent_playbook/TOOLING.md` documents the operational flow.
 - Durable review judgements are committed under
   `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`; packets,
@@ -532,6 +534,9 @@ Claude as reviewer, and one watcher per role. The user finishes authentication
 and confirms both agents are idle before handoffs start. Agent commands and
 the implementation objective are configurable; see the canonical setup in
 [TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
+The default objective covers intake followed by successive semantic passes,
+not just completion of one review. New-project intake is reviewed as pass 0
+across both intake commits before entering the semantic pass cycle.
 The state file remains authoritative, and the protocol
 still works manually through `status`, `ready`, `approve`, `request-changes`,
 `reready`, and `archive`.

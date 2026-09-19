@@ -74,6 +74,15 @@ def kickoff(project: str, task: str) -> str:
         f"Begin or resume implementation for {project}.\n\nObjective: {task}\n\n"
         "Follow AGENTS.md and the mandatory playbooks. Stay on the current branch; "
         "never push the projects branch. Preserve unrelated work.\n"
+        "For a new or not-yet-intaken project, follow agent_playbook/NEW_PROJECT.md "
+        "before semantic passes. The launcher creates the scaffold when needed. "
+        f"If the reference ROM is missing, stop and ask for projects/{project}/reference/{project}.nes; "
+        "do not download ROMs or reference material. Complete intake and reference "
+        "preparation as the two required commits, then submit both for pass-0 review "
+        f"with `{worker} start-pass --project {project} --pass-id 0`. "
+        "Await approval and archive it before the first semantic pass.\n"
+        "For an existing project, resume any in-progress pass first, then resume its pass cycle using project-next-pass, "
+        "the working notes, and an explicitly selected corridor.\n"
         "For each coherent pass, record the pre-pass base SHA, implement, verify, "
         "close out, and commit. Then run "
         f"`{worker} start-pass --project {project} --pass-id <id> --base <pre-pass-SHA>`. "
@@ -139,29 +148,60 @@ def run_worker(config_path: Path, role: str) -> int:
     return 0
 
 
+def connect(session_id: str, name: str, no_attach: bool) -> int:
+    if no_attach:
+        print(f"Attach: tmux attach -t {name}")
+        print(f"Inside tmux: tmux switch-client -t {name}")
+        return 0
+    command = "switch-client" if os.environ.get("TMUX") else "attach-session"
+    return subprocess.call([os.environ.get("AGENT_REVIEW_TMUX_BIN", "tmux"), command, "-t", session_id])
+
+
+def ensure_project(root: Path, project: str) -> None:
+    directory = root / "projects" / project
+    config = directory / "project.conf"
+    if config.is_file():
+        return
+    if directory.exists():
+        raise review.UserError(f"existing project directory has no project.conf: {directory}")
+    if not re.fullmatch(r"[a-z0-9_-]+", project):
+        raise review.UserError("new project slugs must contain lowercase letters, digits, underscore, or dash")
+    subprocess.run(["make", "project-doctor"], cwd=root, check=True)
+    subprocess.run(["make", "project-init", f"PROJECT={project}"], cwd=root, check=True)
+    if not config.is_file():
+        raise review.UserError(f"project-init did not create {config}")
+    print(f"Scaffold ready. Supply the reference ROM at {directory / 'reference' / (project + '.nes')}.")
+
+
 def launch(args: argparse.Namespace) -> int:
     root = Path(review.run_git(["rev-parse", "--show-toplevel"], cwd=args.repo).strip()).resolve()
     if not review.PROJECT_RE.fullmatch(args.project):
         raise review.UserError("invalid project slug")
-    if not (root / "projects" / args.project / "project.conf").is_file():
-        raise review.UserError(f"project not found in {root}: {args.project}")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", args.session):
         raise review.UserError("session name may contain only letters, digits, underscore, and dash")
     tmux_bin = shutil.which(os.environ.get("AGENT_REVIEW_TMUX_BIN", "tmux"))
     if not tmux_bin:
         raise review.UserError("tmux executable not found")
-    commands = {role: agent_command(getattr(args, f"{role}_cmd")) for role in ROLES}
-    current_state(root, args.project)
-
-    sessions = tmux("list-sessions", "-F", "#{session_name}\t#{@nesrev_review_root}", check=False)
-    for line in sessions.stdout.splitlines():
-        name, _, checkout = line.partition("\t")
+    sessions = tmux(
+        "list-sessions", "-F",
+        "#{session_id}\t#{session_name}\t#{@nesrev_review_root}\t#{@nesrev_review_project}",
+        check=False,
+    )
+    entries = [line.split("\t") for line in sessions.stdout.splitlines() if line]
+    for session_id, name, checkout, project in entries:
+        if checkout == str(root) and project == args.project:
+            print(f"Reconnecting to {name} for {project}; continuing its existing agents and task.")
+            return connect(session_id, name, args.no_attach)
+    for session_id, name, checkout, project in entries:
         if name == args.session or checkout == str(root):
             raise review.UserError(
                 f"tmux session {name} already exists; use tmux attach -t {name} "
                 "(or tmux switch-client -t " + name + " inside tmux)"
             )
 
+    commands = {role: agent_command(getattr(args, f"{role}_cmd")) for role in ROLES}
+    current_state(root, args.project)
+    ensure_project(root, args.project)
     review.ensure_runtime_excludes(root)
     logs = root / ".agents" / "logs"
     logs.mkdir(parents=True, exist_ok=True)
@@ -176,6 +216,7 @@ def launch(args: argparse.Namespace) -> int:
         ).stdout.strip()
         session_id, agents_window, implementer = created.split("\t")
         tmux("set-option", "-t", session_id, "@nesrev_review_root", str(root))
+        tmux("set-option", "-t", session_id, "@nesrev_review_project", args.project)
         tmux("set-option", "-w", "-t", agents_window, "remain-on-exit", "on")
         tmux("set-option", "-w", "-t", agents_window, "pane-border-status", "top")
         tmux("set-option", "-w", "-t", agents_window, "pane-border-format", " #{pane_title} ")
@@ -219,12 +260,7 @@ def launch(args: argparse.Namespace) -> int:
 
     print(f"Created {args.session} for {args.project} in {root}.")
     print("Check both agents, then press Enter in the watchers window to begin.")
-    if args.no_attach:
-        print(f"Attach: tmux attach -t {args.session}")
-        print(f"Inside tmux: tmux switch-client -t {args.session}")
-        return 0
-    command = "switch-client" if os.environ.get("TMUX") else "attach-session"
-    return subprocess.call([os.environ.get("AGENT_REVIEW_TMUX_BIN", "tmux"), command, "-t", session_id])
+    return connect(session_id, args.session, args.no_attach)
 
 
 def main() -> int:
@@ -233,11 +269,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True)
     parser.add_argument("--repo", type=Path, default=Path.cwd(), help="project checkout (default: current directory)")
-    parser.add_argument("--session", default="nesrev-review", help="new tmux session name")
+    parser.add_argument("--session", default="nesrev-review", help="session name when creating a new workspace")
     parser.add_argument("--implementer-cmd", default="codex", help="executable and arguments; default: codex")
     parser.add_argument("--reviewer-cmd", default="claude", help="executable and arguments; default: claude")
     parser.add_argument("--task", default=(
-        "Continue coherent semantic passes until further progress requires runtime "
+        "Complete any unfinished intake, then continue coherent semantic passes until further progress requires runtime "
         "traces only the user can run. End with an executable trace plan."
     ), help="implementation objective")
     parser.add_argument("--no-attach", action="store_true", help="create the workspace without attaching or switching clients")

@@ -58,12 +58,20 @@ python3 scripts/agent_review_tmux.py --project <slug>
 The launcher creates a `nesrev-review` session with Codex as implementer,
 Claude as reviewer, and a separate window containing both watchers. It supplies
 the role prompts and wires the pane IDs automatically. Inside tmux it switches
-clients; outside tmux it attaches. Existing sessions are preserved.
+clients; outside tmux it attaches. Run the same command again to reconnect to
+that project's running workspace without restarting its agents or task.
+
+The same command handles a new project: it runs the toolchain check and
+canonical scaffold, then prints where to put your ROM. The implementer follows
+new-project intake, submits the two intake commits for pass-0 review, and
+enters the semantic pass cycle after approval. If the ROM or reference material
+is missing, it stops and asks you for it.
 
 Finish any login/trust prompts and wait until both agents say `READY`. Use
 **Ctrl+b, w** to return to the `watchers` window and press Enter once to begin
-passes and automatic review handoffs. The default objective is to continue
-semantic passes until progress needs user-run runtime traces. Use `--task`
+passes and automatic review handoffs. The default objective is to finish any
+intake work, then continue semantic passes until progress needs user-run runtime
+traces. Each approval is archived before the implementer selects the next pass. Use `--task`
 to supply a different objective. The launcher preserves configured models and
 permissions, and instructs the agents never to push `projects`.
 

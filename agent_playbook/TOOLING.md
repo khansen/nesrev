@@ -198,12 +198,21 @@ so repeated friction can be triaged outside the individual pass.
 
 The launcher defaults to `codex` for implementation and `claude` for review.
 It creates `agents` and `watchers` windows in a new `nesrev-review` session,
-then attaches or switches the current tmux client. It preserves other sessions
-and refuses a duplicate session or another launcher for the same checkout.
+then attaches or switches the current tmux client. Repeating the command
+reconnects to a matching checkout/project workspace without restarting agents
+or changing its task. A conflicting session or other-project workspace is refused.
 Both agents receive a setup prompt and must return `READY` without starting
 work. Complete any login/trust prompts, wait for both agents to finish setup,
 then press Enter in the startup pane in `watchers`. This arms the watchers and
 sends the implementation objective. Use **Ctrl+b, w** to select a window.
+
+If the project directory is absent, the launcher runs `project-doctor` and
+`project-init`, then prints the reference-ROM path. An existing directory
+without `project.conf` is refused without overwriting it. The implementer
+routes unfinished intake through `NEW_PROJECT.md`, stops for missing user-supplied
+material, and submits the two intake commits as pass 0 before semantic work.
+Existing projects resume pass selection; approval advances the pass cycle until
+the objective is met or a user-dependent blocker is reached.
 
 Launcher options:
 ```sh
@@ -213,7 +222,8 @@ python3 scripts/agent_review_tmux.py --project <slug> \
 ```
 
 `--repo <path>` selects the project checkout; the launcher may live in another
-tool-bearing worktree. `--session <name>` changes the new session name.
+tool-bearing worktree. `--session <name>` names a new session; a matching
+running workspace is reused. Agent/task overrides apply to new workspaces.
 `--no-attach` leaves it detached. Command overrides are quoted executable/argument
 lists, not shell programs; each command receives one appended startup prompt.
 Configured models and permissions are retained. Authentication, ongoing agent

@@ -75,6 +75,15 @@ class LauncherTests(unittest.TestCase):
     def config(self):
         return next((self.root / ".agents/logs").glob("tmux-*/workspace.json"))
 
+    def scaffold_tools(self, doctor_fails=False):
+        self.root.joinpath("Makefile").write_text(
+            "project-doctor:\n\t@echo doctor >> scaffold.log\n"
+            + ("\t@exit 1\n" if doctor_fails else "")
+            + "project-init:\n\t@echo init >> scaffold.log\n\t@bash "
+            + shlex.quote(str(REPO / "scripts/new_project.sh"))
+            + ' "$(PROJECT)" > scaffold.out\n'
+        )
+
     def state(self, project="demo", status="READY_FOR_REVIEW"):
         state = {
             "project": project, "status": status, "run_id": "demo-pass-1", "round": 1,
@@ -113,20 +122,73 @@ class LauncherTests(unittest.TestCase):
         self.args.reviewer_cmd = "/nonexistent/agent"
         with self.assertRaisesRegex(review.UserError, "agent executable not found"):
             self.launch()
-        self.assertEqual(self.calls(), [])
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
 
-    def test_unknown_project_fails_before_tmux(self):
-        self.args.project = "missing"
-        with self.assertRaisesRegex(review.UserError, "project not found"):
+    def test_incomplete_existing_directory_is_not_overwritten(self):
+        self.args.project = "partial"
+        directory = self.root / "projects/partial"
+        directory.mkdir()
+        sentinel = directory / "notes.txt"
+        sentinel.write_text("user work")
+        with self.assertRaisesRegex(review.UserError, "has no project.conf"):
             self.launch()
-        self.assertEqual(self.calls(), [])
+        self.assertEqual(sentinel.read_text(), "user work")
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_new_project_uses_canonical_scaffold_and_routes_intake_before_passes(self):
+        self.scaffold_tools()
+        self.args.project = "new_game"
+        self.launch()
+        project = self.root / "projects/new_game"
+        self.assertTrue((project / "project.conf").is_file())
+        self.assertTrue((project / "reference").is_dir())
+        self.assertFalse((project / "reference/new_game.nes").exists())
+        self.assertEqual((self.root / "scaffold.log").read_text().splitlines(), ["doctor", "init"])
+        task = self.config().with_name("task.md").read_text()
+        self.assertIn("NEW_PROJECT.md", task)
+        self.assertIn("--pass-id 0", task)
+        self.assertIn("two required commits", task)
+        self.assertIn("resume its pass cycle", task)
+
+    def test_missing_toolchain_does_not_create_project_or_agents(self):
+        self.scaffold_tools(doctor_fails=True)
+        self.args.project = "new_game"
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.launch()
+        self.assertFalse((self.root / "projects/new_game").exists())
+        self.assertEqual((self.root / "scaffold.log").read_text().splitlines(), ["doctor"])
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_existing_project_is_not_rescaffolded(self):
+        config = self.root / "projects/demo/project.conf"
+        original = config.read_bytes()
+        self.launch()
+        self.assertEqual(config.read_bytes(), original)
+        self.assertFalse((self.root / "scaffold.log").exists())
 
     def test_existing_session_and_other_session_for_same_checkout_are_preserved(self):
-        for sessions in ("review-test\t/other/checkout", f"another-name\t{self.root}"):
+        for sessions in ("$5\treview-test\t/other/checkout\tdemo", f"$5\tanother-name\t{self.root}\tother"):
             with self.subTest(sessions=sessions), patch.dict(os.environ, {"TMUX_SESSIONS": sessions}):
                 with self.assertRaisesRegex(review.UserError, "already exists"):
                     self.launch()
         self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_repeated_launch_reconnects_without_restarting_agents_or_wiping_state(self):
+        self.state()
+        before = review.state_path(self.root).read_bytes()
+        self.args.no_attach = False
+        self.args.reviewer_cmd = "/not/needed/when/reconnecting"
+        with patch.dict(os.environ, {"TMUX": "live", "TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo"}):
+            self.launch()
+        self.assertEqual([c[0] for c in self.calls()], ["list-sessions", "switch-client"])
+        self.assertEqual(self.calls()[-1], ["switch-client", "-t", "$5"])
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+        self.assertFalse((self.root / ".agents/logs").exists())
+
+    def test_repeated_detached_launch_does_not_attach_or_create_agents(self):
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo"}):
+            self.launch()
+        self.assertEqual([c[0] for c in self.calls()], ["list-sessions"])
 
     def test_setup_failure_removes_only_the_session_it_created(self):
         with patch.dict(os.environ, {"TMUX_FAIL_COMMAND": "new-window"}):
@@ -146,7 +208,7 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(review.UserError, "unfinished review for other"):
             self.launch()
         self.assertEqual(before, review.state_path(self.root).read_bytes())
-        self.assertEqual(self.calls(), [])
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
 
     def test_completed_other_project_review_is_preserved(self):
         self.state(project="other", status="APPROVED")
