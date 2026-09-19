@@ -768,17 +768,16 @@ consumer indexes with a masked or fixed-count index (`AND #mask` / `CPX #count`
 before `LDA Table,Y`). Two scripts pair with it: `data_extent_assertions_check.sh`
 (in `project-verify`) *validates* listed rows — it fails if an asserted table's
 assembled size drifts; `data_extent_missing_scan.py` (advisory, in
-`project-process-check`) *detects omissions*. The scan is a pure join of two
-cached pass-prep artifacts and never assembles: it reads `index_upper_bound` /
-`index_bound_kind` from `index_patterns.json` (xasm resolves the mask/compare
-bound, tied to the read's index register, with symbolic mask/count constants
-resolved — see `xorcyst/XASM_INDEX_BOUND_ANALYSIS_SPEC.md`) and `declared_size`
-from `data_consumers.json`, then flags any table whose proven bound equals its
-declared size and which lacks an assertion row. It never fails the gate; it only
-surfaces candidates for the operator to add or disposition. Only the two direct
-idioms xasm proves are covered (a mask reaching the index register indirectly,
-or a bound held in a variable, is not proven), so a clean scan is a strong
-signal but not an exhaustive guarantee.
+`project-process-check`) *detects omissions*. It joins the validated invocation
+bundle's `index_patterns.json` bounds with `data_consumers.json` sizes, flagging
+tables whose proven bound equals their size but which lack an assertion.
+Standalone process checks share one fresh assembly with inventory sync; CI and
+closeout reuse their bundle. Findings exit 0; invalid evidence exits 65 without
+cached fallback. The legacy offline CLI reports NOT CHECKED for absent artifacts.
+xasm resolves symbolic mask/count constants and binds each proof to the read's
+index register (see `xorcyst/XASM_INDEX_BOUND_ANALYSIS_SPEC.md`). Only direct
+mask/compare idioms are covered; indirect masks and variable bounds are unproven,
+so a clean scan is not exhaustive.
 Disposition values are `not_yet_reviewed`, `queued_static_pass`, `documented`,
 `absent_not_applicable`, and `runtime_gated`.
 

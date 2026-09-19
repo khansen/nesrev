@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/project_common.sh
 source "${SCRIPT_DIR}/project_common.sh"
 
-load_project_conf "$1"
+load_project_analysis_conf "$1"
 validate_project_analysis_bundle "$1"
 
 required_files=(
@@ -97,6 +97,22 @@ if [[ -z "${crosswalk_header}" ]]; then
 fi
 
 echo "[inventory] Checking generated inventory and raw-RAM owner sync"
+if [[ -z "${NESREV_ANALYSIS_BUNDLE+x}" ]]; then
+  if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
+    echo "error: process checks require a compatible bundle for supplied xref reuse" >&2
+    exit 65
+  fi
+  process_analysis_dir="$(mktemp -d)"
+  trap 'rm -rf "${process_analysis_dir}"' EXIT
+  prepare_project_analysis_bundle "$1" "${process_analysis_dir}" process-instructions-v1
+  if ! python3 "${SCRIPT_DIR}/analysis_bundle.py" produce "${process_analysis_dir}" \
+      "${ASM_FILE}" "${process_analysis_dir}/process.o" >/dev/null 2>"${process_analysis_dir}/xasm.stderr"; then
+    cat "${process_analysis_dir}/xasm.stderr" >&2
+    echo "error: xasm failed while generating process analysis" >&2
+    exit 65
+  fi
+  export NESREV_ANALYSIS_BUNDLE="${process_analysis_dir}/bundle.json"
+fi
 python3 "${SCRIPT_DIR}/inventory_sync_check.py" \
   "$1" \
   "${ASM_FILE}" \
@@ -153,13 +169,14 @@ python3 "${SCRIPT_DIR}/oam_standard_prose_check.py" \
   "${ASM_FILE}" \
   "projects/$1"
 
-# Advisory only (must not fail the gate): flag data tables whose index is
+# Advisory findings, hard evidence failures: flag data tables whose index is
 # provably bounded (mask or compare, resolved by xasm's index-pattern analysis)
 # but that have no data_extent_assertions.csv entry pinning their size.
 # Complements data_extent_assertions_check.sh, which only validates listed rows.
-# Reads two cached pass-prep artifacts; never assembles.
+# Reuses current invocation facts; legacy pass-prep paths are not evidence here.
 echo "[data-extent-scan] Scanning for bounded-index tables missing an extent assertion (advisory)"
 python3 "${SCRIPT_DIR}/data_extent_missing_scan.py" \
+  --asm "${ASM_FILE}" \
   "${DOC_ROOT}/inventory/pass/index_patterns.json" \
   "${DOC_ROOT}/inventory/pass/data_consumers.json" \
   "${DATA_EXTENT_ASSERTIONS_FILE}"
@@ -189,4 +206,5 @@ fi
 python3 "${SCRIPT_DIR}/data_blob_dispositions_check.py" \
   "${data_blob_args[@]}"
 
+validate_project_analysis_bundle "$1"
 echo "OK: project process checks passed"
