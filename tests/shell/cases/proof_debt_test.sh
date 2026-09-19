@@ -197,7 +197,7 @@ test_acknowledgement_without_a_reason_is_ignored() {
 test_deferral_capture_records_the_operators_own_words() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor "audio corridor" \
-    --notes "Named the lanes. Left cue identities out of scope." >/dev/null
+    --notes "Named the lanes. Deferred: cue identities." >/dev/null
 
   local body; body="$(cat "${ledger}")"
   assert_match "cue identities" "${body}" "the deferred subject must be captured"
@@ -224,7 +224,7 @@ test_deferral_capture_writes_lf_headers_for_process_check() {
 
 test_deferral_capture_is_idempotent() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
-  local args=(--pass-id 12 --corridor c --notes "Left cue identities out of scope.")
+  local args=(--pass-id 12 --corridor c --notes "Deferred: cue identities.")
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" "${args[@]}" >/dev/null
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" "${args[@]}" >/dev/null
 
@@ -322,7 +322,7 @@ test_deferral_capture_defaults_to_static_however_it_is_worded() {
   # misclassification the runtime rule exists to prevent.
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor audio \
-    --notes "Left dynamic feature-id meanings out of scope." >/dev/null
+    --notes "Deferred: dynamic feature-id meanings." >/dev/null
 
   assert_match ",static," "$(cat "${ledger}")" \
     "a deferral must default to static however it is phrased"
@@ -331,7 +331,7 @@ test_deferral_capture_defaults_to_static_however_it_is_worded() {
 test_deferral_capture_accepts_an_explicit_runtime_promotion() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 12 --corridor audio --kind runtime \
-    --notes "Left cue identities out of scope." >/dev/null
+    --notes "Deferred: cue identities." >/dev/null
 
   assert_match ",runtime," "$(cat "${ledger}")" "an explicit promotion must be recorded"
 }
@@ -498,8 +498,22 @@ test_explicit_deferrals_default_to_static_without_a_kind() {
 test_prose_extraction_still_runs_without_explicit_deferrals() {
   local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
   python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 7 --corridor a \
-    --notes "Named the lanes. Left cue identities out of scope." >/dev/null
-  assert_match "cue identities" "$(cat "${ledger}")" "prose remains the fallback"
+    --notes "Named the lanes. Deferred: cue identities." >/dev/null
+  assert_match "cue identities" "$(cat "${ledger}")" "a tagged fallback clause is still captured"
+}
+
+test_prose_extraction_ignores_a_bare_mention_of_deferred() {
+  # deferral_capture used to guess a subject out of any sentence mentioning
+  # "deferred", which produced garbage rows from ordinary retrospective
+  # prose ("...all previously deferred with clear reasons" -> a row with
+  # subject "clear-reason"). Only an explicit `Deferred:` tag opening a
+  # sentence should ever auto-capture; a bare mid-sentence mention must not.
+  local ledger="${NESREV_TEST_TMPDIR}/deferrals.csv"
+  python3 "${DEFERRAL_CAPTURE}" "${ledger}" --pass-id 7 --corridor a \
+    --notes "The room-object stream family was closed and all previously deferred with clear reasons." >/dev/null
+  if [[ -f "${ledger}" ]]; then
+    fail "a bare mention of 'deferred' with no explicit tag must not create a ledger row"
+  fi
 }
 
 

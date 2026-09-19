@@ -2120,6 +2120,33 @@ if row[cols["rework_items"]] != "2":
 PY
 }
 
+test_project_pass_closeout_rechecking_existing_row_still_validates_its_marker() {
+  # A malformed policy-baseline-audit marker must fail closeout whether it is
+  # written by this call or already sitting in an existing row that this call
+  # is only rechecking (PASS=<id> against a pass_id that already has a row).
+  # The early-return path used to skip validation entirely in that case.
+  local slug; slug="$(unique_slug pass_closeout_recheck_marker)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+
+  cat > "projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md" <<'EOF'
+| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | verify | docs_check | rework_items | notes |
+|---|---|---|---|---|---|---|---|---|---|---:|---|
+| 0 | Intake baseline | 10 / 20 | 0 | not measured | 0 | 0 | 0 | pass (intake-relaxed) | pass | 0 | Intake baseline captured. |
+| 1 | Existing corridor | 8 / 16 | 0 | not measured | 0 | 0 | 0 | pass | pass | 0 | policy-baseline-audit: manifest=inventory/policy_baseline.csv; distinct_candidates=0 -- stale pre-fix marker |
+EOF
+
+  local output rc
+  set +e
+  output="$(bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "1" "closeout must fail when rechecking a row with a malformed marker"
+  assert_match "malformed policy-baseline-audit marker" "${output}" \
+    "a pre-existing row's marker must be validated on recheck, not only on the row-creation call"
+}
+
 test_project_pass_closeout_external_script_uses_declared_repo_root() {
   local slug; slug="$(unique_slug pass_closeout_external_root)"
   local target_repo="${NESREV_TEST_TMPDIR}/target_repo"

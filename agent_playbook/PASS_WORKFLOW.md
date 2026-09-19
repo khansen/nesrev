@@ -191,11 +191,11 @@ placeholder fossilises. State each gap directly with
 `DEFERRALS="subject :: what would close it [:: static|runtime]"`, one per line
 or `;`-separated; `project-pass-closeout` appends one row per gap to
 `inventory/deferrals.csv` (`pass_id,corridor,subject,kind,deferral,revisit_condition,status`).
-Without `DEFERRALS` it falls back to extracting the deferred clause from its own
-`NOTES` prose and leaves `revisit_condition` for the operator to fill — a
-fallback, not the contract, since nothing then has to be inferred from a
-sentence written for a human reader. Keep `subject` stable. On rerun, closeout
-also matches `deferral` text, preserving curated legacy keys and corridors.
+Without `DEFERRALS`, closeout only captures a `NOTES` sentence that opens with
+an explicit `Deferred: <subject>[, <subject>]` tag — a narrow fallback, not
+the contract; guessing the subject out of arbitrary prose produced truncated,
+nonsensical fragments far more often than a real one. Keep `subject` stable;
+on rerun, closeout also matches `deferral` text, preserving curated keys.
 
 **Three strikes.** On the third deferral of one `subject` (`deferral_repeat`),
 stop: open an [identity pass](#identity-pass) using evidence later passes have
