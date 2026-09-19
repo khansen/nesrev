@@ -54,6 +54,32 @@ scripts_dir_arg = sys.argv[4]
 focus_env = os.environ.get("FOCUS", "").strip()
 notes_env = os.environ.get("NOTES", "").strip()
 
+
+def validate_policy_baseline_marker(notes_text):
+    # A malformed policy-baseline-audit marker is invisible to every check
+    # this script runs itself; only `project-ci` / `project-policy-baseline-
+    # check` would ever catch it, potentially many passes later. Validate
+    # against the same grammar the standalone checker enforces — both for a
+    # row this call is about to write, and for a pre-existing row this call
+    # is only rechecking — so a bad marker fails the pass that wrote it (or
+    # the recheck that reached it) instead of a distant one.
+    if "policy-baseline-audit:" not in notes_text:
+        return
+    sys.path.insert(0, scripts_dir_arg)
+    from policy_baseline_audit_check import MARKER_RE
+
+    marker_start = notes_text.find("policy-baseline-audit:")
+    marker_text = notes_text[marker_start:].strip()
+    if MARKER_RE.match(marker_text) is None:
+        raise SystemExit(
+            "error: malformed policy-baseline-audit marker in NOTES.\n"
+            "  got:      " + marker_text + "\n"
+            "  expected: policy-baseline-audit: semantic_claims=<created|reviewed|"
+            "advisory>; procedures=<n>/<n>; global_code_labels=<n>/<n>; "
+            "retained_headerless=<n>; action=<summary>\n"
+            "  (action=<summary> must be the trailing field)"
+        )
+
 HEADER = [
     "pass_id",
     "focus",
@@ -242,32 +268,13 @@ for _, row, _, row_header_index in rows:
                 "project-pass-start for the new pass, or pass "
                 f"PASS={pass_id} explicitly to recheck the existing pass."
             )
+        validate_policy_baseline_marker(row[row_header_index["notes"]])
         print(pass_id)
         raise SystemExit(0)
 
 focus = cell(focus_env) or objective_focus(plan) or f"Pass {pass_id} corridor"
 notes = cell(notes_env) or objective_notes(plan, focus)
-
-# A malformed policy-baseline-audit marker is invisible to every check this
-# script runs itself; only `project-ci` / `project-policy-baseline-check`
-# would ever catch it, potentially many passes later. Validate against the
-# same grammar the standalone checker enforces, before the row is written,
-# so a bad marker fails the pass that wrote it instead of a distant one.
-if "policy-baseline-audit:" in notes:
-    sys.path.insert(0, scripts_dir_arg)
-    from policy_baseline_audit_check import MARKER_RE
-
-    marker_start = notes.find("policy-baseline-audit:")
-    marker_text = notes[marker_start:].strip()
-    if MARKER_RE.match(marker_text) is None:
-        raise SystemExit(
-            "error: malformed policy-baseline-audit marker in NOTES.\n"
-            "  got:      " + marker_text + "\n"
-            "  expected: policy-baseline-audit: semantic_claims=<created|reviewed|"
-            "advisory>; procedures=<n>/<n>; global_code_labels=<n>/<n>; "
-            "retained_headerless=<n>; action=<summary>\n"
-            "  (action=<summary> must be the trailing field)"
-        )
+validate_policy_baseline_marker(notes)
 
 if not lines:
     header = HEADER
