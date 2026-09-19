@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tests the advisory scan that flags bounded-index data tables which lack a
-# data_extent_assertions.csv entry. The scan is a pure join of two cached
+# data_extent_assertions.csv entry. The offline scan joins two explicit
 # artifacts (index_patterns.json + data_consumers.json) that xasm produces; it
 # never assembles. The tests generate both artifacts, then run the scan.
 
@@ -84,8 +84,8 @@ test_missing_scan_flags_bounded_tables_including_symbolic() {
   _gen_artifacts "${asm}" "${ip}" "${dc}"
   printf 'label,expected_size,reason\n' > "${csv}"
 
-  # With no assertions, all three bounded tables are reported (exit 1).
-  assert_exit 1 python3 "${MISSING_SCAN}" "${ip}" "${dc}" "${csv}"
+  # Findings are advisory, including when invoked under shell errexit.
+  assert_exit 0 python3 "${MISSING_SCAN}" "${ip}" "${dc}" "${csv}"
 
   local out
   out="$(python3 "${MISSING_SCAN}" "${ip}" "${dc}" "${csv}" 2>&1 || true)"
@@ -124,7 +124,24 @@ test_missing_scan_skips_without_cache() {
   local csv="${NESREV_TEST_TMPDIR}/extents.csv"
   printf 'label,expected_size,reason\n' > "${csv}"
   # No cached artifacts -> advisory skips cleanly (exit 0), never assembles.
-  assert_exit 0 python3 "${MISSING_SCAN}" \
+  local out
+  out="$(python3 "${MISSING_SCAN}" \
     "${NESREV_TEST_TMPDIR}/absent_index_patterns.json" \
-    "${NESREV_TEST_TMPDIR}/absent_data_consumers.json" "${csv}"
+    "${NESREV_TEST_TMPDIR}/absent_data_consumers.json" "${csv}")"
+  assert_match 'NOT CHECKED:' "${out}"
+  assert_not_match 'data_extent_missing_scan_total=0|OK:' "${out}"
+}
+
+test_missing_scan_refuses_malformed_analysis() {
+  local asm="${NESREV_TEST_TMPDIR}/mscan.asm"
+  local ip="${NESREV_TEST_TMPDIR}/index_patterns.json"
+  local dc="${NESREV_TEST_TMPDIR}/data_consumers.json"
+  local csv="${NESREV_TEST_TMPDIR}/extents.csv"
+  _write_missing_scan_fixture_asm "${asm}"
+  _gen_artifacts "${asm}" "${ip}" "${dc}"
+  printf 'label,expected_size,reason\n' > "${csv}"
+  printf '{bad json\n' > "${ip}"
+  assert_exit 65 python3 "${MISSING_SCAN}" "${ip}" "${dc}" "${csv}"
+  printf '{}\n' > "${ip}"
+  assert_exit 65 python3 "${MISSING_SCAN}" "${ip}" "${dc}" "${csv}"
 }

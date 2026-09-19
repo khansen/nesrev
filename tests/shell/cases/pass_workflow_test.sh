@@ -408,8 +408,7 @@ test_project_process_check_allows_anonymous_local_raw_ram_review_owner() {
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
 NewOwner:
-@:
-  LDA $10
+- LDA $10
   RTS
 ASM
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'

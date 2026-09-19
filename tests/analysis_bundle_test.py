@@ -308,8 +308,10 @@ class BundleTests(unittest.TestCase):
             "INFERRED_ANNOTATIONS", "PLACEHOLDER_COMMENTS", "UNDOCUMENTED_PROCEDURES",
             "UNDOCUMENTED_GLOBAL_CODE_LABELS", "UNDOCUMENTED_DATA_LABELS")))
         (docs / "PROGRESS_SCORECARD.md").write_text(
-            "| pass_id | focus | verify | docs_check | rework_items | notes |\n|---|---|---|---|---|---|\n"
-            "| 1 | Return-only fixture | pass | pass | 0 | Analogue: none (synthetic harness). "
+            "| pass_id | focus | labels_remaining | raw_rom_calls_remaining | raw_ptr_immediates_remaining | "
+            "raw_indirect_operands_remaining | hardcoded_counter_sites_remaining | warnings_baseline_delta | "
+            "verify | docs_check | rework_items | notes |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n"
+            "| 1 | Return-only fixture | 0 / 0 | 0 | 0 | 0 | 0 | 0 | pass | pass | 0 | Analogue: none (synthetic harness). "
             "policy-baseline-audit: semantic_claims=reviewed; procedures=0/0; global_code_labels=0/0; "
             "retained_headerless=0; action=reviewed all detail rows. |\n")
         (docs / "SEMANTIC_CLAIMS.md").write_text(
@@ -370,6 +372,95 @@ bash scripts/project_docs_check.sh "$1"
         self.calls = self.root / "calls.jsonl"
         return dict(os.environ, BUNDLE_TEST_REAL_XASM=bundle.executable(), BUNDLE_TEST_CALLS=str(self.calls),
                     XASM_BIN=str(spy), PATH=str(self.root) + os.pathsep + os.environ["PATH"])
+
+    def test_process_extent_scan_ignores_stale_pass_cache(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        cache = project / "docs/reverse_engineering/inventory/pass"
+        stale = {
+            "index_patterns.json": [{"table_label": "OldTable", "routine": "OldReader",
+                                     "access_kind": "read", "index_bound_kind": "mask", "index_upper_bound": 4}],
+            "data_consumers.json": [{"label": "OldTable", "declared_size": 4}],
+        }
+        for name, rows in stale.items():
+            (cache / name).write_text(json.dumps(rows))
+        init = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"], env=env, capture_output=True)
+        self.assertEqual(init.returncode, 0, init.stderr)
+        for command in (["git", "init", "-q"],
+                        ["git", "add", "projects", "scripts", "agent_playbook", "AGENTS.md", "Makefile"],
+                        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                         "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+                         "commit", "-qm", "Synthetic baseline"]):
+            subprocess.run(command, check=True, capture_output=True)
+        onboarding = project / "docs/reverse_engineering/ONBOARDING.md"
+        onboarding.write_text(onboarding.read_text() + "\nAll three vectors target `Reset`.\n")
+        for command in (["bash", "scripts/project_process_check.sh", "synthetic"],
+                        ["make", "project-ci", "PROJECT=synthetic"],
+                        ["bash", "scripts/project_pass_closeout.sh", "synthetic", "1", "strict"]):
+            with self.subTest(command=command):
+                self.calls.write_text("")
+                run = subprocess.run(command, env=env, capture_output=True, text=True)
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                self.assertIn("data_extent_missing_scan_total=0", run.stdout)
+                self.assertNotIn("OldTable", run.stdout)
+                self.assertEqual(len(self.calls.read_text().splitlines()), 1)
+                for name, rows in stale.items():
+                    self.assertEqual(json.loads((cache / name).read_text()), rows)
+
+    def test_extent_scan_bundle_binding_and_refusal(self):
+        self.source.write_text('.ORG $C000\nReset:\n AND #3\n TAX\n LDA Table,X\n RTS\nTable:\n.DB 1,2,3,4\n')
+        shared = self.produce()
+        command = [sys.executable, str(ROOT / "scripts/data_extent_missing_scan.py"),
+                   "--asm", str(self.source), "missing-index.json", "missing-consumers.json", str(self.policy)]
+        env = dict(os.environ, NESREV_ANALYSIS_BUNDLE=str(self.path))
+        run = subprocess.run(command, env=env, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("data_extent_missing_scan_total=0", run.stdout)
+        # Changed source, changed policy, and changed artifacts must never fall back to missing caches.
+        for path in (self.source, self.policy, Path(shared.data["outputs"]["index_patterns"]["path"]),
+                     Path(shared.data["outputs"]["data_consumers"]["path"])):
+            with self.subTest(path=path.name):
+                original = path.read_bytes()
+                path.write_bytes(original + b"\n")
+                run = subprocess.run(command, env=env, capture_output=True, text=True)
+                self.assertEqual(run.returncode, 65, run.stderr)
+                self.assertIn("changed input or output", run.stderr)
+                self.assertNotIn("data_extent_missing_scan_total=", run.stdout)
+                path.write_bytes(original)
+        for replacement in ("", "missing.json"):
+            run = subprocess.run(command, env=dict(env, NESREV_ANALYSIS_BUNDLE=replacement), capture_output=True)
+            self.assertEqual(run.returncode, 65, run.stderr)
+        wrong_source = command.copy()
+        wrong_source[3] = str(self.include)
+        run = subprocess.run(wrong_source, env=env, capture_output=True)
+        self.assertEqual(run.returncode, 65)
+        self.assertIn(b"source/project mismatch", run.stderr)
+        wrong_policy = command[:-1] + [str(self.root / "unbound.csv")]
+        run = subprocess.run(wrong_policy, env=env, capture_output=True)
+        self.assertEqual(run.returncode, 65)
+        self.assertIn(b"not bound", run.stderr)
+
+    def test_process_extent_refusal_stops_gate(self):
+        self.make_ci_fixture()
+        init = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"], capture_output=True)
+        self.assertEqual(init.returncode, 0, init.stderr)
+        (self.root / "scripts/data_extent_missing_scan.py").write_text(
+            'import sys\nprint("REFUSED: invalid analysis", file=sys.stderr)\nraise SystemExit(65)\n')
+        run = subprocess.run(["bash", "scripts/project_process_check.sh", "synthetic"], capture_output=True)
+        self.assertEqual(run.returncode, 65, run.stdout + run.stderr)
+        self.assertIn(b"REFUSED: invalid analysis", run.stderr)
+        self.assertNotIn(b"OK: project process checks passed", run.stdout)
+
+    def test_extent_scan_real_findings_are_advisory_with_bundle(self):
+        self.source.write_text('.ORG $C000\nReset:\n AND #3\n TAX\n LDA UnassertedTable,X\n RTS\nUnassertedTable:\n.DB 1,2,3,4\n')
+        self.produce()
+        env = dict(os.environ, NESREV_ANALYSIS_BUNDLE=str(self.path))
+        run = subprocess.run([sys.executable, str(ROOT / "scripts/data_extent_missing_scan.py"),
+                              "--asm", str(self.source), "missing-index.json", "missing-consumers.json", str(self.policy)],
+                             env=env, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("data_extent_missing_scan_total=1", run.stdout)
+        self.assertIn("UnassertedTable: size 4", run.stdout)
 
     def test_pass_prep_fresh_facts_survive_parity_failure(self):
         project = self.make_ci_fixture()

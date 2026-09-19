@@ -16,6 +16,7 @@ profile does not weaken a consumer's context or policy binding.
 | `ci-data-v1` | binary, owner/data xref, listing, index patterns, data consumers | Retained data-only interface; unused equates are errors |
 | `ci-instructions-v1` | data-only set plus instructions | CI, verification, intake, closeout; unused equates are errors |
 | `inventory-instructions-v1` | binary, owner/data xref, instructions | Standalone inventory; ordinary warnings |
+| `process-instructions-v1` | inventory set plus index patterns and data consumers | Standalone process checks; ordinary warnings |
 | `maturity-instructions-v1` | data-only set plus instructions | Standalone maturity; ordinary warnings |
 | `instructions-v1` | binary, instructions | Source-only CLI and pending intake calibration; ordinary warnings |
 | `pass-prep-instructions-v1` | CI instruction set plus all-symbol summary and data coverage | Pass preparation; ordinary warnings |
@@ -42,7 +43,7 @@ only after successful production. The descriptor certifies production, not that
 verification, process, maturity, or documentation policy passed.
 
 `NESREV_ANALYSIS_BUNDLE` supplies that descriptor to the embedded-pointer audit,
-extent checker, and branch-literal and raw-address leaves. Each validates dependencies and artifact hashes before
+extent checker, missing-extent scan, and branch-literal and raw-address leaves. Each validates dependencies and artifact hashes before
 use and again after collection, before reporting success. Extent assertions must
 be among the bound policies. Project wrappers also check source/project/config
 and effective address-domain identity when loading configuration; CI validates
@@ -52,6 +53,13 @@ pass-prep fallback. Even an explicitly supplied empty path is an error.
 With no supplied bundle, standalone checks generate their required fresh facts
 once. Standalone verification owns a fresh CI instruction bundle; inventory
 refresh owns its smaller profile and supplies both KPI and CSV consumers.
+Standalone process checks share one ordinary-warning production between
+inventory synchronization and the missing-extent scan. CI and closeout supply
+their existing bundle, so these checks add no assembly to those flows. The scan
+binds the source and extent policy and ignores persistent pass-prep artifacts.
+Candidate findings return success; invalid evidence refuses. Its legacy
+three-path offline interface can inspect explicitly provided artifacts, but
+missing artifacts report NOT CHECKED rather than a measured zero.
 Standalone maturity supplies all its assembled-fact consumers from one ordinary-
 warning production; the advisory summary shares an inventory-profile production
 between branch and raw metrics. Neither accepts a bare xref as instruction evidence.
