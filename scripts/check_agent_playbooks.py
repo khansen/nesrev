@@ -320,11 +320,14 @@ ROOT_WORD_CEILING = 6000
 # Universal project gates replace opt-in prose across TOOLING, NEW_PROJECT,
 # PASS_WORKFLOW, and QUALITY_REVIEW. The affected ceilings are recalibrated in
 # both directions so every route retains its exact prior measured headroom.
+# Tmux startup now documents the launcher, readiness confirmation, and pending
+# review resumption. These TOOLING routes retain measured-plus-headroom for
+# that new operator workflow; the underlying review gates are unchanged.
 ROUTE_BUDGETS = {
-    "default": (3455, 25120),
-    "data-recovery": (3145, 23549),
+    "default": (3505, 25570),
+    "data-recovery": (3195, 23999),
     "new-project": (4214, 30973),
-    "project-pass-review": (4505, 32001),
+    "project-pass-review": (4555, 32451),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -48,38 +48,27 @@ playbooks, where it applies whether or not whoever starts the run remembers it.
 
 ### Optional tmux review handoff
 
-External/adversarial pass review is opt-in. The local handoff tools automate
-the post-commit back-and-forth between an already-running implementer agent and
-an already-running reviewer agent; they do not start, log in to, supervise, or
-restart either agent session.
-
-Humans still create the implementer and reviewer sessions manually, typically
-in tmux panes left idle at their agent prompts. There is no convenience script
-that launches Codex and Claude together; `scripts/agent_review_tmux_notify.sh`
-is only a notifier for already-running panes. The implementer pane is not
-configured to talk to the reviewer pane directly; the watcher shell wires the
-two panes together with tmux target environment variables.
-
-Minimal setup reminder:
+External/adversarial pass review is opt-in. Start the standard two-agent
+workspace from the project checkout with:
 
 ```sh
-tmux new-session -d -s nesrev-review -c /path/to/nesrev
-tmux split-window -h -t nesrev-review -c /path/to/nesrev
-tmux attach -t nesrev-review
-# pane 1: <start implementer agent>
-# pane 2: <start reviewer agent>
-
-tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
-export AGENT_REVIEW_TMUX_REVIEWER=%<reviewer-pane>
-export AGENT_REVIEW_TMUX_IMPLEMENTER=%<implementer-pane>
-
-# Run each watcher in its own shell or tmux pane.
-python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
-python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
+python3 scripts/agent_review_tmux.py --project <slug>
 ```
 
-The full pane setup, post-commit handoff command, archive step, and operational
-caveats live in
+The launcher creates a `nesrev-review` session with Codex as implementer,
+Claude as reviewer, and a separate window containing both watchers. It supplies
+the role prompts and wires the pane IDs automatically. Inside tmux it switches
+clients; outside tmux it attaches. Existing sessions are preserved.
+
+Finish any login/trust prompts and wait until both agents say `READY`. Use
+**Ctrl+b, w** to return to the `watchers` window and press Enter once to begin
+passes and automatic review handoffs. The default objective is to continue
+semantic passes until progress needs user-run runtime traces. Use `--task`
+to supply a different objective. The launcher preserves configured models and
+permissions, and instructs the agents never to push `projects`.
+
+Agent-command overrides, startup/resume behavior, post-commit handoff, and
+review archiving live in
 [TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
 
 Reference ROM/binary files are not tracked. Each user must provide their own

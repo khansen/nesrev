@@ -116,10 +116,11 @@ project's `PROCESS_FRICTION.md` queue.
 
 ### Agent Review Handoff
 
-`python3 scripts/agent_review.py` is the optional local v1 handoff path for
-already-running agent sessions after a run opts into external/adversarial
-review. It is not part of mandatory solo closeout. The user still starts Codex,
-Claude, and any worker loops manually; the script records
+External/adversarial review is optional. Its standard tmux entry point is
+`python3 scripts/agent_review_tmux.py --project <slug>`, run from the checkout
+containing the project and reference files. It creates two agent panes and two
+watchers in a dedicated session; solo closeout does not require it. The
+underlying `python3 scripts/agent_review.py` records
 `.agents/current.json`, points each role at the packet/review artifacts, and
 lets a watcher notify the next role after `READY_FOR_REVIEW`,
 `CHANGES_REQUESTED`, `READY_FOR_REREVIEW`, or `APPROVED`.
@@ -195,24 +196,54 @@ rely on ambient session memory of the repository rules. That route includes
 surface. Review and response prompts ask for a `## Learning Candidates` section
 so repeated friction can be triaged outside the individual pass.
 
-For tmux handoff, put the already-running implementation and reviewer agents
-in tmux panes, find their pane ids, and run one watcher per role:
+The launcher defaults to `codex` for implementation and `claude` for review.
+It creates `agents` and `watchers` windows in a new `nesrev-review` session,
+then attaches or switches the current tmux client. It preserves other sessions
+and refuses a duplicate session or another launcher for the same checkout.
+Both agents receive a setup prompt and must return `READY` without starting
+work. Complete any login/trust prompts, wait for both agents to finish setup,
+then press Enter in the startup pane in `watchers`. This arms the watchers and
+sends the implementation objective. Use **Ctrl+b, w** to select a window.
+
+Launcher options:
 ```sh
-tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
-export AGENT_REVIEW_TMUX_REVIEWER=%12
-export AGENT_REVIEW_TMUX_IMPLEMENTER=%13
-python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
-python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
+python3 scripts/agent_review_tmux.py --project <slug> \
+  --task 'Continue semantic passes until only user-run runtime evidence remains.' \
+  --implementer-cmd 'codex' --reviewer-cmd 'claude'
 ```
+
+`--repo <path>` selects the project checkout; the launcher may live in another
+tool-bearing worktree. `--session <name>` changes the new session name.
+`--no-attach` leaves it detached. Command overrides are quoted executable/argument
+lists, not shell programs; each command receives one appended startup prompt.
+Configured models and permissions are retained. Authentication, ongoing agent
+supervision, and restart remain the user's responsibility.
+
+The implementer records the pre-pass base, closes out and commits a coherent
+pass, runs `start-pass` with that base, then yields until review returns. It
+commits fixes before `reready`, archives and commits each approval before the
+next pass, and stops on exhausted rounds or a user-dependent blocker. The
+reviewer follows the committed-pass review route and leaves implementation
+files untouched. Both agents are instructed never to push `projects`.
+
+Startup preserves existing review state. An unfinished other-project review
+blocks launch; a completed other-project review is ignored. A pending review
+for this project resumes through its next actor instead of starting a new pass.
+Launcher watchers use `--project <slug>` to filter notifications and a unique
+`--worker-id` so new sessions receive a pending turn even if previous sessions
+already received it; each turn is still delivered only once per worker identity.
+Without these options, manually configured watchers retain their existing
+checkout-wide notification markers. Launch metadata stays ignored under
+`.agents/logs/`.
 
 `scripts/agent_review_tmux_notify.sh` loads the prompt file into a tmux buffer,
 uses tmux bracketed paste, and sends Enter by default. This is intended for
 paste-aware agent TUIs that enable bracketed paste; do not target an ordinary
 shell or other non-paste-aware program with a multi-line prompt. Set
 `AGENT_REVIEW_TMUX_SUBMIT=0` to paste without the final submit Enter during
-dry runs. The adapter does not start, supervise, or detect readiness of agent
-sessions; keep target panes idle at the agent prompt before enabling automatic
-submission.
+dry runs. The adapter itself does not start, supervise, or detect readiness of
+agent sessions. The launcher requires the one-time startup confirmation;
+thereafter the agents must yield at handoff so the receiving pane is idle.
 
 ### Evidence Order (Mandatory)
 

@@ -974,6 +974,8 @@ def command_archive(args: argparse.Namespace) -> int:
 
 def command_watch(args: argparse.Namespace) -> int:
     root = repo_root()
+    if args.worker_id and not RUN_ID_RE.fullmatch(args.worker_id):
+        raise UserError("worker id may contain only letters, digits, dot, underscore, and dash")
     deadline = time.time() + args.timeout if args.timeout is not None else None
     seen_path: Path | None = None
     while True:
@@ -987,12 +989,13 @@ def command_watch(args: argparse.Namespace) -> int:
                 return 4
             time.sleep(args.interval)
             continue
-        actor = next_actor_for(state)
+        actor = next_actor_for(state) if not args.project or state.get("project") == args.project else None
         if actor == args.role:
             prompt = state.get("prompts", {}).get(args.role)
             if not prompt:
                 raise UserError(f"state says {args.role} owns the turn but no prompt is recorded")
-            seen_path = run_dir(root, state) / "workers" / f"{args.role}.seen"
+            marker = f"{args.worker_id}-{args.role}" if args.worker_id else args.role
+            seen_path = run_dir(root, state) / "workers" / f"{marker}.seen"
             token = notify_token(state, args.role)
             previous = seen_path.read_text().strip() if seen_path.exists() else ""
             if previous != token:
@@ -1086,6 +1089,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     watch = sub.add_parser("watch", help="notify when a role owns the next turn")
     watch.add_argument("--role", choices=["implementer", "reviewer"], required=True)
+    watch.add_argument("--project", help="notify only for this project")
+    watch.add_argument("--worker-id", help="notification identity for a new pair of agent sessions")
     watch.add_argument("--notify")
     watch.add_argument("--once", action="store_true")
     watch.add_argument("--timeout", type=float, default=None)

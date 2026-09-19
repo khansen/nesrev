@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Launcher preflight, transport setup, and startup ordering tests."""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import io
+import json
+import os
+import shlex
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "scripts"))
+import agent_review_tmux as launcher
+import agent_review as review
+
+
+class LauncherTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = (Path(self.temp.name) / "checkout with spaces ' and $dollars").resolve()
+        self.root.mkdir()
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.root / "projects/demo").mkdir(parents=True)
+        (self.root / "projects/demo/project.conf").write_text('PROJECT="demo"\n')
+        self.log = Path(self.temp.name) / "tmux.jsonl"
+        self.stub = Path(self.temp.name) / "tmux-stub"
+        self.stub.write_text(
+            f"#!{sys.executable}\n"
+            "import json, os, sys\n"
+            f"with open({str(self.log)!r}, 'a') as f: f.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+            "cmd = sys.argv[1]\n"
+            "if cmd == os.environ.get('TMUX_FAIL_COMMAND'):\n"
+            "    print('simulated tmux failure', file=sys.stderr); sys.exit(1)\n"
+            "if cmd == 'list-sessions': print(os.environ.get('TMUX_SESSIONS', ''))\n"
+            "elif cmd == 'new-session': print('$1\\t@10\\t%20')\n"
+            "elif cmd == 'new-window': print('@11\\t%22')\n"
+            "elif cmd == 'split-window': print('%21' if '-h' in sys.argv else '%23')\n"
+            "elif cmd == 'display-message': print('0')\n"
+        )
+        self.stub.chmod(0o755)
+        self.agent_log = Path(self.temp.name) / "agent.json"
+        self.agent = Path(self.temp.name) / "agent with spaces"
+        self.agent.write_text(
+            f"#!{sys.executable}\nimport json, sys\n"
+            f"with open({str(self.agent_log)!r}, 'w') as f: json.dump(sys.argv[1:], f)\n"
+        )
+        self.agent.chmod(0o755)
+        self.env = patch.dict(os.environ, {
+            "AGENT_REVIEW_TMUX_BIN": str(self.stub), "TMUX_SESSIONS": "", "TMUX_FAIL_COMMAND": "",
+        })
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.args = argparse.Namespace(
+            repo=self.root, project="demo", session="review-test",
+            implementer_cmd=shlex.quote(str(self.agent)),
+            reviewer_cmd=shlex.quote(str(self.agent)), task="Continue demo passes.", no_attach=True,
+        )
+
+    def launch(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return launcher.launch(self.args)
+
+    def calls(self):
+        return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []
+
+    def config(self):
+        return next((self.root / ".agents/logs").glob("tmux-*/workspace.json"))
+
+    def state(self, project="demo", status="READY_FOR_REVIEW"):
+        state = {
+            "project": project, "status": status, "run_id": "demo-pass-1", "round": 1,
+            "review_head": "deadbeef", "prompts": {"reviewer": ".agents/prompt.md"},
+        }
+        review.write_state(self.root, state)
+        (self.root / ".agents/prompt.md").write_text("Review the committed pass.\n")
+        return state
+
+    def test_creates_two_agents_and_two_watchers_without_pasting_before_confirmation(self):
+        self.assertEqual(self.launch(), 0)
+        calls = self.calls()
+        self.assertEqual(sum(c[0] == "respawn-pane" for c in calls), 2)
+        self.assertEqual(sum(c[0] == "split-window" for c in calls), 2)
+        self.assertFalse(any(c[0] in {"send-keys", "load-buffer", "paste-buffer"} for c in calls))
+        config = json.loads(self.config().read_text())
+        self.assertEqual(config["panes"], {"implementer": "%20", "reviewer": "%21"})
+        self.assertEqual(config["root"], str(self.root))
+        self.assertIn("never push the projects branch", self.config().with_name("task.md").read_text())
+        self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_agent_arguments_and_prompt_survive_shell_without_expansion(self):
+        marker = Path(self.temp.name) / "must-not-exist"
+        literal = f"$(touch {shlex.quote(str(marker))}) `touch {shlex.quote(str(marker))}` $HOME ; newline\n'quoted'"
+        self.args.implementer_cmd += " " + shlex.quote(literal)
+        self.launch()
+        command = next(c[-1] for c in self.calls() if c[0] == "respawn-pane")
+        subprocess.run(["/bin/sh", "-c", command], check=True, cwd=self.root)
+        args = json.loads(self.agent_log.read_text())
+        self.assertEqual(args[0], literal)
+        self.assertIn("You are the implementer", args[1])
+        self.assertIn(str(self.root), args[1])
+        self.assertFalse(marker.exists())
+
+    def test_missing_executable_fails_before_creating_any_tmux_resources(self):
+        self.args.reviewer_cmd = "/nonexistent/agent"
+        with self.assertRaisesRegex(review.UserError, "agent executable not found"):
+            self.launch()
+        self.assertEqual(self.calls(), [])
+
+    def test_unknown_project_fails_before_tmux(self):
+        self.args.project = "missing"
+        with self.assertRaisesRegex(review.UserError, "project not found"):
+            self.launch()
+        self.assertEqual(self.calls(), [])
+
+    def test_existing_session_and_other_session_for_same_checkout_are_preserved(self):
+        for sessions in ("review-test\t/other/checkout", f"another-name\t{self.root}"):
+            with self.subTest(sessions=sessions), patch.dict(os.environ, {"TMUX_SESSIONS": sessions}):
+                with self.assertRaisesRegex(review.UserError, "already exists"):
+                    self.launch()
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_setup_failure_removes_only_the_session_it_created(self):
+        with patch.dict(os.environ, {"TMUX_FAIL_COMMAND": "new-window"}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.launch()
+        self.assertEqual(self.calls()[-1], ["kill-session", "-t", "$1"])
+
+    def test_failed_session_creation_does_not_kill_an_existing_session(self):
+        with patch.dict(os.environ, {"TMUX_FAIL_COMMAND": "new-session"}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.launch()
+        self.assertFalse(any(c[0] == "kill-session" for c in self.calls()))
+
+    def test_unfinished_other_project_review_blocks_launch_without_changing_state(self):
+        self.state(project="other")
+        before = review.state_path(self.root).read_bytes()
+        with self.assertRaisesRegex(review.UserError, "unfinished review for other"):
+            self.launch()
+        self.assertEqual(before, review.state_path(self.root).read_bytes())
+        self.assertEqual(self.calls(), [])
+
+    def test_completed_other_project_review_is_preserved(self):
+        self.state(project="other", status="APPROVED")
+        before = review.state_path(self.root).read_bytes()
+        self.launch()
+        self.assertEqual(before, review.state_path(self.root).read_bytes())
+
+    def test_inside_tmux_switches_client_instead_of_nesting_an_attachment(self):
+        self.args.no_attach = False
+        with patch.dict(os.environ, {"TMUX": "existing-session"}):
+            self.launch()
+        self.assertEqual(self.calls()[-1], ["switch-client", "-t", "$1"])
+
+    def test_outside_tmux_attaches(self):
+        self.args.no_attach = False
+        with patch.dict(os.environ, {"TMUX": ""}):
+            self.launch()
+        self.assertEqual(self.calls()[-1], ["attach-session", "-t", "$1"])
+
+    def run_worker(self, answer="", notify=None):
+        previous = Path.cwd()
+        self.addCleanup(os.chdir, previous)
+        with patch("builtins.input", side_effect=[answer] if answer is not EOFError else EOFError), \
+             patch.object(launcher.os, "execve") as execute, \
+             contextlib.redirect_stdout(io.StringIO()):
+            if notify is None:
+                result = launcher.run_worker(self.config(), "implementer")
+            else:
+                with patch.object(launcher.subprocess, "run", side_effect=notify):
+                    result = launcher.run_worker(self.config(), "implementer")
+        return result, execute
+
+    def test_startup_eof_does_not_arm_watchers_or_send_a_task(self):
+        self.launch()
+        with self.assertRaises(EOFError):
+            self.run_worker(answer=EOFError)
+        self.assertFalse(self.config().with_name("ready").exists())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_startup_confirmation_sends_task_and_executes_filtered_watcher(self):
+        self.launch()
+        result, execute = self.run_worker()
+        self.assertEqual(result, 0)
+        self.assertTrue(self.config().with_name("ready").exists())
+        self.assertTrue(any(c[0] == "paste-buffer" for c in self.calls()))
+        argv = execute.call_args.args[1]
+        self.assertEqual(argv[argv.index("--project") + 1], "demo")
+        self.assertEqual(argv[argv.index("--worker-id") + 1], self.config().parent.name)
+        self.assertEqual(execute.call_args.args[2]["AGENT_REVIEW_TMUX_IMPLEMENTER"], "%20")
+
+    def test_pending_review_resumes_via_watcher_without_starting_another_pass(self):
+        self.state()
+        self.launch()
+        self.run_worker()
+        self.assertTrue(self.config().with_name("ready").exists())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_dead_agent_prevents_startup(self):
+        self.launch()
+        with patch.object(launcher, "tmux", return_value=subprocess.CompletedProcess([], 0, "1\n", "")):
+            with self.assertRaisesRegex(review.UserError, "implementer exited"):
+                self.run_worker()
+        self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_failed_kickoff_does_not_arm_watchers(self):
+        self.launch()
+        with patch.dict(os.environ, {"TMUX_FAIL_COMMAND": "paste-buffer"}):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.run_worker()
+        self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_worker_id_cannot_escape_notification_directory(self):
+        args = argparse.Namespace(worker_id="../../escape", project="demo")
+        with patch.object(review, "repo_root", return_value=self.root):
+            with self.assertRaisesRegex(review.UserError, "worker id"):
+                review.command_watch(args)
+
+    def test_project_filter_does_not_deliver_another_projects_prompt(self):
+        self.state(project="other")
+        args = argparse.Namespace(
+            role="reviewer", project="demo", worker_id="launch-1", once=True,
+            timeout=None, interval=0, notify=None,
+        )
+        with patch.object(review, "repo_root", return_value=self.root), \
+             patch.object(review, "run_notify") as notify, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(review.command_watch(args), 3)
+            notify.assert_not_called()
+        self.assertFalse((self.root / ".agents/runs").exists())
+
+    def test_new_workers_receive_pending_turn_once_despite_old_delivery_markers(self):
+        state = self.state()
+        args = argparse.Namespace(
+            role="reviewer", project="demo", worker_id=None, once=True,
+            timeout=None, interval=0, notify=None,
+        )
+        with patch.object(review, "repo_root", return_value=self.root), \
+             patch.object(review, "run_notify") as notify, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(review.command_watch(args), 0)
+            args.worker_id = "launch-1"
+            self.assertEqual(review.command_watch(args), 0)
+            self.assertEqual(review.command_watch(args), 3)
+            self.assertEqual(notify.call_count, 2)
+        self.assertTrue((review.run_dir(self.root, state) / "workers/launch-1-reviewer.seen").exists())
+
+
+if __name__ == "__main__":
+    unittest.main()
