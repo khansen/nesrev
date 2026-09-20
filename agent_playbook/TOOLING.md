@@ -230,12 +230,12 @@ python3 scripts/agent_review_tmux.py --project <slug> \
   --implementer-cmd 'codex' --reviewer-cmd 'claude'
 ```
 
-`--repo <path>` selects the checkout, including when the launcher lives in
-another worktree. `--session <name>` names a new session. Matching workspaces
-are reused. Agent/task overrides apply only to new workspaces.
-`--no-attach` leaves it detached. Overrides are quoted executable/argument lists,
-not shell programs; each gets an appended prompt. Models and permissions are
-retained. Authentication, supervision, and restart remain the user's responsibility.
+`--repo <path>` selects the checkout; `--session <name>` names a new workspace.
+`--implementer-model/--reviewer-model` and `--implementer-effort/--reviewer-effort`
+set independent choices; omitted values use agent defaults. See [examples](../README.md#choose-models-and-effort).
+Matching workspaces reconnect with existing settings. Overrides apply only at creation.
+`--no-attach` leaves it detached. `--*-cmd` takes executable/arguments, not shell programs.
+Permissions, authentication, supervision, and restart remain user-controlled.
 `--check` checks tools, supplied references' PDF/OCR prerequisites, and Git identity
 without scaffolding or launching agents; `project-doctor PROJECT=<slug>` shares the reference check.
 

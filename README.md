@@ -126,7 +126,8 @@ or play a whole game just to answer a question.
   startup pane in `watchers`, resolve its error, and use the restart procedure
   above. Waiting longer or simply reconnecting will not restart a dead watcher.
 
-The agents are instructed never to push `projects`. Models and permissions
+The agents are instructed never to push `projects`. Model and effort defaults
+come from each agent; you can override them separately below. Permissions
 come from your existing agent configuration. Advanced command overrides and
 the handoff protocol are in
 [TOOLING.md](agent_playbook/TOOLING.md#agent-review-handoff).
@@ -155,6 +156,55 @@ Each role always gets its own session. Add `--check` to any command to check
 that selection without launching it. Choices apply when creating a workspace;
 reconnecting keeps the agents already running. An explicitly chosen app that
 is missing produces an error, rather than silently choosing another app.
+
+<a id="choose-models-and-effort"></a>
+### Choose models and reasoning levels
+
+**No options are needed to use each agent's default model and effort.** The
+launcher leaves those choices to Codex or Claude, including their saved settings.
+It does not pin a model, force a reasoning level, or edit either app's configuration.
+
+Choose independently for each role:
+
+| Option | Choice |
+| --- | --- |
+| `--implementer-model` | Implementer's model name or alias |
+| `--implementer-effort` | Implementer's inference/reasoning level |
+| `--reviewer-model` | Reviewer's model name or alias |
+| `--reviewer-effort` | Reviewer's inference/reasoning level |
+
+For example, leave model selection to the agents and choose different effort levels:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race \
+  --implementer-effort high --reviewer-effort medium
+```
+
+To choose models too, replace the quoted placeholders with names supported by
+your agents. Select each app explicitly when using its model names so the
+automatic reviewer fallback cannot switch apps:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race \
+  --implementer-cmd codex --implementer-model "<codex-model>" --implementer-effort high \
+  --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort medium
+```
+
+The same options work with Claude implementing, Codex reviewing, or the same
+app in both roles. Any omitted choice stays with that agent. Supported models
+and effort levels depend on the agent version, model, and account; the launcher
+passes your choices through without substituting another model or level.
+Codex effort uses its [model_reasoning_effort setting](https://developers.openai.com/codex/config-reference);
+Claude effort uses `--effort`.
+Add `--check` to see the resulting commands without starting agents. Availability
+is checked by the agents at startup. `--implementer-reasoning-effort` and
+`--reviewer-reasoning-effort` are longer aliases for the effort options.
+
+These options apply to new workspaces. Reconnecting keeps the running agents'
+models and effort; use the recovery procedure above when you want to recreate
+the workspace with different settings. With advanced `--*-cmd` arguments, set
+each choice in only one place. Custom wrappers should receive their native
+model/effort arguments inside `--*-cmd`.
 
 ## Multi-Project Workspace
 

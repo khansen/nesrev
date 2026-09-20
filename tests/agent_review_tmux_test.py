@@ -68,6 +68,7 @@ class LauncherTests(unittest.TestCase):
             repo=self.root, project="demo", session="review-test",
             implementer_cmd=shlex.quote(str(self.agent)),
             reviewer_cmd=shlex.quote(str(self.agent)), task="Continue demo passes.", no_attach=True, check=False,
+            implementer_model=None, implementer_effort=None, reviewer_model=None, reviewer_effort=None,
         )
 
     def launch(self):
@@ -241,6 +242,141 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(commands[1][1:4], ["/agents/codex", "--model", "chosen-reviewer"])
         self.assertIn("You are the reviewer", commands[1][4])
 
+    def test_cli_defaults_leave_models_and_effort_to_each_agent(self):
+        with patch.object(sys, "argv", ["launcher", "--project", "demo"]), patch.object(launcher, "launch", return_value=0) as launch:
+            self.assertEqual(launcher.main(), 0)
+        args = launch.call_args.args[0]
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}"):
+            self.assertEqual(launcher.role_command(args, "implementer"), ["/agents/codex"])
+            self.assertEqual(launcher.role_command(args, "reviewer"), ["/agents/claude"])
+        for role in launcher.ROLES:
+            self.assertIsNone(getattr(args, f"{role}_model"))
+            self.assertIsNone(getattr(args, f"{role}_effort"))
+
+    def test_cli_parses_independent_models_and_effort_including_alias(self):
+        argv = ["launcher", "--project", "demo", "--implementer-model", "first-model",
+                "--implementer-effort", "high", "--reviewer-model", "second-model",
+                "--reviewer-reasoning-effort", "medium"]
+        with patch.object(sys, "argv", argv), patch.object(launcher, "launch", return_value=0) as launch:
+            self.assertEqual(launcher.main(), 0)
+        args = launch.call_args.args[0]
+        self.assertEqual((args.implementer_model, args.implementer_effort), ("first-model", "high"))
+        self.assertEqual((args.reviewer_model, args.reviewer_effort), ("second-model", "medium"))
+
+    def test_independent_models_and_effort_reach_each_tmux_agent(self):
+        which = launcher.shutil.which
+        def installed(value):
+            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+        self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
+        self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
+        for implementer in ("codex", "claude"):
+            for reviewer in ("codex", "claude"):
+                with self.subTest(implementer=implementer, reviewer=reviewer):
+                    self.log.write_text("")
+                    self.args.implementer_cmd, self.args.reviewer_cmd = implementer, reviewer
+                    with patch.object(launcher.shutil, "which", side_effect=installed):
+                        self.launch()
+                    commands = [shlex.split(c[-1]) for c in self.calls() if c[0] == "respawn-pane"]
+                    self.assertEqual(len(commands), 2)
+                    for command, role, agent, model, effort in zip(
+                        commands, launcher.ROLES, (implementer, reviewer),
+                        ("first-model", "second-model"), ("high", "medium"),
+                    ):
+                        expected = ["--config", f'model_reasoning_effort="{effort}"'] if agent == "codex" else ["--effort", effort]
+                        self.assertEqual(command[:-1], ["exec", f"/agents/{agent}", "--model", model, *expected])
+                        self.assertIn(f"You are the {role}", command[-1])
+
+    def test_model_and_effort_can_be_selected_separately(self):
+        for agent in ("codex", "claude"):
+            self.args.implementer_cmd = agent
+            with self.subTest(agent=agent), patch.object(launcher.shutil, "which", return_value=f"/agents/{agent}"):
+                self.args.implementer_model, self.args.implementer_effort = "chosen-model", None
+                self.assertEqual(launcher.role_command(self.args, "implementer"), [f"/agents/{agent}", "--model", "chosen-model"])
+                self.args.implementer_model, self.args.implementer_effort = None, "high"
+                expected = ["--config", 'model_reasoning_effort="high"'] if agent == "codex" else ["--effort", "high"]
+                self.assertEqual(launcher.role_command(self.args, "implementer"), [f"/agents/{agent}", *expected])
+                self.assertEqual(launcher.role_command(self.args, "reviewer"), [f"/agents/{agent}"])
+
+    def test_codex_fallback_uses_codex_effort_option(self):
+        self.args.reviewer_cmd = None
+        self.args.reviewer_model, self.args.reviewer_effort = "chosen-model", "high"
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: None if name == "claude" else "/agents/codex"):
+            self.assertEqual(launcher.role_command(self.args, "reviewer"),
+                             ["/agents/codex", "--model", "chosen-model", "--config", 'model_reasoning_effort="high"'])
+
+    def test_model_option_survives_shell_transport_without_expansion(self):
+        marker = Path(self.temp.name) / "must-not-exist"
+        model = f"chosen 'model' $(touch {shlex.quote(str(marker))}) `touch {shlex.quote(str(marker))}` $HOME"
+        for agent in ("codex", "claude"):
+            with self.subTest(agent=agent):
+                executable = Path(self.temp.name) / agent
+                executable.symlink_to(self.agent)
+                self.args.implementer_cmd = shlex.quote(str(executable))
+                self.args.implementer_model, self.args.implementer_effort = model, "high"
+                self.log.write_text("")
+                self.launch()
+                command = next(c[-1] for c in self.calls() if c[0] == "respawn-pane")
+                subprocess.run(["/bin/sh", "-c", command], check=True, cwd=self.root)
+                actual = json.loads(self.agent_log.read_text())
+                self.assertEqual(actual[:2], ["--model", model])
+                self.assertEqual(actual[2:4], ["--config", 'model_reasoning_effort="high"'] if agent == "codex" else ["--effort", "high"])
+                self.assertIn("You are the implementer", actual[4])
+                self.assertFalse(marker.exists())
+
+    def test_custom_wrapper_overrides_fail_before_scaffolding_or_launch(self):
+        self.args.project = "new_project"
+        self.args.reviewer_effort = "high"
+        with self.assertRaisesRegex(review.UserError, "custom wrapper"):
+            self.launch()
+        self.assertFalse((self.root / "projects/new_project").exists())
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_duplicate_native_settings_and_invalid_values_are_rejected(self):
+        for command, setting in (
+            ("codex --model native", "model"), ("codex -mnative", "model"),
+            ("claude --model=native", "model"), ("claude --effort high", "effort"),
+            ("claude --effort=high", "effort"),
+            ('codex -c model="native"', "model"),
+            ('codex -cmodel_reasoning_effort="high"', "effort"),
+            ('codex --config=model_reasoning_effort="high"', "effort"),
+        ):
+            with self.subTest(command=command), patch.object(launcher.shutil, "which", return_value="/agents/cli"):
+                self.args.reviewer_cmd = command
+                self.args.reviewer_model = "chosen" if setting == "model" else None
+                self.args.reviewer_effort = "medium" if setting == "effort" else None
+                with self.assertRaisesRegex(review.UserError, "not both"):
+                    launcher.role_command(self.args, "reviewer")
+        self.args.reviewer_cmd = "codex"
+        self.args.reviewer_effort = None
+        for value in ("", " ", "--other-option"):
+            with self.subTest(value=value), patch.object(launcher.shutil, "which", return_value="/agents/codex"):
+                self.args.reviewer_model = value
+                with self.assertRaisesRegex(review.UserError, "nonempty value"):
+                    launcher.role_command(self.args, "reviewer")
+        self.args.reviewer_cmd, self.args.reviewer_model = "codex --", "chosen"
+        with patch.object(launcher.shutil, "which", return_value="/agents/codex"):
+            with self.assertRaisesRegex(review.UserError, "argument terminator"):
+                launcher.role_command(self.args, "reviewer")
+
+    def test_setup_check_prints_model_and_effort_choices_without_launching(self):
+        self.scaffold_tools()
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=self.root, check=True)
+        self.args.check = True
+        self.args.implementer_cmd, self.args.reviewer_cmd = "codex", "claude"
+        self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
+        self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
+        which = launcher.shutil.which
+        output = io.StringIO()
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}" if name in ("codex", "claude") else which(name)), contextlib.redirect_stdout(output):
+            self.assertEqual(launcher.launch(self.args), 0)
+        self.assertIn('implementer: /agents/codex --model first-model --config', output.getvalue())
+        self.assertIn('model_reasoning_effort="high"', output.getvalue())
+        self.assertIn('reviewer: /agents/claude --model second-model --effort medium', output.getvalue())
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.root / ".agents").exists())
+
     def test_existing_project_is_not_rescaffolded(self):
         config = self.root / "projects/demo/project.conf"
         original = config.read_bytes()
@@ -260,6 +396,7 @@ class LauncherTests(unittest.TestCase):
         before = review.state_path(self.root).read_bytes()
         self.args.no_attach = False
         self.args.reviewer_cmd = "/not/needed/when/reconnecting"
+        self.args.implementer_model, self.args.reviewer_effort = "not-applied", "not-applied"
         with patch.dict(os.environ, {"TMUX": "live", "TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo"}):
             self.launch()
         self.assertEqual([c[0] for c in self.calls()], ["list-sessions", "switch-client"])

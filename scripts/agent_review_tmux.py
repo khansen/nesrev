@@ -49,7 +49,47 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
         value = "claude" if shutil.which("claude") else "codex"
         if value == "codex":
             print("Claude is not installed; using a separate Codex session as reviewer.")
-    return agent_command(value)
+    command = agent_command(value)
+    model = getattr(args, f"{role}_model", None)
+    effort = getattr(args, f"{role}_effort", None)
+    if model is None and effort is None:
+        return command
+
+    # Use the invoked name; installed CLIs may resolve to versioned binaries.
+    agent = Path(shlex.split(value)[0]).name
+    if agent not in {"codex", "claude"}:
+        raise review.UserError(
+            f"--{role}-model/--{role}-effort require a codex or claude executable; "
+            f"for a custom wrapper, put its native options in --{role}-cmd"
+        )
+    if "--" in command[1:]:
+        raise review.UserError(f"remove the -- argument terminator from --{role}-cmd when using model/effort options")
+    for setting, selected in (("model", model), ("effort", effort)):
+        if selected is None:
+            continue
+        if not selected.strip() or selected.startswith("-"):
+            raise review.UserError(f"--{role}-{setting} requires a nonempty value, not an option")
+        native = [f"--{setting}"]
+        if agent == "codex" and setting == "model":
+            native.append("-m")
+        key = "model" if setting == "model" else "model_reasoning_effort"
+        if any(
+            token == flag or token.startswith(flag + "=")
+            or (flag == "-m" and token.startswith("-m"))
+            for token in command[1:] for flag in native
+        ) or (agent == "codex" and any(
+            re.match(rf'(?:--config=|-c)?"?{key}"?\s*=', token)
+            for token in command[1:]
+        )):
+            raise review.UserError(f"set {role} {setting} either in --{role}-{setting} or --{role}-cmd, not both")
+    if model is not None:
+        command.extend(["--model", model])
+    if effort is not None:
+        if agent == "codex":
+            command.extend(["--config", "model_reasoning_effort=" + json.dumps(effort)])
+        else:
+            command.extend(["--effort", effort])
+    return command
 
 
 def current_state(root: Path, project: str) -> dict | None:
@@ -321,6 +361,7 @@ def launch(args: argparse.Namespace) -> int:
             raise review.UserError(f"existing project directory has no project.conf: {directory}")
         print(f"Setup check passed for {args.project}. No project or tmux session was created.")
         print("Agent login, permissions, and available usage must still be checked at startup.")
+        print("Model and effort availability are validated by the chosen agents at startup.")
         return 0
     sessions = tmux(
         "list-sessions", "-F",
@@ -330,7 +371,7 @@ def launch(args: argparse.Namespace) -> int:
     entries = [line.split("\t") for line in sessions.stdout.splitlines() if line]
     for session_id, name, checkout, project in entries:
         if checkout == str(root) and project == args.project:
-            print(f"Reconnecting to {name} for {project}; continuing its existing agents and task.")
+            print(f"Reconnecting to {name} for {project}; keeping its existing agents, models, effort, and task.")
             return connect(session_id, name, args.no_attach)
     for session_id, name, checkout, project in entries:
         if name == args.session or checkout == str(root):
@@ -415,6 +456,12 @@ def main() -> int:
     parser.add_argument("--session", default="nesrev-review", help="session name when creating a new workspace")
     parser.add_argument("--implementer-cmd", default="codex", help="executable and arguments; default: codex")
     parser.add_argument("--reviewer-cmd", help="executable and arguments; default: claude if installed, otherwise codex")
+    for role in ROLES:
+        parser.add_argument(f"--{role}-model", help=f"model for the {role}; omit to use the agent's default")
+        parser.add_argument(
+            f"--{role}-effort", f"--{role}-reasoning-effort", dest=f"{role}_effort",
+            help=f"inference/reasoning level for the {role} (e.g. low, medium, high); omit to use the agent's default",
+        )
     parser.add_argument("--task", default=(
         "Complete any unfinished intake, then continue coherent semantic passes to reviewed gold standard. "
         "Stop only after final gold approval or when specific user input is needed."
