@@ -226,7 +226,7 @@ User-dependent blockers stop with `NEEDS INPUT` and a concrete next action.
 Launcher options:
 ```sh
 python3 scripts/agent_review_tmux.py --project <slug> \
-  --task 'Continue semantic passes until only user-run runtime evidence remains.' \
+  --task 'Continue semantic and runtime passes toward reviewed gold standard.' \
   --implementer-cmd 'codex' --reviewer-cmd 'claude'
 ```
 
@@ -1218,9 +1218,8 @@ probe scripts, or one-off crash/debug experiments unless the user explicitly
 asks for a curated fixture. Put volatile output under a project `tmp/` path and
 ignore it.
 
-Trace scripts must install the watches themselves. The operator may drive the
-scenario by playing live input or replaying a movie, but they should not have to
-open a debugger UI, set manual breakpoints, or copy watch lists by hand.
+Trace scripts install watches and inputs; no manual debugger setup is needed.
+Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) before requesting human help.
 
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs
@@ -1279,7 +1278,7 @@ that tie the captured signal back to the specific static uncertainty.
 
 ### Headless/GUI constraints
 
-If runtime tracing requires a GUI, do not block progress. Implement a
-local-user runnable script that launches the emulator with the trace script
-already loaded. Validate the analyzer with synthetic logs and mark the evidence
-gap as "capture pending" until a real capture lands.
+Try agent-run GUI captures with the available permissions; a GUI alone is no
+reason to hand off. If access is blocked, record the error and prepare a
+[human review batch](RUNTIME_EVIDENCE.md#human-review-batch). Keep evidence
+capture-pending until a real, scenario-validated capture lands.

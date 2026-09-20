@@ -40,6 +40,13 @@ language data. Plain text and HTML do not require these tools. The launcher
 checks again after you confirm your files and waits with installation guidance
 if anything is missing. It does not install software automatically.
 
+Doctor also reports **FCEUX**, an optional emulator for runtime analysis. If
+installed, the implementer can use Lua to simulate controller inputs, replay
+movies, capture frames, and trace game state. Missing FCEUX does not block
+startup or static analysis; the agent asks for installation or access if it
+later needs it. Doctor does not launch the emulator; capture support is checked
+when used.
+
 ### Start and let the agents work
 
 1. Run this command. Replace `f1_race` with your project's folder name when
@@ -88,6 +95,19 @@ agent work or usage. Avoid **Ctrl+c** or closing individual panes unless you
 intend to interrupt an agent.
 
 ### Know when your help is needed
+
+The implementer attempts runtime analysis itself before asking you to play or
+trace. It may download TASVideos `.fm2` input movies to replay against your ROM,
+checking that the replay reaches the intended scenario. ROMs, manuals, and FAQs
+still come from you.
+
+Questions that need human judgment, such as identifying an ambiguous sound,
+are collected into a batch with short clips or screenshots and clear choices.
+You might see `NEEDS INPUT: 3 questions` with a packet to open and reply to as
+`Q1: A; Q2: B; Q3: unsure`. The implementer prepares the samples and continues
+independent work before stopping for answers. A blocking permission or missing
+file is requested immediately. You should not need to set debugger watches
+or play a whole game just to answer a question.
 
 - **NEEDS INPUT** means the implementer has stopped and gives you a specific
   next action. Supply the file or answer, then tell it to continue in the
@@ -161,8 +181,9 @@ stop after scaffolding and ask the user to put it at
 The process carries the working rules, so the prompt does not need to restate
 them. A suggested starting prompt, in full:
 
-> Work on `<slug>` until you need runtime traces that only I can run. End with a
-> trace plan I can execute. State each gap you defer as `DEFERRALS="subject ::
+> Work on `<slug>` toward reviewed gold standard, including runtime captures
+> you can run yourself. Batch questions that need my help with prepared samples
+> and replay commands. State each gap you defer as `DEFERRALS="subject ::
 > what would close it"` at closeout, adding `:: runtime` for the ones only a
 > trace can settle. Commit each pass and record friction in
 > `PROCESS_FRICTION.md`; otherwise don't stop for feedback.

@@ -392,8 +392,8 @@ family, or unknown-root parity bug):
    - **Runtime-gated.** The value depends on live input, RNG, timing, scenario
      state, or external emulator-visible state. Move it from `WORKING_NOTES.md`
      into a trace plan.
-3. **Schedule the evidence capture.** For runtime-gated gaps,
-   author a trace plan under
+3. **Attempt capture** per the [agent workflow](RUNTIME_EVIDENCE.md#agent-capture).
+   Author a trace plan under
    `docs/reverse_engineering/` (capture runbook + scenario + the
    producer/consumer label pair under observation) per
    [PASS_WORKFLOW.md#pass-closeout → Runtime evidence workflow](PASS_WORKFLOW.md#pass-closeout).

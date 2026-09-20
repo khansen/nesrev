@@ -52,7 +52,7 @@ test_doctor_fails_when_required_tool_missing() {
 
 test_doctor_does_not_fail_on_missing_optional() {
   local bindir="${NESREV_TEST_TMPDIR}/stub_bin"
-  # Include all required tools, omit jq + shellcheck (both optional). Also
+  # Include all required tools, omit optional tools including FCEUX. Also
   # include `head`, which the doctor's version probes pipe through.
   _make_stub_bindir "${bindir}" \
     java javac xasm bash python3 rg od dd awk sed perl make git head
@@ -64,9 +64,26 @@ test_doctor_does_not_fail_on_missing_optional() {
   local stdout; stdout="$(cat "${NESREV_TEST_TMPDIR}/stdout")"
   assert_match "jq .* OPTIONAL" "${stdout}"
   assert_match "shellcheck .* OPTIONAL" "${stdout}"
+  assert_match "fceux .* OPTIONAL" "${stdout}"
   assert_match "pdftotext .* OPTIONAL" "${stdout}"
   assert_match "pdftoppm .* OPTIONAL" "${stdout}"
   assert_match "tesseract .* OPTIONAL" "${stdout}"
+}
+
+test_doctor_detects_fceux_without_launching_emulator() {
+  local bindir="${NESREV_TEST_TMPDIR}/stub_bin"
+  _make_stub_bindir "${bindir}" \
+    java javac xasm bash python3 rg od dd awk sed perl make git head
+  cat > "${bindir}/fceux" <<'SH'
+#!/bin/bash
+printf 'unexpected emulator launch\n' > "${NESREV_TEST_TMPDIR}/emulator-launched"
+exit 1
+SH
+  chmod +x "${bindir}/fceux"
+
+  PATH="${bindir}" bash "${DOCTOR}" >"${NESREV_TEST_TMPDIR}/stdout"
+  assert_match "fceux .* OK.*Lua/display readiness checked when tracing" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+  [[ ! -e "${NESREV_TEST_TMPDIR}/emulator-launched" ]] || fail "doctor must not launch FCEUX"
 }
 
 test_reference_tool_readiness() {

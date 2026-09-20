@@ -32,6 +32,7 @@ REQUIRED=(
 OPTIONAL=(
   "jq:JSON inspection for generated pass artifacts ('brew install jq')"
   "shellcheck:Shell script linting ('brew install shellcheck')"
+  "fceux:Runtime tracing, Lua inputs, and movie replay ('brew install fceux' or 'apt install fceux')"
 )
 
 missing_required=0
@@ -45,6 +46,11 @@ check_tool() {
   local tool="${entry%%:*}"
   local hint="${entry#*:}"
   if command -v "$tool" >/dev/null 2>&1; then
+    if [[ "$tool" == "fceux" ]]; then
+      # Emulator builds differ in CLI support; a version probe can open a GUI.
+      printf '%-12s %-9s %s\n' "$tool" 'OK' '(installed; Lua/display readiness checked when tracing)'
+      return
+    fi
     local version
     # Probe with --version, then -version. Redirect stdin from /dev/null so a
     # tool that misinterprets the argument as a search pattern (e.g. rg

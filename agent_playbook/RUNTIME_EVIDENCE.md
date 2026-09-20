@@ -6,6 +6,73 @@ requires an active question in
 `docs/reverse_engineering/inventory/runtime_evidence.json`. Historical review
 snapshots remain unchanged. Inputs with no runtime debt need no manifest.
 
+<a id="agent-capture"></a>
+## Agent capture before human handoff
+
+The implementer owns runtime analysis as well as static analysis. A runtime gap
+does not inherently need a human. Before asking the user to play, trace, or
+identify an object:
+
+1. Inspect existing project runners and analogous projects. Adapt the
+   [trace templates](templates/trace/) if needed. Install watches in Lua, drive
+   bounded input sequences or movie replay, and stop at a milestone or frame
+   limit. Check the local emulator's supported Lua/CLI interfaces. Do not leave
+   an unattended run waiting indefinitely for gameplay or a debugger click.
+2. Use available emulator access, including a GUI when permitted. FCEUX is an
+   optional `project-doctor` dependency; its presence check does not prove Lua,
+   display, or capture support. Test these when needed. If unavailable, use an
+   existing suitable backend or prepare the harness while continuing static
+   work. Request installation/access only when needed, with the actual failure.
+3. Inspect captured frames to identify visible enemies, objects, and actions.
+   Correlate screenshots with frame numbers, object slots, state transitions,
+   and supplied manual/FAQ terms. Appearance alone cannot prove which handler
+   owns the object; use the render/dispatch relationship and scenario gate.
+   Capture audio when sound identity is the question; some distinctions need
+   human listening, while others follow from trace and reference evidence.
+4. Analyze actual captures using scenario gates and milestones, repeat the
+   relevant scenarios, then apply the confidence and naming workflow in
+   [PASS_WORKFLOW.md](PASS_WORKFLOW.md#runtime-evidence-workflow). Synthetic
+   fixtures validate analyzers; they never substitute for emulator evidence.
+
+TASVideos `.fm2` input movies may be downloaded for replay. This permission does
+not include ROMs, manuals, or FAQs. Keep movies and captures in ignored project
+`tmp/` storage. Record the movie's source URL and hash, supplied ROM hash/revision,
+emulator version, region/timing and input settings, starting state, and observed
+milestones. Check compatibility and synchronization against the actual run;
+a movie's title or successful launch does not prove the intended scenario ran.
+On desync, repair the setup, script inputs, or use a documented
+[trace helper ROM](TOOLING.md#trace-helper-roms) that preserves the measured path.
+
+<a id="human-review-batch"></a>
+## Batch the questions that need a human
+
+After reasonable capture/inspection attempts, collect independent human-only
+questions into one prepared batch instead of stopping at every gap. Continue
+useful independent work while preparing it, respecting implementer/reviewer
+turn ownership. Stop promptly when a missing artifact, permission, or answer
+blocks further safe progress; never delay that request merely to fill a batch.
+
+Copy [HUMAN_REVIEW.md](templates/trace/HUMAN_REVIEW.md) into the project's
+`docs/reverse_engineering/` when needed. This is a view of existing questions,
+not another deferral ledger: reuse manifest subjects and link their trace plans.
+For each question provide a stable ID, what you tried, why a human is needed,
+a short timestamped clip or labeled screenshot, an exact replay command, and
+simple answer choices including “unsure.” For listening, capture audible output;
+a muted trace is not a listening sample. If capture itself is blocked, give
+the observed error and one prepared command, not instructions to play an entire
+game or assemble a debugger session. A novice should be able to answer without
+reading asm. Record the capture provenance and expected/refuting observations
+in the linked trace plan so the reviewer can audit the result.
+
+Use `NEEDS INPUT` when further progress depends on the user. Link the batch,
+give the question count and a response example such as `Q1: A; Q2: unsure`, and
+state which independent work is complete. Keep clips/screenshots untracked but
+accessible at the stated local paths. Do not ask again for answered questions.
+Record answers with their question and capture IDs in the reduced evidence
+summary; verify their connection to code before renaming. Partial answers unblock
+the corresponding work; “unsure” leaves that question open. Resume the pass and
+review cycle after answers arrive. Pending human review is not gold standard.
+
 ## Required relationships
 
 - `subject` matches an open runtime row in `inventory/deferrals.csv`. Repeated
