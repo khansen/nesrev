@@ -52,6 +52,8 @@ projects/<slug>/scripts/analyze_<domain>_trace.sh <raw.log> [summary.md]
 ```
 
 Raw logs stay under `projects/<slug>/tmp/traces/` and are not committed.
+The supervised runner prints a fresh `capture-*` directory. Pass its `trace.log`
+to the analyzer; `emulator.log` and `result.json` retain failure diagnostics.
 With no explicit summary path, the analyzer writes `<raw-log>.summary.md` beside
 the raw log. Merge accepted evidence manually into the curated transition
 summary after capture.

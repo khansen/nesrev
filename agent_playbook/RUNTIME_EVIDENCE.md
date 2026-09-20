@@ -18,6 +18,9 @@ identify an object:
    bounded input sequences or movie replay, and stop at a milestone or frame
    limit. Check the local emulator's supported Lua/CLI interfaces. Do not leave
    an unattended run waiting indefinitely for gameplay or a debugger click.
+   For FCEUX, use the [supervised runner](templates/trace/README.md#supervised-captures)
+   so Lua failure cannot leave capture waiting indefinitely. Declare the scenario
+   completion checks and use its fresh output directory for logs and screenshots.
 2. Use available emulator access, including a GUI when permitted. FCEUX is an
    optional `project-doctor` dependency; its presence check does not prove Lua,
    display, or capture support. Test these when needed. If unavailable, use an

@@ -1219,7 +1219,7 @@ asks for a curated fixture. Put volatile output under a project `tmp/` path and
 ignore it.
 
 Trace scripts install watches and inputs; no manual debugger setup is needed.
-Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) before requesting human help.
+Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) and the [supervised FCEUX runner](templates/trace/README.md#supervised-captures) before requesting human help.
 
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs
