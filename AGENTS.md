@@ -118,6 +118,7 @@ code review to the user. Fix or explicitly defer each issue found:
   artifact
 - optional docs or working notes that are now duplicate, stale, or lower value
   than canonical docs
+- missing qualifying `CURIOSITIES.md` entries — [curiosities contract](agent_playbook/DOCUMENTATION.md#curiosities)
 
 If generated pass artifacts report only generic `doc_closure` or no strong
 corridor, run this project-wide reviewer simulation and the
