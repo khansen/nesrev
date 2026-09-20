@@ -15,7 +15,7 @@ DIRECTORY = ".agents/permissions"
 RULES = ".codex/rules/nesrev-pass-cycle.rules"
 RECEIPT = f"{DIRECTORY}/receipt.json"
 GUIDE = f"{DIRECTORY}/commands.md"
-ASK_GIT = ("reset", "restore", "checkout", "switch", "rebase", "merge", "clean", "config", "worktree", "branch")
+ASK_GIT = ("add", "commit", "reset", "restore", "checkout", "switch", "rebase", "merge", "clean", "config", "worktree", "branch")
 
 
 def digest(text: str) -> str:
@@ -48,8 +48,8 @@ def grants(root: Path, project: str, role: str) -> list[list[str]]:
     common = [tool + ["status"]]
     if role == "implementer":
         return common + [
-            ["git", "-C", str(root), "add", "--"],
-            ["git", "-C", str(root), "commit", "--file", f"projects/{project}/tmp/commit-message.txt", "--"],
+            tool + ["stage-project", project, "--"],
+            tool + ["commit-project", project],
             tool + ["start-pass", "--project", project],
             tool + ["reready"], tool + ["archive"],
             tool + ["import-artifact", "--kind", "response"],
@@ -77,7 +77,9 @@ def command_guide(root: Path, project: str) -> str:
         "another interpreter, environment assignment, shell script, or output redirection. "
         "For Codex, request sandbox escalation when needed; the installed rules can approve the matching command.\n\n"
         f"Write the commit message using the file-edit tool at `projects/{project}/tmp/commit-message.txt`. "
-        "Stage only reviewed, explicit paths, including deleted paths, then commit the staged changes:\n\n"
+        "Stage only reviewed, explicit project file paths, including deleted files, then commit the staged changes. "
+        "Staging rejects directories, pathspec patterns, symlinks, and paths outside this project; "
+        "commit refuses unrelated staged files and accepts no path or Git-option suffix:\n\n"
         f"```sh\n{add} <path> <path>\n{commit}\n```\n\n"
         "Use the handoff commands in each watcher prompt. For an approved pass:\n\n"
         f"```sh\n{tool} archive --pass-id <id>\n```\n\n"
@@ -106,9 +108,9 @@ class Plan:
 
     def preview(self) -> None:
         print("Pass-cycle permissions (checkout-local; no global settings changed):")
-        print("Local staging/commits for the implementer, named review handoffs, and scoped Claude file edits.")
+        print("Validated project-file staging/commits for the implementer, named review handoffs, and scoped Claude file edits.")
         print("Codex keeps workspace-write / on-request; Claude keeps manual approval for unlisted actions.")
-        print("Direct and checkout-scoped git push are blocked; listed history/destructive Git commands ask.")
+        print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
         print("Existing user/admin grants still apply and may allow more; this is not a permissions reset or a security boundary.")
         print("Codex project rules are shared by Codex sessions in this trusted checkout, including the reviewer.")
         print("The approved tool runs repository code and Git hooks. No blanket shell, Python, Git, or make grant is added.")
