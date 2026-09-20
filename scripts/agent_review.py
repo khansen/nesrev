@@ -61,6 +61,8 @@ RUNTIME_EXCLUDE_PATTERNS = (
     ".agents/runs/",
     ".agents/logs/",
     ".agents/reference_intake/",
+    ".agents/permissions/",
+    ".codex/rules/nesrev-pass-cycle.rules",
 )
 
 
@@ -125,15 +127,12 @@ def ensure_repo_contained(root: Path, path: Path, label: str) -> Path:
     return path
 
 
+def script_argv(root: Path) -> list[str]:
+    return [sys.executable, str(Path(__file__).resolve()), "--repo", str(root.resolve())]
+
+
 def script_command(root: Path) -> str:
-    script = Path(sys.argv[0])
-    if script.is_absolute():
-        script_arg = str(script)
-    elif (root / script).exists():
-        script_arg = script.as_posix()
-    else:
-        script_arg = str(script.resolve())
-    return f"python3 {shlex.quote(script_arg)}"
+    return shlex.join(script_argv(root))
 
 
 def read_state(root: Path) -> dict[str, Any]:
@@ -334,7 +333,9 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
     command = script_command(root)
     if role == "reviewer":
         review_file = f".agents/runs/{run_id}/review-{int(state['round']):02d}.md"
+        draft = f"projects/{state['project']}/tmp/review-{run_id}-{int(state['round']):02d}.md"
         command_hint = (
+            f"{command} import-artifact --kind review --source {draft}\n"
             f"{command} approve --review {review_file}\n"
             f"{command} request-changes --review {review_file}"
         )
@@ -351,12 +352,12 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             "`Review a committed project pass` row in its Mandatory Routing Table.",
             "Load additional routed playbooks when the changed files or subsystem require them.",
             "",
-            "Review the packet and repository read-only. Write the review artifact",
-            f"at `{review_file}` with `Verdict: APPROVED` or",
+            "Review the packet and repository read-only. Write the review draft",
+            f"at `{draft}` with `Verdict: APPROVED` or",
             "`Verdict: CHANGES_REQUESTED`.",
             "Include a `## Learning Candidates` section with process, harness,",
             "or tooling lessons for later triage, or `_None._`.",
-            "Then run one of:",
+            "Import the draft, then run either approve or request-changes:",
             "",
             "```sh",
             command_hint,
@@ -390,6 +391,7 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             ]
         else:
             response_file = f".agents/runs/{run_id}/response-{int(state['round']):02d}.md"
+            draft = f"projects/{state['project']}/tmp/response-{run_id}-{int(state['round']):02d}.md"
             body = [
                 "# Agent Review Changes Requested",
                 "",
@@ -398,10 +400,11 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 f"Review: {state.get('last_review')}",
                 "",
                 "Fix or dispute each finding. Commit implementation fixes, write",
-                f"`{response_file}` with a `## Learning Candidates` section",
+                f"`{draft}` with a `## Learning Candidates` section",
                 "or `_None._`, then run:",
                 "",
                 "```sh",
+                f"{command} import-artifact --kind response --source {draft}",
                 f"{command} reready \\",
                 f"  --response {response_file} \\",
                 "  --head HEAD \\",
@@ -442,6 +445,14 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 "path and reviewed head. Do not start another pass or push projects.",
                 "",
             ]
+    if role == "implementer" and status == "APPROVED":
+        body.extend(["```sh", f"{command} archive --pass-id <reviewed-pass-id>", "```", ""])
+    body.extend([
+        "If `.agents/permissions/commands.md` exists, follow its Git command forms.",
+        "Run handoff commands exactly as shown, as separate commands without",
+        "shell redirection, environment assignments, or compound scripts.",
+        "The command's stdout and generated artifacts provide the handoff result.",
+    ])
     return "\n".join(body)
 
 
@@ -785,6 +796,35 @@ def command_reready(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_import_artifact(args: argparse.Namespace) -> int:
+    root = repo_root()
+    state = read_state(root)
+    allowed = REVIEW_READY_STATUSES if args.kind == "review" else {"CHANGES_REQUESTED"}
+    if state["status"] not in allowed:
+        raise UserError(f"cannot import {args.kind} in {state['status']}")
+    if not state.get("project"):
+        raise UserError("artifact import requires a project review")
+    draft_root = root / "projects" / state["project"] / "tmp"
+    if draft_root.resolve() != draft_root:
+        raise UserError("project draft directory must not use symlinks")
+    source = resolve_path(root, args.source)
+    ensure_repo_contained(root, source, "draft")
+    ensure_repo_contained(draft_root, source, "draft")
+    if source.suffix != ".md" or not source.is_file():
+        raise UserError("draft must be an existing Markdown file in the project's tmp directory")
+    text = source.read_text()
+    if not text.strip():
+        raise UserError("draft is empty")
+    destination = run_dir(root, state) / f"{args.kind}-{int(state['round']):02d}.md"
+    if destination.resolve() != destination:
+        raise UserError("artifact destination must not use symlinks")
+    ensure_repo_contained(root, destination, "artifact")
+    ensure_repo_contained(root / ".agents" / "runs", destination, "artifact")
+    atomic_write(destination, text)
+    print(f"Imported {args.kind}: {rel(root, destination)}")
+    return 0
+
+
 def command_status(args: argparse.Namespace) -> int:
     root = repo_root()
     state = read_state(root)
@@ -1112,6 +1152,7 @@ def command_watch(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, help="anchor the handoff to this checkout")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="create a review run")
@@ -1179,6 +1220,11 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true")
     status.set_defaults(func=command_status)
 
+    artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
+    artifact.add_argument("--kind", choices=("review", "response"), required=True)
+    artifact.add_argument("--source", required=True)
+    artifact.set_defaults(func=command_import_artifact)
+
     watch = sub.add_parser("watch", help="notify when a role owns the next turn")
     watch.add_argument("--role", choices=["implementer", "reviewer"], required=True)
     watch.add_argument("--project", help="notify only for this project")
@@ -1196,6 +1242,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.repo is not None:
+            root = Path(run_git(["rev-parse", "--show-toplevel"], cwd=args.repo).strip()).resolve()
+            if root != args.repo.resolve():
+                raise UserError("--repo must name the checkout root")
+            os.chdir(root)
         return args.func(args)
     except UserError as exc:
         print(f"error: {exc}", file=sys.stderr)

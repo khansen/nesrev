@@ -34,3 +34,5 @@ projects/*/docs/game_reference/
 .agents/runs/
 .agents/logs/
 .agents/reference_intake/
+.agents/permissions/
+.codex/rules/nesrev-pass-cycle.rules

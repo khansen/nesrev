@@ -69,11 +69,56 @@ class LauncherTests(unittest.TestCase):
             implementer_cmd=shlex.quote(str(self.agent)),
             reviewer_cmd=shlex.quote(str(self.agent)), task="Continue demo passes.", no_attach=True, check=False,
             implementer_model=None, implementer_effort=None, reviewer_model=None, reviewer_effort=None,
+            permissions="inherit",
         )
 
     def launch(self):
         with contextlib.redirect_stdout(io.StringIO()):
             return launcher.launch(self.args)
+
+    def permission_agents(self):
+        self.args.permissions = "pass-cycle"
+        for role, name in (("implementer", "codex"), ("reviewer", "claude")):
+            binary = Path(self.temp.name) / name
+            binary.write_bytes(self.agent.read_bytes())
+            binary.chmod(0o755)
+            setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)))
+
+    def test_pass_cycle_is_the_cli_default(self):
+        with patch.object(sys, "argv", ["launcher", "--project", "demo"]), patch.object(launcher, "launch", return_value=0) as launch:
+            launcher.main()
+        self.assertEqual(launch.call_args.args[0].permissions, "pass-cycle")
+
+    def test_permission_confirmation_happens_before_agents_start(self):
+        self.permission_agents()
+        def consent(_):
+            self.assertFalse(any(c[0] == "new-session" for c in self.calls()))
+            return "yes"
+        with patch("builtins.input", side_effect=consent):
+            self.launch()
+        calls = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
+        self.assertIn("--sandbox workspace-write --ask-for-approval on-request", calls[0])
+        self.assertIn("--permission-mode default --settings", calls[1])
+        self.assertIn("--repo", self.config().with_name("task.md").read_text())
+        self.assertTrue((self.root / ".codex/rules/nesrev-pass-cycle.rules").is_file())
+
+    def test_declined_permissions_do_not_start_agents_or_watchers(self):
+        self.permission_agents()
+        with patch("builtins.input", return_value="no"), self.assertRaisesRegex(review.UserError, "declined"):
+            self.launch()
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_check_previews_permissions_without_consent_or_installation(self):
+        self.permission_agents()
+        self.scaffold_tools()
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid")):
+            subprocess.run(["git", "config", key, value], cwd=self.root, check=True)
+        self.args.check = True
+        with patch("builtins.input", side_effect=AssertionError("check must not prompt")):
+            self.launch()
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertFalse((self.root / ".codex").exists())
 
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()] if self.log.exists() else []

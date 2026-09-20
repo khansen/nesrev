@@ -120,7 +120,7 @@ External review is optional; solo closeout does not require it. Run
 `python3 scripts/agent_review_tmux.py --project <slug>` from the project checkout
 to start two agent panes and their watchers. `scripts/agent_review.py` records
 turn ownership in `.agents/current.json` and points each role at its artifacts.
-Watchers notify the next role when review state changes.
+Watchers notify the next role; use generated commands and [permission setup](AGENT_PERMISSIONS.md).
 
 Minimal flow:
 ```sh

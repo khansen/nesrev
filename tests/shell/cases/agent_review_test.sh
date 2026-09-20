@@ -465,8 +465,10 @@ test_agent_review_start_pass_rejects_process_ranges_before_note() {
 }
 
 test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
-  local repo="${NESREV_TEST_TMPDIR}/agent_review_external_tool_repo"
-  local external_script="${NESREV_TEST_TMPDIR}/agent_review_external.py"
+  local scratch
+  scratch="$(cd "${NESREV_TEST_TMPDIR}" && pwd -P)"
+  local repo="${scratch}/agent_review_external_tool_repo"
+  local external_script="${scratch}/agent_review_external.py"
   mkdir -p "${repo}/projects/demo/asm"
   cp "${AGENT_REVIEW_SCRIPT}" "${external_script}"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${NESREV_TEST_TMPDIR}/process_friction.py"
@@ -510,9 +512,9 @@ EOF
   )
 
   prompt_text="$(<"${repo}/.agents/runs/${run_id}/prompts/01-ready-for-review-reviewer.md")"
-  assert_match "python3 ${external_script} approve --review" "${prompt_text}" \
+  assert_match "${external_script} --repo ${repo} approve --review" "${prompt_text}" \
     "review prompt must use the external tool path when the repo lacks scripts/agent_review.py"
-  assert_match "python3 ${external_script} request-changes --review" "${prompt_text}" \
+  assert_match "${external_script} --repo ${repo} request-changes --review" "${prompt_text}" \
     "request-changes hint must use the external tool path too"
 }
 

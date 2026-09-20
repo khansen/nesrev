@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import agent_review as review
+import agent_review_permissions as permissions
 from reference_tools import project_reference_files, reference_files, reference_tool_issues
 
 
@@ -122,6 +123,7 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
         "Read AGENTS.md and agent_playbook/TOOLING.md#agent-review-handoff. "
         "One implementer and one reviewer share this checkout and take turns; "
         "watchers deliver the handoffs. Never push the projects branch.\n"
+        "If .agents/permissions/commands.md exists, follow its exact Git and handoff command forms.\n"
         f"Before acting on a handoff, read .agents/reference_intake/{project}.json for the user's "
         "reference choice. The launcher records it at startup after your READY reply. "
         "Only a manual_decision of waived authorizes proceeding without a manual.\n"
@@ -130,12 +132,13 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
     )
 
 
-def kickoff(project: str, task: str) -> str:
-    worker = shlex.join([sys.executable, str(SCRIPT.with_name("agent_review.py"))])
+def kickoff(root: Path, project: str, task: str) -> str:
+    worker = review.script_command(root)
     return (
         f"Begin or resume implementation for {project}.\n\nObjective: {task}\n\n"
         "Follow AGENTS.md and the mandatory playbooks. Stay on the current branch; "
         "never push the projects branch. Preserve unrelated work.\n"
+        "If .agents/permissions/commands.md exists, use its exact Git and handoff commands as standalone calls.\n"
         f"Before semantic analysis, read the user-supplied manual in projects/{project}/docs/game_reference/manuals/ "
         f"and any optional FAQs in projects/{project}/docs/game_reference/faqs/. "
         "Extract vocabulary into MANUAL_TERMS.md and seed TERMINOLOGY_CROSSWALK.md before naming. "
@@ -346,9 +349,13 @@ def launch(args: argparse.Namespace) -> int:
     if not tmux_bin:
         raise review.UserError("tmux executable not found")
     if args.check:
-        for role in ROLES:
-            command = role_command(args, role)
+        commands = {role: role_command(args, role) for role in ROLES}
+        for role, command in commands.items():
             print(f"{role}: {shlex.join(command)}")
+        if args.permissions == "pass-cycle":
+            plan = permissions.build_plan(root, args.project, commands)
+            plan.previous()
+            plan.preview()
         subprocess.run(["make", "project-doctor", f"PROJECT={args.project}"], cwd=root, check=True)
         issues = reference_tool_issues(project_reference_files(root, args.project))
         if issues:
@@ -381,14 +388,20 @@ def launch(args: argparse.Namespace) -> int:
             )
 
     commands = {role: role_command(args, role) for role in ROLES}
+    plan = permissions.build_plan(root, args.project, commands) if args.permissions == "pass-cycle" else None
+    if plan:
+        plan.previous()
     current_state(root, args.project)
     ensure_project(root, args.project)
+    if plan:
+        plan.apply()
+        commands = plan.commands
     review.ensure_runtime_excludes(root)
     logs = root / ".agents" / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix="tmux-", dir=logs))
     config_path = run / "workspace.json"
-    (run / "task.md").write_text(kickoff(args.project, args.task))
+    (run / "task.md").write_text(kickoff(root, args.project, args.task))
     session_id = None
     try:
         created = tmux(
@@ -456,6 +469,10 @@ def main() -> int:
     parser.add_argument("--session", default="nesrev-review", help="session name when creating a new workspace")
     parser.add_argument("--implementer-cmd", default="codex", help="executable and arguments; default: codex")
     parser.add_argument("--reviewer-cmd", help="executable and arguments; default: claude if installed, otherwise codex")
+    parser.add_argument(
+        "--permissions", choices=("pass-cycle", "inherit"), default="pass-cycle",
+        help="preview and ask to install scoped local grants (default); inherit keeps existing permissions",
+    )
     for role in ROLES:
         parser.add_argument(f"--{role}-model", help=f"model for the {role}; omit to use the agent's default")
         parser.add_argument(

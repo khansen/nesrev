@@ -187,6 +187,28 @@ Path(values["OUT"]).write_text(packet(values["HEAD"],
         self.git("commit", "-qm", "Later commit", "--allow-empty")
         self.assertIn("review head must be checked out", self.command("archive", "--pass-id", "1", expected=2))
 
+    def test_imported_drafts_survive_rereview_and_archive(self):
+        self.start()
+        draft = self.root / "projects/demo/tmp/draft.md"
+        draft.parent.mkdir(parents=True)
+        draft.write_text("Verdict: CHANGES_REQUESTED\nClose remaining gap.\n")
+        self.command("import-artifact", "--kind", "review", "--source", str(draft))
+        self.command("request-changes", "--review", str(self.run_path / "review-01.md"))
+        self.source.write_text("RunGameFrame:\n  RTS\n")
+        self.git("add", "projects/demo/asm/demo.asm")
+        self.git("commit", "-qm", "Close remaining gap")
+        draft.write_text("Gap closed with evidence.\n")
+        self.command("import-artifact", "--kind", "response", "--source", str(draft))
+        self.command("reready", "--response", str(self.run_path / "response-01.md"), "--head", "HEAD", "--generate-packet")
+        draft.write_text("Verdict: APPROVED\nGold assessment: APPROVED\n\n"
+                         "## Gold-Standard Assessment\nWhole-project evidence checked.\n\n## Learning Candidates\n_None._\n")
+        self.command("import-artifact", "--kind", "review", "--source", str(draft))
+        self.command("approve", "--review", str(self.run_path / "review-02.md"))
+        self.command("archive", "--pass-id", "1")
+        archive = (self.root / "projects/demo/docs/reverse_engineering/reviews/pass-1.md").read_text()
+        for text in ("Close remaining gap.", "Gap closed with evidence.", "Whole-project evidence checked."):
+            self.assertIn(text, archive)
+
 
 if __name__ == "__main__":
     unittest.main()

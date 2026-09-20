@@ -56,7 +56,11 @@ when used.
    python3 scripts/agent_review_tmux.py --project f1_race
    ```
 
-2. The launcher creates the project folders if needed. For a new F1 Race
+2. The launcher shows the local permissions it proposes. Type **yes** to
+   allow routine commits and review handoffs for this checkout. It remembers
+   that choice; no global settings or unrestricted bypass are enabled.
+   Finish each agent's workspace-trust prompt when it starts.
+   The launcher creates the project folders if needed. For a new F1 Race
    project, copy your ROM to `projects/f1_race/reference/f1_race.nes` in this
    checkout. The file must be an iNES `.nes` image, not a bare program dump.
    Copy the manual (PDF, scans, or text) into
@@ -87,6 +91,22 @@ does not waive this step. A launcher
 presence check cannot establish that a file is the correct, readable manual;
 the agents check that, choose the document's OCR language, and check extracted
 text against the pages during reference preparation and intake review.
+
+Routine Git commits and review handoffs use a **pass-cycle permission profile**.
+`--check` previews its exact rules without installing them; the normal launch
+asks once before installation. The agents receive matching command examples,
+and review drafts are written into the project's `tmp` folder before the
+handoff tool publishes them. Other commands can still need approval, including
+builds under Claude, installations, network access, and unusual Git operations.
+Existing user permissions remain in effect; Codex's project rules are shared
+by both Codex sessions. This does not isolate the agents from each other.
+See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
+
+For custom agent wrappers or to use your existing permission setup, add
+`--permissions inherit`. This skips installation and does not remove rules
+you previously installed. A running tmux workspace keeps its original settings;
+new permissions take effect when you restart it through the documented recovery
+procedure.
 
 To leave the screen while work continues, press **Ctrl+b**, then **d**.
 Keep the computer awake and online. Run the same launch command to reconnect;
