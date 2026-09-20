@@ -83,6 +83,7 @@ def command_guide(root: Path, project: str) -> str:
         f"```sh\n{add} <path> <path>\n{commit}\n```\n\n"
         "Use the handoff commands in each watcher prompt. For an approved pass:\n\n"
         f"```sh\n{tool} archive --pass-id <id>\n```\n\n"
+        f"{review.reviewer_scratch_guidance(project)}\n\n"
         "Reviewers write Markdown drafts in the project's tmp directory and use import-artifact "
         "to publish them into the current review round. The same applies to implementer responses. "
         "Do not write directly into protected .agents paths.\n\n"

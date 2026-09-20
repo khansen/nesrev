@@ -72,7 +72,18 @@ prompt rules cover their direct and checkout-scoped forms. Upgrading an older
 profile replaces its managed raw-Git grants after fresh consent; stop and restart
 agents so they load the new rules. Independently configured user grants remain.
 
-Reviewers write draft Markdown in `projects/<slug>/tmp/`. The generated
+All reviewer scratch files belong in `projects/<slug>/tmp/`: review drafts,
+extracts, notes, and temporary scripts. This reviewer-specific rule takes
+precedence over the general implementation-helper path `tmp/projects/<slug>/`;
+OS temporary directories and agent-global scratchpads are outside these grants.
+Read/search original packets and source directly when possible. Create or update
+scratch files with native file-writing/editing tools from the outset.
+File-edit grants do not authorize shell writes: redirection (`>`), `mkdir`,
+`cp`, and `mv` may still prompt even inside the permitted directory. Request
+approval for necessary shell operations; do not broaden permissions or switch
+tools to evade a refusal.
+
+Reviewers publish their draft Markdown through the handoff tool. The generated
 `import-artifact --kind review --source <draft>` command copies it into the
 current review round, then `approve` or `request-changes` records the verdict.
 Implementer responses use `--kind response` before `reready`. Import rejects

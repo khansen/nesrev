@@ -325,6 +325,18 @@ def next_actor_for(state: dict[str, Any]) -> str | None:
     return None
 
 
+def reviewer_scratch_guidance(project: str) -> str:
+    return (
+        f"Keep all reviewer scratch files under `projects/{project}/tmp/`, including "
+        "drafts, extracts, notes, and temporary scripts. Read/search the original packet "
+        "and source directly when possible. Use native file-writing/editing tools to create "
+        "or update scratch files from the outset. File-edit grants do not authorize shell "
+        "writes: redirection (`>`), `mkdir`, `cp`, and `mv` may still require approval even "
+        "inside that directory. Request approval for necessary shell operations; do not "
+        "broaden permissions or switch tools to evade a refusal."
+    )
+
+
 def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
     range_text = f"{state['review_base']}..{state['review_head']}"
     packet = state.get("packet") or "(packet missing)"
@@ -351,6 +363,8 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             "Before reviewing, read `AGENTS.md` and follow the",
             "`Review a committed project pass` row in its Mandatory Routing Table.",
             "Load additional routed playbooks when the changed files or subsystem require them.",
+            "",
+            reviewer_scratch_guidance(state["project"]),
             "",
             "Review the packet and repository read-only. Write the review draft",
             f"at `{draft}` with `Verdict: APPROVED` or",
