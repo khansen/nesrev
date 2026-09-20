@@ -60,6 +60,7 @@ RUNTIME_EXCLUDE_PATTERNS = (
     ".agents/current.json",
     ".agents/runs/",
     ".agents/logs/",
+    ".agents/reference_intake/",
 )
 
 

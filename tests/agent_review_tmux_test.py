@@ -489,6 +489,11 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(argv[argv.index("--project") + 1], "demo")
         self.assertEqual(argv[argv.index("--worker-id") + 1], self.config().parent.name)
         self.assertEqual(execute.call_args.args[2]["AGENT_REVIEW_TMUX_IMPLEMENTER"], "%20")
+        ignored = subprocess.run(
+            ["git", "-c", "core.excludesFile=/dev/null", "check-ignore", "-q", "--no-index",
+             ".agents/reference_intake/demo.json"], cwd=self.root,
+        )
+        self.assertEqual(ignored.returncode, 0, "reference choice must stay ignored even in an older checkout")
 
     def test_pending_review_resumes_via_watcher_without_starting_another_pass(self):
         self.state()

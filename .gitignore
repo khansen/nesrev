@@ -33,3 +33,4 @@ projects/*/docs/game_reference/
 .agents/current.json
 .agents/runs/
 .agents/logs/
+.agents/reference_intake/
