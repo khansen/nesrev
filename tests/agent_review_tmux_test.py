@@ -20,6 +20,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
 import agent_review_tmux as launcher
 import agent_review as review
+import reference_tools as refs
 
 
 class LauncherTests(unittest.TestCase):
@@ -181,6 +182,16 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             self.launch()
         self.assertFalse((self.root / ".agents").exists())
+
+    def test_setup_check_rejects_missing_tools_for_supplied_pdf_without_launching(self):
+        self.scaffold_tools()
+        self.args.check = True
+        self.manual.with_suffix(".pdf").write_text("PDF fixture")
+        with patch.object(refs, "tool_status", return_value=(False, "install reference tool")):
+            with self.assertRaisesRegex(review.UserError, "reference extraction tools"):
+                self.launch()
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertEqual(self.calls(), [])
         self.assertEqual(self.calls(), [])
 
     def test_default_reviewer_falls_back_to_codex_when_claude_is_absent(self):
@@ -413,6 +424,47 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaises(EOFError):
             self.run_worker(answer=["", EOFError])
         self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_missing_ocr_for_optional_faq_blocks_startup_and_pending_approval(self):
+        (self.references / "faqs").mkdir()
+        (self.references / "faqs/scan.pdf").write_text("PDF FAQ fixture")
+        self.state(status="APPROVED")
+        before = review.state_path(self.root).read_bytes()
+        self.launch()
+        output = io.StringIO()
+        with patch.object(refs, "tool_status", return_value=(False, "install OCR tools")):
+            with self.assertRaises(EOFError):
+                self.run_worker(answer=["", EOFError], output=output)
+        self.assertIn("NEEDS INPUT: reference extraction tools", output.getvalue())
+        self.assertIn("Install or repair", output.getvalue())
+        self.assertFalse(self.config().with_name("ready").exists())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_fixing_ocr_tools_resumes_startup_without_repeating_manual_waiver(self):
+        self.manual.unlink()
+        (self.references / "faqs").mkdir()
+        (self.references / "faqs/scan.png").write_text("Scanned FAQ fixture")
+        self.launch()
+        prompts = []
+        repaired = False
+        def answer(prompt):
+            nonlocal repaired
+            prompts.append(prompt)
+            self.assertFalse(self.config().with_name("ready").exists())
+            self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+            if len(prompts) == 1:
+                return "continue without a manual"
+            self.assertEqual(len(prompts), 2)
+            repaired = True
+            return ""
+        with patch.object(refs, "tool_status", side_effect=lambda _: (repaired, "OCR tool fixture")):
+            self.run_worker(answer=answer)
+        self.assertTrue(self.config().with_name("ready").exists())
+        self.assertTrue(any(c[0] == "paste-buffer" for c in self.calls()))
+        record = json.loads((self.root / ".agents/reference_intake/demo.json").read_text())
+        self.assertEqual(record["manual_decision"], "waived")
+        self.assertEqual(record["faq_files"], ["projects/demo/docs/game_reference/faqs/scan.png"])
 
     def test_invalid_or_other_project_reference_record_cannot_waive_manual(self):
         self.manual.unlink()

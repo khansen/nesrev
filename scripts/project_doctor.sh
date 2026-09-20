@@ -8,6 +8,11 @@ set -euo pipefail
 # sort, tee, wc, tr, head, cat, grep, find, basename, dirname. Hosts
 # missing these are not supported even if listed tools are present.
 
+if (( $# > 1 )) || [[ -n "${1:-}" && ! "$1" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "usage: $0 [project_slug]" >&2
+  exit 2
+fi
+
 REQUIRED=(
   "java:Java runtime (https://adoptium.net or 'brew install --cask temurin')"
   "javac:Java compiler (same install as java)"
@@ -81,9 +86,23 @@ for entry in "${OPTIONAL[@]}"; do
   check_tool "$entry" optional
 done
 
-if (( missing_required > 0 )); then
+reference_failure=0
+if command -v python3 >/dev/null 2>&1; then
+  if [[ -n "${1:-}" ]]; then
+    python3 "${BASH_SOURCE[0]%/*}/reference_tools.py" --project "$1" || reference_failure=1
+  else
+    python3 "${BASH_SOURCE[0]%/*}/reference_tools.py" || reference_failure=1
+  fi
+fi
+
+if (( missing_required > 0 || reference_failure > 0 )); then
   echo >&2
-  echo "doctor: ${missing_required} required tool(s) missing" >&2
+  if (( missing_required > 0 )); then
+    echo "doctor: ${missing_required} required tool(s) missing" >&2
+  fi
+  if (( reference_failure > 0 )); then
+    echo "doctor: reference extraction prerequisites failed" >&2
+  fi
   exit 1
 fi
 

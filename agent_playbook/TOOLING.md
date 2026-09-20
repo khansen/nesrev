@@ -196,17 +196,16 @@ rely on ambient session memory of the repository rules. That route includes
 surface. Review and response prompts ask for a `## Learning Candidates` section
 so repeated friction can be triaged outside the individual pass.
 
-The launcher uses Codex for implementation and Claude for review, falling back
-to Codex when Claude is absent. Both roles accept overrides; unavailable choices fail.
-It creates `agents` and `watchers` windows in a new `nesrev-review` session,
-then attaches or switches the current tmux client. Repeating the command
-reconnects to a matching checkout/project workspace without restarting agents
-or changing its task. A conflicting session or other-project workspace is refused.
+The launcher defaults to Codex implementation and Claude review (Codex fallback).
+Both roles accept overrides; unavailable choices fail. It creates `agents` and
+`watchers` windows in `nesrev-review`, then attaches/switches tmux. Repeating the
+command reconnects without changing agents or task; conflicting sessions are refused.
 Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
 and optional FAQs, or explicitly waive the manual after the quality warning.
 Enter cannot skip missing files. `.agents/reference_intake/<slug>.json` persists the choice;
 agents read it and process sources before semantic analysis. The reviewer watcher
-diagnoses startup failure; see README recovery instructions.
+diagnoses startup failure; see README recovery instructions. Startup also checks
+PDF/OCR tools for supplied manuals and FAQs, waiting with install hints if needed.
 
 If the project directory is absent, the launcher runs `project-doctor` and
 `project-init` and prints ROM/manual paths. Directories without `project.conf`
@@ -237,7 +236,8 @@ are reused. Agent/task overrides apply only to new workspaces.
 `--no-attach` leaves it detached. Overrides are quoted executable/argument lists,
 not shell programs; each gets an appended prompt. Models and permissions are
 retained. Authentication, supervision, and restart remain the user's responsibility.
-`--check` checks tools and Git identity without scaffolding or launching agents.
+`--check` checks tools, supplied references' PDF/OCR prerequisites, and Git identity
+without scaffolding or launching agents; `project-doctor PROJECT=<slug>` shares the reference check.
 
 The implementer records the pre-pass base, closes out and commits a coherent
 pass, runs `start-pass` with that base, then yields until review returns. It

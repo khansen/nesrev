@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import agent_review as review
+from reference_tools import project_reference_files, reference_files, reference_tool_issues
 
 
 SCRIPT = Path(__file__).resolve()
@@ -144,14 +145,6 @@ def require_live_agents(config: dict) -> None:
             raise review.UserError(f"{role} exited in pane {pane}; restart the workspace after fixing its command")
 
 
-def reference_files(directory: Path) -> list[Path]:
-    return sorted(
-        path for path in directory.rglob("*")
-        if not any(part.startswith(".") for part in path.relative_to(directory).parts)
-        and path.is_file() and path.stat().st_size > 0
-    )
-
-
 def confirm_references(root: Path, project: str) -> None:
     references = root / "projects" / project / "docs" / "game_reference"
     record = root / ".agents" / "reference_intake" / f"{project}.json"
@@ -197,6 +190,12 @@ def confirm_references(root: Path, project: str) -> None:
             "faq_files": [str(path.relative_to(root)) for path in faqs],
             "warning": MANUAL_WARNING if decision == "waived" else None,
         }, indent=2) + "\n")
+        waived = decision == "waived"
+        issues = reference_tool_issues(manuals + faqs)
+        if issues:
+            print("NEEDS INPUT: reference extraction tools are not ready:\n" + "\n".join(issues), flush=True)
+            print("Install or repair the listed tools, then press Enter again. Work has not started.", flush=True)
+            continue
         print(f"Manual: {decision}; optional FAQs/guides: {len(faqs)} file(s).", flush=True)
         return
 
@@ -294,7 +293,10 @@ def launch(args: argparse.Namespace) -> int:
         for role in ROLES:
             command = role_command(args, role)
             print(f"{role}: {shlex.join(command)}")
-        subprocess.run(["make", "project-doctor"], cwd=root, check=True)
+        subprocess.run(["make", "project-doctor", f"PROJECT={args.project}"], cwd=root, check=True)
+        issues = reference_tool_issues(project_reference_files(root, args.project))
+        if issues:
+            raise review.UserError("reference extraction tools are not ready:\n" + "\n".join(issues))
         for identity in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
             review.run_git(["var", identity], cwd=root)
         current_state(root, args.project)

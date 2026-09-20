@@ -64,6 +64,79 @@ test_doctor_does_not_fail_on_missing_optional() {
   local stdout; stdout="$(cat "${NESREV_TEST_TMPDIR}/stdout")"
   assert_match "jq .* OPTIONAL" "${stdout}"
   assert_match "shellcheck .* OPTIONAL" "${stdout}"
+  assert_match "pdftotext .* OPTIONAL" "${stdout}"
+  assert_match "pdftoppm .* OPTIONAL" "${stdout}"
+  assert_match "tesseract .* OPTIONAL" "${stdout}"
+}
+
+test_reference_tool_readiness() {
+  python3 "${REPO_ROOT}/tests/reference_tools_test.py"
+}
+
+_reference_doctor_fixture() {
+  local root="${NESREV_TEST_TMPDIR}/reference checkout"
+  mkdir -p "${root}/projects/demo/docs/game_reference/"{manuals,faqs}
+  ln -s "${REPO_ROOT}/scripts" "${root}/scripts"
+  _make_stub_bindir "${NESREV_TEST_TMPDIR}/stub_bin" \
+    java javac xasm bash python3 rg od dd awk sed perl make git head
+  cd "${root}"
+}
+
+test_doctor_project_text_references_need_no_pdf_or_ocr_tools() {
+  _reference_doctor_fixture
+  printf 'Manual text\n' > projects/demo/docs/game_reference/manuals/manual.txt
+  printf '<html>FAQ</html>\n' > projects/demo/docs/game_reference/faqs/faq.html
+  PATH="${NESREV_TEST_TMPDIR}/stub_bin" make -f "${REPO_ROOT}/Makefile" project-doctor PROJECT=demo \
+    >"${NESREV_TEST_TMPDIR}/stdout" 2>"${NESREV_TEST_TMPDIR}/stderr"
+  assert_match "all required tools present" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+}
+
+test_doctor_project_pdf_faq_requires_extraction_and_ocr_tools() {
+  _reference_doctor_fixture
+  printf 'Manual text\n' > projects/demo/docs/game_reference/manuals/manual.txt
+  printf 'PDF fixture\n' > projects/demo/docs/game_reference/faqs/guide.PDF
+  local rc=0
+  PATH="${NESREV_TEST_TMPDIR}/stub_bin" make -f "${REPO_ROOT}/Makefile" project-doctor PROJECT=demo \
+    >"${NESREV_TEST_TMPDIR}/stdout" 2>"${NESREV_TEST_TMPDIR}/stderr" || rc=$?
+  assert_eq "${rc}" "2" "Make must reject missing PDF/OCR tools for a supplied FAQ"
+  local stdout; stdout="$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+  assert_match "pdftotext .* MISSING" "${stdout}"
+  assert_match "pdftoppm .* MISSING" "${stdout}"
+  assert_match "tesseract .* MISSING" "${stdout}"
+  assert_match "reference extraction prerequisites failed" "$(cat "${NESREV_TEST_TMPDIR}/stderr")"
+}
+
+_reference_tesseract_stub() {
+  local language="$1"
+  cat > "${NESREV_TEST_TMPDIR}/stub_bin/tesseract" <<SH
+#!/bin/bash
+case "\$1" in
+  --version) echo 'tesseract fixture' ;;
+  --list-langs) printf 'List of available languages (1):\\n%s\\n' '${language}' ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "${NESREV_TEST_TMPDIR}/stub_bin/tesseract"
+}
+
+test_doctor_project_image_requires_ocr_but_not_poppler() {
+  _reference_doctor_fixture
+  printf 'Image fixture\n' > projects/demo/docs/game_reference/manuals/page.PNG
+  _reference_tesseract_stub jpn
+  PATH="${NESREV_TEST_TMPDIR}/stub_bin" bash "${DOCTOR}" demo >"${NESREV_TEST_TMPDIR}/stdout"
+  assert_match "tesseract .* OK.*1 recognition language" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+  assert_match "pdftoppm .* OPTIONAL" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+}
+
+test_doctor_project_rejects_ocr_without_recognition_language_data() {
+  _reference_doctor_fixture
+  printf 'Image fixture\n' > projects/demo/docs/game_reference/manuals/page.png
+  _reference_tesseract_stub osd
+  local rc=0
+  PATH="${NESREV_TEST_TMPDIR}/stub_bin" bash "${DOCTOR}" demo \
+    >"${NESREV_TEST_TMPDIR}/stdout" 2>"${NESREV_TEST_TMPDIR}/stderr" || rc=$?
+  assert_eq "${rc}" "1" "OCR orientation data alone cannot read a manual"
+  assert_match "no usable OCR language data" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
 }
 
 test_doctor_captures_version_printed_to_stderr() {

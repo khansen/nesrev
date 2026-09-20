@@ -9,6 +9,7 @@ The default goal is **reviewed gold standard**, as defined by the
 The agents can stop for files, permissions, account limits, or gameplay traces
 that need your help. This is not a guarantee of unattended completion.
 
+<a id="before-your-first-run"></a>
 ### Before your first run
 
 You need this repository and its [toolchain](agent_playbook/NEW_PROJECT.md#prerequisites), Python 3, tmux,
@@ -31,6 +32,13 @@ python3 scripts/agent_review_tmux.py --project f1_race --check
 If a required tool is missing, install it using the diagnostic or toolchain
 instructions, then repeat the check. It checks local tools and Git identity;
 you still complete account and permission prompts when the agents start.
+Doctor also reports PDF/OCR tools. Use `make project-doctor PROJECT=f1_race`
+to check requirements for that project's supplied manuals and FAQs.
+PDFs require Poppler (`pdftotext`, `pdftoppm`) and Tesseract so both text and
+scanned pages can be read; image scans require Tesseract with recognition
+language data. Plain text and HTML do not require these tools. The launcher
+checks again after you confirm your files and waits with installation guidance
+if anything is missing. It does not install software automatically.
 
 ### Start and let the agents work
 
@@ -70,7 +78,8 @@ input unless you explicitly chose to continue without one; the crosswalk must
 record that decision and limitation. A “no references available” note alone
 does not waive this step. A launcher
 presence check cannot establish that a file is the correct, readable manual;
-the agents check that during reference preparation and intake review.
+the agents check that, choose the document's OCR language, and check extracted
+text against the pages during reference preparation and intake review.
 
 To leave the screen while work continues, press **Ctrl+b**, then **d**.
 Keep the computer awake and online. Run the same launch command to reconnect;

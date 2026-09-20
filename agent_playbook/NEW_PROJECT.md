@@ -79,13 +79,17 @@ The check reports each required tool's status and exits non-zero if any
 are missing. Required: `java`, `javac`, `xasm` (6502 assembler), `bash`,
 `python3`, `rg` (ripgrep), `od`, `dd`, `awk`, `sed`, `perl`, `make`,
 `git`. Optional but recommended: `jq` (used for inspecting generated
-pass artifacts), `shellcheck` (used when editing scripts). A
-POSIX-compliant base toolset (`cmp`, `mktemp`, `sort`, `tee`, `wc`,
+pass artifacts), `shellcheck` (used when editing scripts). Doctor also reports
+`pdftotext`, `pdftoppm`, and `tesseract`. Add `PROJECT=<slug>` to require the
+tools for supplied PDF/image manuals and FAQs; plain text/HTML needs no OCR.
+PDFs require all three to support mixed text/scans; images require Tesseract
+with recognition language data. See the [README](../README.md#before-your-first-run).
+A POSIX-compliant base toolset (`cmp`, `mktemp`, `sort`, `tee`, `wc`,
 `tr`, `head`, `cat`, `grep`, `find`, `basename`, `dirname`) is
 presumed present and not checked individually; hosts missing these are
-not supported. The script verifies presence only, not minimum versions
-or capabilities; the hint field names a standard install source for
-each missing tool.
+not supported. Core checks verify presence, not minimum versions; reference
+checks also probe tools and OCR language availability. Agents still check the
+document's language and extraction quality. Diagnostics include install hints.
 
 <a id="rom-support-matrix"></a>
 ## ROM Support Matrix
