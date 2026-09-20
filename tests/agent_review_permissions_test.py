@@ -65,8 +65,11 @@ class PermissionTests(unittest.TestCase):
                             for rule in settings["allow"]:
                                 self.assertNotIn("Bash(git *)", rule)
                                 if role == "reviewer":
-                                    self.assertNotIn(" commit ", rule)
+                                    self.assertNotIn("commit-project", rule)
+                                    self.assertNotIn("stage-project", rule)
                                     self.assertNotIn("start-pass", rule)
+                                self.assertNotIn(" add ", rule)
+                                self.assertNotIn(" commit ", rule)
 
     def test_model_options_survive_and_permission_overrides_are_refused(self):
         plan = permissions.build_plan(self.root, "demo", {
@@ -104,6 +107,7 @@ class PermissionTests(unittest.TestCase):
             subprocess.run(["git", "-C", str(self.root), "config", key, value], check=True)
         source = self.root / "projects/demo/source.asm"
         source.parent.mkdir(parents=True)
+        (source.parent / "project.conf").write_text('PROJECT_NAME="demo"\n')
         source.write_text("RunGame:\n  RTS\n")
         message = self.root / "projects/demo/tmp/commit-message.txt"
         message.parent.mkdir()
@@ -200,6 +204,22 @@ class PermissionTests(unittest.TestCase):
         inherited.write_text('prefix_rule(pattern=["git"], decision="allow")\n')
         self.assertEqual(decision(["git", "push"], [inherited]), "forbidden")
         self.assertEqual(decision(["git", "-C", str(self.root), "reset", "--hard"], [inherited]), "prompt")
+        for git in (["git"], ["git", "-C", str(self.root)]):
+            for path in (".", "*", "-A", "projects/demo/", "projects/other/source.asm", ":(top)*"):
+                for operation in (["add", "--", path],
+                                  ["commit", "--file", "projects/demo/tmp/commit-message.txt", "--", path]):
+                    with self.subTest(git=git, operation=operation):
+                        self.assertEqual(decision(git + operation), "prompt")
+                        self.assertEqual(decision(git + operation, [inherited]), "prompt")
+
+    def test_upgrading_raw_git_profile_requires_consent_and_replaces_old_rules(self):
+        old = self.plan()
+        prefix = '["git", "-C", ' + json.dumps(str(self.root)) + ', "add", "--"]'
+        old.files[permissions.RULES] += f'prefix_rule(pattern={prefix}, decision="allow")\n'
+        self.apply(old)
+        updated = self.plan()
+        self.assertEqual(self.apply(updated).call_count, 1)
+        self.assertEqual((self.root / permissions.RULES).read_text(), updated.files[permissions.RULES])
 
 
 if __name__ == "__main__":

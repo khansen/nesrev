@@ -1103,6 +1103,58 @@ def command_archive(args: argparse.Namespace) -> int:
     return 0
 
 
+def project_commit_root(root: Path, project: str) -> Path:
+    if not PROJECT_RE.fullmatch(project):
+        raise UserError("invalid project slug")
+    directory = root / "projects" / project
+    if directory.resolve() != directory or not (directory / "project.conf").is_file():
+        raise UserError("project must have a project.conf in a non-symlinked project directory")
+    return directory
+
+
+def validate_project_file(root: Path, project: str, name: str) -> Path:
+    path = Path(name)
+    if (path.is_absolute() or path.as_posix() != name or len(path.parts) < 3
+            or path.parts[:2] != ("projects", project)
+            or any(part in {".", "..", ".git"} for part in path.parts)
+            or any(char in name for char in "*?[]\\\n\r\0")):
+        raise UserError(f"expected an explicit file path under projects/{project}/: {name!r}")
+    target = root / path
+    if target.resolve() != target or target.is_symlink():
+        raise UserError(f"project file must not use symlinks: {name}")
+    if target.exists() and not target.is_file():
+        raise UserError(f"expected a file, not a directory or special file: {name}")
+    return target
+
+
+def command_stage_project(args: argparse.Namespace) -> int:
+    root = repo_root().resolve()
+    project_commit_root(root, args.project)
+    tracked = set(run_git(["ls-files", "-z"], cwd=root).split("\0"))
+    for name in args.paths:
+        target = validate_project_file(root, args.project, name)
+        if not target.is_file() and name not in tracked:
+            raise UserError(f"file does not exist and is not a tracked deletion: {name}")
+    # All paths are checked before Git can change the index; literal mode also
+    # prevents repository/environment pathspec settings from broadening a name.
+    run_git(["--literal-pathspecs", "add", "--", *args.paths], cwd=root)
+    print(f"staged {len(args.paths)} explicit project file(s)")
+    return 0
+
+
+def command_commit_project(args: argparse.Namespace) -> int:
+    root = repo_root().resolve()
+    directory = project_commit_root(root, args.project)
+    names = run_git(["diff", "--cached", "--name-only", "--no-renames", "-z"], cwd=root).split("\0")
+    for name in filter(None, names):
+        validate_project_file(root, args.project, name)
+    message = directory / "tmp" / "commit-message.txt"
+    if message.resolve() != message or not message.is_file():
+        raise UserError("write the commit message to the project's non-symlinked tmp/commit-message.txt")
+    print(run_git(["commit", "--file", str(message), "--"], cwd=root), end="")
+    return 0
+
+
 def command_watch(args: argparse.Namespace) -> int:
     root = repo_root()
     if args.worker_id and not RUN_ID_RE.fullmatch(args.worker_id):
@@ -1224,6 +1276,15 @@ def build_parser() -> argparse.ArgumentParser:
     artifact.add_argument("--kind", choices=("review", "response"), required=True)
     artifact.add_argument("--source", required=True)
     artifact.set_defaults(func=command_import_artifact)
+
+    stage = sub.add_parser("stage-project", help="stage only explicit files in one project")
+    stage.add_argument("project")
+    stage.add_argument("paths", nargs="+")
+    stage.set_defaults(func=command_stage_project)
+
+    commit = sub.add_parser("commit-project", help="commit only the selected project's staged changes")
+    commit.add_argument("project")
+    commit.set_defaults(func=command_commit_project)
 
     watch = sub.add_parser("watch", help="notify when a role owns the next turn")
     watch.add_argument("--role", choices=["implementer", "reviewer"], required=True)

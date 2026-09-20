@@ -6,8 +6,9 @@ agents. `--check` prints the same rules without installing them or prompting.
 An unchanged profile reuses the recorded consent. Changing the project, roles,
 tool paths, or generated settings requires confirmation again.
 
-The implementer receives grants for staging explicit paths and committing staged
-changes in this checkout, plus `start-pass`, `reready`, `archive`, `status`, and
+The implementer receives grants for `stage-project` and `commit-project`, which
+validate explicit file paths and staged changes for the selected project,
+plus `start-pass`, `reready`, `archive`, `status`, and
 response publication. The reviewer receives `approve`, `request-changes`,
 `status`, and review publication. Claude file-edit grants cover the selected
 project for the implementer and only its `tmp` directory for the reviewer.
@@ -36,8 +37,8 @@ through `--settings`. These behaviors follow the native
 Existing user, project, and administrator settings still apply. Broad grants
 already present are not revoked, and restrictive policies may still require
 approval or refuse an operation. The generated rules block direct `git push`
-and `git -C <checkout> push`; matching reset, restore, checkout, switch, rebase,
-merge, clean, config, worktree, and branch commands require approval. These
+and `git -C <checkout> push`; matching raw add, commit, reset, restore, checkout,
+switch, rebase, merge, clean, config, worktree, and branch commands require approval. These
 patterns do not cover every equivalent Git invocation or indirect script.
 Never push `projects`, regardless of available permissions. This profile trusts
 the named handoff script, repository code it invokes, and Git hooks; it is a
@@ -55,10 +56,21 @@ different interpreter or silently broaden the rules to address a refusal.
 
 The launcher fixes the Python executable, handoff script, and `--repo` path in
 both grants and prompts. The implementer writes a commit message with a normal
-file-edit tool to `projects/<slug>/tmp/commit-message.txt`, stages explicit
-paths with `git -C <checkout> add -- <paths>`, and runs
-`git -C <checkout> commit --file projects/<slug>/tmp/commit-message.txt --`.
-The end-of-options markers keep the granted suffixes to paths.
+file-edit tool to `projects/<slug>/tmp/commit-message.txt`, then uses the printed
+`stage-project <slug> -- <file> <file>` and `commit-project <slug>` commands.
+Staging validates the whole list before invoking Git with literal pathspecs.
+It accepts existing files and exact tracked deletions under `projects/<slug>/`;
+directories, globs, pathspec magic, outside paths, and symlinks are refused.
+List both the old and new filenames to stage a rename. Commit checks every
+staged path belongs to the selected project, reads the fixed message file, and
+accepts no extra paths or Git options. Pre-existing unrelated staged changes
+block the commit and remain untouched. These commands cannot establish whether
+an agent actually reviewed the specified files; that remains its responsibility.
+
+Raw Git staging and commit commands have no generated allow grant. The generated
+prompt rules cover their direct and checkout-scoped forms. Upgrading an older
+profile replaces its managed raw-Git grants after fresh consent; stop and restart
+agents so they load the new rules. Independently configured user grants remain.
 
 Reviewers write draft Markdown in `projects/<slug>/tmp/`. The generated
 `import-artifact --kind review --source <draft>` command copies it into the

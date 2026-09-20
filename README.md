@@ -95,9 +95,11 @@ text against the pages during reference preparation and intake review.
 Routine Git commits and review handoffs use a **pass-cycle permission profile**.
 `--check` previews its exact rules without installing them; the normal launch
 asks once before installation. The agents receive matching command examples,
-and review drafts are written into the project's `tmp` folder before the
-handoff tool publishes them. Other commands can still need approval, including
-builds under Claude, installations, network access, and unusual Git operations.
+and staging accepts explicit files in the selected project. The commit command
+refuses unrelated staged changes. Review drafts are written into the project's
+`tmp` folder before the handoff tool publishes them. Other commands can still
+need approval, including builds under Claude, installations, network access,
+and unusual Git operations.
 Existing user permissions remain in effect; Codex's project rules are shared
 by both Codex sessions. This does not isolate the agents from each other.
 See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
