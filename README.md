@@ -22,17 +22,18 @@ save commits. Bring your own reference ROM and game manual; FAQs and guides
 are optional. The agents do not obtain those for you. You can explicitly
 choose to proceed without a manual at startup, accepting lower semantic precision.
 
-Open Terminal in the repository folder. This optional check starts no agents
-and creates no project:
+Open Terminal in the repository folder. Replace `my_game` in the examples
+with your project’s folder name. This optional check starts no agents and
+creates no project:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race --check
+python3 scripts/agent_review_tmux.py --project my_game --check
 ```
 
 If a required tool is missing, install it using the diagnostic or toolchain
 instructions, then repeat the check. It checks local tools and Git identity;
 you still complete account and permission prompts when the agents start.
-Doctor also reports PDF/OCR tools. Use `make project-doctor PROJECT=f1_race`
+Doctor also reports PDF/OCR tools. Use `make project-doctor PROJECT=my_game`
 to check requirements for that project's supplied manuals and FAQs.
 PDFs require Poppler (`pdftotext`, `pdftoppm`) and Tesseract so both text and
 scanned pages can be read; image scans require Tesseract with recognition
@@ -49,23 +50,23 @@ when used.
 
 ### Start and let the agents work
 
-1. Run this command. Replace `f1_race` with your project's folder name when
-   working on another game; use lowercase letters, numbers, and underscores.
+1. Run this command with your project's folder name in place of `my_game`.
+   Use lowercase letters, numbers, and underscores.
 
    ```sh
-   python3 scripts/agent_review_tmux.py --project f1_race
+   python3 scripts/agent_review_tmux.py --project my_game
    ```
 
 2. The launcher shows the local permissions it proposes. Type **yes** to
    allow routine commits and review handoffs for this checkout. It remembers
    that choice; no global settings or unrestricted bypass are enabled.
    Finish each agent's workspace-trust prompt when it starts.
-   The launcher creates the project folders if needed. For a new F1 Race
-   project, copy your ROM to `projects/f1_race/reference/f1_race.nes` in this
+   The launcher creates the project folders if needed. For a new
+   project, copy your ROM to `projects/my_game/reference/my_game.nes` in this
    checkout. The file must be an iNES `.nes` image, not a bare program dump.
    Copy the manual (PDF, scans, or text) into
-   `projects/f1_race/docs/game_reference/manuals/`. Put any optional FAQs or
-   guides into `projects/f1_race/docs/game_reference/faqs/`. These source files
+   `projects/my_game/docs/game_reference/manuals/`. Put any optional FAQs or
+   guides into `projects/my_game/docs/game_reference/faqs/`. These source files
    stay outside Git. The implementer derives mapper and ROM sizes itself.
 3. Press **Ctrl+b**, release both keys, then press **w**. Select `agents`.
    The left pane is the implementer; the right pane is the reviewer. Switch
@@ -159,19 +160,19 @@ the handoff protocol are in
 To have Claude implement and Codex review:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race --implementer-cmd claude --reviewer-cmd codex
+python3 scripts/agent_review_tmux.py --project my_game --implementer-cmd claude --reviewer-cmd codex
 ```
 
 To use Codex for both roles, even when Claude is installed:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race --reviewer-cmd codex
+python3 scripts/agent_review_tmux.py --project my_game --reviewer-cmd codex
 ```
 
 To use Claude for both roles:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race --implementer-cmd claude --reviewer-cmd claude
+python3 scripts/agent_review_tmux.py --project my_game --implementer-cmd claude --reviewer-cmd claude
 ```
 
 Each role always gets its own session. Add `--check` to any command to check
@@ -198,7 +199,7 @@ Choose independently for each role:
 For example, leave model selection to the agents and choose different effort levels:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race \
+python3 scripts/agent_review_tmux.py --project my_game \
   --implementer-effort high --reviewer-effort medium
 ```
 
@@ -207,7 +208,7 @@ your agents. Select each app explicitly when using its model names so the
 automatic reviewer fallback cannot switch apps:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project f1_race \
+python3 scripts/agent_review_tmux.py --project my_game \
   --implementer-cmd codex --implementer-model "<codex-model>" --implementer-effort high \
   --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort medium
 ```
