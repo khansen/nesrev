@@ -31,6 +31,10 @@ class LauncherTests(unittest.TestCase):
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         (self.root / "projects/demo").mkdir(parents=True)
         (self.root / "projects/demo/project.conf").write_text('PROJECT="demo"\n')
+        self.references = self.root / "projects/demo/docs/game_reference"
+        self.manual = self.references / "manuals/manual.txt"
+        self.manual.parent.mkdir(parents=True)
+        self.manual.write_text("User-supplied manual text.\n")
         self.log = Path(self.temp.name) / "tmux.jsonl"
         self.stub = Path(self.temp.name) / "tmux-stub"
         self.stub.write_text(
@@ -295,12 +299,13 @@ class LauncherTests(unittest.TestCase):
             self.launch()
         self.assertEqual(self.calls()[-1], ["attach-session", "-t", "$1"])
 
-    def run_worker(self, answer="", notify=None, role="implementer"):
+    def run_worker(self, answer="", notify=None, role="implementer", output=None):
         previous = Path.cwd()
         self.addCleanup(os.chdir, previous)
-        with patch("builtins.input", side_effect=[answer] if answer is not EOFError else EOFError), \
+        answers = [answer] if isinstance(answer, str) else answer
+        with patch("builtins.input", side_effect=answers), \
              patch.object(launcher.os, "execve") as execute, \
-             contextlib.redirect_stdout(io.StringIO()):
+             contextlib.redirect_stdout(output if output is not None else io.StringIO()):
             if notify is None:
                 result = launcher.run_worker(self.config(), role)
             else:
@@ -314,6 +319,113 @@ class LauncherTests(unittest.TestCase):
             self.run_worker(answer=EOFError)
         self.assertFalse(self.config().with_name("ready").exists())
         self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_missing_manual_never_starts_on_enter_even_after_intake_approval(self):
+        self.manual.unlink()
+        self.manual.with_name(".gitkeep").write_text("placeholder")
+        self.manual.with_name("empty.pdf").touch()
+        hidden = self.manual.parent / ".cache"
+        hidden.mkdir()
+        (hidden / "manual.txt").write_text("not an input")
+        (self.references / "faqs").mkdir()
+        (self.references / "faqs/guide.txt").write_text("Optional guide is not a manual.")
+        self.launch()
+        for status in (None, "IMPLEMENTING", "READY_FOR_REVIEW", "CHANGES_REQUESTED", "APPROVED"):
+            with self.subTest(status=status):
+                if status:
+                    self.state(status=status)
+                before = review.state_path(self.root).read_bytes() if status else None
+                output = io.StringIO()
+                with self.assertRaises(EOFError):
+                    self.run_worker(answer=["", "", EOFError], output=output)
+                self.assertIn("NEEDS INPUT", output.getvalue())
+                self.assertFalse(self.config().with_name("ready").exists())
+                self.assertFalse((self.root / ".agents/reference_intake/demo.json").exists())
+                self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+                if status:
+                    self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_user_can_supply_manual_and_optional_faq_while_startup_waits(self):
+        self.manual.unlink()
+        self.launch()
+        prompts = []
+        output = io.StringIO()
+        def answer(prompt):
+            prompts.append(prompt)
+            self.assertFalse(self.config().with_name("ready").exists())
+            self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+            self.assertIn(str(self.manual.parent), output.getvalue())
+            self.assertIn(str(self.references / "faqs"), output.getvalue())
+            if len(prompts) == 2:
+                self.manual.write_text("Supplied after the first prompt.")
+                (self.references / "faqs").mkdir()
+                (self.references / "faqs/guide.txt").write_text("Optional FAQ.")
+            self.assertLessEqual(len(prompts), 2)
+            return ""
+        self.run_worker(answer=answer, output=output)
+        self.assertEqual(len(prompts), 2)
+        record = json.loads((self.root / ".agents/reference_intake/demo.json").read_text())
+        self.assertEqual(record["manual_decision"], "provided")
+        self.assertEqual(record["manual_files"], ["projects/demo/docs/game_reference/manuals/manual.txt"])
+        self.assertEqual(record["faq_files"], ["projects/demo/docs/game_reference/faqs/guide.txt"])
+        self.assertTrue(self.config().with_name("ready").exists())
+
+    def test_explicit_manual_waiver_warns_before_choice_and_persists_for_restart(self):
+        self.manual.unlink()
+        (self.references / "faqs").mkdir()
+        (self.references / "faqs/guide.txt").write_text("Still process the FAQ after a manual waiver.")
+        self.launch()
+        output = io.StringIO()
+        def waive(prompt):
+            self.assertIn(launcher.MANUAL_WARNING, output.getvalue())
+            self.assertIn("continue without a manual", prompt)
+            return "continue without a manual"
+        self.run_worker(answer=waive, output=output)
+        record_path = self.root / ".agents/reference_intake/demo.json"
+        record = json.loads(record_path.read_text())
+        self.assertEqual(record["manual_decision"], "waived")
+        self.assertEqual(record["warning"], launcher.MANUAL_WARNING)
+        self.assertEqual(record["faq_files"], ["projects/demo/docs/game_reference/faqs/guide.txt"])
+        self.assertTrue(self.config().with_name("ready").exists())
+        with patch("builtins.input", side_effect=[""]) as answer, contextlib.redirect_stdout(output):
+            launcher.confirm_references(self.root, "demo")
+        answer.assert_called_once()
+        self.assertIn("earlier explicit choice", output.getvalue())
+        self.assertEqual(json.loads(record_path.read_text()), record)
+
+    def test_ambiguous_answers_do_not_waive_a_missing_manual(self):
+        self.manual.unlink()
+        self.launch()
+        with self.assertRaises(EOFError):
+            self.run_worker(answer=["yes", "skip", "no references available", EOFError])
+        self.assertFalse(self.config().with_name("ready").exists())
+        self.assertFalse((self.root / ".agents/reference_intake/demo.json").exists())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_newly_supplied_manual_replaces_previous_waiver(self):
+        record_path = self.root / ".agents/reference_intake/demo.json"
+        review.atomic_write(record_path, json.dumps({"project": "demo", "manual_decision": "waived"}))
+        with patch("builtins.input", return_value=""), contextlib.redirect_stdout(io.StringIO()):
+            launcher.confirm_references(self.root, "demo")
+        self.assertEqual(json.loads(record_path.read_text())["manual_decision"], "provided")
+        self.manual.unlink()
+        self.launch()
+        with self.assertRaises(EOFError):
+            self.run_worker(answer=["", EOFError])
+        self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_invalid_or_other_project_reference_record_cannot_waive_manual(self):
+        self.manual.unlink()
+        self.launch()
+        record_path = self.root / ".agents/reference_intake/demo.json"
+        for record in ([], {}, {"project": "other", "manual_decision": "waived"},
+                       {"project": "demo", "manual_decision": "unknown"}):
+            with self.subTest(record=record):
+                review.atomic_write(record_path, json.dumps(record))
+                with self.assertRaisesRegex(review.UserError, "invalid reference intake record"):
+                    self.run_worker()
+                self.assertFalse(self.config().with_name("ready").exists())
+                self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
 
     def test_startup_confirmation_sends_task_and_executes_filtered_watcher(self):
         self.launch()

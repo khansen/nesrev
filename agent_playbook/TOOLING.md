@@ -202,15 +202,15 @@ It creates `agents` and `watchers` windows in a new `nesrev-review` session,
 then attaches or switches the current tmux client. Repeating the command
 reconnects to a matching checkout/project workspace without restarting agents
 or changing its task. A conflicting session or other-project workspace is refused.
-Both agents must finish login/trust prompts and reply `READY` without starting
-work. Press Enter in the `watchers` startup pane to send the objective and arm
-the handoffs. The reviewer watcher reports a dead startup pane instead of
-waiting forever. Use **Ctrl+b, w** to select a window; recovery is in the README.
+Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
+and optional FAQs, or explicitly waive the manual after the quality warning.
+Enter cannot skip missing files. `.agents/reference_intake/<slug>.json` persists the choice;
+agents read it and process sources before semantic analysis. The reviewer watcher
+diagnoses startup failure; see README recovery instructions.
 
 If the project directory is absent, the launcher runs `project-doctor` and
-`project-init`, then prints the reference-ROM path. An existing directory
-without `project.conf` is refused without overwriting it. The implementer
-routes unfinished intake through `NEW_PROJECT.md`, stops for missing user-supplied
+`project-init` and prints ROM/manual paths. Directories without `project.conf`
+are refused. The implementer routes unfinished intake through `NEW_PROJECT.md`, stops for missing user-supplied
 material, and submits the two intake commits as pass 0 before semantic work.
 Existing projects resume pass selection; approval advances the pass cycle until
 the objective is met or a user-dependent blocker is reached.

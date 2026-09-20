@@ -20,6 +20,11 @@ import agent_review as review
 
 SCRIPT = Path(__file__).resolve()
 ROLES = ("implementer", "reviewer")
+MANUAL_WAIVER = "continue without a manual"
+MANUAL_WARNING = (
+    "Without a manual, the final disassembly's terminology and semantic precision "
+    "will likely be lower than they could have been."
+)
 
 
 def tmux(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -64,7 +69,9 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
         f"Read {task_path} for the objective and the pass/review loop, including when resuming an existing review."
         if role == "implementer" else
         "Review tracked project files read-only. Write only review artifacts and "
-        "verdict state through the review handoff tools; do not implement fixes."
+        "verdict state through the review handoff tools; do not implement fixes. "
+        "Intake approval requires processing supplied references or documenting the user's explicit "
+        "manual waiver; an empty folder alone does not justify skipping references."
     )
     return (
         f"You are the {role} for NESrev project {project} in {root}.\n"
@@ -72,6 +79,9 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
         "Read AGENTS.md and agent_playbook/TOOLING.md#agent-review-handoff. "
         "One implementer and one reviewer share this checkout and take turns; "
         "watchers deliver the handoffs. Never push the projects branch.\n"
+        f"Before acting on a handoff, read .agents/reference_intake/{project}.json for the user's "
+        "reference choice. The launcher records it at startup after your READY reply. "
+        "Only a manual_decision of waived authorizes proceeding without a manual.\n"
         "This is setup only. Do not start a pass or act on existing review state yet. "
         "Reply READY and end your turn. Wait for the launcher's next prompt."
     )
@@ -83,6 +93,15 @@ def kickoff(project: str, task: str) -> str:
         f"Begin or resume implementation for {project}.\n\nObjective: {task}\n\n"
         "Follow AGENTS.md and the mandatory playbooks. Stay on the current branch; "
         "never push the projects branch. Preserve unrelated work.\n"
+        f"Before semantic analysis, read the user-supplied manual in projects/{project}/docs/game_reference/manuals/ "
+        f"and any optional FAQs in projects/{project}/docs/game_reference/faqs/. "
+        "Extract vocabulary into MANUAL_TERMS.md and seed TERMINOLOGY_CROSSWALK.md before naming. "
+        f"The user's startup decision is in .agents/reference_intake/{project}.json. "
+        "If manual_decision is waived, record that explicit user request and its semantic-quality "
+        "limitation in the crosswalk, and still process any supplied FAQs. Otherwise, "
+        "if the manual is absent or unreadable, stop with NEEDS INPUT and ask the user for it; "
+        "never infer that an empty directory means the user declined to supply references. "
+        "Repair any earlier no-reference preparation before continuing, even if intake was already approved.\n"
         "For a new or not-yet-intaken project, follow agent_playbook/NEW_PROJECT.md "
         "before semantic passes. The launcher creates the scaffold when needed. "
         f"If the reference ROM is missing, stop and ask for projects/{project}/reference/{project}.nes; "
@@ -125,6 +144,63 @@ def require_live_agents(config: dict) -> None:
             raise review.UserError(f"{role} exited in pane {pane}; restart the workspace after fixing its command")
 
 
+def reference_files(directory: Path) -> list[Path]:
+    return sorted(
+        path for path in directory.rglob("*")
+        if not any(part.startswith(".") for part in path.relative_to(directory).parts)
+        and path.is_file() and path.stat().st_size > 0
+    )
+
+
+def confirm_references(root: Path, project: str) -> None:
+    references = root / "projects" / project / "docs" / "game_reference"
+    record = root / ".agents" / "reference_intake" / f"{project}.json"
+    previous = json.loads(record.read_text()) if record.exists() else {}
+    if record.exists() and (
+        not isinstance(previous, dict) or previous.get("project") != project
+        or previous.get("manual_decision") not in {"provided", "waived"}
+    ):
+        raise review.UserError(f"invalid reference intake record: {record}")
+    waived = previous.get("manual_decision") == "waived"
+    print(
+        "Before work starts, choose the references you want the agents to use.\n"
+        f"Manual (PDF, scans, or text): {references / 'manuals'}\n"
+        f"Optional FAQs/guides: {references / 'faqs'}\n"
+        "Keep these source files in those ignored folders; the agents do not obtain them for you.\n",
+        flush=True,
+    )
+    if waived:
+        print("Your earlier explicit choice to continue without a manual is recorded; Enter keeps that choice.", flush=True)
+    while True:
+        if not reference_files(references / "manuals"):
+            print(f"WARNING: {MANUAL_WARNING}", flush=True)
+        answer = input(
+            "When BOTH agents say READY and your reference set is ready, press Enter; "
+            f"if you cannot supply a manual, type '{MANUAL_WAIVER}': "
+        ).strip().lower()
+        if answer not in {"", MANUAL_WAIVER}:
+            print("Unrecognized choice. Press Enter to check the files or type the full skip phrase.", flush=True)
+            continue
+        manuals = reference_files(references / "manuals")
+        if not manuals and not (waived or answer == MANUAL_WAIVER):
+            print(
+                f"NEEDS INPUT: add the manual to {references / 'manuals'}, then press Enter again.\n"
+                f"Or explicitly choose '{MANUAL_WAIVER}'. FAQs are optional. Work has not started.", flush=True,
+            )
+            continue
+        faqs = reference_files(references / "faqs")
+        decision = "provided" if manuals else "waived"
+        review.atomic_write(record, json.dumps({
+            "project": project,
+            "manual_decision": decision,
+            "manual_files": [str(path.relative_to(root)) for path in manuals],
+            "faq_files": [str(path.relative_to(root)) for path in faqs],
+            "warning": MANUAL_WARNING if decision == "waived" else None,
+        }, indent=2) + "\n")
+        print(f"Manual: {decision}; optional FAQs/guides: {len(faqs)} file(s).", flush=True)
+        return
+
+
 def run_worker(config_path: Path, role: str) -> int:
     config = json.loads(config_path.read_text())
     os.environ["AGENT_REVIEW_TMUX_BIN"] = config["tmux_bin"]
@@ -138,7 +214,7 @@ def run_worker(config_path: Path, role: str) -> int:
             "Use Ctrl+b, w to choose a window; Ctrl+b, arrow to choose a pane.\n",
             flush=True,
         )
-        input("Press Enter here to start the passes and automatic review handoffs: ")
+        confirm_references(root, config["project"])
         require_live_agents(config)
         state = current_state(root, config["project"])
         if state is None or state["status"] == "IMPLEMENTING":
@@ -202,6 +278,7 @@ def ensure_project(root: Path, project: str) -> None:
     if not config.is_file():
         raise review.UserError(f"project-init did not create {config}")
     print(f"Scaffold ready. Supply the reference ROM at {directory / 'reference' / (project + '.nes')}.")
+    print(f"Supply the manual at {directory / 'docs/game_reference/manuals'}; FAQs in docs/game_reference/faqs are optional.")
 
 
 def launch(args: argparse.Namespace) -> int:
@@ -307,7 +384,7 @@ def launch(args: argparse.Namespace) -> int:
         raise
 
     print(f"Created {args.session} for {args.project} in {root}.")
-    print("Check both agents, then press Enter in the watchers window to begin.")
+    print("Check both agents, then choose your manual and optional FAQs in watchers before work begins.")
     return connect(session_id, args.session, args.no_attach)
 
 

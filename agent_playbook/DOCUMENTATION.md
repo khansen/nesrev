@@ -462,11 +462,17 @@ Reserve confidence levels for evidence-backed mappings, and consolidate
 aliases for one concept into one row.
 
 ### Mandatory game-reference intake (project start gate)
-- Before naming, review external sources in `docs/game_reference/`.
+- Ask the user for the manual and offer optional FAQs/guides in the project's
+  `docs/game_reference/{manuals,faqs}/`. An empty folder is not a user decision.
 - Keep that tree external-only; authored extraction belongs in
   `docs/crosswalk/MANUAL_TERMS.md`.
 - Create/update `docs/crosswalk/TERMINOLOGY_CROSSWALK.md` with canonical vocabulary and naming policy for the project.
-- Do not start semantic renaming until this crosswalk exists (unless no reference docs are available; in that case record that explicitly in crosswalk notes).
+- Stop before semantic analysis until the manual is supplied and readable,
+  supplied references are processed, and the crosswalk is seeded. Only the
+  user's explicit request can waive the manual, after warning that the final
+  disassembly's terminology and semantic precision will likely be lower.
+  Record that decision in the crosswalk; still process any supplied FAQs.
+  Absence, silence, or prior intake approval is not a waiver.
 - Confirm `make project-process-check PROJECT=<slug>` passes before the first semantic naming pass.
 
 ### Crosswalk synchronization protocol (mandatory)
@@ -693,7 +699,7 @@ maintaining it if it no longer adds distinct value.
 
 ### Active use of reference documentation (Critical)
 
-- Game reference docs (manuals, guides, flyers) are mandatory inputs at project start, not optional. Review and crosswalk before semantic naming.
+- Reference intake requires a manual or explicit user waiver per the [start gate](#terminology-crosswalk); process supplied sources before semantic analysis.
 - Prefer canonical in-game/manual terms for symbol naming. Align names with documented terms unless code evidence contradicts.
 - Log terminology-driven renames in crosswalk docs with confidence tags.
 - Keep source material (`docs/game_reference/`), RE findings (`docs/reverse_engineering/`), and crosswalk (`docs/crosswalk/`) separated but linked.

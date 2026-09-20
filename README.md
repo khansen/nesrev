@@ -17,8 +17,9 @@ Codex. The default reviewer is Claude if installed, otherwise a separate Codex
 session. You can choose either app for either role; examples are below.
 Their normal usage charges and limits
 apply. Git must have your name and email configured so the implementer can
-save commits. Bring your own reference ROM and any manual/reference material;
-the agents do not obtain those for you.
+save commits. Bring your own reference ROM and game manual; FAQs and guides
+are optional. The agents do not obtain those for you. You can explicitly
+choose to proceed without a manual at startup, accepting lower semantic precision.
 
 Open Terminal in the repository folder. This optional check starts no agents
 and creates no project:
@@ -43,17 +44,33 @@ you still complete account and permission prompts when the agents start.
 2. The launcher creates the project folders if needed. For a new F1 Race
    project, copy your ROM to `projects/f1_race/reference/f1_race.nes` in this
    checkout. The file must be an iNES `.nes` image, not a bare program dump.
-   The implementer checks its header and asks where any supplied manual or
-   reference files are. You do not need to configure mapper or ROM sizes.
+   Copy the manual (PDF, scans, or text) into
+   `projects/f1_race/docs/game_reference/manuals/`. Put any optional FAQs or
+   guides into `projects/f1_race/docs/game_reference/faqs/`. These source files
+   stay outside Git. The implementer derives mapper and ROM sizes itself.
 3. Press **Ctrl+b**, release both keys, then press **w**. Select `agents`.
    The left pane is the implementer; the right pane is the reviewer. Switch
    panes with **Ctrl+b**, then an **arrow key**. Finish any login/trust prompts
    in each pane and wait until both say **READY** and finish their turns.
 4. Use **Ctrl+b**, then **w** to select `watchers`. Press **Enter** in the
-   startup pane once. The launcher switches back to the agents. They now
+   startup pane when your reference set is ready. The launcher lists the
+   manual and optional FAQ folders. If no manual is available, it warns that
+   the final disassembly's terminology and semantic precision will likely be
+   lower, and waits. To proceed anyway, type **continue without a manual**.
+   Pressing Enter alone does not skip a missing manual; an empty file or
+   `.gitkeep` does not count. Your explicit choice is remembered on restart.
+   Existing projects use the same check. The launcher switches back to the agents. They now
    perform intake if needed, then implement, review, fix, and archive passes
    automatically. The watchers deliver each handoff; you do not copy prompts
    between agents.
+
+The implementer must read the supplied references and prepare the terminology
+crosswalk before semantic analysis. Missing or unreadable manuals require your
+input unless you explicitly chose to continue without one; the crosswalk must
+record that decision and limitation. A “no references available” note alone
+does not waive this step. A launcher
+presence check cannot establish that a file is the correct, readable manual;
+the agents check that during reference preparation and intake review.
 
 To leave the screen while work continues, press **Ctrl+b**, then **d**.
 Keep the computer awake and online. Run the same launch command to reconnect;
