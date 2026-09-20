@@ -62,7 +62,7 @@ class LauncherTests(unittest.TestCase):
         self.args = argparse.Namespace(
             repo=self.root, project="demo", session="review-test",
             implementer_cmd=shlex.quote(str(self.agent)),
-            reviewer_cmd=shlex.quote(str(self.agent)), task="Continue demo passes.", no_attach=True,
+            reviewer_cmd=shlex.quote(str(self.agent)), task="Continue demo passes.", no_attach=True, check=False,
         )
 
     def launch(self):
@@ -159,6 +159,73 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual((self.root / "scaffold.log").read_text().splitlines(), ["doctor"])
         self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
 
+    def test_setup_check_does_not_create_project_or_agents(self):
+        self.scaffold_tools()
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=self.root, check=True)
+        self.args.project = "new_game"
+        self.args.check = True
+        self.assertEqual(self.launch(), 0)
+        self.assertFalse((self.root / "projects/new_game").exists())
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertEqual((self.root / "scaffold.log").read_text().splitlines(), ["doctor"])
+        self.assertEqual(self.calls(), [])
+
+    def test_setup_check_reports_missing_toolchain_without_launching(self):
+        self.scaffold_tools(doctor_fails=True)
+        self.args.check = True
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.launch()
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertEqual(self.calls(), [])
+
+    def test_default_reviewer_falls_back_to_codex_when_claude_is_absent(self):
+        self.args.reviewer_cmd = None
+        which = launcher.shutil.which
+        def installed(value):
+            return None if value == "claude" else str(self.agent) if value == "codex" else which(value)
+        with patch.object(launcher.shutil, "which", side_effect=installed):
+            self.launch()
+        commands = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
+        self.assertEqual(len(commands), 2)
+        for command in commands:
+            self.assertEqual(shlex.split(command)[1], str(self.agent))
+        self.assertIn("You are the reviewer", commands[1])
+
+    def test_default_reviewer_prefers_installed_claude(self):
+        self.args.reviewer_cmd = None
+        which = launcher.shutil.which
+        def installed(value):
+            if value == "claude":
+                return str(self.agent)
+            if value == "codex":
+                raise AssertionError("should use installed Claude")
+            return which(value)
+        with patch.object(launcher.shutil, "which", side_effect=installed):
+            self.launch()
+        command = [c[-1] for c in self.calls() if c[0] == "respawn-pane"][1]
+        self.assertEqual(shlex.split(command)[1], str(self.agent))
+
+    def test_explicit_missing_reviewer_does_not_silently_fallback(self):
+        self.args.reviewer_cmd = "/missing/chosen-reviewer"
+        with self.assertRaisesRegex(review.UserError, "agent executable not found"):
+            self.launch()
+        self.assertFalse(any(c[0] == "new-session" for c in self.calls()))
+
+    def test_claude_implementer_and_codex_reviewer_receive_their_own_roles(self):
+        self.args.implementer_cmd = "claude --model chosen-implementer"
+        self.args.reviewer_cmd = "codex --model chosen-reviewer"
+        which = launcher.shutil.which
+        def installed(value):
+            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+        with patch.object(launcher.shutil, "which", side_effect=installed):
+            self.launch()
+        commands = [shlex.split(c[-1]) for c in self.calls() if c[0] == "respawn-pane"]
+        self.assertEqual(commands[0][1:4], ["/agents/claude", "--model", "chosen-implementer"])
+        self.assertIn("You are the implementer", commands[0][4])
+        self.assertEqual(commands[1][1:4], ["/agents/codex", "--model", "chosen-reviewer"])
+        self.assertIn("You are the reviewer", commands[1][4])
+
     def test_existing_project_is_not_rescaffolded(self):
         config = self.root / "projects/demo/project.conf"
         original = config.read_bytes()
@@ -228,17 +295,17 @@ class LauncherTests(unittest.TestCase):
             self.launch()
         self.assertEqual(self.calls()[-1], ["attach-session", "-t", "$1"])
 
-    def run_worker(self, answer="", notify=None):
+    def run_worker(self, answer="", notify=None, role="implementer"):
         previous = Path.cwd()
         self.addCleanup(os.chdir, previous)
         with patch("builtins.input", side_effect=[answer] if answer is not EOFError else EOFError), \
              patch.object(launcher.os, "execve") as execute, \
              contextlib.redirect_stdout(io.StringIO()):
             if notify is None:
-                result = launcher.run_worker(self.config(), "implementer")
+                result = launcher.run_worker(self.config(), role)
             else:
                 with patch.object(launcher.subprocess, "run", side_effect=notify):
-                    result = launcher.run_worker(self.config(), "implementer")
+                    result = launcher.run_worker(self.config(), role)
         return result, execute
 
     def test_startup_eof_does_not_arm_watchers_or_send_a_task(self):
@@ -279,6 +346,44 @@ class LauncherTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 self.run_worker()
         self.assertFalse(self.config().with_name("ready").exists())
+
+    def test_reviewer_reports_dead_or_missing_startup_pane_without_arming(self):
+        self.state()
+        self.launch()
+        before = review.state_path(self.root).read_bytes()
+        for result in (subprocess.CompletedProcess([], 0, "1\n", ""),
+                       subprocess.CompletedProcess([], 1, "", "pane not found")):
+            with self.subTest(returncode=result.returncode), \
+                 patch.object(launcher, "tmux", return_value=result) as transport, \
+                 patch.object(launcher.time, "sleep", side_effect=AssertionError("reviewer kept waiting after startup died")), \
+                 patch.object(launcher.os, "execve") as execute:
+                with self.assertRaisesRegex(review.UserError, "startup watcher exited before confirmation completed"):
+                    self.run_worker(role="reviewer")
+                execute.assert_not_called()
+                transport.assert_called_once_with("display-message", "-p", "-t", "%22", "#{pane_dead}", check=False)
+                self.assertFalse(self.config().with_name("ready").exists())
+                self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_reviewer_waits_for_live_startup_then_runs_after_confirmation(self):
+        self.launch()
+        ready = self.config().with_name("ready")
+        with patch.object(launcher.time, "sleep", side_effect=lambda _: ready.touch()) as wait:
+            result, execute = self.run_worker(role="reviewer")
+        self.assertEqual(result, 0)
+        wait.assert_called_once_with(0.5)
+        argv = execute.call_args.args[1]
+        self.assertEqual(argv[argv.index("--role") + 1], "reviewer")
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_reviewer_handles_confirmation_arriving_during_liveness_check(self):
+        self.launch()
+        def finished(*args, **kwargs):
+            self.config().with_name("ready").touch()
+            return subprocess.CompletedProcess([], 0, "1\n", "")
+        with patch.object(launcher, "tmux", side_effect=finished), patch.object(launcher.time, "sleep"):
+            result, execute = self.run_worker(role="reviewer")
+        self.assertEqual(result, 0)
+        execute.assert_called_once()
 
     def test_worker_id_cannot_escape_notification_directory(self):
         args = argparse.Namespace(worker_id="../../escape", project="demo")

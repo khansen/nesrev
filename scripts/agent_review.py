@@ -408,6 +408,39 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 "```",
                 "",
             ]
+    if state.get("gold"):
+        if role == "reviewer":
+            body.extend([
+                "## Final Gold-Standard Review",
+                "",
+                "Assess the WHOLE project against every item in",
+                "`agent_playbook/QUALITY_REVIEW.md#gold-standard-assessment` and its",
+                "linked audits in REVIEW_AUDITS.md, not just this pass's diff.",
+                "Include a `## Gold-Standard Assessment` section with evidence and",
+                "a disposition for each checklist item. Green gates alone do not prove gold.",
+                "Only if the entire checklist is satisfied, also write the exact line",
+                "`Gold assessment: APPROVED`. Otherwise request changes or identify",
+                "the user input needed; runtime blockers are not completion.",
+                "The approve command runs strict project-ci at this clean review head",
+                "and refuses approval if it fails. Inspect that log and request changes",
+                "on failure; do not report approval when the command fails.",
+                "",
+            ])
+        elif status == "APPROVED":
+            body = [
+                "# Gold-Standard Review Approved",
+                "",
+                f"Run: {run_id}",
+                f"Reviewed head: {state['review_head']}",
+                f"Review: {state.get('last_review')}",
+                f"Strict CI evidence: {state.get('gold_ci', {}).get('log')}",
+                "",
+                "Archive this review and commit the archive and friction entries.",
+                "If already archived, verify the archive is committed. Then stop",
+                "the pass cycle and report GOLD STANDARD APPROVED with the archive",
+                "path and reviewed head. Do not start another pass or push projects.",
+                "",
+            ]
     return "\n".join(body)
 
 
@@ -420,6 +453,11 @@ def write_prompt(root: Path, state: dict[str, Any], role: str) -> str:
 
 
 def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -> None:
+    if state.get("gold"):
+        if state.get("allow_unresolved_lxxxx"):
+            raise UserError("gold review requires strict verification")
+        if getattr(args, "packet", None) or not getattr(args, "generate_packet", False):
+            raise UserError("gold review requires --generate-packet, without --packet")
     if getattr(args, "packet", None):
         state["packet"] = require_file(root, args.packet, "packet")
         validate_packet(root, state["packet"], state["review_head"], state.get("project"))
@@ -441,7 +479,7 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
     try:
         validate_packet(root, state["packet"], state["review_head"], state.get("project"))
     except UserError:
-        if not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
+        if not state.get("gold") and not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
             root, state["packet"]
         ):
             print(
@@ -456,6 +494,14 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
         raise
 
 
+def strict_environment() -> dict[str, str]:
+    env = os.environ.copy()
+    # Parent make invocations can export relaxed verification or dry-run flags.
+    for key in ("ALLOW_UNRESOLVED_LXXXX", "MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES"):
+        env.pop(key, None)
+    return env
+
+
 def generate_packet(root: Path, state: dict[str, Any], packet_path: Path) -> None:
     cmd = [
         "make",
@@ -467,7 +513,9 @@ def generate_packet(root: Path, state: dict[str, Any], packet_path: Path) -> Non
     ]
     if state.get("allow_unresolved_lxxxx"):
         cmd.append("ALLOW_UNRESOLVED_LXXXX=1")
-    result = subprocess.run(cmd, cwd=root, env=os.environ.copy(), text=True)
+    result = subprocess.run(
+        cmd, cwd=root, env=strict_environment() if state.get("gold") else os.environ.copy(), text=True,
+    )
     if result.returncode != 0:
         raise UserError(f"packet generation failed with exit {result.returncode}")
 
@@ -489,6 +537,15 @@ def initial_state(
         raise UserError("run id may contain only letters, digits, dot, underscore, and dash")
     if not PROJECT_RE.fullmatch(project):
         raise UserError("project may contain only letters, digits, underscore, and dash")
+    if state_path(root).exists():
+        previous = read_state(root)
+        if previous["status"] != "APPROVED":
+            raise UserError(
+                f"unfinished review {previous['run_id']} for {previous.get('project')} "
+                f"({previous['status']}); state and artifacts were left untouched. "
+                "Resume with ready if IMPLEMENTING, reready if CHANGES_REQUESTED, "
+                "or wait for the reviewer. Exhausted rounds require user input."
+            )
     base_sha = git_commit(base, root)
     head_sha = git_commit(head, root)
     if not allow_process_range:
@@ -586,6 +643,8 @@ def command_start_pass(args: argparse.Namespace) -> int:
     root = repo_root()
     if not PASS_ID_RE.fullmatch(args.pass_id):
         raise UserError("pass id must be numeric")
+    if args.gold and args.allow_unresolved_lxxxx:
+        raise UserError("--gold cannot allow unresolved LXXXX labels")
     review_base = args.base
     if review_base is None:
         review_base = "HEAD~2" if int(args.pass_id) == 0 else "HEAD~1"
@@ -603,6 +662,7 @@ def command_start_pass(args: argparse.Namespace) -> int:
         allow_unresolved_lxxxx=bool(args.allow_unresolved_lxxxx),
     )
 
+    state["gold"] = args.gold
     ensure_clean_tracked(root)
     ensure_head(root, state["review_head"])
     note_path = run_dir(root, state) / "implementation.md"
@@ -660,6 +720,27 @@ def command_approve(args: argparse.Namespace) -> int:
         raise UserError(f"approve requires review-ready state, got {state['status']}")
     review = require_file(root, args.review, "review file")
     verdict_in_file(root, review, "APPROVED")
+    if state.get("gold"):
+        text = resolve_path(root, review).read_text()
+        if not re.search(r"(?m)^Gold assessment: APPROVED\s*$", text):
+            raise UserError("gold review must contain 'Gold assessment: APPROVED'")
+        if not re.search(r"(?m)^## Gold-Standard Assessment\s*$", text):
+            raise UserError("gold review must include a '## Gold-Standard Assessment' section")
+        ensure_clean_tracked(root)
+        ensure_head(root, state["review_head"])
+        log = run_dir(root, state) / f"gold-ci-round-{int(state['round']):02d}.log"
+        cmd = ["make", "project-ci", f"PROJECT={state['project']}"]
+        print(f"Running strict project-ci; output: {rel(root, log)}", flush=True)
+        with log.open("w") as output:
+            result = subprocess.run(cmd, cwd=root, env=strict_environment(), stdout=output, stderr=subprocess.STDOUT)
+        if result.returncode != 0:
+            raise UserError(f"gold approval blocked: project-ci exited {result.returncode}; see {rel(root, log)}")
+        ensure_clean_tracked(root)
+        ensure_head(root, state["review_head"])
+        state["gold_ci"] = {
+            "head": state["review_head"], "command": shlex.join(cmd),
+            "exit_status": result.returncode, "log": rel(root, log),
+        }
     state["last_review"] = review
     state["status"] = "APPROVED"
     write_prompt(root, state, "implementer")
@@ -926,9 +1007,16 @@ def render_archive(state: dict[str, Any], pass_id: str, archive_path: str) -> st
         "not archived here; regenerate packets from the review-time range only while",
         "those SHAs remain reachable.",
         "",
-        "## Review Artifacts",
-        "",
     ]
+    if state.get("gold"):
+        evidence = state["gold_ci"]
+        lines.extend([
+            "## Gold Completion Evidence", "",
+            f"Strict CI: `{evidence['command']}` (exit `{evidence['exit_status']}`)",
+            f"Verified head: `{evidence['head']}`", "",
+            "The final reviewer assessment below covers the whole project.", "",
+        ])
+    lines.extend(["## Review Artifacts", ""])
     for source, text in reviews:
         lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
 
@@ -950,6 +1038,8 @@ def command_archive(args: argparse.Namespace) -> int:
     if not PASS_ID_RE.fullmatch(args.pass_id):
         raise UserError("pass id must be numeric")
     ensure_clean_tracked(root)
+    if state.get("gold"):
+        ensure_head(root, state["review_head"])
 
     out_path = (
         ensure_repo_contained(root, resolve_path(root, args.out), "archive output")
@@ -1049,6 +1139,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--implementer", default="implementer")
     start.add_argument("--allow-process-range", action="store_true")
     start.add_argument("--allow-unresolved-lxxxx", action="store_true")
+    start.add_argument("--gold", action="store_true", help="final whole-project assessment; approval requires strict project-ci")
     start.add_argument(
         "--learning",
         default="_None._",

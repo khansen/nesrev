@@ -116,14 +116,11 @@ project's `PROCESS_FRICTION.md` queue.
 
 ### Agent Review Handoff
 
-External/adversarial review is optional. Its standard tmux entry point is
-`python3 scripts/agent_review_tmux.py --project <slug>`, run from the checkout
-containing the project and reference files. It creates two agent panes and two
-watchers in a dedicated session; solo closeout does not require it. The
-underlying `python3 scripts/agent_review.py` records
-`.agents/current.json`, points each role at the packet/review artifacts, and
-lets a watcher notify the next role after `READY_FOR_REVIEW`,
-`CHANGES_REQUESTED`, `READY_FOR_REREVIEW`, or `APPROVED`.
+External review is optional; solo closeout does not require it. Run
+`python3 scripts/agent_review_tmux.py --project <slug>` from the project checkout
+to start two agent panes and their watchers. `scripts/agent_review.py` records
+turn ownership in `.agents/current.json` and points each role at its artifacts.
+Watchers notify the next role when review state changes.
 
 Minimal flow:
 ```sh
@@ -147,6 +144,10 @@ make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>
 ```
 Single-quote dollar-bearing prose for the shell. The Make wrapper preserves
 literal dollar signs and apostrophes; no `$$` escaping is required.
+
+`start-pass` and `init` refuse to replace any non-APPROVED run. Resume an
+`IMPLEMENTING` run with `ready --note <existing-note> --generate-packet`, use
+`reready` for requested changes, or wait for review. Exhausted rounds need user input.
 
 Pass `BASE=<ref>`, `HEAD=<ref>`, `RUN_ID=<id>`, or `MAX_ROUNDS=<n>` to the
 wrapper for those overrides. Use lower-level `init` plus
@@ -185,10 +186,9 @@ also appends or updates a generated block in
 Those entries are raw candidates for later process review, not immediate
 playbook rules.
 
-The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
-`AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
-agent-specific worker can be layered on that contract; the state file remains
-authoritative and the watcher must not infer verdicts from chat text.
+Watchers invoke `<notifier> <role> <status> <prompt-file>` and pass
+`AGENT_REVIEW_*` environment variables. State is authoritative;
+adapters must not infer verdicts from chat.
 Reviewer prompts route the reviewer through the `Review a committed project
 pass` row in `AGENTS.md` before asking for a verdict, so the handoff does not
 rely on ambient session memory of the repository rules. That route includes
@@ -196,15 +196,16 @@ rely on ambient session memory of the repository rules. That route includes
 surface. Review and response prompts ask for a `## Learning Candidates` section
 so repeated friction can be triaged outside the individual pass.
 
-The launcher defaults to `codex` for implementation and `claude` for review.
+The launcher uses Codex for implementation and Claude for review, falling back
+to Codex when Claude is absent. Both roles accept overrides; unavailable choices fail.
 It creates `agents` and `watchers` windows in a new `nesrev-review` session,
 then attaches or switches the current tmux client. Repeating the command
 reconnects to a matching checkout/project workspace without restarting agents
 or changing its task. A conflicting session or other-project workspace is refused.
-Both agents receive a setup prompt and must return `READY` without starting
-work. Complete any login/trust prompts, wait for both agents to finish setup,
-then press Enter in the startup pane in `watchers`. This arms the watchers and
-sends the implementation objective. Use **Ctrl+b, w** to select a window.
+Both agents must finish login/trust prompts and reply `READY` without starting
+work. Press Enter in the `watchers` startup pane to send the objective and arm
+the handoffs. The reviewer watcher reports a dead startup pane instead of
+waiting forever. Use **Ctrl+b, w** to select a window; recovery is in the README.
 
 If the project directory is absent, the launcher runs `project-doctor` and
 `project-init`, then prints the reference-ROM path. An existing directory
@@ -214,6 +215,15 @@ material, and submits the two intake commits as pass 0 before semantic work.
 Existing projects resume pass selection; approval advances the pass cycle until
 the objective is met or a user-dependent blocker is reached.
 
+The default objective is reviewed gold standard. Submit the final closeout
+with `start-pass --gold`: the reviewer must assess the whole project against
+QUALITY_REVIEW's gold checklist, include `## Gold-Standard Assessment` and
+`Gold assessment: APPROVED`, and run `approve`. Approval runs strict
+`project-ci` at the clean reviewed head; failed CI or changed source/head
+blocks approval. Gold packets cannot use relaxed verification. Archive and
+commit the final review, then stop with `GOLD STANDARD APPROVED` and its path.
+User-dependent blockers stop with `NEEDS INPUT` and a concrete next action.
+
 Launcher options:
 ```sh
 python3 scripts/agent_review_tmux.py --project <slug> \
@@ -221,13 +231,13 @@ python3 scripts/agent_review_tmux.py --project <slug> \
   --implementer-cmd 'codex' --reviewer-cmd 'claude'
 ```
 
-`--repo <path>` selects the project checkout; the launcher may live in another
-tool-bearing worktree. `--session <name>` names a new session; a matching
-running workspace is reused. Agent/task overrides apply to new workspaces.
-`--no-attach` leaves it detached. Command overrides are quoted executable/argument
-lists, not shell programs; each command receives one appended startup prompt.
-Configured models and permissions are retained. Authentication, ongoing agent
-supervision, and restart remain the user's responsibility.
+`--repo <path>` selects the checkout, including when the launcher lives in
+another worktree. `--session <name>` names a new session. Matching workspaces
+are reused. Agent/task overrides apply only to new workspaces.
+`--no-attach` leaves it detached. Overrides are quoted executable/argument lists,
+not shell programs; each gets an appended prompt. Models and permissions are
+retained. Authentication, supervision, and restart remain the user's responsibility.
+`--check` checks tools and Git identity without scaffolding or launching agents.
 
 The implementer records the pre-pass base, closes out and commits a coherent
 pass, runs `start-pass` with that base, then yields until review returns. It

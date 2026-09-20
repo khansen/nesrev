@@ -37,6 +37,15 @@ def agent_command(value: str) -> list[str]:
     return [str(Path(binary).absolute()), *args[1:]]
 
 
+def role_command(args: argparse.Namespace, role: str) -> list[str]:
+    value = getattr(args, f"{role}_cmd")
+    if role == "reviewer" and value is None:
+        value = "claude" if shutil.which("claude") else "codex"
+        if value == "codex":
+            print("Claude is not installed; using a separate Codex session as reviewer.")
+    return agent_command(value)
+
+
 def current_state(root: Path, project: str) -> dict | None:
     if not review.state_path(root).exists():
         return None
@@ -93,7 +102,19 @@ def kickoff(project: str, task: str) -> str:
         "its pass id, commit the archive and any friction entries, then continue "
         "toward the objective. If an approved review was already archived, verify "
         "that archive is committed before continuing. Stop on exhausted review "
-        "rounds or a blocker requiring the user's input."
+        "rounds or a blocker requiring the user's input.\n"
+        "When the objective is gold standard, use the complete checklist in "
+        "agent_playbook/QUALITY_REVIEW.md#gold-standard-assessment and its linked "
+        "project-wide audits. Green KPI gates alone are not completion. Submit "
+        "the final closeout pass with the same start-pass command plus --gold. "
+        "This requests a whole-project reviewer assessment and strict CI. "
+        "After final approval, archive and commit the review, then stop with "
+        "GOLD STANDARD APPROVED, the archive path, and the reviewed head.\n"
+        "Whenever user input is required, stop with NEEDS INPUT, explain the "
+        "specific missing file, permission, answer, or runtime evidence, and "
+        "give the exact next action. For runtime evidence, provide the executable "
+        "trace plan required by PASS_WORKFLOW.md. Do not call this gold or done. "
+        "When the user supplies it, resume this objective and the review cycle."
     )
 
 
@@ -132,7 +153,17 @@ def run_worker(config_path: Path, role: str) -> int:
         tmux("select-pane", "-t", config["panes"]["implementer"])
     else:
         print("Waiting for startup confirmation in the other watcher pane.", flush=True)
+        startup_pane = config.get("startup_pane")
+        if not startup_pane:
+            raise review.UserError("startup pane is not recorded; restart the workspace")
         while not ready.exists():
+            startup = tmux("display-message", "-p", "-t", startup_pane, "#{pane_dead}", check=False)
+            if (startup.returncode != 0 or startup.stdout.strip() != "0") and not ready.exists():
+                raise review.UserError(
+                    "startup watcher exited before confirmation completed; "
+                    "inspect the startup pane in watchers, then restart the workspace "
+                    "using the README recovery instructions"
+                )
             time.sleep(0.5)
 
     print(f"Watching {config['project']} handoffs for {role}.", flush=True)
@@ -182,6 +213,20 @@ def launch(args: argparse.Namespace) -> int:
     tmux_bin = shutil.which(os.environ.get("AGENT_REVIEW_TMUX_BIN", "tmux"))
     if not tmux_bin:
         raise review.UserError("tmux executable not found")
+    if args.check:
+        for role in ROLES:
+            command = role_command(args, role)
+            print(f"{role}: {shlex.join(command)}")
+        subprocess.run(["make", "project-doctor"], cwd=root, check=True)
+        for identity in ("GIT_AUTHOR_IDENT", "GIT_COMMITTER_IDENT"):
+            review.run_git(["var", identity], cwd=root)
+        current_state(root, args.project)
+        directory = root / "projects" / args.project
+        if directory.exists() and not (directory / "project.conf").is_file():
+            raise review.UserError(f"existing project directory has no project.conf: {directory}")
+        print(f"Setup check passed for {args.project}. No project or tmux session was created.")
+        print("Agent login, permissions, and available usage must still be checked at startup.")
+        return 0
     sessions = tmux(
         "list-sessions", "-F",
         "#{session_id}\t#{session_name}\t#{@nesrev_review_root}\t#{@nesrev_review_project}",
@@ -199,7 +244,7 @@ def launch(args: argparse.Namespace) -> int:
                 "(or tmux switch-client -t " + name + " inside tmux)"
             )
 
-    commands = {role: agent_command(getattr(args, f"{role}_cmd")) for role in ROLES}
+    commands = {role: role_command(args, role) for role in ROLES}
     current_state(root, args.project)
     ensure_project(root, args.project)
     review.ensure_runtime_excludes(root)
@@ -224,10 +269,11 @@ def launch(args: argparse.Namespace) -> int:
             "split-window", "-d", "-h", "-t", implementer, "-c", str(root), "-P", "-F", "#{pane_id}",
         ).stdout.strip()
         panes = {"implementer": implementer, "reviewer": reviewer}
-        config_path.write_text(json.dumps({
+        config = {
             "root": str(root), "project": args.project, "panes": panes,
             "agents_window": agents_window, "tmux_bin": str(Path(tmux_bin).absolute()),
-        }, indent=2) + "\n")
+        }
+        review.atomic_write(config_path, json.dumps(config, indent=2) + "\n")
         for role, pane in panes.items():
             tmux("select-pane", "-t", pane, "-T", role)
             command = "exec " + shlex.join([
@@ -245,6 +291,8 @@ def launch(args: argparse.Namespace) -> int:
             "-P", "-F", "#{window_id}\t#{pane_id}", worker_command("implementer"),
         ).stdout.strip().split("\t")
         tmux("set-option", "-w", "-t", watcher_window, "remain-on-exit", "on")
+        config["startup_pane"] = first
+        review.atomic_write(config_path, json.dumps(config, indent=2) + "\n")
         second = tmux(
             "split-window", "-d", "-v", "-t", first, "-c", str(root),
             "-P", "-F", "#{pane_id}", worker_command("reviewer"),
@@ -271,11 +319,12 @@ def main() -> int:
     parser.add_argument("--repo", type=Path, default=Path.cwd(), help="project checkout (default: current directory)")
     parser.add_argument("--session", default="nesrev-review", help="session name when creating a new workspace")
     parser.add_argument("--implementer-cmd", default="codex", help="executable and arguments; default: codex")
-    parser.add_argument("--reviewer-cmd", default="claude", help="executable and arguments; default: claude")
+    parser.add_argument("--reviewer-cmd", help="executable and arguments; default: claude if installed, otherwise codex")
     parser.add_argument("--task", default=(
-        "Complete any unfinished intake, then continue coherent semantic passes until further progress requires runtime "
-        "traces only the user can run. End with an executable trace plan."
+        "Complete any unfinished intake, then continue coherent semantic passes to reviewed gold standard. "
+        "Stop only after final gold approval or when specific user input is needed."
     ), help="implementation objective")
+    parser.add_argument("--check", action="store_true", help="check tools and Git identity without creating a project or starting agents")
     parser.add_argument("--no-attach", action="store_true", help="create the workspace without attaching or switching clients")
     return launch(parser.parse_args())
 

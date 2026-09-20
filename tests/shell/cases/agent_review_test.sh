@@ -276,6 +276,98 @@ test_agent_review_start_pass_creates_note_packet_and_prompt() {
   fi
 }
 
+test_agent_review_initializers_preserve_all_unfinished_states() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_guard_repo"
+  _init_agent_review_repo "${repo}"
+  mkdir -p "${NESREV_TEST_TMPDIR}/guard-bin"
+  _write_agent_review_make_stub "${NESREV_TEST_TMPDIR}/guard-bin/make" ok "${NESREV_TEST_TMPDIR}/make-count"
+  (
+    cd "${repo}"
+    python3 scripts/agent_review.py init --project demo --base HEAD~1 --head HEAD --run-id demo-pass-1
+    printf 'Preserve implementation note.\n' > .agents/runs/demo-pass-1/implementation.md
+    printf 'Preserve reviewer findings.\n' > .agents/runs/demo-pass-1/review-01.md
+  )
+  local status project command pass_id snapshot output rc
+  for project in demo other; do
+    for status in IMPLEMENTING READY_FOR_REVIEW CHANGES_REQUESTED READY_FOR_REREVIEW REVIEW_ROUNDS_EXHAUSTED; do
+      python3 - "${repo}/.agents/current.json" "${status}" "${project}" <<'PY'
+import json
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+state = json.loads(path.read_text())
+state.update(status=sys.argv[2], project=sys.argv[3])
+path.write_text(json.dumps(state) + "\n")
+PY
+      snapshot="${NESREV_TEST_TMPDIR}/snapshot-${project}-${status}"
+      cp -R "${repo}/.agents" "${snapshot}"
+      for command in start-pass init; do
+        for pass_id in 1 2; do
+          local -a args
+          if [[ "${command}" == start-pass ]]; then
+            args=(start-pass --project demo --pass-id "${pass_id}")
+          else
+            args=(init --project demo --base HEAD~1 --head HEAD --run-id "demo-pass-${pass_id}")
+          fi
+          set +e
+          output="$(cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/guard-bin:${PATH}" \
+            python3 scripts/agent_review.py "${args[@]}" 2>&1)"
+          rc=$?
+          set -e
+          assert_eq "${rc}" "2" "${command} must refuse ${project}/${status}, including same-run retries"
+          assert_match "unfinished review demo-pass-1 for ${project}" "${output}"
+          diff -r "${snapshot}" "${repo}/.agents"
+        done
+      done
+    done
+  done
+  if [[ -e "${NESREV_TEST_TMPDIR}/make-count" ]]; then
+    fail "refused initialization must not generate packets"
+  fi
+}
+
+test_agent_review_new_pass_after_approval_preserves_prior_artifacts() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_approved_next_repo"
+  _init_agent_review_repo "${repo}"
+  _approve_agent_review_run "${repo}" demo-pass-1
+  cp -R "${repo}/.agents/runs/demo-pass-1" "${NESREV_TEST_TMPDIR}/approved-run"
+  mkdir -p "${NESREV_TEST_TMPDIR}/approved-bin"
+  _write_agent_review_make_stub "${NESREV_TEST_TMPDIR}/approved-bin/make" ok "${NESREV_TEST_TMPDIR}/make-count"
+  (
+    cd "${repo}"
+    PATH="${NESREV_TEST_TMPDIR}/approved-bin:${PATH}" python3 scripts/agent_review.py start-pass --project demo --pass-id 2
+  )
+  assert_eq "$(_json_field "${repo}" status)" READY_FOR_REVIEW
+  assert_eq "$(_json_field "${repo}" run_id)" demo-pass-2
+  diff -r "${NESREV_TEST_TMPDIR}/approved-run" "${repo}/.agents/runs/demo-pass-1"
+}
+
+test_agent_review_failed_preparation_resumes_without_reinitializing() {
+  local repo="${NESREV_TEST_TMPDIR}/agent_review_resume_preparation_repo"
+  _init_agent_review_repo "${repo}"
+  mkdir -p "${NESREV_TEST_TMPDIR}/resume-bin"
+  local stub="${NESREV_TEST_TMPDIR}/resume-bin/make"
+  _write_agent_review_make_stub "${stub}" missing_rom "${NESREV_TEST_TMPDIR}/make-count"
+  local output rc
+  set +e
+  output="$(cd "${repo}" && PATH="${NESREV_TEST_TMPDIR}/resume-bin:${PATH}" \
+    python3 scripts/agent_review.py start-pass --project demo --pass-id 1 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
+  cp "${repo}/.agents/runs/demo-pass-1/implementation.md" "${NESREV_TEST_TMPDIR}/original-note"
+  _write_agent_review_make_stub "${stub}" ok "${NESREV_TEST_TMPDIR}/make-count"
+  (
+    cd "${repo}"
+    PATH="${NESREV_TEST_TMPDIR}/resume-bin:${PATH}" python3 scripts/agent_review.py ready \
+      --note .agents/runs/demo-pass-1/implementation.md --generate-packet
+  )
+  assert_eq "$(_json_field "${repo}" status)" READY_FOR_REVIEW
+  assert_eq "$(_json_field "${repo}" round)" 1
+  cmp "${NESREV_TEST_TMPDIR}/original-note" "${repo}/.agents/runs/demo-pass-1/implementation.md"
+}
+
 test_agent_review_start_pass_zero_defaults_to_two_intake_commits() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_pass_zero_repo"
   _init_agent_review_repo "${repo}"
