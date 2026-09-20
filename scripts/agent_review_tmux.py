@@ -110,8 +110,9 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
         "You own implementation, verification, commits, and review archives. "
         f"Read {task_path} for the objective and the pass/review loop, including when resuming an existing review."
         if role == "implementer" else
-        "Review tracked project files read-only. Write only review artifacts and "
-        "verdict state through the review handoff tools; do not implement fixes. "
+        "Review tracked project files read-only; do not implement fixes. "
+        "Publish review artifacts and verdict state through the review handoff tools. "
+        f"{review.reviewer_scratch_guidance(project)} "
         "Intake approval requires processing supplied references or documenting the user's explicit "
         "manual waiver; an empty folder alone does not justify skipping references. "
         "For runtime gaps, review agent capture attempts, scenario validation, and any human review batch "

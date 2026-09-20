@@ -1133,10 +1133,10 @@ ad-hoc or temporary helper scripts (e.g., Python analysis scripts,
 one-off scrapers) directly in project or script directories.
 ### Temporary script placement
 
-- Place all temporary scripts in the `tmp/projects/<slug>/` directory at
-  the project root (creating it if necessary).
-- This ensures isolation when multiple agents are working on different
-  projects in parallel.
+- Place temporary implementation scripts in `tmp/projects/<slug>/` (create as needed).
+- During paired review, keep reviewer scratch in `projects/<slug>/tmp/`.
+  Use native file-edit tools; [permission details](AGENT_PERMISSIONS.md).
+- These locations isolate temporary work by project.
 - If a script becomes a permanent part of the project's workflow, move
   it to the official `scripts/` directory or the project-specific
   `scripts/` folder (create `projects/<slug>/scripts/` — and analogously
