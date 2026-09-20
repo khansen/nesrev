@@ -664,7 +664,7 @@ scaffolds early with project-specific content and pass placeholder-doc checks.
 
 Create `docs/reverse_engineering/CURIOSITIES.md` in the first pass proving a
 project-specific bug or surprising oddity; maintain it without waiting for gold.
-Include unusual overlap/packing, signatures/easter eggs, or demonstrated
+Include ROM bugs, unusual overlap/packing, signatures/easter eggs, or demonstrated
 reachability limitations. Exclude
 ordinary NES idioms, normal overlays, inline jump tables, standard Zapper light
 sensing, and unresolved semantic questions alone. Omit the file if nothing
