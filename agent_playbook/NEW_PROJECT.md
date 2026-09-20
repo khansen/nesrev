@@ -79,13 +79,19 @@ The check reports each required tool's status and exits non-zero if any
 are missing. Required: `java`, `javac`, `xasm` (6502 assembler), `bash`,
 `python3`, `rg` (ripgrep), `od`, `dd`, `awk`, `sed`, `perl`, `make`,
 `git`. Optional but recommended: `jq` (used for inspecting generated
-pass artifacts), `shellcheck` (used when editing scripts). A
-POSIX-compliant base toolset (`cmp`, `mktemp`, `sort`, `tee`, `wc`,
+pass artifacts), `shellcheck` (script linting), `fceux` (runtime tracing).
+FCEUX presence is checked without launching it; Lua/display readiness is checked
+when capturing. Missing FCEUX does not block intake or static passes. Doctor reports
+`pdftotext`, `pdftoppm`, and `tesseract`. Add `PROJECT=<slug>` to require the
+tools for supplied PDF/image manuals and FAQs; plain text/HTML needs no OCR.
+PDFs require all three to support mixed text/scans; images require Tesseract
+with recognition language data. See the [README](../README.md#before-your-first-run).
+A POSIX-compliant base toolset (`cmp`, `mktemp`, `sort`, `tee`, `wc`,
 `tr`, `head`, `cat`, `grep`, `find`, `basename`, `dirname`) is
 presumed present and not checked individually; hosts missing these are
-not supported. The script verifies presence only, not minimum versions
-or capabilities; the hint field names a standard install source for
-each missing tool.
+not supported. Core checks verify presence, not minimum versions; reference
+checks also probe tools and OCR language availability. Agents still check the
+document's language and extraction quality. Diagnostics include install hints.
 
 <a id="rom-support-matrix"></a>
 ## ROM Support Matrix
@@ -299,9 +305,8 @@ After `make project-intake` is green and before any semantic naming
 pass, review external sources in `docs/game_reference/` and put
 authored term extraction and mappings under `docs/crosswalk/`, never
 under the ignored source tree. The
-canonical workflow — what to collect, when the crosswalk gate fires,
-what to record if no reference docs are available, and how to keep the
-crosswalk current as the project matures — lives at
+canonical workflow — requesting the manual and optional FAQs,
+stopping for missing references, and keeping the crosswalk current — lives at
 [DOCUMENTATION.md#terminology-crosswalk](DOCUMENTATION.md#terminology-crosswalk)
 (Mandatory game-reference intake + Crosswalk synchronization protocol);
 this section just orders that work within the larger new-project intake
@@ -493,10 +498,9 @@ blocked:
   before setting `NESREV_RECOVERY_STATUS="none"`. If discovery finds
   controls, author them under `projects/<slug>/config/nesrev/` and
   reference them from `project.conf`.
-- **Reference docs:** use whatever the user supplied under
-  `docs/game_reference/`. If none exist and the user has not promised
-  to provide them, record the absence explicitly and proceed; do not
-  repeatedly ask.
+- **Reference docs:** ask for the manual and offer optional FAQs/guides;
+  use `docs/game_reference/{manuals,faqs}/`. Missing manual means stop,
+  unless the user explicitly waives it after the [quality warning](DOCUMENTATION.md#terminology-crosswalk).
 - **Session ceiling:** continue through the next mandatory gate or
   coherent high-value pass. Stop only for missing user-provided
   artifacts, parity drift that needs user judgment, or an explicit

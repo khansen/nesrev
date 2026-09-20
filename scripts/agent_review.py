@@ -60,6 +60,9 @@ RUNTIME_EXCLUDE_PATTERNS = (
     ".agents/current.json",
     ".agents/runs/",
     ".agents/logs/",
+    ".agents/reference_intake/",
+    ".agents/permissions/",
+    ".codex/rules/nesrev-pass-cycle.rules",
 )
 
 
@@ -124,15 +127,12 @@ def ensure_repo_contained(root: Path, path: Path, label: str) -> Path:
     return path
 
 
+def script_argv(root: Path) -> list[str]:
+    return [sys.executable, str(Path(__file__).resolve()), "--repo", str(root.resolve())]
+
+
 def script_command(root: Path) -> str:
-    script = Path(sys.argv[0])
-    if script.is_absolute():
-        script_arg = str(script)
-    elif (root / script).exists():
-        script_arg = script.as_posix()
-    else:
-        script_arg = str(script.resolve())
-    return f"python3 {shlex.quote(script_arg)}"
+    return shlex.join(script_argv(root))
 
 
 def read_state(root: Path) -> dict[str, Any]:
@@ -333,7 +333,9 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
     command = script_command(root)
     if role == "reviewer":
         review_file = f".agents/runs/{run_id}/review-{int(state['round']):02d}.md"
+        draft = f"projects/{state['project']}/tmp/review-{run_id}-{int(state['round']):02d}.md"
         command_hint = (
+            f"{command} import-artifact --kind review --source {draft}\n"
             f"{command} approve --review {review_file}\n"
             f"{command} request-changes --review {review_file}"
         )
@@ -350,12 +352,12 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             "`Review a committed project pass` row in its Mandatory Routing Table.",
             "Load additional routed playbooks when the changed files or subsystem require them.",
             "",
-            "Review the packet and repository read-only. Write the review artifact",
-            f"at `{review_file}` with `Verdict: APPROVED` or",
+            "Review the packet and repository read-only. Write the review draft",
+            f"at `{draft}` with `Verdict: APPROVED` or",
             "`Verdict: CHANGES_REQUESTED`.",
             "Include a `## Learning Candidates` section with process, harness,",
             "or tooling lessons for later triage, or `_None._`.",
-            "Then run one of:",
+            "Import the draft, then run either approve or request-changes:",
             "",
             "```sh",
             command_hint,
@@ -389,6 +391,7 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             ]
         else:
             response_file = f".agents/runs/{run_id}/response-{int(state['round']):02d}.md"
+            draft = f"projects/{state['project']}/tmp/response-{run_id}-{int(state['round']):02d}.md"
             body = [
                 "# Agent Review Changes Requested",
                 "",
@@ -397,10 +400,11 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 f"Review: {state.get('last_review')}",
                 "",
                 "Fix or dispute each finding. Commit implementation fixes, write",
-                f"`{response_file}` with a `## Learning Candidates` section",
+                f"`{draft}` with a `## Learning Candidates` section",
                 "or `_None._`, then run:",
                 "",
                 "```sh",
+                f"{command} import-artifact --kind response --source {draft}",
                 f"{command} reready \\",
                 f"  --response {response_file} \\",
                 "  --head HEAD \\",
@@ -408,6 +412,47 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 "```",
                 "",
             ]
+    if state.get("gold"):
+        if role == "reviewer":
+            body.extend([
+                "## Final Gold-Standard Review",
+                "",
+                "Assess the WHOLE project against every item in",
+                "`agent_playbook/QUALITY_REVIEW.md#gold-standard-assessment` and its",
+                "linked audits in REVIEW_AUDITS.md, not just this pass's diff.",
+                "Include a `## Gold-Standard Assessment` section with evidence and",
+                "a disposition for each checklist item. Green gates alone do not prove gold.",
+                "Only if the entire checklist is satisfied, also write the exact line",
+                "`Gold assessment: APPROVED`. Otherwise request changes or identify",
+                "the user input needed; runtime blockers are not completion.",
+                "The approve command runs strict project-ci at this clean review head",
+                "and refuses approval if it fails. Inspect that log and request changes",
+                "on failure; do not report approval when the command fails.",
+                "",
+            ])
+        elif status == "APPROVED":
+            body = [
+                "# Gold-Standard Review Approved",
+                "",
+                f"Run: {run_id}",
+                f"Reviewed head: {state['review_head']}",
+                f"Review: {state.get('last_review')}",
+                f"Strict CI evidence: {state.get('gold_ci', {}).get('log')}",
+                "",
+                "Archive this review and commit the archive and friction entries.",
+                "If already archived, verify the archive is committed. Then stop",
+                "the pass cycle and report GOLD STANDARD APPROVED with the archive",
+                "path and reviewed head. Do not start another pass or push projects.",
+                "",
+            ]
+    if role == "implementer" and status == "APPROVED":
+        body.extend(["```sh", f"{command} archive --pass-id <reviewed-pass-id>", "```", ""])
+    body.extend([
+        "If `.agents/permissions/commands.md` exists, follow its Git command forms.",
+        "Run handoff commands exactly as shown, as separate commands without",
+        "shell redirection, environment assignments, or compound scripts.",
+        "The command's stdout and generated artifacts provide the handoff result.",
+    ])
     return "\n".join(body)
 
 
@@ -420,6 +465,11 @@ def write_prompt(root: Path, state: dict[str, Any], role: str) -> str:
 
 
 def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -> None:
+    if state.get("gold"):
+        if state.get("allow_unresolved_lxxxx"):
+            raise UserError("gold review requires strict verification")
+        if getattr(args, "packet", None) or not getattr(args, "generate_packet", False):
+            raise UserError("gold review requires --generate-packet, without --packet")
     if getattr(args, "packet", None):
         state["packet"] = require_file(root, args.packet, "packet")
         validate_packet(root, state["packet"], state["review_head"], state.get("project"))
@@ -441,7 +491,7 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
     try:
         validate_packet(root, state["packet"], state["review_head"], state.get("project"))
     except UserError:
-        if not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
+        if not state.get("gold") and not state.get("allow_unresolved_lxxxx") and packet_verify_gate_failed_on_lxxxx(
             root, state["packet"]
         ):
             print(
@@ -456,6 +506,14 @@ def ensure_packet(root: Path, state: dict[str, Any], args: argparse.Namespace) -
         raise
 
 
+def strict_environment() -> dict[str, str]:
+    env = os.environ.copy()
+    # Parent make invocations can export relaxed verification or dry-run flags.
+    for key in ("ALLOW_UNRESOLVED_LXXXX", "MAKEFLAGS", "MFLAGS", "MAKEOVERRIDES"):
+        env.pop(key, None)
+    return env
+
+
 def generate_packet(root: Path, state: dict[str, Any], packet_path: Path) -> None:
     cmd = [
         "make",
@@ -467,7 +525,9 @@ def generate_packet(root: Path, state: dict[str, Any], packet_path: Path) -> Non
     ]
     if state.get("allow_unresolved_lxxxx"):
         cmd.append("ALLOW_UNRESOLVED_LXXXX=1")
-    result = subprocess.run(cmd, cwd=root, env=os.environ.copy(), text=True)
+    result = subprocess.run(
+        cmd, cwd=root, env=strict_environment() if state.get("gold") else os.environ.copy(), text=True,
+    )
     if result.returncode != 0:
         raise UserError(f"packet generation failed with exit {result.returncode}")
 
@@ -489,6 +549,15 @@ def initial_state(
         raise UserError("run id may contain only letters, digits, dot, underscore, and dash")
     if not PROJECT_RE.fullmatch(project):
         raise UserError("project may contain only letters, digits, underscore, and dash")
+    if state_path(root).exists():
+        previous = read_state(root)
+        if previous["status"] != "APPROVED":
+            raise UserError(
+                f"unfinished review {previous['run_id']} for {previous.get('project')} "
+                f"({previous['status']}); state and artifacts were left untouched. "
+                "Resume with ready if IMPLEMENTING, reready if CHANGES_REQUESTED, "
+                "or wait for the reviewer. Exhausted rounds require user input."
+            )
     base_sha = git_commit(base, root)
     head_sha = git_commit(head, root)
     if not allow_process_range:
@@ -586,6 +655,8 @@ def command_start_pass(args: argparse.Namespace) -> int:
     root = repo_root()
     if not PASS_ID_RE.fullmatch(args.pass_id):
         raise UserError("pass id must be numeric")
+    if args.gold and args.allow_unresolved_lxxxx:
+        raise UserError("--gold cannot allow unresolved LXXXX labels")
     review_base = args.base
     if review_base is None:
         review_base = "HEAD~2" if int(args.pass_id) == 0 else "HEAD~1"
@@ -603,6 +674,7 @@ def command_start_pass(args: argparse.Namespace) -> int:
         allow_unresolved_lxxxx=bool(args.allow_unresolved_lxxxx),
     )
 
+    state["gold"] = args.gold
     ensure_clean_tracked(root)
     ensure_head(root, state["review_head"])
     note_path = run_dir(root, state) / "implementation.md"
@@ -660,6 +732,27 @@ def command_approve(args: argparse.Namespace) -> int:
         raise UserError(f"approve requires review-ready state, got {state['status']}")
     review = require_file(root, args.review, "review file")
     verdict_in_file(root, review, "APPROVED")
+    if state.get("gold"):
+        text = resolve_path(root, review).read_text()
+        if not re.search(r"(?m)^Gold assessment: APPROVED\s*$", text):
+            raise UserError("gold review must contain 'Gold assessment: APPROVED'")
+        if not re.search(r"(?m)^## Gold-Standard Assessment\s*$", text):
+            raise UserError("gold review must include a '## Gold-Standard Assessment' section")
+        ensure_clean_tracked(root)
+        ensure_head(root, state["review_head"])
+        log = run_dir(root, state) / f"gold-ci-round-{int(state['round']):02d}.log"
+        cmd = ["make", "project-ci", f"PROJECT={state['project']}"]
+        print(f"Running strict project-ci; output: {rel(root, log)}", flush=True)
+        with log.open("w") as output:
+            result = subprocess.run(cmd, cwd=root, env=strict_environment(), stdout=output, stderr=subprocess.STDOUT)
+        if result.returncode != 0:
+            raise UserError(f"gold approval blocked: project-ci exited {result.returncode}; see {rel(root, log)}")
+        ensure_clean_tracked(root)
+        ensure_head(root, state["review_head"])
+        state["gold_ci"] = {
+            "head": state["review_head"], "command": shlex.join(cmd),
+            "exit_status": result.returncode, "log": rel(root, log),
+        }
     state["last_review"] = review
     state["status"] = "APPROVED"
     write_prompt(root, state, "implementer")
@@ -700,6 +793,35 @@ def command_reready(args: argparse.Namespace) -> int:
     write_prompt(root, state, "reviewer")
     write_state(root, state)
     print(f"READY_FOR_REREVIEW {state['run_id']} round {state['round']}")
+    return 0
+
+
+def command_import_artifact(args: argparse.Namespace) -> int:
+    root = repo_root()
+    state = read_state(root)
+    allowed = REVIEW_READY_STATUSES if args.kind == "review" else {"CHANGES_REQUESTED"}
+    if state["status"] not in allowed:
+        raise UserError(f"cannot import {args.kind} in {state['status']}")
+    if not state.get("project"):
+        raise UserError("artifact import requires a project review")
+    draft_root = root / "projects" / state["project"] / "tmp"
+    if draft_root.resolve() != draft_root:
+        raise UserError("project draft directory must not use symlinks")
+    source = resolve_path(root, args.source)
+    ensure_repo_contained(root, source, "draft")
+    ensure_repo_contained(draft_root, source, "draft")
+    if source.suffix != ".md" or not source.is_file():
+        raise UserError("draft must be an existing Markdown file in the project's tmp directory")
+    text = source.read_text()
+    if not text.strip():
+        raise UserError("draft is empty")
+    destination = run_dir(root, state) / f"{args.kind}-{int(state['round']):02d}.md"
+    if destination.resolve() != destination:
+        raise UserError("artifact destination must not use symlinks")
+    ensure_repo_contained(root, destination, "artifact")
+    ensure_repo_contained(root / ".agents" / "runs", destination, "artifact")
+    atomic_write(destination, text)
+    print(f"Imported {args.kind}: {rel(root, destination)}")
     return 0
 
 
@@ -926,9 +1048,16 @@ def render_archive(state: dict[str, Any], pass_id: str, archive_path: str) -> st
         "not archived here; regenerate packets from the review-time range only while",
         "those SHAs remain reachable.",
         "",
-        "## Review Artifacts",
-        "",
     ]
+    if state.get("gold"):
+        evidence = state["gold_ci"]
+        lines.extend([
+            "## Gold Completion Evidence", "",
+            f"Strict CI: `{evidence['command']}` (exit `{evidence['exit_status']}`)",
+            f"Verified head: `{evidence['head']}`", "",
+            "The final reviewer assessment below covers the whole project.", "",
+        ])
+    lines.extend(["## Review Artifacts", ""])
     for source, text in reviews:
         lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
 
@@ -950,6 +1079,8 @@ def command_archive(args: argparse.Namespace) -> int:
     if not PASS_ID_RE.fullmatch(args.pass_id):
         raise UserError("pass id must be numeric")
     ensure_clean_tracked(root)
+    if state.get("gold"):
+        ensure_head(root, state["review_head"])
 
     out_path = (
         ensure_repo_contained(root, resolve_path(root, args.out), "archive output")
@@ -974,6 +1105,8 @@ def command_archive(args: argparse.Namespace) -> int:
 
 def command_watch(args: argparse.Namespace) -> int:
     root = repo_root()
+    if args.worker_id and not RUN_ID_RE.fullmatch(args.worker_id):
+        raise UserError("worker id may contain only letters, digits, dot, underscore, and dash")
     deadline = time.time() + args.timeout if args.timeout is not None else None
     seen_path: Path | None = None
     while True:
@@ -987,12 +1120,13 @@ def command_watch(args: argparse.Namespace) -> int:
                 return 4
             time.sleep(args.interval)
             continue
-        actor = next_actor_for(state)
+        actor = next_actor_for(state) if not args.project or state.get("project") == args.project else None
         if actor == args.role:
             prompt = state.get("prompts", {}).get(args.role)
             if not prompt:
                 raise UserError(f"state says {args.role} owns the turn but no prompt is recorded")
-            seen_path = run_dir(root, state) / "workers" / f"{args.role}.seen"
+            marker = f"{args.worker_id}-{args.role}" if args.worker_id else args.role
+            seen_path = run_dir(root, state) / "workers" / f"{marker}.seen"
             token = notify_token(state, args.role)
             previous = seen_path.read_text().strip() if seen_path.exists() else ""
             if previous != token:
@@ -1018,6 +1152,7 @@ def command_watch(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, help="anchor the handoff to this checkout")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="create a review run")
@@ -1046,6 +1181,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--implementer", default="implementer")
     start.add_argument("--allow-process-range", action="store_true")
     start.add_argument("--allow-unresolved-lxxxx", action="store_true")
+    start.add_argument("--gold", action="store_true", help="final whole-project assessment; approval requires strict project-ci")
     start.add_argument(
         "--learning",
         default="_None._",
@@ -1084,8 +1220,15 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true")
     status.set_defaults(func=command_status)
 
+    artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
+    artifact.add_argument("--kind", choices=("review", "response"), required=True)
+    artifact.add_argument("--source", required=True)
+    artifact.set_defaults(func=command_import_artifact)
+
     watch = sub.add_parser("watch", help="notify when a role owns the next turn")
     watch.add_argument("--role", choices=["implementer", "reviewer"], required=True)
+    watch.add_argument("--project", help="notify only for this project")
+    watch.add_argument("--worker-id", help="notification identity for a new pair of agent sessions")
     watch.add_argument("--notify")
     watch.add_argument("--once", action="store_true")
     watch.add_argument("--timeout", type=float, default=None)
@@ -1099,6 +1242,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.repo is not None:
+            root = Path(run_git(["rev-parse", "--show-toplevel"], cwd=args.repo).strip()).resolve()
+            if root != args.repo.resolve():
+                raise UserError("--repo must name the checkout root")
+            os.chdir(root)
         return args.func(args)
     except UserError as exc:
         print(f"error: {exc}", file=sys.stderr)

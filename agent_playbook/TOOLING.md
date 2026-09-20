@@ -116,13 +116,11 @@ project's `PROCESS_FRICTION.md` queue.
 
 ### Agent Review Handoff
 
-`python3 scripts/agent_review.py` is the optional local v1 handoff path for
-already-running agent sessions after a run opts into external/adversarial
-review. It is not part of mandatory solo closeout. The user still starts Codex,
-Claude, and any worker loops manually; the script records
-`.agents/current.json`, points each role at the packet/review artifacts, and
-lets a watcher notify the next role after `READY_FOR_REVIEW`,
-`CHANGES_REQUESTED`, `READY_FOR_REREVIEW`, or `APPROVED`.
+External review is optional; solo closeout does not require it. Run
+`python3 scripts/agent_review_tmux.py --project <slug>` from the project checkout
+to start two agent panes and their watchers. `scripts/agent_review.py` records
+turn ownership in `.agents/current.json` and points each role at its artifacts.
+Watchers notify the next role; use generated commands and [permission setup](AGENT_PERMISSIONS.md).
 
 Minimal flow:
 ```sh
@@ -146,6 +144,10 @@ make project-pass-review-start PROJECT=<slug> PASS=<id> [BASE=<ref>] [HEAD=<ref>
 ```
 Single-quote dollar-bearing prose for the shell. The Make wrapper preserves
 literal dollar signs and apostrophes; no `$$` escaping is required.
+
+`start-pass` and `init` refuse to replace any non-APPROVED run. Resume an
+`IMPLEMENTING` run with `ready --note <existing-note> --generate-packet`, use
+`reready` for requested changes, or wait for review. Exhausted rounds need user input.
 
 Pass `BASE=<ref>`, `HEAD=<ref>`, `RUN_ID=<id>`, or `MAX_ROUNDS=<n>` to the
 wrapper for those overrides. Use lower-level `init` plus
@@ -184,10 +186,9 @@ also appends or updates a generated block in
 Those entries are raw candidates for later process review, not immediate
 playbook rules.
 
-The watcher invokes `<notifier> <role> <status> <prompt-file>` and also passes
-`AGENT_REVIEW_*` environment variables. A tmux adapter, queue adapter, or
-agent-specific worker can be layered on that contract; the state file remains
-authoritative and the watcher must not infer verdicts from chat text.
+Watchers invoke `<notifier> <role> <status> <prompt-file>` and pass
+`AGENT_REVIEW_*` environment variables. State is authoritative;
+adapters must not infer verdicts from chat.
 Reviewer prompts route the reviewer through the `Review a committed project
 pass` row in `AGENTS.md` before asking for a verdict, so the handoff does not
 rely on ambient session memory of the repository rules. That route includes
@@ -195,24 +196,74 @@ rely on ambient session memory of the repository rules. That route includes
 surface. Review and response prompts ask for a `## Learning Candidates` section
 so repeated friction can be triaged outside the individual pass.
 
-For tmux handoff, put the already-running implementation and reviewer agents
-in tmux panes, find their pane ids, and run one watcher per role:
+The launcher defaults to Codex implementation and Claude review (Codex fallback).
+Both roles accept overrides; unavailable choices fail. It creates `agents` and
+`watchers` windows in `nesrev-review`, then attaches/switches tmux. Repeating the
+command reconnects without changing agents or task; conflicting sessions are refused.
+Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
+and optional FAQs, or explicitly waive the manual after the quality warning.
+Enter cannot skip missing files. `.agents/reference_intake/<slug>.json` persists the choice;
+agents read it and process sources before semantic analysis. The reviewer watcher
+diagnoses startup failure; see README recovery instructions. Startup also checks
+PDF/OCR tools for supplied manuals and FAQs, waiting with install hints if needed.
+
+If the project directory is absent, the launcher runs `project-doctor` and
+`project-init` and prints ROM/manual paths. Directories without `project.conf`
+are refused. The implementer routes unfinished intake through `NEW_PROJECT.md`, stops for missing user-supplied
+material, and submits the two intake commits as pass 0 before semantic work.
+Existing projects resume pass selection; approval advances the pass cycle until
+the objective is met or a user-dependent blocker is reached.
+
+The default objective is reviewed gold standard. Submit the final closeout
+with `start-pass --gold`: the reviewer must assess the whole project against
+QUALITY_REVIEW's gold checklist, include `## Gold-Standard Assessment` and
+`Gold assessment: APPROVED`, and run `approve`. Approval runs strict
+`project-ci` at the clean reviewed head; failed CI or changed source/head
+blocks approval. Gold packets cannot use relaxed verification. Archive and
+commit the final review, then stop with `GOLD STANDARD APPROVED` and its path.
+User-dependent blockers stop with `NEEDS INPUT` and a concrete next action.
+
+Launcher options:
 ```sh
-tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
-export AGENT_REVIEW_TMUX_REVIEWER=%12
-export AGENT_REVIEW_TMUX_IMPLEMENTER=%13
-python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
-python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
+python3 scripts/agent_review_tmux.py --project <slug> \
+  --task 'Continue semantic and runtime passes toward reviewed gold standard.' \
+  --implementer-cmd 'codex' --reviewer-cmd 'claude'
 ```
+
+`--repo <path>` selects the checkout; `--session <name>` names a new workspace.
+`--implementer-model/--reviewer-model` and `--implementer-effort/--reviewer-effort`
+set independent choices; omitted values use agent defaults. See [examples](../README.md#choose-models-and-effort).
+Matching workspaces reconnect with existing settings. Overrides apply only at creation.
+`--no-attach` leaves it detached. `--*-cmd` takes executable/arguments, not shell programs.
+Permissions, authentication, supervision, and restart remain user-controlled.
+`--check` checks tools, supplied references' PDF/OCR prerequisites, and Git identity
+without scaffolding or launching agents; `project-doctor PROJECT=<slug>` shares the reference check.
+
+The implementer records the pre-pass base, closes out and commits a coherent
+pass, runs `start-pass` with that base, then yields until review returns. It
+commits fixes before `reready`, archives and commits each approval before the
+next pass, and stops on exhausted rounds or a user-dependent blocker. The
+reviewer follows the committed-pass review route and leaves implementation
+files untouched. Both agents are instructed never to push `projects`.
+
+Startup preserves existing review state. An unfinished other-project review
+blocks launch; a completed other-project review is ignored. A pending review
+for this project resumes through its next actor instead of starting a new pass.
+Launcher watchers use `--project <slug>` to filter notifications and a unique
+`--worker-id` so new sessions receive a pending turn even if previous sessions
+already received it; each turn is still delivered only once per worker identity.
+Without these options, manually configured watchers retain their existing
+checkout-wide notification markers. Launch metadata stays ignored under
+`.agents/logs/`.
 
 `scripts/agent_review_tmux_notify.sh` loads the prompt file into a tmux buffer,
 uses tmux bracketed paste, and sends Enter by default. This is intended for
 paste-aware agent TUIs that enable bracketed paste; do not target an ordinary
 shell or other non-paste-aware program with a multi-line prompt. Set
 `AGENT_REVIEW_TMUX_SUBMIT=0` to paste without the final submit Enter during
-dry runs. The adapter does not start, supervise, or detect readiness of agent
-sessions; keep target panes idle at the agent prompt before enabling automatic
-submission.
+dry runs. The adapter itself does not start, supervise, or detect readiness of
+agent sessions. The launcher requires the one-time startup confirmation;
+thereafter the agents must yield at handoff so the receiving pane is idle.
 
 ### Evidence Order (Mandatory)
 
@@ -1167,9 +1218,8 @@ probe scripts, or one-off crash/debug experiments unless the user explicitly
 asks for a curated fixture. Put volatile output under a project `tmp/` path and
 ignore it.
 
-Trace scripts must install the watches themselves. The operator may drive the
-scenario by playing live input or replaying a movie, but they should not have to
-open a debugger UI, set manual breakpoints, or copy watch lists by hand.
+Trace scripts install watches and inputs; no manual debugger setup is needed.
+Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) before requesting human help.
 
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs
@@ -1228,7 +1278,7 @@ that tie the captured signal back to the specific static uncertainty.
 
 ### Headless/GUI constraints
 
-If runtime tracing requires a GUI, do not block progress. Implement a
-local-user runnable script that launches the emulator with the trace script
-already loaded. Validate the analyzer with synthetic logs and mark the evidence
-gap as "capture pending" until a real capture lands.
+Try agent-run GUI captures with the available permissions; a GUI alone is no
+reason to hand off. If access is blocked, record the error and prepare a
+[human review batch](RUNTIME_EVIDENCE.md#human-review-batch). Keep evidence
+capture-pending until a real, scenario-validated capture lands.

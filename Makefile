@@ -21,7 +21,7 @@ test: check-agent-playbooks check-repo-hygiene test-shell
 	java NESrevTest
 
 project-doctor:
-	bash scripts/project_doctor.sh
+	bash scripts/project_doctor.sh $(call shell_quote_raw,$(value PROJECT))
 
 project-init:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-init PROJECT=<slug>"; exit 2; fi

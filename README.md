@@ -1,5 +1,231 @@
 # NESrev
 
+## Start a project with two agents
+
+One command sets up an implementer, an independent reviewer, and their automatic
+handoffs. Use it for a new game or to continue an existing project's pass cycle.
+The default goal is **reviewed gold standard**, as defined by the
+[quality checklist](agent_playbook/QUALITY_REVIEW.md#gold-standard-assessment).
+The agents can stop for files, permissions, account limits, or gameplay traces
+that need your help. This is not a guarantee of unattended completion.
+
+<a id="before-your-first-run"></a>
+### Before your first run
+
+You need this repository and its [toolchain](agent_playbook/NEW_PROJECT.md#prerequisites), Python 3, tmux,
+and your chosen agent apps installed and signed in. The default implementer is
+Codex. The default reviewer is Claude if installed, otherwise a separate Codex
+session. You can choose either app for either role; examples are below.
+Their normal usage charges and limits
+apply. Git must have your name and email configured so the implementer can
+save commits. Bring your own reference ROM and game manual; FAQs and guides
+are optional. The agents do not obtain those for you. You can explicitly
+choose to proceed without a manual at startup, accepting lower semantic precision.
+
+Open Terminal in the repository folder. This optional check starts no agents
+and creates no project:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race --check
+```
+
+If a required tool is missing, install it using the diagnostic or toolchain
+instructions, then repeat the check. It checks local tools and Git identity;
+you still complete account and permission prompts when the agents start.
+Doctor also reports PDF/OCR tools. Use `make project-doctor PROJECT=f1_race`
+to check requirements for that project's supplied manuals and FAQs.
+PDFs require Poppler (`pdftotext`, `pdftoppm`) and Tesseract so both text and
+scanned pages can be read; image scans require Tesseract with recognition
+language data. Plain text and HTML do not require these tools. The launcher
+checks again after you confirm your files and waits with installation guidance
+if anything is missing. It does not install software automatically.
+
+Doctor also reports **FCEUX**, an optional emulator for runtime analysis. If
+installed, the implementer can use Lua to simulate controller inputs, replay
+movies, capture frames, and trace game state. Missing FCEUX does not block
+startup or static analysis; the agent asks for installation or access if it
+later needs it. Doctor does not launch the emulator; capture support is checked
+when used.
+
+### Start and let the agents work
+
+1. Run this command. Replace `f1_race` with your project's folder name when
+   working on another game; use lowercase letters, numbers, and underscores.
+
+   ```sh
+   python3 scripts/agent_review_tmux.py --project f1_race
+   ```
+
+2. The launcher shows the local permissions it proposes. Type **yes** to
+   allow routine commits and review handoffs for this checkout. It remembers
+   that choice; no global settings or unrestricted bypass are enabled.
+   Finish each agent's workspace-trust prompt when it starts.
+   The launcher creates the project folders if needed. For a new F1 Race
+   project, copy your ROM to `projects/f1_race/reference/f1_race.nes` in this
+   checkout. The file must be an iNES `.nes` image, not a bare program dump.
+   Copy the manual (PDF, scans, or text) into
+   `projects/f1_race/docs/game_reference/manuals/`. Put any optional FAQs or
+   guides into `projects/f1_race/docs/game_reference/faqs/`. These source files
+   stay outside Git. The implementer derives mapper and ROM sizes itself.
+3. Press **Ctrl+b**, release both keys, then press **w**. Select `agents`.
+   The left pane is the implementer; the right pane is the reviewer. Switch
+   panes with **Ctrl+b**, then an **arrow key**. Finish any login/trust prompts
+   in each pane and wait until both say **READY** and finish their turns.
+4. Use **Ctrl+b**, then **w** to select `watchers`. Press **Enter** in the
+   startup pane when your reference set is ready. The launcher lists the
+   manual and optional FAQ folders. If no manual is available, it warns that
+   the final disassembly's terminology and semantic precision will likely be
+   lower, and waits. To proceed anyway, type **continue without a manual**.
+   Pressing Enter alone does not skip a missing manual; an empty file or
+   `.gitkeep` does not count. Your explicit choice is remembered on restart.
+   Existing projects use the same check. The launcher switches back to the agents. They now
+   perform intake if needed, then implement, review, fix, and archive passes
+   automatically. The watchers deliver each handoff; you do not copy prompts
+   between agents.
+
+The implementer must read the supplied references and prepare the terminology
+crosswalk before semantic analysis. Missing or unreadable manuals require your
+input unless you explicitly chose to continue without one; the crosswalk must
+record that decision and limitation. A “no references available” note alone
+does not waive this step. A launcher
+presence check cannot establish that a file is the correct, readable manual;
+the agents check that, choose the document's OCR language, and check extracted
+text against the pages during reference preparation and intake review.
+
+Routine Git commits and review handoffs use a **pass-cycle permission profile**.
+`--check` previews its exact rules without installing them; the normal launch
+asks once before installation. The agents receive matching command examples,
+and review drafts are written into the project's `tmp` folder before the
+handoff tool publishes them. Other commands can still need approval, including
+builds under Claude, installations, network access, and unusual Git operations.
+Existing user permissions remain in effect; Codex's project rules are shared
+by both Codex sessions. This does not isolate the agents from each other.
+See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
+
+For custom agent wrappers or to use your existing permission setup, add
+`--permissions inherit`. This skips installation and does not remove rules
+you previously installed. A running tmux workspace keeps its original settings;
+new permissions take effect when you restart it through the documented recovery
+procedure.
+
+To leave the screen while work continues, press **Ctrl+b**, then **d**.
+Keep the computer awake and online. Run the same launch command to reconnect;
+it keeps the running agents and their current task. Detaching does not stop
+agent work or usage. Avoid **Ctrl+c** or closing individual panes unless you
+intend to interrupt an agent.
+
+### Know when your help is needed
+
+The implementer attempts runtime analysis itself before asking you to play or
+trace. It may download TASVideos `.fm2` input movies to replay against your ROM,
+checking that the replay reaches the intended scenario. ROMs, manuals, and FAQs
+still come from you.
+
+Questions that need human judgment, such as identifying an ambiguous sound,
+are collected into a batch with short clips or screenshots and clear choices.
+You might see `NEEDS INPUT: 3 questions` with a packet to open and reply to as
+`Q1: A; Q2: B; Q3: unsure`. The implementer prepares the samples and continues
+independent work before stopping for answers. A blocking permission or missing
+file is requested immediately. You should not need to set debugger watches
+or play a whole game just to answer a question.
+
+- **NEEDS INPUT** means the implementer has stopped and gives you a specific
+  next action. Supply the file or answer, then tell it to continue in the
+  implementer pane. Permission prompts may appear directly in either agent.
+- **GOLD STANDARD APPROVED** means the reviewer assessed the whole project
+  against the quality checklist, strict CI passed, and the implementer saved
+  the final review archive. An individual pass approval or green KPI report
+  is not this completion signal. The final message includes the archive path.
+- If an agent exits or hits a usage limit, the launcher does not restart it
+  automatically. Inspect its pane. To rebuild the workspace after resolving
+  the problem, end both agents' turns first, then run
+  `tmux kill-session -t nesrev-review` in another terminal and repeat the launch
+  command. Saved commits and review state remain; unsaved chat context does not.
+- If the reviewer watcher reports **startup watcher exited before confirmation
+  completed**, startup failed before both watchers were armed. Inspect the
+  startup pane in `watchers`, resolve its error, and use the restart procedure
+  above. Waiting longer or simply reconnecting will not restart a dead watcher.
+
+The agents are instructed never to push `projects`. Model and effort defaults
+come from each agent; you can override them separately below. Permissions
+come from your existing agent configuration. Advanced command overrides and
+the handoff protocol are in
+[TOOLING.md](agent_playbook/TOOLING.md#agent-review-handoff).
+
+### Choose your agents
+
+To have Claude implement and Codex review:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race --implementer-cmd claude --reviewer-cmd codex
+```
+
+To use Codex for both roles, even when Claude is installed:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race --reviewer-cmd codex
+```
+
+To use Claude for both roles:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race --implementer-cmd claude --reviewer-cmd claude
+```
+
+Each role always gets its own session. Add `--check` to any command to check
+that selection without launching it. Choices apply when creating a workspace;
+reconnecting keeps the agents already running. An explicitly chosen app that
+is missing produces an error, rather than silently choosing another app.
+
+<a id="choose-models-and-effort"></a>
+### Choose models and reasoning levels
+
+**No options are needed to use each agent's default model and effort.** The
+launcher leaves those choices to Codex or Claude, including their saved settings.
+It does not pin a model, force a reasoning level, or edit either app's configuration.
+
+Choose independently for each role:
+
+| Option | Choice |
+| --- | --- |
+| `--implementer-model` | Implementer's model name or alias |
+| `--implementer-effort` | Implementer's inference/reasoning level |
+| `--reviewer-model` | Reviewer's model name or alias |
+| `--reviewer-effort` | Reviewer's inference/reasoning level |
+
+For example, leave model selection to the agents and choose different effort levels:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race \
+  --implementer-effort high --reviewer-effort medium
+```
+
+To choose models too, replace the quoted placeholders with names supported by
+your agents. Select each app explicitly when using its model names so the
+automatic reviewer fallback cannot switch apps:
+
+```sh
+python3 scripts/agent_review_tmux.py --project f1_race \
+  --implementer-cmd codex --implementer-model "<codex-model>" --implementer-effort high \
+  --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort medium
+```
+
+The same options work with Claude implementing, Codex reviewing, or the same
+app in both roles. Any omitted choice stays with that agent. Supported models
+and effort levels depend on the agent version, model, and account; the launcher
+passes your choices through without substituting another model or level.
+Codex effort uses its [model_reasoning_effort setting](https://developers.openai.com/codex/config-reference);
+Claude effort uses `--effort`.
+Add `--check` to see the resulting commands without starting agents. Availability
+is checked by the agents at startup. `--implementer-reasoning-effort` and
+`--reviewer-reasoning-effort` are longer aliases for the effort options.
+
+These options apply to new workspaces. Reconnecting keeps the running agents'
+models and effort; use the recovery procedure above when you want to recreate
+the workspace with different settings. With advanced `--*-cmd` arguments, set
+each choice in only one place. Custom wrappers should receive their native
+model/effort arguments inside `--*-cmd`.
+
 ## Multi-Project Workspace
 
 Use `projects/` for per-ROM isolation. Each project should live under its own
@@ -25,8 +251,9 @@ stop after scaffolding and ask the user to put it at
 The process carries the working rules, so the prompt does not need to restate
 them. A suggested starting prompt, in full:
 
-> Work on `<slug>` until you need runtime traces that only I can run. End with a
-> trace plan I can execute. State each gap you defer as `DEFERRALS="subject ::
+> Work on `<slug>` toward reviewed gold standard, including runtime captures
+> you can run yourself. Batch questions that need my help with prepared samples
+> and replay commands. State each gap you defer as `DEFERRALS="subject ::
 > what would close it"` at closeout, adding `:: runtime` for the ones only a
 > trace can settle. Commit each pass and record friction in
 > `PROCESS_FRICTION.md`; otherwise don't stop for feedback.
@@ -45,42 +272,6 @@ the closing trace plan must contain — in
 Adding process detail to the prompt is usually the wrong fix. The prompt sets
 the goal and the exit condition; a rule that belongs to every run belongs in the
 playbooks, where it applies whether or not whoever starts the run remembers it.
-
-### Optional tmux review handoff
-
-External/adversarial pass review is opt-in. The local handoff tools automate
-the post-commit back-and-forth between an already-running implementer agent and
-an already-running reviewer agent; they do not start, log in to, supervise, or
-restart either agent session.
-
-Humans still create the implementer and reviewer sessions manually, typically
-in tmux panes left idle at their agent prompts. There is no convenience script
-that launches Codex and Claude together; `scripts/agent_review_tmux_notify.sh`
-is only a notifier for already-running panes. The implementer pane is not
-configured to talk to the reviewer pane directly; the watcher shell wires the
-two panes together with tmux target environment variables.
-
-Minimal setup reminder:
-
-```sh
-tmux new-session -d -s nesrev-review -c /path/to/nesrev
-tmux split-window -h -t nesrev-review -c /path/to/nesrev
-tmux attach -t nesrev-review
-# pane 1: <start implementer agent>
-# pane 2: <start reviewer agent>
-
-tmux list-panes -a -F '#{pane_id} #{session_name}:#{window_index}.#{pane_index} #{pane_current_command}'
-export AGENT_REVIEW_TMUX_REVIEWER=%<reviewer-pane>
-export AGENT_REVIEW_TMUX_IMPLEMENTER=%<implementer-pane>
-
-# Run each watcher in its own shell or tmux pane.
-python3 scripts/agent_review.py watch --role reviewer --notify scripts/agent_review_tmux_notify.sh
-python3 scripts/agent_review.py watch --role implementer --notify scripts/agent_review_tmux_notify.sh
-```
-
-The full pane setup, post-commit handoff command, archive step, and operational
-caveats live in
-[TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
 
 Reference ROM/binary files are not tracked. Each user must provide their own
 reference file under `projects/<slug>/reference/`.

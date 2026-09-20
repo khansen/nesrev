@@ -19,8 +19,8 @@ stays deliberately boring: Git remains the source of truth for code and
 commits, `.agents/` stores ignored runtime state, durable review judgements
 and learning candidates are committed under the reviewed project, and a small
 worker/notifier loop coordinates two already-running local agent sessions. The
-user may start the sessions and worker loops manually; v1 automates post-pass
-handoff, not login or session startup. Do not introduce MCP or a custom service
+user starts the sessions and worker loops with `agent_review_tmux.py`; login
+and ongoing supervision remain manual. Do not introduce MCP or a custom service
 in v1 unless the file/state approach fails a concrete requirement.
 
 ## 1. Context
@@ -88,7 +88,7 @@ Non-goals for v1:
 - automatic semantic judgment
 - automatic merge or push
 - remote CI orchestration
-- starting, logging in, or supervising agent sessions
+- logging in to or supervising agent sessions
 - replacing `project-pass-closeout`, `project-verify`, or existing gates
 - letting the reviewer mutate implementation files in the normal path
 - building a long-running daemon or database-backed service
@@ -134,11 +134,10 @@ Rejected ranges:
 ## 4. Implementation Record and Prior-Art Status
 
 The v1 interactive-session decision is settled: the target is coordination
-between already-running implementation and reviewer sessions. The protocol does
-not automate session startup; the user can start both sessions and worker loops
-manually. It moves state, packets, prompts, review artifact paths, and verdicts
-between running agents after each pass so the user stops serving as the message
-bus.
+between implementation and reviewer sessions. The tmux launcher starts both
+agents with role prompts and wires their watchers, then requires the user to
+confirm both agents are ready. The protocol moves state, packets, prompts,
+review artifact paths, and verdicts between running agents after each pass.
 
 In this spec, coordinator means the local state/notification helper that moves
 the next prompt, packet path, review artifact path, and verdict between already
@@ -160,6 +159,10 @@ Implemented v1 pieces:
   watcher contract, and durable review archive command.
 - `scripts/agent_review_tmux_notify.sh` implements the v1 tmux notifier for
   already-running, bracketed-paste-aware agent panes.
+- `scripts/agent_review_tmux.py` creates the agent panes and watchers, supplies
+  role prompts and an implementation objective, and handles startup confirmation.
+  It scaffolds missing projects through the canonical wrappers and reconnects
+  to an existing checkout/project workspace when invoked again.
 - `agent_playbook/TOOLING.md` documents the operational flow.
 - Durable review judgements are committed under
   `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`; packets,
@@ -209,7 +212,7 @@ replacement:
 - It has an observable state model and logs that a human can inspect.
 - It terminates at approval or after a configurable maximum review round
   count.
-- After the user manually starts the sessions and worker loops, it can hand a
+- After the user launches and arms the sessions and worker loops, it can hand a
   ready pass to the reviewer and return findings to the implementer without
   human copy/paste. Any form that requires a human to trigger each review round
   must be evaluated separately and cannot satisfy unattended pass review.
@@ -498,7 +501,9 @@ Implemented subcommands:
   packet, and point the reviewer at the next prompt.
 - `status` - print state, commit range, last artifacts, and next actor.
 - `watch` - optional polling loop for manually started agents or humans; not
-  required for correctness.
+  required for correctness. `--project` filters notifications to one project;
+  `--worker-id` gives new sessions their own delivery markers so a pending turn
+  can be delivered again without changing review state.
 
 The script should reject:
 
@@ -523,9 +528,16 @@ responsible for committing implementation or response changes.
 
 ## 8. Tmux Handoff Transport
 
-The implemented v1 transport is optional and tmux-based. The user still starts
-Codex, Claude, and any worker loops manually; this layer only feeds the next
-turn once state changes. The state file remains authoritative, and the protocol
+The implemented v1 transport is optional and tmux-based. The standard launcher,
+`python3 scripts/agent_review_tmux.py --project <slug>`, starts Codex as implementer,
+Claude as reviewer, and one watcher per role. The user finishes authentication
+and confirms both agents are idle before handoffs start. Agent commands and
+the implementation objective are configurable; see the canonical setup in
+[TOOLING.md#agent-review-handoff](agent_playbook/TOOLING.md#agent-review-handoff).
+The default objective covers intake followed by successive semantic passes,
+not just completion of one review. New-project intake is reviewed as pass 0
+across both intake commits before entering the semantic pass cycle.
+The state file remains authoritative, and the protocol
 still works manually through `status`, `ready`, `approve`, `request-changes`,
 `reready`, and `archive`.
 
@@ -547,10 +559,10 @@ Expected behavior:
 - The adapter validates the target pane and cleans up tmux buffers on failure.
 - Failed notification does not mark `.seen`; the watcher can retry.
 
-The transport is convenience. It does not start, supervise, or detect readiness
-of agent sessions. Target panes should be idle at a paste-aware agent prompt
-before automatic submission is enabled. If a pane is mid-task, the adapter
-cannot detect that; this is the main inherent risk of the v1 transport.
+The notifier does not supervise or detect readiness of agent sessions. The
+launcher starts the sessions and requires one readiness confirmation before
+enabling automatic submission. Later handoffs still rely on the sending agent
+yielding its turn; the adapter cannot detect a pane that is mid-task.
 
 The transport should never infer approval or requested changes from chat text.
 Only the state script should change `.agents/current.json`.
@@ -619,7 +631,7 @@ One-pass external-review happy path:
    hand-authored implementation note; `start-pass` accepts range and run-id
    overrides directly.
 
-3. The manually started worker loop or transport wakes the reviewer.
+3. The watcher wakes the reviewer.
 4. The reviewer reviews `HEAD~1..HEAD`, writes
    `.agents/runs/<slug>-pass-105/review-01.md`, and runs:
 
@@ -637,7 +649,7 @@ One-pass external-review happy path:
 6. The implementation agent commits the archive artifact, then may begin the
    next pass.
 
-After the user starts both sessions and worker loops, this happy path should
+After the user launches and arms both sessions and worker loops, this happy path should
 not require the user to copy findings, paste responses, or manually wake either
 agent. Human intervention is reserved for setup failure, disputed findings,
 exhausted rounds, or explicit override.
@@ -763,6 +775,8 @@ Completed v1 pieces:
   project/pass id while treating recorded SHAs as review-time provenance.
 - `scripts/agent_review_tmux_notify.sh` landed as the v1 transport for
   already-running tmux panes.
+- `scripts/agent_review_tmux.py` adds one-command session and watcher setup
+  with a single readiness confirmation before passes begin.
 - `agent_playbook/TOOLING.md` documents the packet, state machine, archive
   behavior, tmux notifier, and operational preconditions.
 - `AGENTS.md` owns the `Review a committed project pass` route, and generated
@@ -777,7 +791,7 @@ Completed v1 pieces:
 
 Deliberately not implemented in v1:
 
-- starting, logging in, supervising, or health-checking agent sessions
+- logging in, supervising, or health-checking agent sessions
 - MCP or a custom daemon
 - automatic semantic judgement
 - automatic merge, push, or remote CI orchestration
@@ -872,8 +886,8 @@ Resolved for v1:
 7. Re-review covers the original base through the latest head.
 8. V1 transport is tmux notification between already-running, paste-aware agent
    panes.
-9. Session startup, login, supervision, and readiness detection are out of
-   scope.
+9. The launcher handles session startup. Login, ongoing supervision, and
+   automatic readiness detection remain out of scope.
 10. Reviewer prompt routing is owned by `AGENTS.md`, through the `Review a
     committed project pass` row. Prompts and packet specs reference that row
     rather than duplicating its playbook bundle.

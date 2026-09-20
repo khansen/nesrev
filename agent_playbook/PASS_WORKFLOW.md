@@ -205,7 +205,7 @@ produced, or declare the gap runtime-gated and write its trace plan.
 Inferring `runtime` from wording reproduces the misclassification the rule
 exists to prevent — an identity gap described as "dynamic" is desk-resolvable
 cross-corridor work. Promotion is deliberate (`--kind runtime`), because
-asserting that evidence cannot be had from the desk should cost a decision.
+asserting that live execution is necessary should cost a decision.
 
 **Runtime is a scheduling claim.** A static deferral admits the desk work is
 unfinished; runtime asserts the evidence cannot be obtained statically. It
@@ -217,12 +217,13 @@ being in the ROM but spread across corridors. Try that route first — placement
 data, dispatch tables, sprite/tile data and the manual together — and record
 what failed.
 
-**Ending a session on a runtime gap** means stopping with a trace plan its
-reader can execute *without reading the ROM*: what to run, the scenario, what to
-watch, what confirms or refutes each hypothesis
-([#runtime-evidence-workflow](#runtime-evidence-workflow)) — not a claim that
-static work is exhausted. It also prices the decision honestly: writing one
-exceeds the cost of another triangulation attempt.
+**Runtime capture belongs to the implementer.** Attempt executable traces,
+scripted inputs, and visual inspection before requesting human help. Runtime
+classification alone does not justify `NEEDS INPUT`. When human help is needed,
+prepare a [review batch](RUNTIME_EVIDENCE.md#human-review-batch) with executable
+plans, observed blockers, and grouped questions; continue independent work.
+Stop promptly for a blocking permission or missing artifact. A pending capture
+does not establish static exhaustion or gold-standard completion.
 
 <a id="identity-pass"></a>
 ## Identity Pass (Cross-Corridor)

@@ -55,6 +55,11 @@ cat > "$root/README.md" <<DOC
 4. Regenerate with the tracked controls, then run
    \`make project-intake PROJECT=${slug}\`. Intake baselines KPIs and emits
    \`docs/reverse_engineering/inventory/{intake_listing,intake_xref,raw_address_audit}.json\`.
+5. Supply the manual in \`docs/game_reference/manuals/\` and any optional
+   FAQs/guides in \`docs/game_reference/faqs/\`. Stop before semantic analysis
+   until references have seeded the terminology crosswalk. Only the user's
+   explicit request can waive the manual, after a semantic-quality warning;
+   see [reference intake](../../agent_playbook/DOCUMENTATION.md#terminology-crosswalk).
 
 ## Layout
 
