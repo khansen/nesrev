@@ -178,6 +178,8 @@ def kickoff(root: Path, project: str, task: str) -> str:
         "GOLD STANDARD APPROVED, the archive path, and the reviewed head.\n"
         "Runtime analysis is implementer-owned. Read agent_playbook/RUNTIME_EVIDENCE.md#agent-capture "
         "and attempt bounded emulator captures yourself before asking the user to play or trace. "
+        "For FCEUX, use scripts/run_fceux_trace.py with the trace template's output environment "
+        "and explicit scenario completion checks; it supervises timeouts and emulator cleanup. "
         "Reuse or adapt Lua input drivers, frame polling, movie replay, and screenshots; inspect "
         "visible objects against the supplied references and trace their owning slots. You may "
         "download TASVideos .fm2 input movies, keeping them untracked; validate ROM/revision, "

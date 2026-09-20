@@ -2,20 +2,8 @@
 -- Copy into projects/<slug>/tools/trace/ and replace WATCHES plus milestones.
 -- This backend intentionally avoids write callbacks; use Mesen for writer-PC.
 
-local function script_dir()
-  local src = (debug.getinfo(1, 'S').source or ''):gsub('^@', '')
-  return src:match('^(.*)[/\\][^/\\]+$') or '.'
-end
-
-local function default_out()
-  local proj = script_dir():gsub('[/\\]tools[/\\]trace$', '')
-  return proj .. '/tmp/traces/trace.log'
-end
-
-local out_path = os.getenv('TRACE_OUT') or default_out()
-local max_frames = tonumber(os.getenv('TRACE_MAX_FRAMES') or '36000')
-
-os.execute('mkdir -p "' .. (out_path:match('^(.*)[/\\][^/\\]+$') or '.') .. '"')
+local out_path = assert(os.getenv('TRACE_OUT'), 'use the supervised capture runner')
+local max_frames = assert(tonumber(os.getenv('TRACE_MAX_FRAMES')), 'missing frame limit')
 
 local function rb(addr) return memory.readbyte(addr) end
 local function hex2(v) return string.format('%02X', v % 0x100) end

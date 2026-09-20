@@ -123,6 +123,9 @@ The implementer attempts runtime analysis itself before asking you to play or
 trace. It may download TASVideos `.fm2` input movies to replay against your ROM,
 checking that the replay reaches the intended scenario. ROMs, manuals, and FAQs
 still come from you.
+The supplied [FCEUX runner](agent_playbook/templates/trace/README.md#supervised-captures)
+limits capture time, cleans up its emulator after failures, and checks that the
+requested scenario completed before reporting success.
 
 Questions that need human judgment, such as identifying an ambiguous sound,
 are collected into a batch with short clips or screenshots and clear choices.
