@@ -32,6 +32,7 @@ REQUIRED=(
 OPTIONAL=(
   "jq:JSON inspection for generated pass artifacts ('brew install jq')"
   "shellcheck:Shell script linting ('brew install shellcheck')"
+  "tmux:Required for the agent launcher ('brew install tmux' or 'apt install tmux')"
   "fceux:Runtime tracing, Lua inputs, and movie replay ('brew install fceux' or 'apt install fceux')"
 )
 
@@ -52,7 +53,7 @@ check_tool() {
       return
     fi
     local version
-    # Probe with --version, then -version. Redirect stdin from /dev/null so a
+    # Probe with --version, then -version; tmux uses only -V. Redirect stdin from /dev/null so a
     # tool that misinterprets the argument as a search pattern (e.g. rg
     # treating "-version" as a pattern) cannot block on stdin.
     #
@@ -64,10 +65,12 @@ check_tool() {
     # status is still needed would let SIGPIPE look like a failed probe under
     # `set -o pipefail`. Fall back to "(installed)" when neither probe yields
     # a usable line.
-    if ! version="$("$tool" --version </dev/null 2>&1)"; then
+    if [[ "$tool" == "tmux" ]]; then
+      version="$("$tool" -V </dev/null 2>&1)" || version=""
+    elif ! version="$("$tool" --version </dev/null 2>&1)"; then
       version=""
     fi
-    if [[ -z "$version" ]] && ! version="$("$tool" -version </dev/null 2>&1)"; then
+    if [[ -z "$version" && "$tool" != "tmux" ]] && ! version="$("$tool" -version </dev/null 2>&1)"; then
       version=""
     fi
     version="$(printf '%s\n' "$version" | head -n 1)"

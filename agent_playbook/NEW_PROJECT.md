@@ -79,7 +79,8 @@ The check reports each required tool's status and exits non-zero if any
 are missing. Required: `java`, `javac`, `xasm` (6502 assembler), `bash`,
 `python3`, `rg` (ripgrep), `od`, `dd`, `awk`, `sed`, `perl`, `make`,
 `git`. Optional but recommended: `jq` (used for inspecting generated
-pass artifacts), `shellcheck` (script linting), `fceux` (runtime tracing).
+pass artifacts), `shellcheck` (script linting), `fceux` (runtime tracing),
+and `tmux` (required only for the agent launcher).
 FCEUX presence is checked without launching it; Lua/display readiness is checked
 when capturing. Missing FCEUX does not block intake or static passes. Doctor reports
 `pdftotext`, `pdftoppm`, and `tesseract`. Add `PROJECT=<slug>` to require the
