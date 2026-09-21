@@ -180,8 +180,8 @@ reviewer must inspect the touched regions and ledgers.
     projects. The comparison file remains descriptive prior art only; naming
     rules, scanner classification, and cleanup procedure belong in
     task-specific playbooks.
-12. **Known parity-preserved bugs are documented both inline and in
-    docs.** Inline-comment format at
+12. **Known parity-preserved bugs have inline warnings and linked curiosities
+    entries.** Inline-comment format at
     [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);
     registry at [#parity-bug-registry](#parity-bug-registry).
 13. **If `PARITY_GAPS.md` exists, it reflects the actual next
@@ -332,10 +332,8 @@ explicitly so they don't masquerade as a true gold-standard floor.
 ## Parity Bug Registry
 
 When the project preserves ROM bugs for binary identity, keep a short
-running registry of those bugs in `QUICK_REFERENCE.md`. Each entry
-should name the owning symbol (routine, label, or data table) and
-summarize the defect in one line; the detailed explanation belongs to
-the inline parity-bug comment at the code site, not to the registry.
+registry in `QUICK_REFERENCE.md`: one line per defect, naming its owner and
+linking its [curiosities entry](DOCUMENTATION.md#curiosities).
 The inline-comment format lives at
 [DOCUMENTATION.md#parity-bug-comments](DOCUMENTATION.md#parity-bug-comments);
 the code-site expression encoding lives at
@@ -346,21 +344,15 @@ the code-site expression encoding lives at
 Walk `QUICK_REFERENCE.md`'s parity-bug section at every closeout
 covered by [#reviewer-simulation](REVIEW_AUDITS.md#reviewer-simulation):
 
-- Confirm each registry entry still resolves to a live code-site
-  comment using the new symbol name. `project-pass-closeout`
-  recursively scans authored docs under `${DOC_ROOT}` (which
-  includes `QUICK_REFERENCE.md`) and catches old symbol names
-  drifting in registry text from the current pass's renames, but
-  it cannot validate the registry's semantics or whether each
-  entry still links to the right inline comment — that part is
-  this review.
-- Promote entries whose root cause has been proven (the parity
-  preservation stays, but the "unknown why" qualifier comes off).
-  See [#static-vs-runtime-gaps](#static-vs-runtime-gaps) for the
-  confidence-promotion workflow.
-- Retire entries whose underlying defect was fixed by a
-  non-parity-preserving change (the registry is for parity-held
-  bugs, not historical anecdotes).
+- Check touched findings against the [curiosities contract](DOCUMENTATION.md#curiosities).
+  Missing qualifying entries block approval despite registry/inline coverage.
+  At gold review, check all known bugs and oddities; omit the file only if none qualify.
+- Confirm links resolve to current source warnings and curiosities entries.
+  Closeout's stale-symbol scan catches some renamed references, but cannot
+  validate their meaning, evidence limits, or completeness.
+- [Promote proven causes](#static-vs-runtime-gaps), retaining parity and
+  separate caveats for unmeasured runtime impact/frequency.
+- Retire entries after non-parity changes fix their underlying defects.
 <a id="static-vs-runtime-gaps"></a>
 ## Static vs. Runtime-Gated Gap Classification
 

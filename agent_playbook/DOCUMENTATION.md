@@ -223,6 +223,7 @@ For the symbolic-expression encoding of the buggy value itself, see
 [DATA_RECOVERY.md#hardcoded-length-elimination](DATA_RECOVERY.md#hardcoded-length-elimination).
 For the registry expectation, see
 [QUALITY_REVIEW.md#parity-bug-registry](QUALITY_REVIEW.md#parity-bug-registry).
+Reader-facing explanations belong in [CURIOSITIES.md](#curiosities).
 
 <a id="documentation-artifacts"></a>
 ## Documentation Artifact Boundaries
@@ -648,39 +649,35 @@ override living only in ad-hoc chat context.
 
 ### Stub-doc lifecycle criteria (mandatory)
 
-Keep a support doc only if at least one of these is true:
-- it documents a live subsystem, enum family, debug workflow, or edit checklist that a contributor can use now
-- another canonical doc meaningfully links to it for current project work
-- it captures project-specific reference material that does not belong in systems/memory docs
+Keep support docs only for usable subsystem/enum/debug/edit guidance,
+meaningful current links from canonical docs, or unique project-specific
+reference material. Delete title-only scaffolds, dormant TODO buckets, and
+duplicated content.
 
-Delete the file if it is only:
+Optional docs such as `ACTOR_ENUMS.md`, `WORKING_NOTES.md`, and `PARITY_GAPS.md`
+need substantive current content or deletion; prune them when other docs cover
+the same ground better. Required docs such as `ONBOARDING.md` must replace
+scaffolds early with project-specific content and pass placeholder-doc checks.
 
-- a title plus one-line scaffold text
-- a dormant TODO bucket with no current workflow value
-- a duplicate of content already captured better elsewhere
+<a id="curiosities"></a>
+### Curiosities: required when qualifying findings exist
 
-For optional docs such as `ACTOR_ENUMS.md` or `WORKING_NOTES.md`:
+Create `docs/reverse_engineering/CURIOSITIES.md` in the first pass proving a
+project-specific bug or surprising oddity; maintain it without waiting for gold.
+Include ROM bugs, unusual overlap/packing, signatures/easter eggs, or demonstrated
+reachability limitations. Exclude
+ordinary NES idioms, normal overlays, inline jump tables, standard Zapper light
+sensing, and unresolved semantic questions alone. Omit the file if nothing
+qualifies; never create an empty scaffold.
 
-- real content or deletion; no empty shells
-For required docs such as `ONBOARDING.md`:
+This owns reader-facing explanations: symbols, trigger, mechanism, and evidence limits.
+Static proof suffices; distinguish observed effects from unknown frequency,
+visual/audible impact, or intent. Keep runtime plans in trace docs/working notes.
 
-- replace scaffold text early with project-specific content
-- docs-check should stay green against placeholder-doc detection
-For optional support docs such as `PARITY_GAPS.md`:
-
-- keep them only if they contain real current workflow value
-- delete them when onboarding, systems docs, and working notes already cover the same ground better
-
-For `CURIOSITIES.md` specifically:
-
-- include only genuinely project-specific oddities such as ROM bugs,
-  easter eggs/signatures, unreachable or apparently dead live-ROM code,
-  unusual overlap/packing traps, or other behavior that would surprise an
-  experienced NES programmer working on this game
-- do not include ordinary platform idioms, common disassembly techniques,
-  normal scoped overlays, inline jump tables, standard Zapper light sensing, or
-  semantic gaps whose only issue is missing runtime/reference evidence
-- if no entries meet that bar, omit the file
+Retain [inline warnings](#parity-bug-comments), a short linked
+[QUICK_REFERENCE.md index](QUALITY_REVIEW.md#parity-bug-registry), and an
+onboarding link. Format/system docs retain edit contracts and link here for
+oddities; avoid duplicating explanations or data specifications.
 
 ### Stale scaffold-era language
 
