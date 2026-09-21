@@ -64,10 +64,31 @@ test_doctor_does_not_fail_on_missing_optional() {
   local stdout; stdout="$(cat "${NESREV_TEST_TMPDIR}/stdout")"
   assert_match "jq .* OPTIONAL" "${stdout}"
   assert_match "shellcheck .* OPTIONAL" "${stdout}"
+  assert_match "tmux .* OPTIONAL.*Required for the agent launcher" "${stdout}"
   assert_match "fceux .* OPTIONAL" "${stdout}"
   assert_match "pdftotext .* OPTIONAL" "${stdout}"
   assert_match "pdftoppm .* OPTIONAL" "${stdout}"
   assert_match "tesseract .* OPTIONAL" "${stdout}"
+}
+
+test_doctor_detects_tmux_with_version_only_probe() {
+  local bindir="${NESREV_TEST_TMPDIR}/stub_bin"
+  _make_stub_bindir "${bindir}" \
+    java javac xasm bash python3 rg od dd awk sed perl make git head
+  cat > "${bindir}/tmux" <<'SH'
+#!/bin/bash
+if [[ "$#" == 1 && "$1" == "-V" ]]; then
+  printf 'tmux version-fixture\n'
+  exit 0
+fi
+printf 'unexpected tmux command\n' > "${NESREV_TEST_TMPDIR}/tmux-command"
+exit 1
+SH
+  chmod +x "${bindir}/tmux"
+
+  PATH="${bindir}" bash "${DOCTOR}" >"${NESREV_TEST_TMPDIR}/stdout"
+  assert_match "tmux .* OK.*tmux version-fixture" "$(cat "${NESREV_TEST_TMPDIR}/stdout")"
+  [[ ! -e "${NESREV_TEST_TMPDIR}/tmux-command" ]] || fail "doctor must only query the tmux version"
 }
 
 test_doctor_detects_fceux_without_launching_emulator() {
