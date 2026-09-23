@@ -106,15 +106,17 @@ project-pass-start: export NESREV_PASS_CORRIDOR := $(value CORRIDOR)
 project-pass-start: export NESREV_PASS_WHY_NOW := $(value WHY_NOW)
 project-pass-start: export NESREV_PASS_BOUNDARIES := $(value BOUNDARIES)
 project-pass-start: export NESREV_PASS_EVIDENCE := $(value EVIDENCE)
+project-pass-start: export NESREV_PASS_REFERENCE_SCOPE := $(value REFERENCE_SCOPE)
 project-pass-start: export NESREV_PASS_OUT_OF_SCOPE := $(value OUT_OF_SCOPE)
 project-pass-start:
-	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-start PROJECT=<slug> [PASS=<id>] [TARGET=<symbol_or_override>] [CORRIDOR=<text>] [WHY_NOW=<text>] [BOUNDARIES=<text>] [EVIDENCE=<text>] [OUT_OF_SCOPE=<text>]"; exit 2; fi
+	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-pass-start PROJECT=<slug> [PASS=<id>] [TARGET=<symbol_or_override>] [CORRIDOR=<text>] [WHY_NOW=<text>] [BOUNDARIES=<text>] [EVIDENCE=<text>] [REFERENCE_SCOPE=<text>] [OUT_OF_SCOPE=<text>]"; exit 2; fi
 	@target=$(call shell_quote_raw,$(value TARGET)); \
 	target="$$(python3 -c 'import re, sys; t=sys.argv[1]; m=re.fullmatch(r"raw_\$$*([0-9A-Fa-f]{1,4})", t); print(f"raw_$${int(m.group(1), 16):04X}" if m else t)' "$$target")"; \
 	CORRIDOR="$${NESREV_PASS_CORRIDOR}" \
 	WHY_NOW="$${NESREV_PASS_WHY_NOW}" \
 	BOUNDARIES="$${NESREV_PASS_BOUNDARIES}" \
 	EVIDENCE="$${NESREV_PASS_EVIDENCE}" \
+	REFERENCE_SCOPE="$${NESREV_PASS_REFERENCE_SCOPE}" \
 	OUT_OF_SCOPE="$${NESREV_PASS_OUT_OF_SCOPE}" \
 	bash scripts/project_pass_start.sh "$(PROJECT)" "$(PASS)" "$$target"
 

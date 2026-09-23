@@ -426,7 +426,7 @@ pass_id,corridor,subject,kind,deferral,revisit_condition,status
 DOC
 
 cat > "$root/docs/reverse_engineering/inventory/proof_debt_acknowledged.csv" <<'DOC'
-signal,reason,pass_id
+signal,reason,pass_id,scope,revisit_condition
 DOC
 
 cat > "$root/docs/reverse_engineering/SEMANTIC_CLAIMS.md" <<'DOC'

@@ -311,6 +311,9 @@ append_path_if_present "${PROGRESS_SCORECARD_FILE}"
 append_path_if_present "${RENAMES_FILE}"
 append_path_if_present "${SEMANTIC_CLAIMS_FILE}"
 append_path_if_present "${CROSSWALK_FILE}"
+reference_inventory="$(python3 "${SCRIPT_DIR}/reference_review.py" --inventory-path \
+  --doc-root "${DOC_ROOT}" --crosswalk "${CROSSWALK_FILE}")"
+append_path_if_present "${reference_inventory}"
 append_path_if_present "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv"
 
 BASE_RENAME_ROWS="$(csv_data_rows_for_ref "${BASE_SHA}" "${RENAMES_FILE}")"
@@ -408,6 +411,9 @@ section says otherwise.
 - LXXXX rename rows without definition removal: \`${LXXXX_UNMATCHED_SOURCE_RENAMES}\`
 
 EOF
+
+python3 "${SCRIPT_DIR}/reference_review.py" --head "${HEAD_SHA}" --project "${SLUG}" \
+  --doc-root "${DOC_ROOT}" --crosswalk "${CROSSWALK_FILE}"
 
 emit_command_block \
   "Complete Commit List And Diffstat" \

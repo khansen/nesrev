@@ -32,7 +32,7 @@ ARTIFACTS = (
     ),
     Artifact(
         "inventory/proof_debt_acknowledged.csv",
-        "signal,reason,pass_id",
+        "signal,reason,pass_id,scope,revisit_condition",
         "create the canonical proof-debt acknowledgement ledger",
     ),
 )
@@ -50,7 +50,8 @@ def validate(doc_root: Path, project: str) -> list[str]:
         if artifact.header is None:
             continue
         try:
-            header = path.open(encoding="utf-8").readline().rstrip("\r\n")
+            with path.open(encoding="utf-8") as source:
+                header = source.readline().rstrip("\r\n")
         except OSError as exc:
             errors.append(f"cannot read canonical project artifact {path}: {exc}")
             continue

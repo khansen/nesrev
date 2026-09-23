@@ -12,11 +12,9 @@ Every signal here is a ratio rather than a count, so it is silent on a young
 project by construction and grows louder on its own as work accumulates. No
 per-project threshold tuning.
 
-Every signal can be permanently dismissed by a row in the acknowledgement
-ledger (see `load_acknowledgements`), following the pattern already used by
-`constant_magic_allowlist.csv` and `WARNING_BASELINE.txt`: a heuristic on a
-judgement call cannot be made never-wrong, so disagreement is made cheap and
-durable instead. A false positive costs one ledger row, once.
+Identity signals require an evidence-scoped acknowledgement and a revisit
+condition, valid while the recorded evidence is unchanged. Other heuristic
+signals retain their durable reasoned acknowledgements.
 
 Used by `project-next-pass` (operator signals at the mandated chokepoint) and
 `project-maturity-summary` (advisory dashboard).
@@ -25,10 +23,13 @@ Used by `project-next-pass` (operator signals at the mandated chokepoint) and
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import re
 from pathlib import Path
 
-ACK_HEADER = ["signal", "reason", "pass_id"]
+ACK_HEADER = ["signal", "reason", "pass_id", "scope", "revisit_condition"]
+IDENTITY_SIGNALS = {"crosswalk_unmapped", "deferral_repeat"}
 
 # Deferring is normal; deferring systematically with nowhere durable to
 # record what would close each gap is not. Calibrated against the corpus:
@@ -70,23 +71,31 @@ def _read(path: Path) -> str:
         return ""
 
 
-def load_acknowledgements(path: Path) -> set[str]:
-    """Signal ids the operator has explicitly dismissed, with a written reason.
-
-    Ledger is CSV with header `signal,reason,pass_id`. A row without a reason
-    is ignored: the point of the ledger is the recorded judgement, not the
-    silence.
-    """
-    text = _read(path)
-    if not text:
-        return set()
+def load_acknowledgements(path: Path, *, pass_id: int | None = None,
+                          signal: str = "", scope: str = "") -> set[str]:
+    """Only reviewed evidence scopes can silence identity signals."""
     acked: set[str] = set()
-    for row in csv.DictReader(text.splitlines()):
-        signal = (row.get("signal") or "").strip()
-        reason = (row.get("reason") or "").strip()
-        if signal and reason:
-            acked.add(signal)
+    reader = csv.DictReader(_read(path).splitlines())
+    if reader.fieldnames is not None and reader.fieldnames != ACK_HEADER:
+        raise ValueError(f"invalid header in {path}; migrate to {','.join(ACK_HEADER)}")
+    for row in reader:
+        sid = (row.get("signal") or "").strip()
+        if not sid or not (row.get("reason") or "").strip():
+            continue
+        if sid in IDENTITY_SIGNALS:
+            recorded_pass = (row.get("pass_id") or "").strip()
+            if (sid != signal or not scope or row.get("scope") != scope
+                    or not recorded_pass.isdecimal() or pass_id is None
+                    or int(recorded_pass) > pass_id
+                    or not (row.get("revisit_condition") or "").strip()):
+                continue
+        acked.add(sid)
     return acked
+
+
+def identity_scope(subject: str, evidence: str) -> str:
+    digest = hashlib.sha256(evidence.encode("utf-8")).hexdigest()
+    return f"{subject}:{digest}"
 
 
 def scorecard_rows(path: Path) -> list[dict[str, str]]:
@@ -249,7 +258,6 @@ def collect(
     A signal fires only when transformation work has accumulated well past the
     point where the corresponding evidence artifact should have moved.
     """
-    acked = load_acknowledgements(acknowledgements)
     rows = scorecard_rows(scorecard)
     passes = max((int(r["pass_id"]) for r in rows), default=-1)
     if passes < min_passes:
@@ -258,10 +266,13 @@ def collect(
     renames_logged = rename_count(renames)
     signals: list[dict[str, str]] = []
 
-    def add(sid: str, text: str, action: str) -> None:
-        if sid in acked:
+    def add(sid: str, text: str, action: str, scope: str = "") -> None:
+        if sid in load_acknowledgements(acknowledgements, pass_id=passes, signal=sid, scope=scope):
             return
-        signals.append({"id": sid, "text": text, "action": action})
+        record = {"id": sid, "text": text, "action": action}
+        if scope:
+            record.update(scope=scope, pass_id=str(passes))
+        signals.append(record)
 
     # Naming work with no term ever mapped back to the reference vocabulary.
     total_terms, mapped_terms = crosswalk_mapped(crosswalk)
@@ -274,6 +285,7 @@ def collect(
             f"({mapped_ratio:.0%}) map to code",
             "run an identity pass (PASS_WORKFLOW.md#identity-pass) or record "
             "why these terms have no single code owner",
+            identity_scope("crosswalk", _read(crosswalk)),
         )
 
     # Naming complete with no evidence-backed conclusion ever recorded.
@@ -394,13 +406,17 @@ def collect(
         if subject and (r.get("status") or "open").strip() == "open":
             repeats[subject] = repeats.get(subject, 0) + 1
     worst = sorted(repeats.items(), key=lambda kv: -kv[1])
-    if worst and worst[0][1] >= 3:
-        subject, n = worst[0]
+    for subject, n in worst:
+        if n < 3:
+            continue
         add(
             "deferral_repeat",
             f"'{subject}' has been deferred {n} times without closing",
             "narrow or switch corridors rather than re-triaging the same gap "
             "(PASS_WORKFLOW.md#raw-ram-queue, repeated-deferral escape)",
+            identity_scope(subject, json.dumps([
+                r for r in ledger if (r.get("subject") or "").strip() == subject
+            ], sort_keys=True)),
         )
 
     return signals
@@ -470,15 +486,22 @@ def _cli(argv: list[str]) -> int:
         acknowledgements=doc / "inventory/proof_debt_acknowledged.csv",
     )
     if not signals:
-        print("OK: no proof debt (evidence artifacts are keeping pace with the work)")
+        print("OK: no proof debt heuristic fired; reference coverage still requires review")
         return 0
     for s in signals:
         print(f"warn: {s['text']}")
         print(f"warn:   -> {s['action']}")
+        if s.get("scope"):
+            print(f"warn:   acknowledgement scope={s['scope']} pass_id={s['pass_id']}; "
+                  "requires revisit_condition; expires on changed recorded evidence; review condition at pass selection")
     return 0
 
 
 if __name__ == "__main__":
     import sys as _sys
 
-    _sys.exit(_cli(_sys.argv[1:]))
+    try:
+        _sys.exit(_cli(_sys.argv[1:]))
+    except ValueError as exc:
+        print(f"error: {exc}", file=_sys.stderr)
+        _sys.exit(65)

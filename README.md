@@ -275,6 +275,9 @@ repeated deferral, triangulating before declaring a gap runtime-gated, and what
 the closing trace plan must contain — in
 [PASS_WORKFLOW.md#proof-debt](agent_playbook/PASS_WORKFLOW.md#proof-debt).
 
+How manual and FAQ terminology enters pass planning, review, and gold approval
+is described in the [reference-coverage cycle spec](REFERENCE_COVERAGE_CYCLE_SPEC.md).
+
 Adding process detail to the prompt is usually the wrong fix. The prompt sets
 the goal and the exit condition; a rule that belongs to every run belongs in the
 playbooks, where it applies whether or not whoever starts the run remembers it.

@@ -100,7 +100,8 @@ so gate evidence cannot describe the wrong commit. Redirect stdout to an
 ignored path or pass `OUT=<packet.md>`. The packet contract lives in
 [`PROJECT_PASS_REVIEW_PACKET_SPEC.md`](../PROJECT_PASS_REVIEW_PACKET_SPEC.md).
 
-The packet includes range-level rename and unresolved-label deltas, the
+The packet includes reference scope (explicitly unversioned planning context),
+review-head source inventory/crosswalk paths, range-level rename and unresolved-label deltas, the
 complete `BASE..HEAD` commit list, project diff, authored-ledger deltas,
 proof-debt and crosswalk output, `project-next-pass`, and the
 verify/process/docs gates, with each command labelled by the exact SHA it
@@ -216,7 +217,8 @@ the objective is met or a user-dependent blocker is reached.
 
 The default objective is reviewed gold standard. Submit the final closeout
 with `start-pass --gold`: the reviewer must assess the whole project against
-QUALITY_REVIEW's gold checklist, include `## Gold-Standard Assessment` and
+QUALITY_REVIEW's gold checklist, include its linked
+[reference assessment](QUALITY_REVIEW.md#reference-coverage), `## Gold-Standard Assessment` and
 `Gold assessment: APPROVED`, and run `approve`. Approval runs strict
 `project-ci` at the clean reviewed head; failed CI or changed source/head
 blocks approval. Gold packets cannot use relaxed verification. Archive and
@@ -512,19 +514,11 @@ unvalidated one. Sort by `target_valid` then `score` when triaging.
 <a id="vocabulary-drift"></a>
 ## Vocabulary-Drift Detectors
 
-Two advisory detectors report a placeholder shape the existing audits cannot
-see. The [stale-placeholder sweep](REVIEW_AUDITS.md#stale-placeholder-audit)
-matches address- and ordinal-coded names such as `State03` or `Page0600`. It
-cannot match a plausible generic noun phrase, which satisfies every naming rule
-while identifying nothing — and reads as resolved, so later passes build on it.
-Both crosswalk header spellings are accepted; matching only the canonical one
-read thirteen projects as empty tables and silently disabled the check.
-
-Both detectors always exit `0`, and both run for every project. Their input
-ledgers are canonical artifacts; operational errors are hard failures while
-findings remain advisory and require review or a validated disposition. Both
-run at `project-next-pass`, before corridor selection, and again in
-`project-maturity-summary` alongside coverage.
+The [placeholder sweep](REVIEW_AUDITS.md#stale-placeholder-audit) catches
+address/ordinal names; these detectors also flag plausible generic families
+that identify nothing. Both crosswalk header spellings are accepted.
+Findings are advisory (exit `0`); operational errors fail. Both run for every
+project at `project-next-pass` and `project-maturity-summary`.
 
 ```sh
 python3 scripts/proof_debt.py <doc_root> <crosswalk.md> [--crosswalk-only]
@@ -542,7 +536,9 @@ Neither result is a defect alone; read them as the trigger for
 
 `proof_debt.py` reports the ratio signals described at
 [PASS_WORKFLOW.md#proof-debt](PASS_WORKFLOW.md#proof-debt). `--crosswalk-only`
-narrows the report to crosswalk currency alone.
+narrows the report to crosswalk currency alone. Identity acknowledgements use
+scoped evidence tokens and expire per [PASS_WORKFLOW.md#proof-debt](PASS_WORKFLOW.md#proof-debt);
+other signal dispositions retain their existing behavior.
 
 `--coverage` answers a different question: not whether a ledger exists, but how
 much of the work it accounts for. The KPI suite measures the assembly and never

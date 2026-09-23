@@ -256,6 +256,39 @@ rg -n "Page[0-9A-F]{2,4}|Addr[0-9A-F]{4}|Field[0-9A-F]{2}" "${ASM_FILE}" "${DOC_
     audits is a mechanical-maturity statement only, not a static-quality
     conclusion.
 
+24. Audit [reference coverage](#reference-coverage) across the whole project.
+    Important unresolved gameplay identities prevent unqualified gold even
+    when mechanical gates pass.
+
+<a id="reference-coverage"></a>
+## Reference Coverage
+
+Review each semantic pass's reference scope against supplied sources, the term
+inventory, crosswalk, and code. Resolve newly provable identities now; WIP gaps
+need concrete missing links. Infrastructure passes explain why none apply.
+At gold review, check inventory completeness and every important concept's
+mapping or justified disposition using the [audit](REVIEW_AUDITS.md#reference-coverage-audit).
+Important unresolved gameplay identities block gold, including pending runtime
+evidence. Shared handlers keep shared names; selectors/records can own entity
+identity. Context-only concepts need no artificial symbols. Word counts and
+mapping percentages do not establish semantic quality.
+
+At gold, in `## Reference Coverage` (scorecard for solo assessment), write:
+
+- `Sources:` supplied sources processed, including optional FAQs
+- `Inventory:` completeness check, including omissions found or ruled out
+- `Mappings:` evidence checked and shared-code/record identity distinctions
+- `Gaps:` uncertainties remaining (or none), with evidence for the conclusion
+- `Reference coverage: COMPLETE`, or `EXPLICIT MANUAL WAIVER`
+- `Waiver:` explicit user decision and quality limitation, when applicable
+
+Sources, Inventory, Mappings, Gaps, and Waiver each cite authored docs using
+repository-relative Markdown links, e.g. `[crosswalk](projects/<slug>/docs/crosswalk/TERMINOLOGY_CROSSWALK.md)`.
+A waiver must be recorded in the crosswalk; still assess supplied FAQs and
+available evidence, and report the reduced reference basis with the verdict.
+Before strict CI, handoff validates these fields and links at the reviewed
+commit. The reviewer judges completeness, waiver validity, and semantic truth.
+
 <a id="semantic-claims"></a>
 ## Semantic Claims Ledger
 

@@ -11,6 +11,13 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts/agent_review.py"
+REFERENCE_REVIEW = """## Reference Coverage
+Sources: [source basis](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md#terms).
+Inventory: [concept review](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md).
+Mappings: [evidence](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md).
+Gaps: No important unresolved identities; see [dispositions](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md#terms).
+Reference coverage: COMPLETE
+"""
 
 
 class GoldReviewTests(unittest.TestCase):
@@ -25,6 +32,10 @@ class GoldReviewTests(unittest.TestCase):
         self.source = self.root / "projects/demo/asm/demo.asm"
         self.source.parent.mkdir(parents=True)
         self.source.write_text("Start:\n  RTS\n")
+        doc = self.root / "projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md"
+        doc.parent.mkdir(parents=True)
+        doc.write_text("# Terms\n\nUser explicitly waived the manual after the quality warning.\n"
+                       "## Evidence\nOne channel.\n## Evidence\nAnother channel.\n```html\n<a id=\"fake-anchor\"></a>\n```\n")
         self.commit()
         self.source.write_text("RunGame:\n  RTS\n")
         self.commit()
@@ -88,7 +99,7 @@ Path(values["OUT"]).write_text(packet(values["HEAD"],
     def approve(self, text=None, round_number=1, **kwargs):
         path = self.run_path / f"review-{round_number:02d}.md"
         path.write_text(text or "Verdict: APPROVED\nGold assessment: APPROVED\n\n"
-                        "## Gold-Standard Assessment\nSynthetic checklist evidence.\n\n## Learning Candidates\n_None._\n")
+                        "## Gold-Standard Assessment\nSynthetic checklist evidence.\n\n" + REFERENCE_REVIEW + "\n## Learning Candidates\n_None._\n")
         return self.command("approve", "--review", str(path), **kwargs)
 
     def test_gold_rejects_explicit_relaxation_before_state_creation(self):
@@ -114,6 +125,64 @@ Path(values["OUT"]).write_text(packet(values["HEAD"],
             with self.subTest(text=text):
                 self.assertIn(diagnostic, self.approve(text, expected=2))
                 self.assertEqual(self.state()["status"], "READY_FOR_REVIEW")
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_gold_requires_reference_assessment_before_ci(self):
+        self.start()
+        output = self.approve("Verdict: APPROVED\nGold assessment: APPROVED\n"
+                              "## Gold-Standard Assessment\nAll mechanical checks green.\n", expected=2)
+        self.assertIn("Reference Coverage", output)
+        self.assertEqual(len(self.calls()), 1)
+        self.assertEqual(self.state()["status"], "READY_FOR_REVIEW")
+
+    def test_gold_accepts_bulleted_fields_and_duplicate_heading_anchors(self):
+        self.start()
+        prefix = "Verdict: APPROVED\nGold assessment: APPROVED\n## Gold-Standard Assessment\nEvidence.\n"
+        text = REFERENCE_REVIEW.replace("#terms", "#evidence-1")
+        lines = text.splitlines()
+        self.approve(prefix + lines[0] + "\n" + "\n".join("- " + line for line in lines[1:]) + "\n")
+
+    def test_gold_reference_waiver_requires_linked_user_decision(self):
+        self.start()
+        text = "Verdict: APPROVED\nGold assessment: APPROVED\n## Gold-Standard Assessment\nEvidence.\n"
+        text += REFERENCE_REVIEW.replace("coverage: COMPLETE", "coverage: EXPLICIT MANUAL WAIVER")
+        self.assertIn("Waiver", self.approve(text, expected=2))
+        self.approve(text + "Waiver: [user choice](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md).\n")
+
+    def test_gold_gaps_require_evidence_even_when_none_remain(self):
+        self.start()
+        prefix = "Verdict: APPROVED\nGold assessment: APPROVED\n## Gold-Standard Assessment\nEvidence.\n"
+        original = next(line for line in REFERENCE_REVIEW.splitlines() if line.startswith("Gaps:"))
+        for value in ("N/A", "None", "-", "Unknown", "TODO", "TBD", "Pending", "Not assessed",
+                      "No important unresolved identities.",
+                      "See [gaps](projects/demo/docs/crosswalk/MISSING.md)",
+                      "See [gaps](projects/demo/docs/crosswalk/TERMINOLOGY_CROSSWALK.md#missing)"):
+            with self.subTest(value=value):
+                self.approve(prefix + REFERENCE_REVIEW.replace(original, "Gaps: " + value), expected=2)
+                self.assertEqual(self.state()["status"], "READY_FOR_REVIEW")
+        self.assertEqual(len(self.calls()), 1)
+        self.approve(prefix + REFERENCE_REVIEW)
+
+    def test_gold_reference_assessment_rejects_broken_or_uncommitted_evidence(self):
+        self.start()
+        prefix = "Verdict: APPROVED\nGold assessment: APPROVED\n## Gold-Standard Assessment\nEvidence.\n"
+        for target in ("MISSING.md", "TERMINOLOGY_CROSSWALK.md#missing", "TERMINOLOGY_CROSSWALK.md#fake-anchor"):
+            with self.subTest(target=target):
+                self.approve(prefix + REFERENCE_REVIEW.replace("TERMINOLOGY_CROSSWALK.md#terms", target), expected=2)
+        missing = self.root / "projects/demo/docs/crosswalk/MISSING.md"
+        missing.write_text("Uncommitted evidence")
+        self.approve(prefix + REFERENCE_REVIEW.replace("TERMINOLOGY_CROSSWALK.md#terms", "MISSING.md"), expected=2)
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_gold_reference_markers_inside_fences_do_not_count(self):
+        self.start()
+        prefix = "Verdict: APPROVED\nGold assessment: APPROVED\n## Gold-Standard Assessment\nEvidence.\n"
+        for text in ("```markdown\n" + REFERENCE_REVIEW + "```\n",
+                     REFERENCE_REVIEW.replace("Sources:", "```text\nSources:").replace("Inventory:", "```\nInventory:"),
+                     REFERENCE_REVIEW + REFERENCE_REVIEW,
+                     REFERENCE_REVIEW.replace("coverage: COMPLETE", "coverage: BLOCKED")):
+            with self.subTest(text=text):
+                self.approve(prefix + text, expected=2)
         self.assertEqual(len(self.calls()), 1)
 
     def test_gold_ci_failure_preserves_review_turn(self):
@@ -201,7 +270,7 @@ Path(values["OUT"]).write_text(packet(values["HEAD"],
         self.command("import-artifact", "--kind", "response", "--source", str(draft))
         self.command("reready", "--response", str(self.run_path / "response-01.md"), "--head", "HEAD", "--generate-packet")
         draft.write_text("Verdict: APPROVED\nGold assessment: APPROVED\n\n"
-                         "## Gold-Standard Assessment\nWhole-project evidence checked.\n\n## Learning Candidates\n_None._\n")
+                         "## Gold-Standard Assessment\nWhole-project evidence checked.\n\n" + REFERENCE_REVIEW + "\n## Learning Candidates\n_None._\n")
         self.command("import-artifact", "--kind", "review", "--source", str(draft))
         self.command("approve", "--review", str(self.run_path / "review-02.md"))
         self.command("archive", "--pass-id", "1")

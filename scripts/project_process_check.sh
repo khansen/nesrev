@@ -44,7 +44,7 @@ python3 "${SCRIPT_DIR}/scorecard_lifecycle_check.py" "${PROGRESS_SCORECARD_FILE}
 # alongside the others rather than discovering a malformed row a pass later.
 for _pd_ledger in \
   "${DOC_ROOT}/inventory/deferrals.csv:pass_id,corridor,subject,kind,deferral,revisit_condition,status" \
-  "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv:signal,reason,pass_id"; do
+  "${DOC_ROOT}/inventory/proof_debt_acknowledged.csv:signal,reason,pass_id,scope,revisit_condition"; do
   _pd_path="${_pd_ledger%%:*}"
   _pd_want="${_pd_ledger#*:}"
   _pd_have="$(head -n 1 "${_pd_path}" || true)"

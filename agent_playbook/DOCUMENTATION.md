@@ -465,7 +465,7 @@ aliases for one concept into one row.
 ### Mandatory game-reference intake (project start gate)
 - Ask the user for the manual and offer optional FAQs/guides in the project's
   `docs/game_reference/{manuals,faqs}/`. An empty folder is not a user decision.
-- Keep that tree external-only; authored extraction belongs in
+- Keep reference material external-only; put authored inventories in
   `docs/crosswalk/MANUAL_TERMS.md`.
 - Create/update `docs/crosswalk/TERMINOLOGY_CROSSWALK.md` with canonical vocabulary and naming policy for the project.
 - Stop before semantic analysis until the manual is supplied and readable,
@@ -475,6 +475,21 @@ aliases for one concept into one row.
   Record that decision in the crosswalk; still process any supplied FAQs.
   Absence, silence, or prior intake approval is not a waiver.
 - Confirm `make project-process-check PROJECT=<slug>` passes before the first semantic naming pass.
+
+### Source inventory and identity scope
+
+The inventory (`MANUAL_TERMS.md`) covers important entities,
+items, actions, rules, and world/UI concepts from supplied sources with citations.
+Check omissions against the sources themselves, not only existing crosswalk
+rows. Consolidate aliases; ordinary prose and story context need no invented
+code symbol. Distinguish official terms from community terminology.
+
+In the existing crosswalk's Evidence column, record the mapping proof, a
+specific unresolved link and revisit condition, or why the term has no separate
+implementation (context-only, absent in this version, or shared concept).
+An entity may map to a selector or data record; a shared handler must retain
+its shared name. A manual waiver limits available sources, not evidence
+standards. See [reference coverage](QUALITY_REVIEW.md#reference-coverage).
 
 ### Crosswalk synchronization protocol (mandatory)
 Update `TERMINOLOGY_CROSSWALK.md` when:

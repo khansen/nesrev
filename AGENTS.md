@@ -3,7 +3,6 @@
 
 This file defines a repeatable process for taking a raw NES 6502 disassembly and turning it into a high-confidence, developer-friendly codebase with solid onboarding docs.
 
-
 <a id="mandatory-routing-table"></a>
 ## Mandatory Routing Table
 
@@ -48,7 +47,6 @@ Keep these principles in mind for every project and every pass:
 - **Symbolization triggers a prose sweep in the same pass.** Any pass that introduces, renames, or promotes a `ZP_*` / `RAM_*` / `OBJECT_SLOT_FIELD_*` / `*_STATE_*` / hardware-mask symbol must, in the same edit batch, grep nearby comments and docs for stale raw-address prose matching the canonical examples in [DOCUMENTATION.md#raw-address-prohibition](agent_playbook/DOCUMENTATION.md#raw-address-prohibition) and rewrite it to use the new symbol or delete it. Deferring this sweep to a later pass is the recurring failure mode that produces stale prose around recently symbolized addresses.
 - **State-machine symbolization is per-value.** A state byte that takes N values is N separate naming decisions, not one. Symbolize values that have one proven writer AND one proven reader each. Stop at the first value that is overloaded across families (e.g., the same byte written by both a seeded-from-table path and a runtime transition path with conflicting semantics). Record unresolved values in `WORKING_NOTES.md` with the specific writer/reader gap and what evidence would close it. Do not invent generic `STATE_VALUE_3` / `STATE_VALUE_8` placeholders to make the family "complete."
 
-
 <a id="high-value-pass-contract"></a>
 ## High-Value Pass Contract (Mandatory)
 
@@ -79,7 +77,6 @@ states why it is final-tail cleanup.
 A pass is a corridor outcome, not a commit count: one corridor pass may span
 multiple commits or edit batches, and the scorecard records the corridor
 result, not each commit — [PASS_WORKFLOW.md#pass-vs-commit](agent_playbook/PASS_WORKFLOW.md#pass-vs-commit).
-
 
 <a id="reviewer-simulation-checklist"></a>
 ### Reviewer Simulation Checklist (Mandatory)
@@ -118,13 +115,15 @@ code review to the user. Fix or explicitly defer each issue found:
   artifact
 - optional docs or working notes that are now duplicate, stale, or lower value
   than canonical docs
+- reference identities now provable in the touched corridor but left generic;
+  check the [reference-coverage contract](agent_playbook/QUALITY_REVIEW.md#reference-coverage)
+  and update the crosswalk in the same pass
 - missing qualifying `CURIOSITIES.md` entries — [curiosities contract](agent_playbook/DOCUMENTATION.md#curiosities)
 
 If generated pass artifacts report only generic `doc_closure` or no strong
 corridor, run this project-wide reviewer simulation and the
 [static readability debt audit](agent_playbook/REVIEW_AUDITS.md#static-readability-debt-audit)
 before declaring static exhaustion.
-
 
 <a id="prior-project-reuse-gate"></a>
 ### Prior-Project Reuse Gate (Mandatory)
@@ -160,7 +159,6 @@ After pass 1 records the analogue, run
 advisory shortlist informs the manual comparison and never substitutes for
 subsystem-level evidence.
 
-
 <a id="session-orientation"></a>
 ## Session Orientation (Starting or Resuming)
 
@@ -169,7 +167,6 @@ Starting a new project routes to
 [agent_playbook/NEW_PROJECT.md](agent_playbook/NEW_PROJECT.md);
 resuming an existing one routes to
 [agent_playbook/PASS_WORKFLOW.md](agent_playbook/PASS_WORKFLOW.md).
-
 
 <a id="starting-a-new-project"></a>
 ### Starting a New Project
@@ -193,8 +190,6 @@ owner-field rule live at
 [agent_playbook/PASS_WORKFLOW.md#session-resume](agent_playbook/PASS_WORKFLOW.md#session-resume).
 Closeout (`project-pass-closeout`, scorecard sync, gates) lives at
 [agent_playbook/PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
-
-
 
 <a id="canonical-artifacts"></a>
 ### Canonical Project Artifacts (Mandatory)
@@ -228,7 +223,6 @@ plans/runbooks, dedicated subsystem format/state-machine docs.
 Retention criteria for optional support docs live at
 [DOCUMENTATION.md#support-documents](agent_playbook/DOCUMENTATION.md#support-documents).
 
-
 <a id="mission"></a>
 ## Mission
 
@@ -243,7 +237,6 @@ Given `Game.asm` (disassembly) and `GameReference.nes` (reference ROM in iNES fo
   game*. Take names from the reference material wherever the code proves the
   mapping; where it does not, the crosswalk records what stays unmapped and why.
   A codebase that could describe any game in its genre has not finished naming.
-
 
 <a id="safety-rules"></a>
 ## Non-Negotiable Safety Rules
@@ -289,7 +282,6 @@ make project-pass-start PROJECT=<slug>
 If recent passes are low-yield, run the [strategy checkpoint](agent_playbook/PASS_WORKFLOW.md#low-yield-checkpoint) before continuing.
 
 10. **Mod Commit Rule (Mandatory):** Treat `projects/*/mods/` as local experiment space. Do not commit mods, relocatability probes, or other mod artifacts unless the user explicitly asks for that mod to be committed.
-
 
 <a id="work-order"></a>
 ## Corridor Execution Contract
@@ -392,7 +384,6 @@ Always-needed naming rules (full conventions live in [ASM_STYLE.md#naming-conven
 - Localize branch-only labels when scope permits; keep non-locals only when shared control flow requires.
 - Use canonical cross-project vocabulary (registers, joypad masks, OAM fields, etc.) — see [hardware constants](agent_playbook/ASM_STYLE.md#hardware-constants).
 
-
 <a id="confidence-protocol"></a>
 ## Confidence Protocol
 
@@ -412,7 +403,6 @@ Confidence decision rules (mandatory):
 - **`inferred`** — best current explanation is plausible and useful, but at least one important semantic step is still unproven or potentially mixed.
 - **Do not use `inferred` as a generic caution sticker.** If fully proven, drop it; if purely mechanical, use `mechanical` in ledgers and no confidence prose in docs.
 - **Default when unsure:** prefer a narrower neutral name plus no confidence claim, or a scoped overlay alias plus a short `inferred` note.
-
 
 <a id="intermediate-artifacts"></a>
 ## Intermediate Artifacts (Critical)
@@ -442,7 +432,6 @@ revisit condition),
 `raw_ram_review.csv` (raw-RAM review queue — operation at
 [#raw-ram-queue](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue)),
 `unknowns.md` (small clustered list of unresolved semantics).
-
 
 <a id="supplementary-rules"></a>
 <a id="specialized-rule-index"></a>
@@ -508,7 +497,6 @@ Topic-specific and supplementary rules are indexed below by canonical home.
 - <a id="persistent-raw-ram-review-queue"></a>**Persistent raw-RAM review queue** — [agent_playbook/PASS_WORKFLOW.md#raw-ram-queue](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue).
 - <a id="unused-symbol-closure-gate"></a>**Unused-symbol closure gate** — [agent_playbook/PASS_WORKFLOW.md#pass-closeout](agent_playbook/PASS_WORKFLOW.md#pass-closeout).
 - <a id="dynamic-length-and-counter-rules"></a>**Dynamic length and counter rules** — [ASM_STYLE.md#label-math](agent_playbook/ASM_STYLE.md#label-math) (expression syntax) and [DATA_RECOVERY.md#hardcoded-length-elimination](agent_playbook/DATA_RECOVERY.md#hardcoded-length-elimination) (boundary labels, semantic count constants, parity-preserved counter bugs, packet-payload guard, re-verify-after-rewrite rule).
-
 
 <a id="output-philosophy"></a>
 ## Output Philosophy

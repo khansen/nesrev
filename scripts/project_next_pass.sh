@@ -1928,9 +1928,12 @@ if payload.get("proof_debt"):
     for signal in payload["proof_debt"]:
         print(f"- {signal['text']}")
         print(f"  -> {signal['action']}")
+        if signal.get("scope"):
+            print(f"  acknowledgement: scope={signal['scope']} pass_id={signal['pass_id']}; "
+                  "expires on changed recorded evidence; review revisit condition at pass selection")
     print(
         "  Dismiss a signal that does not apply by adding a row with its reason to "
-        "inventory/proof_debt_acknowledged.csv; it will not be raised again."
+        "inventory/proof_debt_acknowledged.csv; identity dispositions need the reported scope and revisit condition."
     )
     print()
 if payload.get("plateau_signal"):

@@ -9,6 +9,7 @@ _init_agent_review_repo() {
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
+  cp "${REPO_ROOT}/scripts/reference_review.py" "${repo}/scripts/reference_review.py"
   cp "${REPO_ROOT}/tests/review_packet_fixture.py" "${repo}/tests/review_packet_fixture.py"
   chmod +x "${repo}/scripts/agent_review.py"
 
@@ -437,6 +438,7 @@ test_agent_review_start_pass_rejects_process_ranges_before_note() {
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
+  cp "${REPO_ROOT}/scripts/reference_review.py" "${repo}/scripts/reference_review.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
@@ -473,6 +475,7 @@ test_agent_review_prompt_uses_external_script_path_when_repo_lacks_tool() {
   cp "${AGENT_REVIEW_SCRIPT}" "${external_script}"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${NESREV_TEST_TMPDIR}/process_friction.py"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${NESREV_TEST_TMPDIR}/review_packet_evidence.py"
+  cp "${REPO_ROOT}/scripts/reference_review.py" "${NESREV_TEST_TMPDIR}/reference_review.py"
   chmod +x "${external_script}"
 
   git -C "${repo}" init -q
@@ -1648,6 +1651,7 @@ test_agent_review_init_rejects_process_ranges() {
   cp "${AGENT_REVIEW_SCRIPT}" "${repo}/scripts/agent_review.py"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/process_friction.py"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/review_packet_evidence.py"
+  cp "${REPO_ROOT}/scripts/reference_review.py" "${repo}/scripts/reference_review.py"
 
   git -C "${repo}" init -q
   git -C "${repo}" config user.email "tests@example.invalid"
