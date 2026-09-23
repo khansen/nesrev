@@ -242,6 +242,18 @@ evidence. A zero verify exit cannot hide failed process/docs gates or unrun
 preparation. SHA and command agreement is structural validation of captured
 evidence, not authentication of an arbitrarily hand-forged packet.
 
+Reference review context includes the applicable pass plan's `REFERENCE_SCOPE`
+(explicitly unversioned, never gate evidence) and committed source inventory /
+crosswalk paths at the reviewed head. The source inventory is
+`docs/crosswalk/MANUAL_TERMS.md`; the same path feeds pass-start freshness
+checks and ledger diffs (including a file removed since the base).
+Missing inventory is reported with intake/migration guidance. Existing
+projects must adopt this canonical location after rebasing onto the tooling.
+Missing or mismatched plans are reported
+as unrecorded; reviewers reconstruct scope from the range. Review source
+coverage and newly provable identities per
+[QUALITY_REVIEW.md](agent_playbook/QUALITY_REVIEW.md#reference-coverage).
+
 ## 8. Relationship To Automation And Prior Art
 
 This packet contract is orthogonal to agent-review coordination. A generic

@@ -287,6 +287,15 @@ conclude that static work is exhausted and runtime evidence
 ([#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)) is the next
 move.
 
+<a id="reference-coverage-audit"></a>
+## Reference Coverage Audit
+
+Compare supplied references with the source inventory: missing concepts cannot
+appear as unmapped rows. Trace important concepts through selectors, records,
+behavior, rendering/runtime evidence, and current symbols. Check version
+changes, aliases, and shared handlers; revisit gaps whose missing evidence
+later passes supplied. Record dispositions per [QUALITY_REVIEW](QUALITY_REVIEW.md#reference-coverage).
+
 <a id="core-data-format-coverage-audit"></a>
 ## Core Data-Format Coverage Audit
 

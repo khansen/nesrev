@@ -58,7 +58,9 @@ When resuming an existing project, run the wrappers in this order:
    analogue, run `make project-prior-reuse-check PROJECT=<slug>` and inspect
    its constant-family shortlist alongside the analogue's asm/docs. The
    command is advisory and is also included in `project-process-check`.
-5. **Select the corridor objective.** Treat the generated briefing as
+5. **Select the corridor objective.** Read the source inventory and crosswalk
+   alongside the relevant supplied reference sections. Revisit identity gaps
+   whose missing evidence earlier passes have supplied. Treat the generated briefing as
    candidate evidence and choose the corridor per
    [#corridor-objective](#corridor-objective) (interpret "high-value" via
    [AGENTS.md#guiding-pass-philosophy](../AGENTS.md#guiding-pass-philosophy)).
@@ -148,6 +150,8 @@ objective stating:
 - **why now** — the maturity gap or evidence that makes it worth opening
 - **expected boundaries** — owning routines, data, RAM/ZP, interfaces
 - **generated evidence** — which candidates support this corridor
+- **reference scope** — relevant source concepts, existing mappings, and
+  identity questions this corridor can resolve; explain when none apply
 - **explicitly out of scope** — candidates ignored or deferred this pass
 
 A generated local anchor (one routine, table, raw byte, or branch
@@ -158,72 +162,62 @@ fail:
 
 ```sh
 make project-pass-start PROJECT=<slug> TARGET=<corridor_anchor> \
-  CORRIDOR="..." WHY_NOW="..." BOUNDARIES="..." EVIDENCE="..." OUT_OF_SCOPE="..."
+  CORRIDOR="..." WHY_NOW="..." BOUNDARIES="..." EVIDENCE="..." REFERENCE_SCOPE="..." OUT_OF_SCOPE="..."
 ```
 
-Keep rationale in `WORKING_NOTES.md`, not chat.
+Keep durable rationale in `WORKING_NOTES.md`. Apply proven identities and
+crosswalk updates during this pass; no quota of mappings is required.
+Review the reference scope at closeout, recording results and remaining
+proof gaps in the scorecard and crosswalk. The plan is replaced on next start;
+it is planning context, not durable proof.
 
 <a id="unattended-session-contract"></a>
 <a id="proof-debt"></a>
 <a id="runtime-handoff"></a>
 ## Proof Debt and the Unattended Session
 
-An operator may run many passes unreviewed; these rules stand in for the
-absent reviewer.
+`project-next-pass` reports evidence-ledger drift before corridor selection.
+The advisory ratio signals stay quiet on young projects; detector commands
+live at [TOOLING.md#vocabulary-drift](TOOLING.md#vocabulary-drift).
 
-A pass changes the source; the artifacts saying why it is believed correct are
-updated separately, and nothing notices when they stop moving. Each pass stays
-defensible, so only the accumulated ratio shows a project transforming faster
-than it proves. `project-next-pass` reports it before corridor selection.
-Signals are ratios, so a young project is silent by construction; detectors live
-at [TOOLING.md#vocabulary-drift](TOOLING.md#vocabulary-drift).
+**Signals block the operator, not the build.** Findings are advisory; operational
+errors still fail. Before choosing a corridor, resolve the signal or record a
+reason in `inventory/proof_debt_acknowledged.csv`, using the sole header
+`signal,reason,pass_id,scope,revisit_condition`. For `crosswalk_unmapped` and
+`deferral_repeat`, copy the reported scope token and completed pass id,
+and state what evidence requires revisiting.
+The token fingerprints the crosswalk or subject's deferral rows; changes expire
+the acknowledgement. Unrelated passes do not; check revisit conditions at selection.
+Unscoped identity rows cannot suppress new work. Other signals
+retain reasoned permanent dispositions. Acknowledgements never establish gold.
 
-**Signals block the operator, not the build.** Every check exits `0` and
-nothing here can fail CI; "blocking" means do not select the next corridor
-while one is outstanding. Close it, or record an acknowledgement row with a
-reason in `inventory/proof_debt_acknowledged.csv` (`signal,reason,pass_id`),
-silencing it permanently. A reasonless row is ignored. Same contract as
-`constant_magic_allowlist.csv`.
-
-**Deferrals are captured where they are made.** Deferring at the evidence's
-edge is correct; deferring with no record of what would close the gap is how a
-placeholder fossilises. State each gap directly with
-`DEFERRALS="subject :: what would close it [:: static|runtime]"`, one per line
-or `;`-separated; `project-pass-closeout` appends one row per gap to
+**Capture deferrals at closeout.** Use
+`DEFERRALS="subject :: what would close it [:: static|runtime]"`, separated by
+newlines or semicolons. Closeout writes
 `inventory/deferrals.csv` (`pass_id,corridor,subject,kind,deferral,revisit_condition,status`).
-Without `DEFERRALS`, closeout only captures a `NOTES` sentence that opens with
-an explicit `Deferred: <subject>[, <subject>]` tag — a narrow fallback, not
-the contract; guessing the subject out of arbitrary prose produced truncated,
-nonsensical fragments far more often than a real one. Keep `subject` stable;
-on rerun, closeout also matches `deferral` text, preserving curated keys.
+Keep subjects stable; reruns also match deferral text to preserve curated keys.
+Without `DEFERRALS`, only a sentence opening with `Deferred: <subject>[, <subject>]`
+is captured. General retrospective prose must not create guessed gaps.
 
 **Three strikes.** On the third deferral of one `subject` (`deferral_repeat`),
 stop: open an [identity pass](#identity-pass) using evidence later passes have
 produced, or declare the gap runtime-gated and write its trace plan.
 
-**Runtime is an operator promotion.** Captured deferrals are always `static`.
-Inferring `runtime` from wording reproduces the misclassification the rule
-exists to prevent — an identity gap described as "dynamic" is desk-resolvable
-cross-corridor work. Promotion is deliberate (`--kind runtime`), because
-asserting that live execution is necessary should cost a decision.
+**Runtime requires deliberate promotion and scheduling.** Captured gaps default
+to `static`; use `--kind runtime` only after the
+[classification procedure](QUALITY_REVIEW.md#static-vs-runtime-gaps) establishes
+that live input, RNG, timing, scenario, or emulator state is necessary.
+Identity, liveness, and format questions often close through placement,
+dispatch, graphics, and references; try these channels and record what failed.
+Follow the [runtime-evidence contract](RUNTIME_EVIDENCE.md), including a trace
+plan naming expected signals and promotion criteria.
 
-**Runtime is a scheduling claim.** A static deferral admits the desk work is
-unfinished; runtime asserts the evidence cannot be obtained statically. It
-requires the [active runtime-evidence contract](RUNTIME_EVIDENCE.md).
-The definition is narrow
-([QUALITY_REVIEW.md#static-vs-runtime-gaps](QUALITY_REVIEW.md#static-vs-runtime-gaps)):
-identity, liveness and data-format questions rarely meet it, their evidence
-being in the ROM but spread across corridors. Try that route first — placement
-data, dispatch tables, sprite/tile data and the manual together — and record
-what failed.
-
-**Runtime capture belongs to the implementer.** Attempt executable traces,
-scripted inputs, and visual inspection before requesting human help. Runtime
-classification alone does not justify `NEEDS INPUT`. When human help is needed,
-prepare a [review batch](RUNTIME_EVIDENCE.md#human-review-batch) with executable
-plans, observed blockers, and grouped questions; continue independent work.
-Stop promptly for a blocking permission or missing artifact. A pending capture
-does not establish static exhaustion or gold-standard completion.
+The implementer attempts traces, scripted inputs, and visual inspection before
+requesting human help. For remaining blockers, prepare a grouped
+[human review batch](RUNTIME_EVIDENCE.md#human-review-batch) and continue
+independent work. Stop for blocking permissions or missing artifacts.
+Runtime classification alone justifies neither `NEEDS INPUT` nor completion;
+pending captures do not establish static exhaustion or gold.
 
 <a id="identity-pass"></a>
 ## Identity Pass (Cross-Corridor)
@@ -233,11 +227,11 @@ The one sanctioned exception to the corridor-boundary rule at
 **what already-named machinery is** by fusing evidence from closed corridors with
 the reference material.
 
-Corridor passes prove ownership locally, which keeps naming honest. Identity
-evidence is never local — it needs placement data, behavior dispatch, render
-tables, and a reference document at once — so each corridor pass correctly
-defers and the deferral repeats forever. The symptom is a large symbol family on
-a generic noun phrase matching no reference term.
+Resolve identities within ordinary corridors whenever evidence supports them.
+Use a separate identity pass when the missing link spans already-understood
+placement, dispatch, rendering, or reference material. Revisit recorded gaps
+when later passes supply a missing channel; detector thresholds are a fallback,
+not permission to postpone known work until maturity.
 
 Preconditions, all required:
 
@@ -245,21 +239,11 @@ Preconditions, all required:
 - two independent evidence channels exist (e.g. a selector table plus a renderer);
 - the crosswalk holds candidate terms the pass can discharge.
 
-Triggered by the signals at [#proof-debt](#proof-debt). `project-next-pass`
-ranks it as an `identity_pass` bucket in two cases, and the difference between
-them matters:
-
-- **A subject deferred three times** (`deferral_repeat`) outranks the corridor
-  buckets outright. The cheap corridors have already been tried on it.
-- **A dominant unmapped symbol family** ranks *below* the corridor buckets on
-  its own — a project with many unresolved labels has cheaper work available —
-  **except** when the corridor about to be recommended is itself anchored
-  inside that family. Then it is intercepted: recommending deeper naming work
-  in a family the signal reports as unmatched by any reference term is the
-  drift the signal exists to catch.
-
-A red parity or docs baseline outranks both. Acknowledging the signal with a
-reason restores the normal ranking.
+Scheduling uses [#proof-debt](#proof-debt): three deferrals of one subject
+outrank ordinary corridors. A dominant unmapped family ranks below them unless
+the proposed corridor is inside that family; then identity work intercepts it.
+Red parity/docs baselines outrank both. A current scoped acknowledgement
+restores normal ranking until evidence changes or its revisit condition applies.
 
 Deliverable: crosswalk rows moved off `reference-only` with evidence (or marked
 `unmapped` when the concept does not survive contact with the code); renames
@@ -268,14 +252,11 @@ replacing the private phrase family-wide in one scripted batch; a
 a partial result, the proven subset named with the missing evidence channel
 recorded in `WORKING_NOTES.md`.
 
-**Evidence standard.** Two independent channels must agree. A shared handler is
-not identity: families routinely share movement, collision, and render code, so
-reaching a routine from one entity's data proves it is *used by* that entity,
-not that it *is* it. Prefer the channel the game uses to distinguish entities —
-placement selector, per-entity parameter row, or distinctive drop/damage
-behavior. Stop at the first member whose channels disagree and record the
-disagreement. A wrong identity name is worse than a structural one: it reads as
-settled and later passes build on it.
+**Evidence standard.** Two independent channels must agree. A shared handler
+proves use, not entity identity. Prefer distinguishing placement selectors,
+parameter records, or drop/damage behavior. Keep shared names for shared code;
+name selectors or records when those own identity. Stop where channels disagree
+and record the missing link rather than presenting a guess as settled.
 
 <a id="worked-examples"></a>
 ## Worked Examples

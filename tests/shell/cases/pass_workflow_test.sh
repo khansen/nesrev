@@ -77,7 +77,7 @@ EOF
     > "${root}/docs/reverse_engineering/inventory/data_blob_dispositions.csv"
   printf 'pass_id,corridor,subject,kind,deferral,revisit_condition,status\n' \
     > "${root}/docs/reverse_engineering/inventory/deferrals.csv"
-  printf 'signal,reason,pass_id\n' \
+  printf 'signal,reason,pass_id,scope,revisit_condition\n' \
     > "${root}/docs/reverse_engineering/inventory/proof_debt_acknowledged.csv"
 }
 
@@ -1136,7 +1136,7 @@ test_pass_start_persists_explicit_corridor_objective_fields() {
 
   local err
   err="$(CORRIDOR="Reset/boot corridor" WHY_NOW="boot path unnamed" \
-    BOUNDARIES="Reset..NMI" EVIDENCE="next_pass cluster Reset" \
+    BOUNDARIES="Reset..NMI" EVIDENCE="next_pass cluster Reset" REFERENCE_SCOPE="Boot only; no gameplay identities" \
     OUT_OF_SCOPE="audio driver" \
     bash "${PASS_START}" "${slug}" 1 Reset 2>&1 >/dev/null)"
 
@@ -1155,6 +1155,7 @@ expected = {
     "why_now": "boot path unnamed",
     "expected_boundaries": "Reset..NMI",
     "generated_evidence": "next_pass cluster Reset",
+    "reference_scope": "Boot only; no gameplay identities",
     "explicitly_out_of_scope": "audio driver",
 }
 if objective != expected:
@@ -1783,6 +1784,36 @@ test_pass_start_rejects_missing_next_pass_with_next_pass_instruction() {
   fi
 }
 
+test_pass_start_rejects_changed_reference_context() {
+  local slug; slug="$(unique_slug pass_start_reference_stale)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  local name output rc
+  for name in crosswalk/TERMINOLOGY_CROSSWALK.md crosswalk/MANUAL_TERMS.md; do
+    _write_reset_next_pass "${slug}"
+    python3 - "projects/${slug}/docs/${name}" \
+      "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PYREF'
+import os, sys
+from pathlib import Path
+path, next_pass = map(Path, sys.argv[1:])
+path.parent.mkdir(parents=True, exist_ok=True)
+path.touch()
+newer = next_pass.stat().st_mtime + 60
+os.utime(path, (newer, newer))
+PYREF
+    set +e
+    output="$(bash "${PASS_START}" "${slug}" 1 Reset 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" "2" "changed references must invalidate the selection briefing"
+    assert_match "${name}" "${output}" "diagnostic must identify the changed source context"
+    [[ ! -e "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" ]] \
+      || fail "stale reference context must not create a pass plan"
+    # Restore this input's time so the next case isolates the other file.
+    touch -t 200001010000 "projects/${slug}/docs/${name}"
+  done
+}
+
 test_pass_start_rejects_stale_next_pass_after_source_edit() {
   local slug; slug="$(unique_slug pass_start_stale_next)"
   trap "cleanup_project ${slug}" EXIT
@@ -2354,6 +2385,7 @@ test_make_pass_start_preserves_raw_objective_values() {
     'WHY_NOW=shared $AA sentinel is still ambiguous' \
     'BOUNDARIES=$40-$5F and its direct owners' \
     'EVIDENCE=raw_$0040 generated evidence' \
+    "REFERENCE_SCOPE=${corridor}" \
     'OUT_OF_SCOPE=$60-$7F scratch window' >/dev/null 2>&1
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/current_pass_plan.json" <<'PY'
@@ -2367,6 +2399,7 @@ expected = {
     "why_now": "shared $AA sentinel is still ambiguous",
     "expected_boundaries": "$40-$5F and its direct owners",
     "generated_evidence": "raw_$0040 generated evidence",
+    "reference_scope": "runner's $40-$5F path-state corridor\nsecond $BB line",
     "explicitly_out_of_scope": "$60-$7F scratch window",
 }
 if got != expected:
@@ -2425,6 +2458,7 @@ _write_pass_plan_objective() {
     "why_now": "$4",
     "expected_boundaries": "$5",
     "generated_evidence": "$6",
+    "reference_scope": "Boot infrastructure has no source identities",
     "explicitly_out_of_scope": "$7"
   }
 }

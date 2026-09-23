@@ -220,21 +220,26 @@ concerns work already done and must be read before choosing what to do next.
 `project-next-pass` is the mandated resume step; the maturity dashboard is
 opt-in, and a signal the operator must choose to see is not a signal.
 
-### 2.3 Dismissal must be cheap and durable
+### 2.3 Reviewed dispositions and revisiting identity debt
 
-A heuristic over judgement calls cannot be made never-wrong. The design target
-is therefore not zero false positives — unachievable — but **zero cost per false
-positive.**
+A heuristic can be wrong; a reasoned disposition records that judgement.
+The sole header is `signal,reason,pass_id,scope,revisit_condition`.
+Non-identity signals retain permanent reasoned dispositions; reasonless rows
+are ignored.
 
-Adding a row to `inventory/proof_debt_acknowledged.csv`
-(`signal,reason,pass_id`) silences that signal permanently. A row without a
-reason is ignored: the ledger's value is the recorded judgement, not the
-silence. This is the contract `constant_magic_allowlist.csv` and
-`WARNING_BASELINE.txt` already use.
-
-This inverts the design problem. Rather than making the detector smart enough
-never to be wrong, disagreement becomes a one-line, permanent, *documented*
-act — and the accumulated dismissals become their own evidence artifact.
+Identity signals (`crosswalk_unmapped`, `deferral_repeat`) require populated
+scope and revisit-condition fields. Copy the reported scope
+token and latest completed pass id, explain the decision, and state what
+missing evidence calls for revisiting. The scope fingerprints the crosswalk or
+one subject's deferral rows. Changed recorded evidence expires the acknowledgement;
+an unrelated completed pass does not. The pass id records review provenance and
+must be a nonnegative completed-pass number, never a future pass. Operators check
+revisit conditions at each selection and record newly relevant evidence in the
+crosswalk/deferrals; the detector cannot infer relevance from code changes alone.
+Existing ledgers require migration; blank scope fields on migrated historical
+identity rows cannot silence new identity work. One subject's disposition does not hide
+another subject. These signals remain advisory, and acknowledgements never
+certify reference completeness or gold.
 
 ### 2.4 Capture deferrals where they are made
 

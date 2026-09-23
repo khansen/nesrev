@@ -18,6 +18,7 @@ _init_packet_repo() {
   cp "${REPO_ROOT}/scripts/project_policy_config_check.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/proof_debt.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/reference_review.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/"
   printf 'projects/*/reference/\nprojects/*/build/\n' > "${repo}/.gitignore"
 
@@ -131,6 +132,36 @@ EOF
   chmod +x "${path}"
 }
 
+test_pass_review_packet_includes_added_and_removed_inventory_deltas() {
+  local repo="${NESREV_TEST_TMPDIR}/inventory_packet_repo"
+  local slug; slug="$(unique_slug inventory_packet)"
+  _init_packet_repo "${repo}" "${slug}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  local canonical="projects/${slug}/docs/crosswalk/MANUAL_TERMS.md"
+  local base head out ledgers
+  base="$(git -C "${repo}" rev-parse HEAD)"
+  printf '# Source inventory\nCanonical inventory evidence.\n' > "${repo}/${canonical}"
+  git -C "${repo}" add -- "${canonical}"
+  git -C "${repo}" commit -qm "Add source inventory"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" \
+    bash scripts/project_pass_review_packet.sh "${slug}" "${base}" "${head}")"
+  assert_match "${canonical}\` at" "${out}" "packet must name the committed inventory"
+  ledgers="$(printf '%s\n' "${out}" | sed -n '/^### Review Ledger Deltas/,/^### /p')"
+  assert_match 'Canonical inventory evidence' "${ledgers}" "source edits must enter ledger deltas"
+
+  base="${head}"
+  rm "${repo}/${canonical}"
+  git -C "${repo}" add -- "${canonical}"
+  git -C "${repo}" commit -qm "Remove source inventory"
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  out="$(cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" \
+    bash scripts/project_pass_review_packet.sh "${slug}" "${base}" "${head}")"
+  assert_match "${canonical}\`: not committed" "${out}" "packet must surface the missing inventory"
+  ledgers="$(printf '%s\n' "${out}" | sed -n '/^### Review Ledger Deltas/,/^### /p')"
+  assert_match 'Canonical inventory evidence' "${ledgers}" "removed inventory must enter ledger deltas"
+}
+
 test_project_pass_review_packet_emits_complete_range_and_head_gates() {
   local repo="${NESREV_TEST_TMPDIR}/packet_repo"
   local slug; slug="$(unique_slug packet)"
@@ -147,6 +178,12 @@ test_project_pass_review_packet_emits_complete_range_and_head_gates() {
     "packet must enumerate every commit in the reviewed range"
   assert_match "Fixture ledger follow-up" "${out}" \
     "packet must include the second commit, not only the real pass summary"
+  assert_match "## Reference Coverage Context" "${out}" \
+    "packet must carry the source context needed for identity review"
+  assert_match "Not recorded for this pass" "${out}" \
+    "legacy packets must explicitly surface missing reference scope"
+  assert_match "MANUAL_TERMS.md.*not committed" "${out}" \
+    "packet must identify the missing canonical inventory"
   assert_match "## Range Summary" "${out}" \
     "packet must include the mandated range-summary section"
   assert_match "Project commits in range: \`2\`" "${out}" \

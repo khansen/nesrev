@@ -163,7 +163,7 @@ test_proof_debt_quiet_once_deferrals_are_captured() {
     "a captured, closed deferral must satisfy the signal"
 }
 
-test_acknowledgement_ledger_silences_a_signal_permanently() {
+test_old_acknowledgement_format_requires_migration() {
   local root="${NESREV_TEST_TMPDIR}/doc"
   _fixture "${root}" 40 900 "named the corridor"
   _crosswalk "${root}/cw.md"
@@ -175,9 +175,13 @@ test_acknowledgement_ledger_silences_a_signal_permanently() {
   printf 'signal,reason,pass_id\ncrosswalk_unmapped,concept has no single code owner in this ROM,40\n' \
     > "${root}/inventory/proof_debt_acknowledged.csv"
 
-  local after
-  after="$(python3 "${PROOF_DEBT}" "${root}" "${root}/cw.md")"
-  assert_match "^OK: no proof debt" "${after}" "an acknowledged signal must stay silent"
+  local after rc
+  set +e
+  after="$(python3 "${PROOF_DEBT}" "${root}" "${root}/cw.md" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "65" "old acknowledgement format must fail with a migration diagnostic"
+  assert_match "migrate to signal,reason,pass_id,scope,revisit_condition" "${after}"
 }
 
 test_acknowledgement_without_a_reason_is_ignored() {
@@ -185,7 +189,7 @@ test_acknowledgement_without_a_reason_is_ignored() {
   local root="${NESREV_TEST_TMPDIR}/doc"
   _fixture "${root}" 40 900 "named the corridor"
   _crosswalk "${root}/cw.md"
-  printf 'signal,reason,pass_id\ncrosswalk_unmapped,,40\n' \
+  printf 'signal,reason,pass_id,scope,revisit_condition\ncrosswalk_unmapped,,40,,\n' \
     > "${root}/inventory/proof_debt_acknowledged.csv"
 
   local out

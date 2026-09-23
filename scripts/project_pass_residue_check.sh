@@ -472,6 +472,7 @@ OBJECTIVE_FIELDS = [
     "why_now",
     "expected_boundaries",
     "generated_evidence",
+    "reference_scope",
     "explicitly_out_of_scope",
 ]
 

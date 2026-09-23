@@ -30,12 +30,16 @@ stale_inputs=(
   "${DOC_ROOT}/inventory/unknowns.md"
   "${DOC_ROOT}/inventory/raw_ram_review.csv"
   "${DOC_ROOT}/WORKING_NOTES.md"
+  "${CROSSWALK_FILE}"
   "${pass_dir}/baseline_status.json"
   "${pass_dir}/xref_summary_all.json"
   "${pass_dir}/xref_summary_generic.json"
   "${pass_dir}/xref_with_data.json"
   "${pass_dir}/data_consumers.json"
 )
+reference_inventory="$(python3 "${SCRIPT_DIR}/reference_review.py" --inventory-path \
+  --doc-root "${DOC_ROOT}" --crosswalk "${CROSSWALK_FILE}")"
+stale_inputs+=("${reference_inventory}")
 for stale_input in "${stale_inputs[@]}"; do
   if [[ -e "${stale_input}" && "${stale_input}" -nt "${next_pass_json}" ]]; then
     echo "error: ${next_pass_json} is stale relative to ${stale_input}; run make project-next-pass PROJECT=$1 first" >&2
@@ -72,6 +76,7 @@ OBJECTIVE_FIELDS = [
     ("why_now", "WHY_NOW", "Why now"),
     ("expected_boundaries", "BOUNDARIES", "Expected boundaries"),
     ("generated_evidence", "EVIDENCE", "Generated evidence"),
+    ("reference_scope", "REFERENCE_SCOPE", "Reference scope"),
     ("explicitly_out_of_scope", "OUT_OF_SCOPE", "Explicitly out of scope"),
 ]
 corridor_objective = {
@@ -433,7 +438,7 @@ if missing_objective_fields:
     print(
         "warning: corridor objective incomplete; missing "
         f"{', '.join(missing_objective_fields)}. Pass CORRIDOR=, WHY_NOW=, "
-        "BOUNDARIES=, EVIDENCE=, OUT_OF_SCOPE= to project-pass-start to persist "
+        "BOUNDARIES=, EVIDENCE=, REFERENCE_SCOPE=, OUT_OF_SCOPE= to project-pass-start to persist "
         "the full review objective (see "
         "agent_playbook/PASS_WORKFLOW.md#corridor-objective).",
         file=sys.stderr,
@@ -540,7 +545,7 @@ lines.append("## Corridor Objective")
 if missing_objective_fields:
     lines.append(
         "Operator-selected objective is incomplete; pass CORRIDOR=, WHY_NOW=, "
-        "BOUNDARIES=, EVIDENCE=, OUT_OF_SCOPE= to project-pass-start to record it."
+        "BOUNDARIES=, EVIDENCE=, REFERENCE_SCOPE=, OUT_OF_SCOPE= to project-pass-start to record it."
     )
 for key, _env_var, label in OBJECTIVE_FIELDS:
     value = corridor_objective[key]
