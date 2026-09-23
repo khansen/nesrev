@@ -8,7 +8,7 @@
 *.lst
 *.lst.json
 /tmp/
-scripts/__pycache__/
+__pycache__/
 .env
 projects/*/docs/reverse_engineering/inventory/pass/
 
