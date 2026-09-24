@@ -605,7 +605,8 @@ Calibrate the evaluator on separate synthetic examples containing known
 semantic errors, omissions, and cosmetic differences. Human-check a
 preregistered sample of agreements as well as major disagreements. Use an
 independent second judgment for decisive contested findings, within the
-evaluation budget; preserve unresolved cases if that budget is exhausted.
+evaluation budget. If it is exhausted, leave unfinished judgments pending
+under the evaluation-incomplete rule below.
 Do not assume the same model family provides independent error patterns.
 
 Record evaluator-family relationships to both run roles in the frozen profile.
@@ -663,9 +664,8 @@ while required judgments remain pending. Candidate-specific authored claims
 are a separate evidence set and never change which primary subjects can be
 assessed.
 
-Provisional dispositions elsewhere in this specification mean pending judgments
-under this rule. If required judgments remain when their fixed inspection or
-adjudication budget is exhausted, close assessment as `evaluation incomplete`,
+If required judgments remain when their fixed inspection or adjudication
+budget is exhausted, close assessment as `evaluation incomplete`,
 retain the partial judgments and reasons, and withhold the final primary scores
 and comparisons. V1 provides no additional evaluation budget or selective
 retry. Report incomplete evaluation as an outcome, without dropping the run.
