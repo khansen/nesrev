@@ -47,11 +47,20 @@ Each run has one implementer and one pass reviewer, using the existing
 supported agent application; model and reasoning choices are independent.
 Neither role participates in final evaluation of its own run.
 
-The evaluator uses fresh sessions and separately governed resources. It can
-inspect the entire frozen output and the owner's full reference set. A human
-adjudicator resolves consequential disagreements or unsupported conclusions.
-Evaluation findings never reach an unfinished experimental run. The only
-permitted stopping signal is the preregistered target result in section 5.
+The evaluator uses fresh sessions and separately governed resources. Initial
+quality assessment receives the blinded evidence view defined in section 8
+and the owner's full reference set. Original history and process logs become
+available for the compliance audit only after quality judgments are locked.
+A human adjudicator resolves consequential disagreements or unsupported
+conclusions. Evaluation findings never reach an unfinished experimental run;
+the only evaluation-derived signal it may receive is the preregistered bare
+target result in section 5. Budget and owner stops remain independent.
+
+The benchmark author must not provide live semantic assistance to run agents.
+One owner may author benchmarks and operate the study, but their run-facing
+actions are limited to the frozen logistical protocol in section 5. Later
+studies allowing semantic help need a separate helper without access to the
+hidden tasks, answer keys, or other runs' outputs.
 
 Retain the canonical [intake](agent_playbook/NEW_PROJECT.md),
 [pass workflow](agent_playbook/PASS_WORKFLOW.md),
@@ -77,12 +86,13 @@ ceilings, expected manual work, and capabilities the host cannot enforce.
 | Field group | Required content |
 |---|---|
 | Identity | Schema/version, study ID/revision, parent revision if any, question, hypotheses, primary endpoints, planned contrasts, exploratory analyses |
-| Design | Factors and levels, explicit condition matrix, ROM blocks, fresh repetitions per cell, allocation seed, run order, concurrency policy |
-| Inputs | Exact ROM/container and analyzed-region hashes, private asset IDs, reference/corpus manifests with per-file hashes, allowed network and runtime inputs |
+| Design | Factors and levels, explicit condition matrix, ROM blocks, fresh repetitions per cell, allocation seed, run order, concurrency and provider-capacity policy, inference/uncertainty method and multiplicity handling |
+| Inputs | Exact ROM/container and analyzed-region hashes, private asset IDs, reference/corpus manifests with per-file hashes and contamination audit, per-condition manual/FAQ/guide policy, allowed network and runtime inputs |
 | Software | Tooling commit and exported tree digest, controller version, playbook/prompt/template hashes, assembler and generator identities, host/runtime/OCR dependencies |
 | Roles | Agent executable/version, requested and resolved model identity, reasoning settings for each role, exposed generation settings, prompt/context/compaction policy |
-| Isolation | Backend/version, mount and network policy, fresh-session policy, permitted plugins/connectors, contamination checks |
-| Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and watchdog contract, checkpoint eligibility policy, metering precision, restart/retry rules, human assistance and permission policy |
+| Isolation | Backend/version, mount and network policy, fresh-session policy, provider-side feature controls, permitted plugins/connectors, contamination checks |
+| Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and backend lease contract, checkpoint eligibility policy, metering precision, restart/retry and primary-attempt rules, human assistance and permission policy |
+| Stopping | Budget and owner stops, local gold/review-exhaustion/input/quota outcomes, target-quality submission opportunities and permitted feedback, unused-budget reporting |
 | Policy | Experiment-only overrides, affected rules/checks, exact permitted deviations, reference-intake consent requirements |
 | Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, scoring/denominator rules, adjudication policy, per-phase evaluation budgets |
 | Retention | Artifact locations, capture completeness requirements, secret redaction, access controls, retention and export policy |
@@ -128,11 +138,19 @@ filesystem, Git objects, sockets, or logs. Review agents and subprocesses obey
 the same boundary as implementers. The controller and evaluator stores remain
 outside it, even when no other run is currently active.
 
-Network access is denied except for declared services and resources. Model
-service access is distinct from browsing. For reproducible reference/runtime
-inputs, pre-stage approved snapshots and replay assets with hashes. An arm
-studying live search must record retrieved content, provenance, timing, and
-network policy; it cannot be described as having fixed external inputs.
+Network access is denied except for declared services and resources. Allowing
+the model endpoint does not authorize provider-side search/fetch, persistent
+account memory, remote execution, or account-level connectors. The adapter
+must enforce the declared feature allowlist through request and account
+controls, record their effective settings, and test these paths separately
+from direct sockets. Prompts asking the agent not to use them are insufficient.
+If an application cannot disable or isolate undeclared provider capabilities,
+it cannot participate in that isolated study profile.
+
+For reproducible reference/runtime inputs, pre-stage approved snapshots and
+replay assets with hashes. An arm studying live search must record retrieved
+content, provenance, timing, and network policy; it cannot be described as
+having fixed external inputs.
 
 ### Treatment definitions
 
@@ -145,19 +163,33 @@ or derived project evidence. It cannot remove knowledge learned during model
 training. Shared playbooks and generic tooling remain identical across arms;
 report their retained domain knowledge as part of the baseline.
 
+Every `prior_art: available` corpus requires an owner-reviewed contamination
+audit before its manifest is frozen, regardless of manual availability. Apply
+the audit to source, docs, history, generated listings, and derived artifacts,
+not just the starter tree. Exclude the target's existing disassembly, previous
+run outputs, sibling revisions/ports, and equivalent target solutions. The
+first pilot also excludes same-engine projects that expose the target's
+substantial implementation; shared generic NES idioms remain legitimate prior
+art. Record lineage and content-similarity evidence, exclusions, and uncertain
+matches. Unresolved substantial overlap refuses that corpus for the pilot.
+Studying such transfer requires a separately named and approved treatment;
+it must not be described as an uncontaminated from-scratch prior-art contrast.
+
 `manual: withheld` must specify FAQ, guide, translation, extracted vocabulary,
 and browsing access separately. If the intended question concerns access to
-all game-reference knowledge, exclude equivalent sources too. Audit the prior
-corpus for copies of the target's solution or withheld references. If overlap
-is intentional, describe the contrast narrowly as direct manual availability,
-not absence of that information. Inventory both source and derived artifacts.
+all game-reference knowledge, exclude equivalent sources too. In addition to
+the corpus audit above, check every allowed source for copies or derivatives
+of withheld references. If reference overlap is intentional, describe the
+contrast narrowly as direct manual availability, not absence of that
+information. Inventory both source and derived artifacts.
 
 ### Explicit policy profiles
 
-The ordinary [prior-project reuse rule](AGENTS.md#prior-project-reuse-gate)
-and [reference intake gate](agent_playbook/DOCUMENTATION.md#terminology-crosswalk)
-remain the production defaults. A study profile must enumerate each deliberate
-override, its justification, affected wrapper behavior, and applicability.
+The ordinary [prior-project reuse rule](AGENTS.md#prior-project-reuse-gate),
+[reference intake gate](agent_playbook/DOCUMENTATION.md#terminology-crosswalk),
+and [reference-coverage cycle](REFERENCE_COVERAGE_CYCLE_SPEC.md) remain the
+production defaults. A study profile must enumerate each deliberate override,
+its justification, affected wrapper behavior, and applicability.
 
 The owner must explicitly approve a no-manual condition after the warning:
 the final disassembly's terminology and semantic precision will likely be
@@ -166,6 +198,16 @@ study, avoiding repeated questions. Missing files, an empty folder, approving
 this specification, or approving an unrelated study are not waivers. Supplied
 FAQs still require processing. Manual-present arms stop if their promised
 manual is absent or unreadable; they never silently switch conditions.
+
+Withholding a manual does not disable reference planning or evidence checks.
+Record `REFERENCE_SCOPE` at pass selection against the arm's available sources,
+including why no reference concept applies when appropriate. Keep the canonical
+inventory and crosswalk, processing supplied FAQs and recording the withheld
+source and approved limitation without importing its contents. Gold submissions
+still require `## Reference Coverage`, linked Sources/Inventory/Mappings/Gaps
+evidence at the reviewed head, and the existing `EXPLICIT MANUAL WAIVER` outcome
+with its linked user decision. Important unresolved identities remain blockers;
+a waiver does not prove a mapping or waive evidence for available sources.
 
 Do not make agents invent an analogue or pretend a withheld check ran.
 Experiment-aware integration must report `not applicable under study profile`
@@ -200,6 +242,17 @@ without bounded token/spend control may participate in wall-time-limited
 pilots, with tokens reported observationally; they must not claim a hard
 token/spend cap. Prompt instructions alone do not enforce a ceiling.
 
+Freeze a provider-capacity policy for execution and evaluation. Serial order
+must not let an earlier run consume the quota available to a later one. Use
+equivalent reserved capacity or verified comparable reset windows, matching
+account classes and declared model-specific limits across repetitions. Exclude
+unrelated account usage during those windows. Record starting quota, reset
+boundaries, rate limits, throttling, and outages. If capacity cannot be
+verified, the adapter cannot claim this controlled comparison. Random order
+alone does not cure quota carryover. Unexpected quota exhaustion is a recorded
+provider-limited outcome; it does not earn a selective retry or silently move
+the run into a fresh quota window.
+
 At the preregistered reserve threshold, refuse another semantic pass and ask
 the pair to finish review/closeout within the remaining budget. Reserve a
 separate shutdown margin: fence new dispatch and begin cancelling owned work
@@ -216,12 +269,22 @@ and preflight time separately; neither may perform agent work on the task.
 Freeze the duration and reserve policy in the manifest, then record the start,
 deadline, clock identity, and shutdown bound in controller-owned run state.
 
-A trusted supervisor outside the agents' writable environment enforces that
-deadline independently of the study controller and tmux watchers. Killing or
-disconnecting the controller must not leave an unbounded agent or emulator.
-The supervisor owns the run's containment boundary and rejects attempts to
-extend its deadline. Loss of enforcement must stop owned work and prevent
-redispatch; detecting overspend afterward is not successful limit enforcement.
+A trusted deadline supervisor outside the agents' writable environment fences
+dispatch and shuts down owned work independently of the controller and tmux
+watchers. It is backed by a backend-enforced expiring sandbox lease, installed
+before any agent starts. The isolation backend owns the expiry timer outside
+the controller/supervisor processes and their termination group. The lease has
+an immutable hard deadline; only the supervisor can renew its shorter liveness
+expiry, never beyond that deadline. Freeze renewal intervals and teardown bounds
+so expiry plus teardown cannot exceed the hard limit. Agents have no renewal or
+deadline-extension capability.
+
+If the supervisor dies, renewal stops and the backend fences and terminates
+all run-owned work within the lease bound, even if the controller also dies.
+Preserve durable evidence outside the sandbox's lifetime. Loss of a valid lease
+forbids redispatch. A backend without independently enforced expiry fails
+preflight; an in-process timer or another child of the supervisor is not a
+backstop. Detecting overspend afterward is not successful limit enforcement.
 
 Recovery uses the original deadline. The backend must account for suspend and
 clock discontinuities; if it cannot prove the remaining allowance after a
@@ -253,6 +316,22 @@ checkpoint eligible and preserves incomplete work separately. Independent
 evaluation may later find faults in the selected checkpoint; those are findings,
 not grounds to replace it with an earlier, better-scoring output.
 
+The receipt must also prove continuous review coverage. Starting at the frozen
+starter commit for the first checkpoint, or the previous eligible checkpoint
+thereafter, account for every intervening commit through the proposed head.
+Each must fall inside a recorded, approved review range or be a verified
+archive-only commit. V1 uses linear history and binds the actual ranges and
+commit IDs; choosing a later review base cannot hide an intervening change.
+An archive-only exception permits exactly the deterministic review archive
+and generated learning-candidate updates produced from that approval by the
+pinned tooling. Preserve all archive-generation inputs and check the output
+against those inputs, approved artifacts, and parent tree; a path allowlist
+or commit title alone is insufficient.
+Other changes, including gameplay docs or source bundled with an archive,
+require review. An exhausted-rounds override is never an approval receipt;
+its changes must be covered by an eventual approved range before eligibility.
+Missing coverage rejects the new checkpoint and preserves the prior one.
+
 The implementer's follow-up archive commit is not an eligibility prerequisite:
 the receipt already preserves the actual review and its reviewed source. If
 archival is unfinished at the limit, record it as pending and do not grant time
@@ -269,12 +348,34 @@ same opportunities to every arm. Runs not attaining the target by the cap are
 right-censored for time-to-target reporting, not assigned invented completion
 times or omitted. Ordinary pass review can continue within the cap.
 
-Human assistance follows a common policy: permitted logistical actions,
-semantic help rules, maximum wait, time accounting, and whether a question can
-be answered at all. Record every intervention and its content. Additional
-semantic evidence outside the assignment is a protocol deviation, not a quiet
-favor. Batch runtime perception questions where useful without hiding their
-cost. Authentication and tool approval friction count in the intervention log.
+### Human interaction and early stops
+
+V1 avoids owner response time as a treatment confound. Pre-stage assets,
+authentication, scoped permissions, and explicit intake decisions without
+performing agent work on the task. A deterministic adapter acknowledges only
+non-authorizing startup prompts already satisfied by those frozen decisions,
+using the same response schedule in every arm. It cannot grant a new permission
+or invent a manual waiver. An unexpected request for human action stops the
+attempt as `blocked awaiting input` immediately; it does not wait for whichever
+time the owner happens to respond. Normal approval controls remain active.
+
+For later studies permitting live help, preregister response windows, maximum
+wait, allowed content, and time accounting identically across arms. Semantic
+helpers must be separate from benchmark authors and see only that arm's allowed
+references, without condition/model labels or hidden evaluation material.
+Record every intervention and its content, including logistical approvals.
+Extra semantic evidence is a protocol deviation. A sole owner who knows the
+answer keys may only execute frozen logistical responses or stop the study;
+they cannot improvise answers to the run's semantic questions.
+
+Fixed resources means a common ceiling, not guaranteed equal consumption.
+In v1, local gold approval stops further passes as `local gold stop`;
+independent evaluation still determines quality. `REVIEW_ROUNDS_EXHAUSTED`
+stops as `review rounds exhausted`, without a human override or a fresh retry.
+Capture the latest eligible checkpoint and keep unfinished work separate.
+Report the stop reason, consumed and unused budget for every early stop: input,
+quota, failure, and owner stops. Do not describe a partial-budget outcome as
+having used the full cap or as independently attaining the target.
 
 ## 6. Controller state and recovery
 
@@ -301,21 +402,34 @@ the next state. Recovery never reconstructs success from chat or pane titles.
 
 Track execution outcomes separately from validity and quality:
 
-- Execution: target submitted, budget exhausted, user stopped, blocked awaiting
-  input, agent failed, or infrastructure failed.
+- Execution: target submitted, local gold stop, review rounds exhausted,
+  budget exhausted, provider limited, user stopped, blocked awaiting input,
+  agent failed, or infrastructure failed.
 - Validity: compliant, approved deviation, contaminated, or evidence incomplete.
 - Assessment: target met/not met/unassessed plus the quality dimensions.
 
-A needs-input pause keeps the budget ledger and the declared clock policy.
-Restarting a session cannot reset allowances. Infrastructure retries follow a
-predeclared rule with a fresh attempt ID and retained failed-attempt evidence;
-charge all attempts against the approved study ceiling and report retry cost
-separately. Do not selectively retry poor semantic outcomes. Resume the same attempt only
-when its checkpoint, context-reconstruction policy, and isolation still match.
-Record outages and interrupted reviews rather than declaring them approved.
-Controller lease recovery also verifies the independent supervisor and original
-deadline before dispatch. An expired deadline forbids resuming either role,
-even if a pending review notification would otherwise be deliverable.
+V1 permits recovery of the same attempt, not automatic fresh attempts. Its
+first attempt is the primary one even if it fails. Resume only when its state,
+context-reconstruction policy, and isolation still match; retain the original
+deadline and all charged usage. A terminal outcome in section 5 cannot resume.
+For later profiles permitting needs-input pauses, those waits also retain the
+declared clock policy; v1 stops instead of pausing for input.
+
+Future profiles allowing fresh infrastructure attempts must freeze eligible
+failure classes and retry counts before launch. All attempts share the run's
+original deadline and aggregate resource ceilings; a new attempt receives only
+the remainder, fresh isolated inputs, and no earlier semantic output. Stop the
+old attempt before dispatching another. The last attempt started under that
+rule is primary, using its own latest eligible checkpoint; if it has none,
+report failure to deliver. Never select the best attempt or silently substitute
+an earlier checkpoint from a different attempt. Preserve every attempt and
+report retry resources. A separately budgeted rerun is a new allocation under
+an approved revision, not a replacement for the failed observation.
+
+Controller recovery verifies the backend lease, supervisor, and original
+deadline before dispatch. An expired lease or deadline forbids resuming either
+role, even if a pending handoff is deliverable. Record outages and interrupted
+reviews rather than declaring them approved.
 
 Do not add a second state machine for individual pass verdicts: consume the
 existing handoff protocol. Study-level stop enforcement must also cover
@@ -381,15 +495,26 @@ Never turn a cache hit or a claimed green scorecard into a new check result.
 
 Create neutral candidate IDs and hold condition/model/cost mappings outside
 the evaluator's initial view. First assess each candidate independently in
-fresh context, without other candidates' artifacts or judgments,
-then compare matched candidates with randomized presentation order. For
-pairwise model judging, repeat consequential comparisons with reversed order
-under the fixed evaluation budget; disagreements remain visible.
+fresh context, without other candidates' artifacts or judgments. Freeze a
+seeded candidate order and a common subject order before evaluation, then
+compare matched candidates with randomized presentation order. Reserve equal,
+non-transferable per-candidate budgets for each assessment/adjudication phase
+and fixed pairwise-comparison budgets. Do not consume a shared pool on early
+candidates and leave later ones unassessed. Log exhaustion and apply the same
+provisional-result rules to each candidate. For pairwise model judging, repeat
+consequential comparisons with reversed order under the fixed evaluation
+budget; disagreements remain visible.
 
 Preserve originals and provide a documented presentation layer for identity
-redaction. Do not rename semantic symbols or remove quality-bearing content
-to manufacture blindness. Reference-derived vocabulary may reveal a condition;
-record such leaks and evaluator guesses. Blinding is a mitigation, not a claim
+redaction. The initial quality view excludes original Git metadata, co-author
+lines, role/model attribution in archives, usage records, and process logs.
+Retain substantive findings and code evidence under neutral evidence IDs;
+keep the original-to-presented mapping outside the judge's access. If tools
+need Git, provide a fresh scratch repository without the original history.
+Trusted mechanical checks may use the originals and return anonymous results.
+Do not rename semantic symbols or remove quality-bearing content to manufacture
+blindness. Reference-derived vocabulary may reveal a condition; record such
+leaks and evaluator guesses. Blinding is a mitigation, not a claim
 that the evaluator can never infer the treatment. Use full process logs later
 for a separate compliance audit; lock initial quality judgments before opening
 identity-bearing history. The owner retains access to every original artifact.
@@ -455,6 +580,15 @@ independent second judgment for decisive contested findings, within the
 evaluation budget; preserve unresolved cases if that budget is exhausted.
 Do not assume the same model family provides independent error patterns.
 
+Record evaluator-family relationships to both run roles in the frozen profile.
+For model-comparison studies, an evaluator related to one arm cannot be the
+sole judge of the contrast: use a judge outside the compared families or a
+balanced judge panel with independent human adjudication of decisive findings.
+Apply the same judging protocol to every arm, retain each judge's ratings,
+and report sensitivity to judge choice. If that check is unaffordable, label
+the comparison exploratory with unresolved self-preference risk. Keeping one
+evaluator fixed across arms is necessary but does not establish neutrality.
+
 Prefer a dimension-by-dimension report with concrete findings. If an aggregate
 score is desired, freeze weights and blocker rules before outputs exist.
 Report rubric sensitivity separately; never choose weights to favor a result.
@@ -464,11 +598,11 @@ Only after judgments are locked reveal the assignment and cost mapping.
 
 `pilot-evaluation-v1` names the reference protocol for the first implementation.
 Its counts are bounded pilot defaults, not a statistical power claim. Freeze
-the concrete subjects, selection algorithm/seed, severity definitions, evaluator settings,
-and separate limits for mechanical checks, semantic review, developer tasks,
-comparison, and human adjudication before launching runs. Refuse unresolved
-limits. A different sample size or scoring policy requires a named profile
-revision before outputs exist.
+the concrete subjects, selection algorithm/seed, severity definitions,
+evaluator settings, and separate limits for mechanical checks, semantic
+review, developer tasks, comparison, and human adjudication before launching
+runs. Refuse unresolved limits. A different sample size or scoring policy
+requires a named profile revision before outputs exist.
 
 | Evidence set | Selection and use |
 |---|---|
@@ -485,14 +619,20 @@ For each primary subject, assign one status against its frozen answer criteria:
 
 | Status | Meaning |
 |---|---|
-| Supported | The candidate explains the subject correctly, with supporting evidence. |
+| Supported | The candidate explains the subject correctly in names, structure, or prose, and the evaluator verifies it against the answer criteria. |
 | Contradicted | A current candidate claim conflicts with established evidence. |
 | Unresolved | The candidate leaves the subject uncertain or only partially explained. |
 | Unaddressed | The candidate provides no meaningful account of the subject. |
 | Not assessable | The evaluator lacks the evidence, capability, or remaining budget to judge. |
 
-Count explanations carried by names and structure as well as prose. Superseded
-historical ledger entries are not current claims.
+Count explanations carried by names and structure as well as prose. A precise
+correct name can be supported when the evaluator establishes its meaning from
+code/runtime evidence; the candidate need not duplicate that meaning in a
+comment. A vague or explicitly incomplete account is unresolved. An assertion
+whose truth the evaluator cannot establish is not assessable, with its lack
+of support recorded; one contradicted by evidence is contradicted. Track the
+candidate's justification and confidence separately as evidence quality.
+Superseded historical ledger entries are not current claims.
 `supported` earns one unit; `contradicted`, `unresolved`, and `unaddressed`
 earn zero, with their counts kept separate. Conflicting claims about the same
 subject prevent a supported rating unless the candidate explicitly resolves
@@ -502,19 +642,29 @@ Keep the common denominator of 24. Report any `not assessable` subjects and
 lower/upper assessment bounds: supported/24 through
 (supported + not-assessable)/24. These are not statistical confidence intervals.
 Do not drop such subjects only for one candidate or convert inability to judge
-into a candidate error. Faulty answer
-keys require the versioned amendment and reassessment described above.
+into a candidate error. Faulty answer keys require the versioned amendment
+and reassessment described above.
 Missing eligible checkpoints are failures to deliver, with quality unassessed;
 reports include their frequency alongside scored outputs and never compare
 only successful runs without that qualification.
 
-Report material contradictions separately: these are errors that would
-misdirect a gameplay change, such as incorrect ownership or axis identity.
-More correct minor subjects cannot cancel them. V1 produces dimensional
-comparisons and explicit tradeoffs, without a weighted overall winner.
-Human review covers every proposed material contradiction and a seeded 20%
-sample of supported ratings, rounded up. Exhausted adjudication budgets leave
-dispositions provisional and visible.
+Report contradicted/24 as a co-primary observed error rate, including
+non-material errors. Report a coverage increase with a higher error rate as a
+tradeoff; include incorrect guesses alongside correct coverage. Material
+contradictions are errors that would misdirect a gameplay change, such as
+incorrect ownership or axis identity; report them separately. More correct
+minor subjects cannot cancel them. V1 produces dimensional comparisons and
+explicit tradeoffs, without a weighted overall winner.
+
+For each candidate, human review covers every proposed material contradiction
+plus a seeded 20% sample from each remaining nonempty status stratum, rounded
+up separately. Apply this to primary subjects and sampled authored claims
+separately, never to a pooled population across candidates. Include unresolved,
+unaddressed, and not-assessable ratings: search for missed explanations under
+different names or locations as well as checking over-credit. Freeze selection
+rules/seeds, retain selected IDs and denominators, and preserve initial and
+adjudicated ratings. Exhausted per-candidate adjudication budgets leave
+dispositions provisional and visible; they do not authorize dropping a stratum.
 
 Before spending on live project pilots, the evaluator must pass a synthetic
 calibration suite with four planted-error pairs (swapped axes, false RAM
@@ -522,7 +672,8 @@ ownership, wrong table extents, wrong entity identity), two omission pairs,
 four cosmetic-only pairs, and two cases with insufficient answer evidence.
 The clean originals have authored answer keys. The harness withholds expected
 dispositions from the judge, which receives the normal artifact/evidence
-interface. Two fresh calibration runs under the frozen settings must both:
+interface. Two fresh calibration runs under the frozen settings, with no
+feedback between them, must both:
 
 - identify all four planted errors with the relevant evidence, without
   inventing corresponding errors in the clean originals;
@@ -531,10 +682,16 @@ interface. Two fresh calibration runs under the frozen settings must both:
 - leave the two insufficient-evidence cases not assessable.
 
 Record per-case judgments and a human-checked calibration receipt. Failure
-blocks live pilots until the evaluator is revised and recalibrated. Success
-establishes this limited harness check, not general disassembly expertise;
-candidate findings still need evidence and adjudication. Preserve calibration
-history, and use separate fixtures for tuning and acceptance.
+blocks live pilots until a revised evaluator passes a fresh acceptance set.
+Once acceptance outcomes inform a revision to the evaluator, prompt, rubric,
+or harness, retire that fixture set to tuning and require a fresh, sealed
+acceptance set covering the same error classes and controls.
+Renaming the exposed cases is not a fresh set. Freeze the revised configuration
+before opening the new set; exhausted fixture or calibration budgets keep live
+pilots blocked. Preserve every failed round and fixture lineage. Replaying old
+cases is a regression check, not new acceptance evidence. Success establishes
+this limited check, not general disassembly expertise; candidate findings still
+need evidence and adjudication.
 
 ## 9. Experimental design and interpretation
 
@@ -566,6 +723,11 @@ can extend to the two-by-two design:
 | B | Withheld | Available |
 | C | Available | Withheld |
 | D | Withheld | Withheld |
+
+Freeze one FAQ/guide set, possibly empty, across all four conditions and record
+it explicitly in each condition's manifest. Audit any overlap with the manual;
+this design varies direct manual availability, not necessarily all knowledge
+the manual contains. Varying FAQ access is a separate factor or study revision.
 
 This tests both individual effects and whether their combination behaves
 differently. Repeat fresh runs once the harness works, then broaden the ROM
@@ -614,20 +776,29 @@ Required behaviors:
 1. A frozen manifest is sufficient to reconstruct assignments and input
    visibility. Changed assets, unresolved model settings, invalid waivers,
    unsupported budget guarantees, and policy mismatches refuse launch.
+   A prior-art corpus containing the target, a sibling revision, or excluded
+   same-engine solution refuses the first pilot even when both arms have a
+   manual; clean generic analogues remain usable.
 2. Isolation tests exercise sibling repositories/Git objects, symlinks, homes,
-   caches, process state, network, connectors, and reviewer access. A benign
-   sentinel in a withheld source is unreadable; permitted references remain
-   usable. Do not rely solely on the agent's promise or absence of an access log.
+   caches, process state, network, connectors, and reviewer access. Also attempt
+   provider-side search/fetch and account memory/connector retrieval through
+   the allowed model endpoint. A benign sentinel in a withheld source is
+   unreadable; permitted references remain usable. Verify effective capability
+   controls, not just an agent's promise or absence of an access log.
 3. Fresh runs do not inherit prior sessions, analysis caches, or semantic
    output. Intake and pass wrappers still work with each supported profile;
    deliberate exclusions never turn parity or integrity failures into green.
-4. Budget/stop tests cover slow metering, active model requests and subprocesses,
+   Manual-withheld fixtures retain `REFERENCE_SCOPE`, processed FAQ evidence,
+   and linked gold assessments/waivers; missing or invalid evidence still fails.
+4. Budget/stop tests cover slow metering, active requests and subprocesses,
    closeout/shutdown reserves, agent death, restarts, duplicate handoffs, and
    exhausted review rounds. Kill the study controller during active work and
-   prove the independent supervisor still stops the run by its deadline;
-   restart after expiry and prove no pending handoff can resume it. Test loss
-   of enforcement and clock uncertainty too. No extra pass or budget reset
-   occurs; unrelated work survives.
+   prove the supervisor still stops the run by its deadline. Kill the supervisor
+   alone and then both processes; the backend lease must terminate owned work
+   within its bound in both cases. Deny attempts to renew beyond the original
+   deadline; reject a backend without independent expiry. Restart after expiry
+   and prove no pending handoff can resume. Test clock uncertainty too. No extra
+   pass or budget reset occurs; unrelated work survives.
 5. Crash injection around artifact publication preserves the last complete
    checkpoint and unfinished work. Changed heads, missing outputs, altered
    hashes, partial telemetry, and stale workers are diagnosed, never accepted
@@ -635,6 +806,10 @@ Required behaviors:
    and an on-time receipt remains eligible without the later archive commit;
    incomplete, late, or mismatched receipts do not. Post-stop packaging cannot
    change that decision.
+   Insert an unreviewed intake commit, source changes into an archive commit,
+   or a skipped range after exhausted review rounds; each breaks eligibility
+   until an approval covers it. Exact generated archive-only commits remain
+   eligible exceptions. Detect content tampering even inside permitted paths.
 6. Evaluation detects synthetic swapped axes, false RAM ownership, incorrect
    table extents, omitted hard cases, and confident wrong identities. Pure
    symbol renames and extra prose do not improve a correctness score. Unknown
@@ -642,12 +817,26 @@ Required behaviors:
    The pilot profile's calibration must pass before live pilots; test its
    sample selection, common denominators, status scoring, and failure reporting
    with deterministic synthetic judgments as well as the actual evaluator.
+   Correct name-only explanations can be supported by code evidence; incorrect
+   guesses increase the reported error rate. Plant false-negative ratings and
+   verify all nonempty strata are sampled per candidate. A feedback-driven
+   evaluator revision cannot reuse its exposed acceptance set to qualify.
 7. Blind presentation preserves semantic evidence; reversed pair order,
    identity leaks, prompt injection in artifacts, judge disagreement, and
    evaluation-budget exhaustion receive recorded dispositions.
+   Check Git/co-author and archive metadata redaction, seeded assessment order,
+   and reserved per-candidate budgets. Model comparisons must enforce the
+   declared self-preference check or carry the explicit exploratory limitation.
 8. Reports retain failures and censored runs, distinguish raw gates from
    study compliance, and reproduce allocations, sampled subjects, denominators,
    and aggregates from frozen records. Amendments never overwrite history.
+9. Startup acknowledgements use only frozen authorizations and do not depend
+   on owner latency; unexpected input, local gold, review exhaustion, and quota
+   stops preserve explicit outcomes and unused budgets. A depleted shared quota
+   refuses the next controlled launch. Same-attempt recovery keeps the original
+   deadline; v1 refuses fresh retries. Future retry profiles must demonstrate
+   the original aggregate cap and deterministic primary-attempt selection.
+   Hidden answer keys never enter logistical responses or helper context.
 
 Demonstrate bad-direction proofs in disposable fixtures: remove a visibility
 restriction, disable manifest binding, reset a budget on restart, accept a
@@ -662,18 +851,22 @@ agent-application adapter, with pinned versions and demonstrated capabilities.
 V1 supports only that combination; the two run roles remain separate sessions
 with independently selected supported models and reasoning settings.
 
-V1 includes serial runs, fixed wall-time budgets, independently enforced
-deadlines, approved-checkpoint capture, the pilot evaluation profile, and a
-private comparison report. Pre-stage references and runtime assets; deny live
-browsing and undeclared network access. The normal pass-review protocol and
-production permission rules remain in force except for explicit study profiles.
+V1 includes serial runs, fixed wall-time budgets, backend-enforced sandbox
+leases, approved-checkpoint capture with continuous review coverage, the pilot
+evaluation profile, and a private comparison report. Pre-stage references and
+runtime assets; deny live browsing and undeclared network access. The normal
+pass-review protocol and production permission rules remain in force except
+for explicit study profiles.
 
 Defer concurrent run scheduling, additional backends/adapters, hard token or
-monetary limits, live-search treatments, and target-quality stopping. Manifests
-requesting unsupported features refuse launch; they do not silently downgrade.
-The feasibility exit criteria are isolated authentication, sufficient declared
-telemetry, deadline enforcement despite controller loss, and capture of a
-reviewed checkpoint without contaminating or altering production state.
+monetary limits, live-search treatments, fresh infrastructure retries, live
+semantic assistance, and target-quality stopping. Manifests requesting
+unsupported features refuse launch; they do not silently downgrade.
+The feasibility exit criteria are isolated authentication and provider features,
+verifiable quota capacity, sufficient declared telemetry, lease enforcement
+despite controller and supervisor loss, deterministic startup consent handling,
+and capture of a continuously reviewed checkpoint without altering production
+state. An unsupported capability blocks that adapter/backend combination.
 
 Roll out in stages: validate manifests and isolation without agents; rehearse
 state/capture/evaluation with synthetic outputs; pass evaluator calibration
@@ -694,12 +887,15 @@ or a model-quota estimate. These ranges do not authorize work or spending.
 | Useful v1 pilot implementation, including basic evaluation | 10–20 additional days |
 | Full system described by this specification, including deferred capabilities | Approximately 6–10 weeks total, including the earlier stages |
 
-Reuse the existing pass-review protocol, verification wrappers, and trace
-supervisor. New work covers manifest validation, isolation/authentication,
+Reuse the existing pass-review protocol, verification wrappers, and supervised
+FCEUX runner. New work covers manifest validation, isolation/authentication,
 deadline enforcement, usage and artifact capture, evaluation, reporting, and
 recovery tests. Split these into reviewable tooling changes. Isolation and
 agent telemetry integration, plus evaluator calibration, are the largest
-uncertainties; revise the estimate after the feasibility milestone.
+uncertainties. These ranges assume a backend can enforce independent lease
+expiry and an adapter exposes provider-feature and capacity controls. Prove
+those during feasibility; otherwise select another combination and reestimate
+before building the remaining controller.
 
 The estimate excludes live experiment runtime and model costs, authoring the
 private ROM benchmark/answer keys, and human adjudication of study results.
