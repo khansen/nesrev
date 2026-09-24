@@ -91,10 +91,10 @@ ceilings, expected manual work, and capabilities the host cannot enforce.
 | Software | Tooling commit and exported tree digest, controller version, playbook/prompt/template hashes, assembler and generator identities, host/runtime/OCR dependencies |
 | Roles | Agent executable/version, requested and resolved model identity, reasoning settings for each role, exposed generation settings, prompt/context/compaction policy |
 | Isolation | Backend/version, mount and network policy, fresh-session policy, provider-side feature controls, permitted plugins/connectors, contamination checks |
-| Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and backend lease contract, checkpoint eligibility policy, metering precision, restart/retry and primary-attempt rules, human assistance and permission policy |
-| Stopping | Budget and owner stops, local gold/review-exhaustion/input/quota outcomes, target-quality submission opportunities and permitted feedback, unused-budget reporting |
+| Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and backend lease contract, checkpoint eligibility policy, metering precision, restart/retry and primary-attempt rules, input-event detection bounds, human assistance and permission policy |
+| Stopping | Budget and owner stops, local gold/review-exhaustion/input/quota/history-rewrite outcomes, target-quality submission opportunities and permitted feedback, unused-budget reporting |
 | Policy | Experiment-only overrides, affected rules/checks, exact permitted deviations, reference-intake consent requirements |
-| Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, scoring/denominator rules, adjudication policy, per-phase evaluation budgets |
+| Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, shared subject-assessability and pending-judgment policy, scoring/denominator rules, adjudication policy, per-phase evaluation budgets |
 | Retention | Artifact locations, capture completeness requirements, secret redaction, access controls, retention and export policy |
 
 Keep credentials out of manifests and logs. Private asset identifiers resolve
@@ -322,15 +322,25 @@ thereafter, account for every intervening commit through the proposed head.
 Each must fall inside a recorded, approved review range or be a verified
 archive-only commit. V1 uses linear history and binds the actual ranges and
 commit IDs; choosing a later review base cannot hide an intervening change.
+At every handoff, capture, and redispatch, require the current head to descend
+from each existing boundary: the last recorded handoff head and latest
+eligible checkpoint. Before either exists, use the frozen starter. Check
+before advancing either boundary. A rewrite that breaks this ancestry stops
+v1 as `protocol violation: history rewrite`. Preserve the last eligible
+checkpoint and the rewritten tree with that outcome; never silently continue
+with an increasingly stale primary output. Include this restriction in run
+instructions; v1 has no history-rewrite recovery.
+
 An archive-only exception permits exactly the deterministic review archive
 and generated learning-candidate updates produced from that approval by the
 pinned tooling. Preserve all archive-generation inputs and check the output
 against those inputs, approved artifacts, and parent tree; a path allowlist
-or commit title alone is insufficient.
-Other changes, including gameplay docs or source bundled with an archive,
-require review. An exhausted-rounds override is never an approval receipt;
-its changes must be covered by an eventual approved range before eligibility.
-Missing coverage rejects the new checkpoint and preserves the prior one.
+or commit title alone is insufficient. Other changes, including gameplay docs
+or source bundled with an archive, require review. In a future profile allowing
+exhausted-rounds overrides, an override is never an approval receipt; its
+changes need an eventual approved range before eligibility. V1 stops at
+exhausted rounds. Missing coverage rejects the new checkpoint and preserves
+the prior one.
 
 The implementer's follow-up archive commit is not an eligibility prerequisite:
 the receipt already preserves the actual review and its reviewed source. If
@@ -355,9 +365,21 @@ authentication, scoped permissions, and explicit intake decisions without
 performing agent work on the task. A deterministic adapter acknowledges only
 non-authorizing startup prompts already satisfied by those frozen decisions,
 using the same response schedule in every arm. It cannot grant a new permission
-or invent a manual waiver. An unexpected request for human action stops the
-attempt as `blocked awaiting input` immediately; it does not wait for whichever
-time the owner happens to respond. Normal approval controls remain active.
+or invent a manual waiver. An unexpected request for human action fences
+dispatch and stops the attempt as `blocked awaiting input` within the frozen
+detection/shutdown bound. It does not wait for whichever time the owner happens
+to respond. Normal approval controls remain active.
+
+The adapter must expose durable permission-request and assistant-turn-end
+events, bound to run, role, and worker generation. Run instructions require
+an explicit `needs_input` outcome for questions to the user. At each active
+role's turn end, the controller checks that outcome and the recorded handoff
+state. Expected handoff waits are normal. A turn ending without a recognized
+outcome or handoff stops as `infrastructure failed: unclassified agent stop`,
+preserving its text; an unmarked question cannot idle to the budget deadline.
+Missing event telemetry also fails closed. Pane silence alone cannot identify
+either productive work or an input request. Rehearse actual adapter events,
+including a question displayed in a pane without the required marker.
 
 For later studies permitting live help, preregister response windows, maximum
 wait, allowed content, and time accounting identically across arms. Semantic
@@ -404,8 +426,9 @@ Track execution outcomes separately from validity and quality:
 
 - Execution: target submitted, local gold stop, review rounds exhausted,
   budget exhausted, provider limited, user stopped, blocked awaiting input,
-  agent failed, or infrastructure failed.
-- Validity: compliant, approved deviation, contaminated, or evidence incomplete.
+  protocol violation, agent failed, or infrastructure failed.
+- Validity: compliant, approved deviation, protocol invalid, contaminated,
+  or evidence incomplete.
 - Assessment: target met/not met/unassessed plus the quality dimensions.
 
 V1 permits recovery of the same attempt, not automatic fresh attempts. Its
@@ -552,10 +575,12 @@ or force extra per-pass ledger work just to serve the evaluator.
 
 For each sampled subject, record supported, contradicted, unresolved,
 unaddressed, or not assessable, along with rationale, severity, confidence,
-and exact evidence references. An unknown answer key or missing evaluator
-capability is not a candidate error. Report assessment coverage and unresolved
-adjudication explicitly. Preregister severity and scoring rules; high-impact
-confident errors cannot be concealed by many trivial correct aliases.
+and exact evidence references. Shared primary subjects use the common
+assessability rule below. An unknown answer key or missing evaluator capability
+is not a candidate error. Report pending judgments and adjudication separately;
+they are unfinished evaluation work, not semantic ratings. Preregister severity
+and scoring rules; high-impact confident errors cannot be concealed by many
+trivial correct aliases.
 
 Manuals establish vocabulary but do not prove its mapping to code. Existing
 completed disassemblies are candidate evidence, not unquestioned answer keys.
@@ -615,7 +640,24 @@ If a ROM cannot support those populations or tasks, choose and approve a
 revised profile before launch. Do not invent subjects or substitute easier
 ones after inspecting candidate outputs.
 
-For each primary subject, assign one status against its frozen answer criteria:
+First determine assessability for each primary subject in the ROM block from
+the reference evidence and required evaluator capability. If these cannot
+settle its answer criteria, mark it not assessable for every candidate,
+including confident guesses, explicit unknowns, and omissions. Record the
+same subject IDs and reason across candidates; candidate wording cannot change
+this decision. Newly established evidence requires the versioned amendment
+and reassessment of all affected candidates described above.
+
+Only for assessable subjects, judge each candidate against the answer criteria.
+Inspection or adjudication left unfinished by one evaluator's budget exhaustion
+is a pending judgment. It does not change subject assessability or become an
+unresolved candidate rating. Preserve completed judgments, but withhold final
+primary scores, bounds, and comparative conclusions involving that candidate
+while required judgments remain pending. Candidate-specific authored claims
+are a separate evidence set and never change which primary subjects can be
+assessed.
+
+For completed judgments, use these statuses:
 
 | Status | Meaning |
 |---|---|
@@ -623,27 +665,30 @@ For each primary subject, assign one status against its frozen answer criteria:
 | Contradicted | A current candidate claim conflicts with established evidence. |
 | Unresolved | The candidate leaves the subject uncertain or only partially explained. |
 | Unaddressed | The candidate provides no meaningful account of the subject. |
-| Not assessable | The evaluator lacks the evidence, capability, or remaining budget to judge. |
+| Not assessable | The subject's reference evidence or required evaluator capability is insufficient; the same primary subject receives this status for every candidate. |
 
 Count explanations carried by names and structure as well as prose. A precise
 correct name can be supported when the evaluator establishes its meaning from
 code/runtime evidence; the candidate need not duplicate that meaning in a
-comment. A vague or explicitly incomplete account is unresolved. An assertion
-whose truth the evaluator cannot establish is not assessable, with its lack
-of support recorded; one contradicted by evidence is contradicted. Track the
-candidate's justification and confidence separately as evidence quality.
+comment. On an assessable subject, a vague or explicitly incomplete account
+is unresolved; an assertion contradicted by evidence is contradicted. On a
+subject that cannot be settled, retain the common not-assessable status and
+record unsupported certainty versus acknowledged uncertainty separately as
+evidence quality. Neither earns extra quantitative credit.
 Superseded historical ledger entries are not current claims.
 `supported` earns one unit; `contradicted`, `unresolved`, and `unaddressed`
 earn zero, with their counts kept separate. Conflicting claims about the same
 subject prevent a supported rating unless the candidate explicitly resolves
 them. These units measure sampled correct coverage, not whole-ROM completion.
 
-Keep the common denominator of 24. Report any `not assessable` subjects and
-lower/upper assessment bounds: supported/24 through
-(supported + not-assessable)/24. These are not statistical confidence intervals.
-Do not drop such subjects only for one candidate or convert inability to judge
-into a candidate error. Faulty answer keys require the versioned amendment
-and reassessment described above.
+Keep the common denominator of 24. For finalized evaluations, report the shared
+`not assessable` subjects and lower/upper bounds: supported/24 through
+(supported + shared-not-assessable)/24. The latter count is identical across
+candidates in the ROM block. These are not statistical confidence intervals;
+pending judgments cannot be inserted into either count. Do not drop subjects
+only for one candidate or convert inability to judge into a candidate error.
+Faulty answer keys require an amendment and reassessment as described above.
+
 Missing eligible checkpoints are failures to deliver, with quality unassessed;
 reports include their frequency alongside scored outputs and never compare
 only successful runs without that qualification.
@@ -669,7 +714,9 @@ dispositions provisional and visible; they do not authorize dropping a stratum.
 Before spending on live project pilots, the evaluator must pass a synthetic
 calibration suite with four planted-error pairs (swapped axes, false RAM
 ownership, wrong table extents, wrong entity identity), two omission pairs,
-four cosmetic-only pairs, and two cases with insufficient answer evidence.
+four cosmetic-only pairs, and two subjects with insufficient answer evidence.
+For each insufficient-evidence subject, present a confident unsupported guess,
+an honest unknown, and an omission as otherwise equivalent candidate variants.
 The clean originals have authored answer keys. The harness withholds expected
 dispositions from the judge, which receives the normal artifact/evidence
 interface. Two fresh calibration runs under the frozen settings, with no
@@ -679,7 +726,9 @@ feedback between them, must both:
   inventing corresponding errors in the clean originals;
 - mark the two omitted subjects unaddressed, retaining their denominators;
 - preserve semantic statuses and coverage for cosmetic symbol/prose variants;
-- leave the two insufficient-evidence cases not assessable.
+- mark each insufficient-evidence subject not assessable for all three
+  variants, with identical bounds and observed error rates, while preserving
+  their different uncertainty disclosures.
 
 Record per-case judgments and a human-checked calibration receipt. Failure
 blocks live pilots until a revised evaluator passes a fresh acceptance set.
@@ -805,11 +854,15 @@ Required behaviors:
    as a complete or approved run. An approved source with matching evidence
    and an on-time receipt remains eligible without the later archive commit;
    incomplete, late, or mismatched receipts do not. Post-stop packaging cannot
-   change that decision.
-   Insert an unreviewed intake commit, source changes into an archive commit,
-   or a skipped range after exhausted review rounds; each breaks eligibility
-   until an approval covers it. Exact generated archive-only commits remain
-   eligible exceptions. Detect content tampering even inside permitted paths.
+   change that decision. Insert an unreviewed intake commit or source changes
+   into an archive commit; either breaks eligibility until an approval covers
+   it. Exact generated archive-only commits remain eligible exceptions. Detect
+   content tampering even inside permitted paths. Amending or rebasing recorded
+   history must stop v1 with the explicit protocol-violation outcome at the
+   next handoff, capture, or redispatch; appending reviewed commits still works.
+   For future profiles permitting exhausted-rounds overrides, also reject a
+   skipped range until a later approval actually covers it. V1 permits no such
+   override.
 6. Evaluation detects synthetic swapped axes, false RAM ownership, incorrect
    table extents, omitted hard cases, and confident wrong identities. Pure
    symbol renames and extra prose do not improve a correctness score. Unknown
@@ -821,6 +874,11 @@ Required behaviors:
    guesses increase the reported error rate. Plant false-negative ratings and
    verify all nonempty strata are sampled per candidate. A feedback-driven
    evaluator revision cannot reuse its exposed acceptance set to qualify.
+   Incomplete answer evidence must give a guess, honest unknown, and omission
+   the same primary not-assessable subjects and bounds. New verified evidence
+   updates every affected candidate through an amendment. A candidate-specific
+   inspection timeout leaves a pending judgment and no finalized primary
+   comparison; it cannot change the common not-assessable count.
 7. Blind presentation preserves semantic evidence; reversed pair order,
    identity leaks, prompt injection in artifacts, judge disagreement, and
    evaluation-budget exhaustion receive recorded dispositions.
@@ -837,6 +895,10 @@ Required behaviors:
    deadline; v1 refuses fresh retries. Future retry profiles must demonstrate
    the original aggregate cap and deterministic primary-attempt selection.
    Hidden answer keys never enter logistical responses or helper context.
+   Inject mid-pass permission requests, explicit input outcomes, unmarked
+   questions at turn end, and event-channel loss. Each must stop with its
+   diagnostic within the declared bound, rather than idle to budget exhaustion.
+   Normal handoff waits must not trigger those failures.
 
 Demonstrate bad-direction proofs in disposable fixtures: remove a visibility
 restriction, disable manifest binding, reset a budget on restart, accept a
@@ -864,9 +926,14 @@ semantic assistance, and target-quality stopping. Manifests requesting
 unsupported features refuse launch; they do not silently downgrade.
 The feasibility exit criteria are isolated authentication and provider features,
 verifiable quota capacity, sufficient declared telemetry, lease enforcement
-despite controller and supervisor loss, deterministic startup consent handling,
-and capture of a continuously reviewed checkpoint without altering production
-state. An unsupported capability blocks that adapter/backend combination.
+despite controller and supervisor loss, bounded input-event detection, and
+capture of a continuously reviewed checkpoint without altering production
+state. Also complete a rehearsal on synthetic project material using the actual
+agent adapter, backend, and scoped permissions: intake, an ordinary pass,
+review-requested changes, approval, archive, and another pass. It must complete
+without unexpected startup or mid-pass prompts. Fix rehearsal failures and
+repeat before the live pilot; no blanket permission bypass follows from them.
+An unsupported capability blocks that adapter/backend combination.
 
 Roll out in stages: validate manifests and isolation without agents; rehearse
 state/capture/evaluation with synthetic outputs; pass evaluator calibration
