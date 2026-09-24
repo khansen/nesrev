@@ -353,6 +353,13 @@ flowchart TD
     quiet --> integrate[Approved local effects and checks]
     integrate --> record[Commit records and eligible receipt or prune changes]
     record --> decision[Resume if still authorized; otherwise remain paused]
+    integrate -->|Conflict or failed checks| recovery[Hold for recovery]
+    record -->|Failed final checks| recovery
+    recovery -->|Reviewed retry| integrate
+    recovery -->|Operator-approved abort| restore[Preserve evidence and restore prior state]
+    restore -->|Validated and recorded| aborted[Integration aborted; merge retained]
+    restore -->|Failed or uncertain| recovery
+    aborted --> decision
 ```
 
 Persist job progress separately from checkout run control in the proposed
@@ -373,17 +380,18 @@ nor permission to publish project evidence.
 
 Each job records its candidates, source snapshots, stage, budget consumption,
 feature base/head, review evidence, approval, PR/merge identity when present,
-receipt reconciliations, affected checkouts, next operation, and recovery
-information. Each checkout record includes its identity, branch, pause request,
-active admission, structured run grant, original task, holds, protocol/worker
-identities, stopped/running status, and pre/post-integration heads.
+receipt reconciliations, affected checkouts, integration attempts, next
+operation, and recovery information. Each checkout record includes its identity,
+branch, pause request, active admission, structured run grant, original task,
+holds, protocol/worker identities, stopped/running status, and heads before
+and after integration.
 
 Keep user, correctness, and maintenance holds as separate records with their
-own IDs, owners, and release conditions. Completing a job releases only its
-maintenance hold. Holds survive controller death and do not expire into
-permission to run. Missing or malformed control state fails closed for a
-registered managed workspace; an ordinary workspace without monitor enrollment
-keeps its existing behavior.
+own IDs, owners, and release conditions. Successful integration or an approved,
+verified abort releases only that job's maintenance hold. Holds survive
+controller death and do not expire into permission to run. Missing or malformed
+control state fails closed for a registered managed workspace. An ordinary
+workspace without monitor enrollment keeps its existing behavior.
 
 Separate locks serialize repository tooling jobs and checkout control-state
 transactions. Project dispatchers and the monitor use the same local checkout
@@ -512,9 +520,11 @@ uses the same checkout ownership and receipt writeback rules.
    skip already-decided IDs; unexpected ancestry, permission effects, or
    migration needs require a refreshed local proposal.
 3. Pin the pre-integration head under the immutable local ref
-   `refs/nesrev/process-monitor/<job-id>/<checkout-id>/before` and record its
-   object ID. Pin any additional reachable review bases/heads not retained by
-   that history. Record previously unavailable historical objects honestly.
+   `refs/nesrev/process-monitor/<job-id>/<checkout-id>/<attempt-id>/before`
+   and record its object ID. Pin additional reachable review bases/heads not
+   retained by that history. Disclose historical objects that are unavailable.
+   Record the pre-integration launch/control/ingestion versions, including
+   external tool paths, alongside the baseline checks for possible restoration.
    Rebase onto the confirmed target; never push the project branch or private
    pins. Preserve historical review SHAs in archives. Confirm that project
    content is unchanged except for explicitly reviewed local migrations.
@@ -587,6 +597,68 @@ Report `PROCESS CHANGE INTEGRATED — PROJECT REMAINS PAUSED` with the reason wh
 the checkout stays stopped, including gold, an exhausted grant, or a user hold.
 Otherwise confirm the new agents received the correct task and report `RESUMED`.
 
+### Operator-approved integration abort
+
+Offer abort as well as retry when a conflict or failed check leaves maintenance
+held. This is an explicit local recovery action, not an upstream revert. It is
+available before this attempt is `integrated-and-verified` and before any new
+project pass has been admitted. Undoing a completed rollout is separate work.
+
+Prepare and verify the preservation snapshot described below before presenting
+a concrete abort proposal binding the job/attempt, checkout/branch,
+hold generation, current Git state, immutable before-pin OID, preservation
+snapshot, exact restoration operations, baseline check recipe, and restart
+choice. Show what will be restored and what remains merged upstream. Obtain
+explicit operator approval; the original rollout approval does not authorize
+a reset. Changed inputs require reconciliation before mutation; changed
+restoration targets or effects require fresh approval.
+
+1. Retain exclusive ownership and verify that all owned project commands remain
+   stopped. The snapshot preserves interim commits under durable refs and saves
+   uncommitted work, index/conflict stages, rebase metadata, resolutions, and
+   diagnostics outside the checkout. Revalidate it against the approved state
+   before destructive operations. Preserve untracked/reference files and check
+   for path collisions.
+   Unrelated writes, an intervening pass, or effects outside the restoration
+   plan require a separate recovery decision; never discard them implicitly.
+2. Abort an owned in-progress rebase, or restore the approved branch to its
+   pinned pre-integration head if the rebase finished. Verify the resulting
+   head, tracked tree, and absence of a Git operation. Restore the recorded
+   compatible launch/tool versions; unsupported migration or permission changes
+   need supervised recovery. Do not roll back the shared control store: retain
+   grants, consumed allowances, other holds, and observation history. Reconcile
+   only this attempt's local integration state to the restored revision.
+3. Run the approved checks against the pre-integration baseline, keeping strict,
+   relaxed, and pre-existing failure results distinct. Preserve the attempt's
+   failed receipts/pruning batch as evidence, not active success dispositions;
+   the restored queue and receipts must match the before-pin snapshot. Create
+   no applied-fix epoch or `fixed` receipt for this aborted attempt.
+4. Commit an abort-only record on top of the restored head. Record the actual
+   upstream merge, pins/snapshot, restoration operations, checks, and terminal
+   local outcome `integration-aborted`; do not claim `integrated-and-verified`.
+   Check the record batch and cleanliness before releasing only this job's
+   maintenance hold. The new head is the before pin plus this audit commit,
+   with no tooling, queue, or receipt changes from the failed integration.
+
+Use the normal launcher admission checks to resume on the restored tooling
+only when the abort approval requests restart, this maintenance parked the
+pair, and the remaining grant/holds permit it. Previously stopped checkouts
+stay stopped. Any preservation, restore, check, or record failure keeps the
+hold; recovery must recognize completed abort steps rather than repeat resets.
+Record restoration and resumption separately. Keep all recovery evidence and
+do not refund process-work usage or project-pass allowance.
+
+Report `MERGED — LOCAL INTEGRATION ABORTED`, with the restored head and whether
+the project resumed. The job remains known to the monitor; original candidates
+and dispositions remain as restored, and new scans must not create a duplicate
+tooling job or merge. A later integration attempt requires an explicit request
+and refreshed local approval, uses the existing merge, and records a new
+attempt/before pin without overwriting earlier evidence.
+
+Route-only writeback can use the same local abort procedure, with no remote
+merge and outcome `writeback-aborted`. Preserve that distinction in its record
+and status; it must not emit a merged-success claim.
+
 ### Recurrence after an applied fix
 
 Current archive ingestion filters out text with any existing receipt before
@@ -648,9 +720,11 @@ Recovery must preserve work and explain the next action:
 | Another writer decides a job's candidates | Reconcile before costly/remote stages and at writeback; retain immutable receipts and skip their updates after merge |
 | Project workers already stopped | Use the stopped boundary without acknowledgements; completed solo work needs no paired archive |
 | Dirty tree, unfinished pass/review, or missing running-worker acknowledgement | Refuse ownership and name the unmet condition; absence of agents is not completion evidence |
-| Rebase conflict | Keep agents held; preserve conflict state and recovery head; request a reviewed resolution |
-| Newly failing integration checks | Keep agents held; do not mark the candidate fixed or automatically weaken gates |
-| Fix merged but local integration failed | Record the actual merged revision; retry integration only, never create a duplicate merge |
+| Rebase conflict | Preserve conflict state and recovery head while held; offer a reviewed resolution or an operator-approved abort |
+| Newly failing integration checks | Keep agents held; offer repair/retry or approved abort, never a false success disposition or weaker gates |
+| Fix merged but local integration failed | Retain the actual merge; retry local integration or approve abort/restoration, never create a duplicate merge |
+| Operator approves integration abort | Preserve evidence, restore and verify the before-pin baseline, and commit the abort record before releasing only this hold; resume old tooling only within the approved restart and remaining grant |
+| Abort restore/check/record fails or its outcome is uncertain | Keep the hold and all snapshots; reconcile actual state and retry only incomplete abort steps |
 | Crash after local completion but before restart | Detect committed records and actual workspace state; resume at most once if authorized and this maintenance parked the pair |
 | Same observation after a verified fix | Preserve its raw event and use recurrence ingestion; do not silently suppress it because the earlier candidate has a receipt |
 | Operator stops the monitor | Cancel its model invocations within the shutdown bound and inhibit monitor-initiated publication, integration, and maintenance restart. Leave project dispatchers running within their grant; preserve existing holds and side-effect records for recovery |
@@ -671,11 +745,12 @@ The status view distinguishes `AWAITING APPROVAL`, `WAITING FOR REMOTE CHECKS`,
 and `ROUTE WRITEBACK PENDING`. Boundary states are `WAITING FOR PASS BOUNDARY`,
 `STOPPED BOUNDARY READY`, and `MAINTENANCE HELD`. After merge, distinguish
 `MERGED — INTEGRATION PENDING`, `INTEGRATED — RESTART PENDING`, and
-`PROJECT REMAINS PAUSED`. Show the project's actual running/stopped state
-separately from the tooling stage. Waiting for remote actions does not itself
-pause it. Show hold owners and project/process allowances separately. Every
-`NEEDS INPUT` message states what is preserved, what may continue, and one
-concrete next action; reconnecting is not a cure for a persistent hold.
+`MERGED — LOCAL INTEGRATION ABORTED`. Show `PROJECT REMAINS PAUSED` and the
+project's running/stopped state separately from the tooling stage. Waiting for
+remote actions does not itself pause it. Show hold owners and project/process
+allowances separately. Every `NEEDS INPUT` message states what is preserved,
+what may continue, and one concrete next action; reconnecting is not a cure
+for a persistent hold.
 
 ## 10. Acceptance criteria and rollout
 
@@ -739,6 +814,17 @@ implementation acceptance requirements, not claims of existing test coverage:
   the entire prospective local batch before a new `fixed` receipt. Newly failing
   checks remain held; reference files and untracked work survive. No path pushes
   the project branch, private pins, or project evidence.
+- Abort both a conflicted rebase and a completed rebase with failing checks.
+  Require explicit approval and a verified snapshot preserving conflict stages,
+  resolutions, interim commits, and diagnostics. Restore the exact before-pin
+  tree/receipts plus the abort-only record; retain the remote merge and grant
+  usage, with no `fixed` disposition, fix epoch, or duplicate merge/job. Refuse
+  intervening passes, unrelated writes, and unapproved destructive operations.
+  Inject failures/crashes at preservation, restoration, checks, and recording;
+  retain the hold until verified recovery. Check both authorized old-tooling
+  resumption and continued stopping under other holds or spent grants. Test
+  route-only abort without a remote merge claim and a later approved integration
+  attempt with new pins and preserved earlier abort evidence.
 - Report identical raw learning before and after a fix. Only a new post-fix pass
   creates one recurrence candidate with provenance, including for a previously
   `accepted` candidate whose fix was integrated. Preserve immutable receipts.
@@ -775,8 +861,9 @@ Deliver in stages under this single contract:
    the same invocation enforcement. No automated remote/local rollout yet.
 3. Structured grants and enforced dispatch/admission, shared checkout control,
    guarded publication/merge, running/stopped integration, Route writeback,
-   recurrence ingestion, and restart. Include fault/recovery tests and a
-   supervised end-to-end trial before enabling these mutations.
+   recurrence ingestion, approved abort/restoration, and restart. Include
+   fault/recovery tests and a supervised end-to-end trial before enabling
+   these mutations.
 
 Do not advertise end-to-end automation before the final stage passes.
 Per-change human approval remains required afterward.
@@ -825,10 +912,14 @@ guaranteed calendar delivery. Approval of the spec does not allocate this work.
 | Deliverable | Estimated engineering effort |
 |---|---|
 | Feasibility prototypes for admission, watchdog, ingestion, and remote guards | 2–4 days |
-| Useful detection, bounded triage, and status view | 3–5 additional days |
-| Isolated tooling implementation/review and approval proposals | 5–8 additional days |
-| Managed integration/resumption, recurrence, fault tests, and pilot hardening | 10–18 additional days |
+| Stage 1: detection, watchdog/lease enforcement, bounded triage, and status | 5–8 additional days |
+| Stage 2: isolated implementation/review and proposals, reusing the watchdog | 3–5 additional days |
+| Stage 3: integration, abort/resumption, recurrence, fault tests, and pilot | 10–18 additional days |
 | Complete constrained v1 chain | 20–35 engineering days: 4–7 working weeks total |
+
+Stage 1 includes implementing and testing invocation enforcement, beyond the
+feasibility prototype; stage 2 reuses it. The allocation moves that work earlier
+without increasing the total. Abort/restoration is part of stage 3 recovery.
 
 The existing parser and handoff tools reduce preparation work, but enforced
 admission/grants, independent shutdown, recurrence ingestion, approval binding,
