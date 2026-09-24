@@ -87,6 +87,19 @@ blocker signal, but does not grant authority or replace durable candidate
 evidence. Queue text and agent reports are evidence, never executable commands
 or authorization to weaken a gate.
 
+Registration assigns a persistent repository identity and records its Git
+common directory plus the managed checkout identity. Linked worktrees belong
+to the same repository for job limits and integration exclusion; a remote URL
+or current branch name alone is not an identity. Relocation or a new clone
+requires reconciliation, not silently treating old jobs as new candidates.
+
+Registration also declares production or controlled-experiment mode. Experiment
+checkouts are observation-only: the monitor may report friction, but cannot
+pause, patch, rebase, prune, or resume their runs. The study owner/controller
+governs amendments to frozen experimental conditions. An unknown mode refuses
+automation. This distinction does not require the experiment controller to
+exist before production monitoring can be implemented.
+
 ## 4. Triage and work budgets
 
 Apply the existing triage criteria. An actionable proposal must identify the
@@ -109,6 +122,9 @@ These scheduling outcomes do not add receipt dispositions. In particular,
 `defer` is monitor state, not a new value in the current receipt schema. A
 deferred candidate is reconsidered only on its recorded trigger or operator
 request, not on every poll. Creating more process work is not a success metric.
+Triage stores proposed dispositions in monitor state. Publishing canonical
+receipts or pruning the queue is a separate safe-boundary action; the initial
+detection/triage stage does not write tracked project files.
 
 Monitoring is opt-in. Setup confirms a separate process-work allowance before
 launching model-backed work. Version 1 permits at most one tooling job in flight
@@ -123,6 +139,30 @@ work and reports the unfinished stage; it never becomes implicit approval.
 Provider-reported token or quota usage may also enforce limits when reliably
 available. Otherwise report usage as unavailable or estimated: a user-supplied
 weekly percentage is not an enforceable token count.
+
+### Enforced allowance and exhaustion
+
+V1 requires finite job and review-round limits plus a wall-time limit for each
+model-backed invocation and a cumulative process-work allowance. Reserve the
+invocation's maximum runtime from the remaining allowance before dispatch;
+include retries and context reconstruction in accounting. Reconcile actual
+usage after confirmed termination; unresolved usage retains its reservation.
+Waiting for human approval consumes no model work and must not
+start a replacement worker. Only claim turn/token limits when the adapter can
+measure and enforce them; prompts alone are not budget enforcement.
+
+A supervisor outside the model worker owns its process group and deadline.
+Controller loss cannot leave the tooling agent running without a bound.
+Recovery reconciles the original deadline and possible consumed work before
+retrying; uncertain usage cannot be reset to zero. Preserve unfinished edits
+when stopping an owned tooling worker, and do not signal the project pair or
+unrelated commands. Detect and report any missed bound.
+
+Process-work exhaustion stops further tooling dispatch. It does not pause an
+otherwise authorized project run. If maintenance already owns the checkout,
+keep that hold until recovery establishes a safe release; user and correctness
+holds remain independent. Report which allowance was exhausted and which
+actors may still proceed.
 
 ## 5. Tooling preparation, review, and approval
 
@@ -151,9 +191,35 @@ Action: Publish, merge, and integrate / Defer / Reject
 The approval record binds a proposal ID to the repository, feature head,
 validated upstream base, review and validation evidence, publication scope,
 affected checkouts, migration plan, and requested actions. Changes to those
-inputs invalidate approval. If upstream advances, refresh the integration
+inputs invalidate approval, except for project-head advancement explicitly
+covered by the boundary policy below. If upstream advances, refresh integration
 evidence and obtain approval for the resulting proposal; do not silently merge
 an unreviewed result. An externally existing PR must meet the same contract.
+
+### Approval at the eventual pass boundary
+
+The proposal must distinguish an exact-head integration from integration at
+the next safe pass boundary. For the latter, bind approval to the managed
+checkout/branch, current admitted pass, approved tooling head/base, check
+recipe, acceptable baseline conditions, and permitted local effects. The
+current pass may finish and commit its review archive after approval; this
+expected advancement alone does not require another human decision.
+
+Once paused, record the actual boundary head and rerun the prescribed baseline
+and compatibility checks against that snapshot. Changed branch, extra admitted
+pass, new migration requirements, or failures outside the approved baseline
+conditions require a refreshed proposal. Changes to the tooling head, upstream
+base, publication text, or permission scope still invalidate approval. The
+operator approves a bounded integration policy, not an arbitrary future tree.
+Fresh check receipts under the approved recipe and baseline conditions are
+appended evidence; their expected addition does not itself invalidate approval.
+
+Before enabling automated publication/merge, demonstrate how the chosen Git/PR
+backend enforces the approved ref preconditions at mutation time. A read
+immediately before an unguarded write is insufficient. If the backend cannot
+enforce the required condition, keep that action supervised and report the
+capability limit. Reconcile an ambiguous remote response before retrying;
+never infer that a timed-out merge request did nothing.
 
 The default proposal does not widen agent permissions. A change to permission
 generation or execution policy must show the concrete grant differences and
@@ -199,6 +265,13 @@ record includes its canonical identity, branch, pause request ID, active pass,
 original task, remaining pass allowance, user hold, agent identities, and
 pre/post-integration heads.
 
+Keep user, correctness, and maintenance holds as separate records with their
+own IDs, owners, and release conditions. Completing a job releases only its
+maintenance hold. Holds survive controller death and do not expire into
+permission to run. Missing or malformed control state fails closed for a
+registered managed workspace; an ordinary workspace without monitor enrollment
+keeps its existing behavior.
+
 Writes are atomic and serialized. One coordinator owns a repository integration
 operation, and one writer owns a project's queue/receipt update. Lock ownership
 uses a generation checked by mutating commands so a replaced coordinator cannot
@@ -212,6 +285,11 @@ repeated. Invoke Git through explicit arguments and guard remote operations
 against unexpected ref changes. The coordinator must run from a stable tool
 location while rebasing a managed checkout.
 
+Durable intent alone does not prove exactly-once delivery. If a crash leaves
+model dispatch or a remote mutation uncertain, reconcile its recorded worker
+or operation identity. When that cannot establish the outcome, stop that stage
+with `NEEDS INPUT` rather than spending again or repeating the mutation.
+
 ## 7. Pause protocol
 
 A pause request prevents the next pass from starting while allowing the current
@@ -224,6 +302,12 @@ Pass admission and pause acquisition share the checkout lock. A pass admitted
 before a pause request is the current pass and may finish; no later pass is
 admitted. Existing run limits take precedence. Once the active pass consumes a
 one-pass allowance, maintenance cannot replenish it or resume another pass.
+
+An admission has a unique pass/attempt identity. Repeating the same admission
+after a restart is idempotent and cannot consume or replenish another pass.
+A hold acknowledgement binds the pause request, checkout head, admitted pass,
+worker generation, and completed archive. An acknowledgement from an old
+workspace or a different pause request is not evidence of quiescence.
 
 Managed workers advertise their control-protocol version at startup. Refuse
 automatic integration if an older workspace cannot acknowledge the hold or
@@ -245,6 +329,13 @@ An `APPROVED` review flag alone is not sufficient. Recheck these conditions
 immediately before mutation. Do not stash, discard changes, kill a working agent,
 or manufacture approval to satisfy the boundary.
 
+For v1, after both roles acknowledge quiescence, shut down only their owned
+idle workers and watchers before changing Git state. Verify that their owned
+commands have exited; a pane title, sent message, or quiet terminal does not
+prove this. Integration runs under exclusive managed checkout ownership.
+Do not release that ownership on a timeout or coordinator crash. A replacement
+coordinator must reconcile the hold and actual processes before proceeding.
+
 If a pass is blocked or review rounds are exhausted, report `NEEDS INPUT` with
 the exact condition. For urgent correctness concerns, request a controlled hold
 of current work and preserve its state; the ordinary rebase path remains blocked
@@ -256,28 +347,64 @@ changes cause refusal, not a claim of filesystem isolation.
 
 With human approval and the checkout hold acquired:
 
-1. Revalidate the approved feature head, upstream base, and checks. Publish and
+1. Verify the actual boundary head against the approval policy and record the
+   prescribed baseline checks on that snapshot. Refuse unmet preconditions
+   before publishing or merging.
+2. Revalidate the approved feature head, upstream base, and checks. Publish and
    merge only the specified feature branch. Confirm the actual merge result.
-2. Fetch that result and record a recoverable pre-rebase head. Additional
+3. Fetch that result and record a recoverable pre-rebase head. Additional
    upstream commits outside the approved integration plan require refreshed
    evidence and approval. Rebase the local project branch onto the validated
    target; never push it. Do not rewrite historical review-time SHAs in archives.
    Confirm that project content is unchanged except for explicitly reviewed
    local migrations.
-3. Apply any approved local migration, then run the affected canonical checks.
+4. Apply any approved local migration, then run the affected canonical checks.
    Compare against recorded pre-integration results. Strict success, relaxed
    success, pre-existing failures, and newly introduced failures remain distinct.
    A relaxed pass is never reported as strict CI success.
-4. Record the fix, merged revision, checks, and local effects. Update receipts and
-   prune only eligible candidates through `process_friction.py`, under the same
+5. Prepare the integration record and receipt/pruning changes in an isolated
+   snapshot; validate the complete prospective edit batch and affected checks
+   before publishing a `fixed` disposition. Then record the fix, merged revision,
+   checks, and local effects. Update receipts and prune only eligible candidates
+   through `process_friction.py`, under the same
    writer exclusion used by review archiving. Reconcile the latest queue against
    the original candidate IDs so new observations survive.
-5. Commit the local integration/receipt changes. Rerun any checks affected by
-   those final edits, verify cleanliness, and release the integration hold.
-6. Restart the project pair only if its original authorization still allows more
+6. Commit the local integration/receipt changes. Rerun any checks affected by
+   those final edits, verify cleanliness and that the published tree matches
+   the validated changes. Keep the maintenance hold while preparing resumption.
+7. Restart the project pair only if its original authorization still allows more
    passes. Restore its task, remaining allowance, app/model/effort choices,
    reference decisions, and reviewed permission scope. Regenerate prompts from
    the updated tooling and establish a fresh pre-pass base.
+
+### Completion and resumption are separate
+
+Record `merged`, `integrated-and-verified`, and `resumed` as separate milestones.
+An upstream merge does not prove local integration, and successful integration
+does not grant permission for another pass. A later restart or cleanup failure
+does not erase the merge or justify recreating the tooling job.
+
+At restart, preserve the old completed review state and archives as historical
+evidence. A control-aware launcher must recognize the already-committed archive
+and avoid redelivering its old archive/handoff prompt after the rebase. Do not
+rewrite review-time SHAs or overwrite an unfinished review. Record the new
+workspace generation and pre-pass head before admitting fresh work.
+
+If no further project work is authorized, do not launch replacement agents.
+After integration and recording succeed, release only this job's maintenance
+hold and record the reason the project remains paused. User/correctness holds
+and the exhausted pass allowance remain intact.
+
+Restore the previously resolved agent applications and explicit model/effort
+settings. Initial app fallback is not repeated during recovery: a missing app
+requires input. Stage fresh workers without dispatching semantic work, then
+atomically recheck user/correctness holds, remaining pass allowance, and the
+integration generation before releasing this job's maintenance hold and
+admitting the continuation. A user pause registered before admission blocks
+dispatch; a pass admitted first follows the finish-current-pass rule in
+section 7. Stop any staged idle workers when resumption is disallowed. Confirm
+the new worker's acknowledgement before reporting `RESUMED`; uncertainty
+remains a pending restart, not a reason to launch another pair.
 
 Receipt routing is not completion. The existing queue contract permits an
 accepted candidate to leave the queue once evidence is preserved at a durable
@@ -310,23 +437,35 @@ Recovery must preserve work and explain the next action:
 | Event | Required behavior |
 |---|---|
 | Coordinator or worker exits | Preserve state; reconcile before a bounded retry; do not spend unlimited budget restarting |
+| Controller dies while tooling agent works | The independent invocation deadline still stops owned tooling work; project work retains its own authorization |
 | Approval deferred or rejected | Keep project work running unless an independent correctness hold exists |
-| Approval/head/base changes | Invalidate stale evidence and approval; refresh before mutation |
+| Unapproved feature/base/scope changes | Invalidate stale evidence and approval; permitted boundary-head advancement instead follows the approved revalidation policy |
 | Dirty tree, missing archive, or missing agent acknowledgement | Do not acquire the checkout; name the unmet condition |
 | Rebase conflict | Keep agents held; preserve conflict state and recovery head; request a reviewed resolution |
 | Newly failing integration checks | Keep agents held; do not mark the candidate fixed or automatically weaken gates |
 | Fix merged but local integration failed | Record the actual merged revision; retry integration only, never create a duplicate merge |
 | Crash after local completion but before restart | Detect committed records and actual workspace state; resume at most once if still authorized |
-| User stop or exhausted allowance | Preserve all work and remain paused until explicitly authorized |
+| Operator stops the monitor | Cancel owned tooling work within its shutdown bound; inhibit new publication, integration, and restart; preserve existing holds and side-effect records for recovery |
+| User pauses the project or project-pass allowance is exhausted | Preserve that hold across maintenance; do not dispatch another pass |
+| Process-work allowance is exhausted | Stop tooling dispatch; continue authorized project work unless a separate hold or unfinished maintenance prevents it |
+| Final record checks, restart, or cleanup fail | Preserve prior milestones and evidence; retry only the incomplete step, and do not claim overall completion |
 
 Cleanup is part of completion: remove only owned merged branches and idle
 worktrees after checking for unique uncommitted artifacts and preserving useful
 evidence. Keep recovery references until validation and durable recording
 succeed. Never delete unrelated branches, files, sessions, or worktrees.
 
+The status view must distinguish `AWAITING APPROVAL` (project still running),
+`WAITING FOR PASS BOUNDARY`, `MAINTENANCE HELD`, `MERGED — INTEGRATION PENDING`,
+and `INTEGRATED — RESTART PENDING`. Show every active hold's owner and the
+remaining project and process-work allowances separately. Every `NEEDS INPUT`
+message states what is preserved, what may continue, and one concrete next
+action; merely reconnecting must not be offered as a cure for a persistent hold.
+
 ## 10. Acceptance criteria and rollout
 
-Use synthetic repositories and generic fixtures. Required behavioral tests:
+Use synthetic repositories and generic fixtures. The following are future
+implementation acceptance requirements, not claims of existing test coverage:
 
 - Unchanged queues, rebased source commits, and repeated notifications cause no
   duplicate model calls or jobs; genuinely new candidates remain discoverable.
@@ -334,14 +473,24 @@ Use synthetic repositories and generic fixtures. Required behavioral tests:
   without losing text, and concurrent archive/prune attempts cannot overwrite work.
 - Two coordinators racing to dispatch or integrate have one winner; stale owners
   cannot continue after takeover. Crash tests cover every external side effect.
+- Kill the controller during a tooling invocation and prove its deadline still
+  applies. Unknown dispatch/merge outcomes refuse blind retries and retain
+  consumed or potentially consumed allowance.
 - A project pass already admitted can finish, but a pending hold blocks new
   pre-edit pass admission. Approval without a committed archive cannot unblock
   integration. Non-idle workers and changed heads/trees also block it.
+- Old pause acknowledgements, duplicate admissions, expired worker generations,
+  and missing control state cannot admit new work. Finishing maintenance clears
+  only its own hold; pause/resume races follow the serialized admission order.
 - Tooling preparation and review leave the live project checkout untouched and
   preserve the separate project review state.
 - Human approval is bound to the concrete reviewed proposal. Missing approval,
   stale head/base, failed checks, or changed grant scope prevent publication or
   integration. No execution path pushes `projects` or publishes private evidence.
+- An approved boundary policy accepts completion of the already-admitted pass
+  with fresh compatibility evidence, but refuses another pass, branch changes,
+  unexpected migrations, or stale upstream refs. Exercise mutation-time ref
+  guards, including remote advancement between validation and mutation.
 - Merge/rebase/restart retries recognize completed actions. Conflicts and newly
   failing checks remain held; supplied references and untracked work survive.
 - Receipt persistence precedes pruning; new candidates arriving during a tooling
@@ -350,6 +499,12 @@ Use synthetic repositories and generic fixtures. Required behavioral tests:
   restart and rebase. Successful maintenance does not launch an unauthorized pass.
 - Independent role defaults/overrides and normal approval controls survive
   restart; app fallback never overrides an explicit unavailable choice.
+- Restart after rebase recognizes the committed archive, preserves historical
+  review SHAs, suppresses stale handoffs, and dispatches the new continuation at
+  most once. Missing previously selected apps do not trigger a new fallback.
+- Experimental registrations are observation-only, unknown modes refuse
+  automation, and monitor support leaves non-enrolled launch/review behavior
+  unchanged. A fixed receipt does not substitute for successful resumption.
 
 Apply bad-direction proofs to the new guards: removing the pre-edit hold check,
 the archive-commit requirement, the reviewed-head match, or the remaining-pass
@@ -359,10 +514,67 @@ checks for any changed shared wrapper or gate.
 Deliver in stages under this single contract:
 
 1. Detection, candidate bookkeeping, bounded triage, and operator status; no
-   autonomous tooling jobs or integration.
+   autonomous tooling jobs, live queue/receipt writes, holds, or integration.
+   Validate the triage policy on synthetic blocker, repeated-cost, duplicate,
+   deferred, and project-local cases before spending on live queues.
 2. Isolated implementation/review and concrete human approval proposals.
 3. Enforced pause/admission control, reviewed integration, receipt updates, and
    restart with failure/recovery tests and a supervised end-to-end trial.
 
-Do not advertise the complete unattended chain before the final stage passes.
-Automatic merge without per-change human approval is outside version 1.
+Do not advertise end-to-end automation before the final stage passes.
+Per-change human approval remains required afterward.
+
+### V1 implementation boundary
+
+Support one explicitly enrolled production checkout and one managed project
+pair per repository, one tooling job at a time, and one Git/PR backend proven
+by the feasibility milestone. Reuse existing supported agent launch paths,
+the pass-review protocol, friction parser/receipts, and verification wrappers.
+Shared Git objects across worktrees still require repository-wide job ownership.
+Enrollment uses the normal reviewed permission setup for the control-aware
+launcher. It must not silently upgrade an existing workspace or its grants.
+
+The first end-to-end pilot uses a small reproducible tooling defect, generic
+fixtures, no permission changes, no project-format migration, and a clean rebase.
+The operator approves the concrete proposal once; supported steps then publish,
+merge, integrate, record receipts, and resume only the remaining authorized work.
+An unsupported remote guard, rebase conflict, dead legacy workspace, or unexpected
+local change produces a preserved blocked state and a specific recovery action.
+
+Defer multi-checkout rollout, automatic conflict resolution, project-format
+migrations, automatic changes to installed permission profiles, new agent
+providers, and hard token/spend caps. Detection may report these needs; v1 routes them to supervised
+work rather than silently widening its capabilities. Experimental runs remain
+observation-only in every mode.
+
+The feasibility milestone must demonstrate mechanical pass admission and hold
+acknowledgement with the current launcher, stopping idle owned workers safely,
+restarting without stale notifications, bounded tooling execution, and guarded
+Git/PR operations. Name the supported backend, control protocol, and capability
+limits before enabling the integration stage. Run a synthetic crash/recovery
+rehearsal before the operator-approved live pilot.
+
+### Rough planning estimate
+
+These ranges assume one experienced implementer with independent review.
+Engineering days describe focused effort, not agent passes, model quotas, or
+guaranteed calendar delivery. Approval of the spec does not allocate this work.
+
+| Deliverable | Estimated engineering effort |
+|---|---|
+| Spec refinement and feasibility proof for control/remote operations | 2–3 days |
+| Useful detection, bounded triage, and status view | 3–5 additional days |
+| Isolated tooling implementation/review and approval proposals | 5–8 additional days |
+| Supervised integration/resumption, fault tests, and pilot hardening | 8–15 additional days |
+| Complete constrained v1 chain | Approximately 4–7 working weeks total, including the stages above |
+
+The existing parser and handoff tools reduce preparation work, but enforced
+admission, crash recovery, approval binding, and safe restart are new integration
+work. Those contracts and the chosen remote backend are the largest estimate
+risks. Re-estimate after feasibility and deliver the stages as separate reviewed
+tooling changes; the detection-only stage is useful before integration ships.
+
+The estimate excludes implementing the individual friction fixes discovered by
+the monitor, their project-specific validation runs, model costs, and operator
+waiting time. Deferred multi-checkout/migration capabilities require a separate
+estimate after the v1 pilot. No background jobs or runs are started by this spec.
