@@ -82,9 +82,9 @@ ceilings, expected manual work, and capabilities the host cannot enforce.
 | Software | Tooling commit and exported tree digest, controller version, playbook/prompt/template hashes, assembler and generator identities, host/runtime/OCR dependencies |
 | Roles | Agent executable/version, requested and resolved model identity, reasoning settings for each role, exposed generation settings, prompt/context/compaction policy |
 | Isolation | Backend/version, mount and network policy, fresh-session policy, permitted plugins/connectors, contamination checks |
-| Execution | Primary budget, secondary limits, closeout reserve, metering precision, stopping/checkpoint policy, restart/retry rules, human assistance and permission policy |
+| Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and watchdog contract, checkpoint eligibility policy, metering precision, restart/retry rules, human assistance and permission policy |
 | Policy | Experiment-only overrides, affected rules/checks, exact permitted deviations, reference-intake consent requirements |
-| Evaluation | Rubric/version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, adjudication and uncertainty policy, evaluation budget |
+| Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, scoring/denominator rules, adjudication policy, per-phase evaluation budgets |
 | Retention | Artifact locations, capture completeness requirements, secret redaction, access controls, retention and export policy |
 
 Keep credentials out of manifests and logs. Private asset identifiers resolve
@@ -201,16 +201,65 @@ pilots, with tokens reported observationally; they must not claim a hard
 token/spend cap. Prompt instructions alone do not enforce a ceiling.
 
 At the preregistered reserve threshold, refuse another semantic pass and ask
-the pair to finish review/closeout within the remaining budget. At the hard
-limit, fence new dispatch, cancel only owned work using the supported bounded
-shutdown, and freeze available evidence. An incomplete final pass is an
-outcome; it receives no unmetered finishing time. Retain the unfinished tree
-and review state separately from the last verified checkpoint.
+the pair to finish review/closeout within the remaining budget. Reserve a
+separate shutdown margin: fence new dispatch and begin cancelling owned work
+early enough that writers stop by the hard limit. Freeze available evidence;
+an incomplete final pass receives no unmetered finishing time. Retain the
+unfinished tree and review state separately from the last eligible checkpoint.
+
+### Deadline enforcement
+
+For the v1 wall-time budget, start the clock before launching either agent,
+including bootstrap. Authentication waits, approvals, needs-input pauses,
+reviews, and session restarts do not pause or reset it. Record provisioning
+and preflight time separately; neither may perform agent work on the task.
+Freeze the duration and reserve policy in the manifest, then record the start,
+deadline, clock identity, and shutdown bound in controller-owned run state.
+
+A trusted supervisor outside the agents' writable environment enforces that
+deadline independently of the study controller and tmux watchers. Killing or
+disconnecting the controller must not leave an unbounded agent or emulator.
+The supervisor owns the run's containment boundary and rejects attempts to
+extend its deadline. Loss of enforcement must stop owned work and prevent
+redispatch; detecting overspend afterward is not successful limit enforcement.
+
+Recovery uses the original deadline. The backend must account for suspend and
+clock discontinuities; if it cannot prove the remaining allowance after a
+restart or reboot, keep the run stopped and record an infrastructure failure.
+A missed bound is a recorded protocol deviation, never a compliant capped
+run. Remote request cancellation and residual billing remain observable
+limitations; v1 makes no hard token or monetary guarantee.
+
+### Checkpoint eligibility
 
 The primary fixed-resource output is the latest checkpoint meeting the
 preregistered parity/review requirements within budget. If none exists,
 report that fact and the failure outcome. Secondary inspection of unfinished
 work must be labeled and cannot replace the primary output after seeing scores.
+
+Make eligibility a durable receipt from a trusted recorder. At a quiescent
+handoff boundary, before agents can edit again, capture and bind:
+
+- the exact reviewed Git head/tree and immutable copies of required artifacts;
+- the matching completed review verdict and parity/gate results, including
+  the declared strict or relaxed mode and their source bindings;
+- cumulative usage, the study/run/attempt identities, and the recorder's
+  completion timestamp under the run's clock contract.
+
+Publish that receipt atomically before the hard deadline. Partial capture,
+chat-only approval, mismatched evidence, or a receipt published after the
+deadline cannot qualify. A capture failure leaves the previous complete
+checkpoint eligible and preserves incomplete work separately. Independent
+evaluation may later find faults in the selected checkpoint; those are findings,
+not grounds to replace it with an earlier, better-scoring output.
+
+The implementer's follow-up archive commit is not an eligibility prerequisite:
+the receipt already preserves the actual review and its reviewed source. If
+archival is unfinished at the limit, record it as pending and do not grant time
+to complete it. Post-stop copying, hashing, or packaging may only preserve
+already-frozen evidence; it cannot create missing approval, run missing gates
+on the run's budget, or backdate eligibility. Independent evaluation remains
+separately metered.
 
 For target-quality studies, predefine submission opportunities and the full
 independent target rubric. Submit only frozen candidates; after a failed
@@ -264,6 +313,9 @@ charge all attempts against the approved study ceiling and report retry cost
 separately. Do not selectively retry poor semantic outcomes. Resume the same attempt only
 when its checkpoint, context-reconstruction policy, and isolation still match.
 Record outages and interrupted reviews rather than declaring them approved.
+Controller lease recovery also verifies the independent supervisor and original
+deadline before dispatch. An expired deadline forbids resuming either role,
+even if a pending review notification would otherwise be deliverable.
 
 Do not add a second state machine for individual pass verdicts: consume the
 existing handoff protocol. Study-level stop enforcement must also cover
@@ -408,6 +460,82 @@ score is desired, freeze weights and blocker rules before outputs exist.
 Report rubric sensitivity separately; never choose weights to favor a result.
 Only after judgments are locked reveal the assignment and cost mapping.
 
+### Pilot evaluation profile
+
+`pilot-evaluation-v1` names the reference protocol for the first implementation.
+Its counts are bounded pilot defaults, not a statistical power claim. Freeze
+the concrete subjects, selection algorithm/seed, severity definitions, evaluator settings,
+and separate limits for mechanical checks, semantic review, developer tasks,
+comparison, and human adjudication before launching runs. Refuse unresolved
+limits. A different sample size or scoring policy requires a named profile
+revision before outputs exist.
+
+| Evidence set | Selection and use |
+|---|---|
+| Eight hidden questions | Author ROM-linked questions and evidence-backed answer criteria before runs; include them in the primary subject set. |
+| Sixteen sampled subjects | Select four meaningful subjects from each of control flow, RAM ownership, data formats, and reference identities. Freeze the population and use the committed seed; exclude overlap with the hidden questions. These complete the 24-subject primary set shared by every candidate for that ROM. |
+| Up to eight authored claims | Sample candidate assertions from asm and docs using the frozen algorithm; inspect all if fewer exist. Report these separately, with the actual denominator, so omission cannot improve the primary score. |
+| Two developer tasks | Locate an editable table and perform one small behavior change on disposable copies, using prewritten acceptance checks and equal per-task limits. Report success and resources separately from semantic coverage. |
+
+If a ROM cannot support those populations or tasks, choose and approve a
+revised profile before launch. Do not invent subjects or substitute easier
+ones after inspecting candidate outputs.
+
+For each primary subject, assign one status against its frozen answer criteria:
+
+| Status | Meaning |
+|---|---|
+| Supported | The candidate explains the subject correctly, with supporting evidence. |
+| Contradicted | A current candidate claim conflicts with established evidence. |
+| Unresolved | The candidate leaves the subject uncertain or only partially explained. |
+| Unaddressed | The candidate provides no meaningful account of the subject. |
+| Not assessable | The evaluator lacks the evidence, capability, or remaining budget to judge. |
+
+Count explanations carried by names and structure as well as prose. Superseded
+historical ledger entries are not current claims.
+`supported` earns one unit; `contradicted`, `unresolved`, and `unaddressed`
+earn zero, with their counts kept separate. Conflicting claims about the same
+subject prevent a supported rating unless the candidate explicitly resolves
+them. These units measure sampled correct coverage, not whole-ROM completion.
+
+Keep the common denominator of 24. Report any `not assessable` subjects and
+lower/upper assessment bounds: supported/24 through
+(supported + not-assessable)/24. These are not statistical confidence intervals.
+Do not drop such subjects only for one candidate or convert inability to judge
+into a candidate error. Faulty answer
+keys require the versioned amendment and reassessment described above.
+Missing eligible checkpoints are failures to deliver, with quality unassessed;
+reports include their frequency alongside scored outputs and never compare
+only successful runs without that qualification.
+
+Report material contradictions separately: these are errors that would
+misdirect a gameplay change, such as incorrect ownership or axis identity.
+More correct minor subjects cannot cancel them. V1 produces dimensional
+comparisons and explicit tradeoffs, without a weighted overall winner.
+Human review covers every proposed material contradiction and a seeded 20%
+sample of supported ratings, rounded up. Exhausted adjudication budgets leave
+dispositions provisional and visible.
+
+Before spending on live project pilots, the evaluator must pass a synthetic
+calibration suite with four planted-error pairs (swapped axes, false RAM
+ownership, wrong table extents, wrong entity identity), two omission pairs,
+four cosmetic-only pairs, and two cases with insufficient answer evidence.
+The clean originals have authored answer keys. The harness withholds expected
+dispositions from the judge, which receives the normal artifact/evidence
+interface. Two fresh calibration runs under the frozen settings must both:
+
+- identify all four planted errors with the relevant evidence, without
+  inventing corresponding errors in the clean originals;
+- mark the two omitted subjects unaddressed, retaining their denominators;
+- preserve semantic statuses and coverage for cosmetic symbol/prose variants;
+- leave the two insufficient-evidence cases not assessable.
+
+Record per-case judgments and a human-checked calibration receipt. Failure
+blocks live pilots until the evaluator is revised and recalibrated. Success
+establishes this limited harness check, not general disassembly expertise;
+candidate findings still need evidence and adjudication. Preserve calibration
+history, and use separate fixtures for tuning and acceptance.
+
 ## 9. Experimental design and interpretation
 
 Block comparisons by ROM revision and randomize or interleave condition order
@@ -424,8 +552,13 @@ Preserve the complete allocation table, including failures and excluded runs
 with the preregistered exclusion reason. Separate planned from exploratory
 analyses and account for multiple comparisons when making inferential claims.
 
-An initial pilot can use one ROM and a two-by-two design, with fixed agent
-pairing, reasoning, FAQ policy, tools, and budget:
+The first live harness pilot uses one ROM and two conditions: supplied prior
+projects available versus withheld, with the same manual and FAQ set available
+in both. Hold agent pairing, reasoning, tools, and budget fixed. One fresh run
+per condition exercises the machinery; it does not establish a stable effect.
+
+Once that pilot passes its operational checks, a new approved study revision
+can extend to the two-by-two design:
 
 | Condition | Supplied prior projects | Manual |
 |---|---|---|
@@ -489,16 +622,26 @@ Required behaviors:
    output. Intake and pass wrappers still work with each supported profile;
    deliberate exclusions never turn parity or integrity failures into green.
 4. Budget/stop tests cover slow metering, active model requests and subprocesses,
-   closeout reserve, agent death, restarts, duplicate handoffs, and exhausted
-   review rounds. No extra pass or budget reset occurs; unrelated work survives.
+   closeout/shutdown reserves, agent death, restarts, duplicate handoffs, and
+   exhausted review rounds. Kill the study controller during active work and
+   prove the independent supervisor still stops the run by its deadline;
+   restart after expiry and prove no pending handoff can resume it. Test loss
+   of enforcement and clock uncertainty too. No extra pass or budget reset
+   occurs; unrelated work survives.
 5. Crash injection around artifact publication preserves the last complete
    checkpoint and unfinished work. Changed heads, missing outputs, altered
    hashes, partial telemetry, and stale workers are diagnosed, never accepted
-   as a complete or approved run.
+   as a complete or approved run. An approved source with matching evidence
+   and an on-time receipt remains eligible without the later archive commit;
+   incomplete, late, or mismatched receipts do not. Post-stop packaging cannot
+   change that decision.
 6. Evaluation detects synthetic swapped axes, false RAM ownership, incorrect
    table extents, omitted hard cases, and confident wrong identities. Pure
    symbol renames and extra prose do not improve a correctness score. Unknown
    answer keys and unsupported runtime scenarios remain explicitly unassessed.
+   The pilot profile's calibration must pass before live pilots; test its
+   sample selection, common denominators, status scoring, and failure reporting
+   with deterministic synthetic judgments as well as the actual evaluator.
 7. Blind presentation preserves semantic evidence; reversed pair order,
    identity leaks, prompt injection in artifacts, judge disagreement, and
    evaluation-budget exhaustion receive recorded dispositions.
@@ -512,11 +655,55 @@ stale checkpoint, or score only volunteered claims. Each corresponding test
 must fail for the intended reason. Exercise ordinary non-experiment launch
 and review too, ensuring opt-in study support does not alter production rules.
 
+### V1 implementation boundary
+
+The feasibility milestone selects and names one isolation backend and one
+agent-application adapter, with pinned versions and demonstrated capabilities.
+V1 supports only that combination; the two run roles remain separate sessions
+with independently selected supported models and reasoning settings.
+
+V1 includes serial runs, fixed wall-time budgets, independently enforced
+deadlines, approved-checkpoint capture, the pilot evaluation profile, and a
+private comparison report. Pre-stage references and runtime assets; deny live
+browsing and undeclared network access. The normal pass-review protocol and
+production permission rules remain in force except for explicit study profiles.
+
+Defer concurrent run scheduling, additional backends/adapters, hard token or
+monetary limits, live-search treatments, and target-quality stopping. Manifests
+requesting unsupported features refuse launch; they do not silently downgrade.
+The feasibility exit criteria are isolated authentication, sufficient declared
+telemetry, deadline enforcement despite controller loss, and capture of a
+reviewed checkpoint without contaminating or altering production state.
+
 Roll out in stages: validate manifests and isolation without agents; rehearse
-state/capture/evaluation with synthetic outputs; run the four-condition pilot;
-calibrate evaluation and resource accounting; then freeze a repeated study.
+state/capture/evaluation with synthetic outputs; pass evaluator calibration
+and resource-accounting checks; run the two-condition pilot; then freeze a
+repeated study or the expanded four-condition pilot under a new revision.
 Do not claim unattended scientific comparisons until the budget and isolation
 backend, evidence capture, and independent evaluation meet these contracts.
+
+### Rough planning estimate
+
+Planning ranges assume one experienced implementer with independent review.
+An engineering day is focused implementation/review effort, not an agent pass
+or a model-quota estimate. These ranges do not authorize work or spending.
+
+| Deliverable | Estimated engineering effort |
+|---|---|
+| Spec refinement and feasibility prototype | 2–4 days |
+| Useful v1 pilot implementation, including basic evaluation | 10–20 additional days |
+| Full system described by this specification, including deferred capabilities | Approximately 6–10 weeks total, including the earlier stages |
+
+Reuse the existing pass-review protocol, verification wrappers, and trace
+supervisor. New work covers manifest validation, isolation/authentication,
+deadline enforcement, usage and artifact capture, evaluation, reporting, and
+recovery tests. Split these into reviewable tooling changes. Isolation and
+agent telemetry integration, plus evaluator calibration, are the largest
+uncertainties; revise the estimate after the feasibility milestone.
+
+The estimate excludes live experiment runtime and model costs, authoring the
+private ROM benchmark/answer keys, and human adjudication of study results.
+Those need separate budgets in each study's preview and approval.
 
 ## 12. Design references
 
