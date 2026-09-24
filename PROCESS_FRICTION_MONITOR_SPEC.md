@@ -167,6 +167,8 @@ per repository, one triage invocation per new candidate batch, and a bounded
 number of implementation/review rounds. The initial allowance should cover one
 tooling job; further jobs require a renewed allowance. A zero implementation
 allowance supports triage-only operation.
+Verified abort and cleanup release the active slot under section 8; retaining
+an unresolved upstream dependency does not reserve it.
 
 Persist limits for jobs, review rounds, and elapsed work time.
 Reserve part of the allowance for review and recovery. Exhaustion prevents new
@@ -236,6 +238,7 @@ Problem and evidence: <brief description and local evidence link>
 Candidates: <IDs, source snapshot, latest receipt reconciliation>
 Tooling: <reviewed feature base/head SHAs, diff, prepared PR title/body>
 Upstream: <observed SHA; pinned or validated-fast-forward policy>
+Aborted merges: <dependency IDs/revisions, dispositions, combined evidence>
 Merge: <backend, strategy, ref guards, composed-tree check recipe>
 Validation: <test results, regression proof, affected-project checks>
 Checkout: <repository/checkout/branch IDs, observed head, run-grant ID>
@@ -310,6 +313,9 @@ ancestry outside the plan, unexpected local effects, or failures outside the
 approved conditions require refreshed local approval. The completed merge
 remains a fact; do not republish it. Expected pass advancement before the hold
 and fresh conforming check receipts do not themselves invalidate approval.
+Every target follows section 8's aborted-merge dependency preflight, including
+validated upstream advancement. A newly included dependency outside the
+approved list requires refreshed local approval.
 
 The default proposal does not widen agent permissions. A change to permission
 generation or execution policy must show the concrete grant differences and
@@ -375,8 +381,8 @@ Durable project receipts and integration evidence stay tracked
 on the local corpus branch. Use a proposed project-local integration record at
 `projects/<slug>/docs/reverse_engineering/process_changes/<job-id>.md` for the
 candidate IDs, routing destination, merged revision, local migration, check
-results, and final outcome. Runtime state is neither a second friction backlog
-nor permission to publish project evidence.
+results, dependency/resolution evidence, and final outcome. Runtime state is
+neither a second friction backlog nor permission to publish project evidence.
 
 Each job records its candidates, source snapshots, stage, budget consumption,
 feature base/head, review evidence, approval, PR/merge identity when present,
@@ -511,14 +517,17 @@ stays stopped after integration unless separately authorized to start.
 After the approved remote actions in section 5 have completed, use the valid
 local approval below. A route-only batch skips remote actions and rebase, but
 uses the same checkout ownership and receipt writeback rules.
+For merged jobs, run the aborted-merge dependency preflight below before
+requesting a maintenance hold, then recheck it under ownership.
 
 1. Request the hold and acquire a running or stopped boundary under section 7.
    Verify the actual boundary head against the approval policy and record the
    prescribed baseline checks on that snapshot before local mutation.
 2. Fetch and confirm the recorded merge revision; do not move the integration
-   target to a later master. Reconcile candidate receipts again. Preserve and
-   skip already-decided IDs; unexpected ancestry, permission effects, or
-   migration needs require a refreshed local proposal.
+   target to a later master. Reconcile candidate receipts and known aborted
+   merges again. Preserve and skip already-decided IDs; unapproved dependencies,
+   unexpected ancestry, permission effects, or migration needs require a
+   refreshed local proposal.
 3. Pin the pre-integration head under the immutable local ref
    `refs/nesrev/process-monitor/<job-id>/<checkout-id>/<attempt-id>/before`
    and record its object ID. Pin additional reachable review bases/heads not
@@ -618,9 +627,8 @@ restoration targets or effects require fresh approval.
    uncommitted work, index/conflict stages, rebase metadata, resolutions, and
    diagnostics outside the checkout. Revalidate it against the approved state
    before destructive operations. Preserve untracked/reference files and check
-   for path collisions.
-   Unrelated writes, an intervening pass, or effects outside the restoration
-   plan require a separate recovery decision; never discard them implicitly.
+   for path collisions. Unrelated writes, an intervening pass, or effects beyond
+   the restoration plan require a separate decision; never discard them.
 2. Abort an owned in-progress rebase, or restore the approved branch to its
    pinned pre-integration head if the rebase finished. Verify the resulting
    head, tracked tree, and absence of a Git operation. Restore the recorded
@@ -636,6 +644,8 @@ restoration targets or effects require fresh approval.
 4. Commit an abort-only record on top of the restored head. Record the actual
    upstream merge, pins/snapshot, restoration operations, checks, and terminal
    local outcome `integration-aborted`; do not claim `integrated-and-verified`.
+   Record the merge as a known upstream dependency, with the failure evidence
+   and conditions that a future integration must address.
    Check the record batch and cleanliness before releasing only this job's
    maintenance hold. The new head is the before pin plus this audit commit,
    with no tooling, queue, or receipt changes from the failed integration.
@@ -652,12 +662,50 @@ Report `MERGED — LOCAL INTEGRATION ABORTED`, with the restored head and whethe
 the project resumed. The job remains known to the monitor; original candidates
 and dispositions remain as restored, and new scans must not create a duplicate
 tooling job or merge. A later integration attempt requires an explicit request
-and refreshed local approval, uses the existing merge, and records a new
-attempt/before pin without overwriting earlier evidence.
+and refreshed local approval, uses the existing merge or an approved descendant,
+and records a new attempt/before pin without overwriting earlier evidence.
 
 Route-only writeback can use the same local abort procedure, with no remote
 merge and outcome `writeback-aborted`. Preserve that distinction in its record
 and status; it must not emit a merged-success claim.
+
+### Aborted merges in later integrations
+
+Verified abort and normal owned-work cleanup end the active job and release
+its slot; new work still needs remaining or renewed process-work allowance.
+An incomplete abort retains its slot. The unresolved upstream change is a
+passive dependency record, not a permanently active tooling job. Reconstruct
+the common-store dependency index from the durable abort/integration records;
+cleanup, restart, and release of the slot must not forget these dependencies.
+Route-only aborts create no upstream dependency.
+
+For each proposed integration target, check its ancestry and composed tree
+against all recorded aborted merges for that checkout. Resolutions are
+target-specific evidence, never a blanket flag allowing the index to forget a
+merge. A target carrying the aborted change needs explicit local approval
+or verified resolution evidence applicable to that target. Inclusion names the
+original job/attempt and merge revision, failure evidence, combined target,
+and reviewed compatibility evidence/checks addressing the old failure.
+Approval of an unrelated fix or routine fast-forward policy is insufficient.
+Missing or uncertain dependency coverage refuses integration before mutation.
+
+Resolve a dependency through an explicitly approved and verified local adoption
+or a reviewed upstream revert whose neutralizing effect is verified in the
+actual target tree. Reverting upstream requires normal review/publication
+approval; abort itself never authorizes it. A revert outside the target, a
+revert message alone, or ancestry alone cannot prove resolution. Record exact
+resolution revisions and check evidence, retaining the original abort record.
+A combined integration occupies one active slot and may resolve several prior
+dependencies without recreating their tooling jobs or merges.
+
+Expose the new preflight for manual rebases, with the same approval and
+verification recording. Raw Git commands are not intercepted: the launcher and
+pre-edit admission path must reconcile any externally changed checkout against
+the dependency records before dispatch. An unreviewed manual reintroduction
+blocks new admission with `NEEDS INPUT`; it does not become verified adoption
+merely because the merge is now an ancestor. This check uses local durable
+state and remains effective while the monitor is stopped. Passes on the
+restored old tooling continue under their grant unless another hold applies.
 
 ### Recurrence after an applied fix
 
@@ -725,6 +773,8 @@ Recovery must preserve work and explain the next action:
 | Fix merged but local integration failed | Retain the actual merge; retry local integration or approve abort/restoration, never create a duplicate merge |
 | Operator approves integration abort | Preserve evidence, restore and verify the before-pin baseline, and commit the abort record before releasing only this hold; resume old tooling only within the approved restart and remaining grant |
 | Abort restore/check/record fails or its outcome is uncertain | Keep the hold and all snapshots; reconcile actual state and retry only incomplete abort steps |
+| Later target carries an unresolved aborted merge | Require explicit dependency coverage and combined checks in local approval, or applicable verified resolution; otherwise refuse integration |
+| Manual rebase reintroduces an aborted change without reviewed adoption | Block new managed pass admission, preserve the checkout, and request dependency review/verification; do not infer resolution from ancestry |
 | Crash after local completion but before restart | Detect committed records and actual workspace state; resume at most once if authorized and this maintenance parked the pair |
 | Same observation after a verified fix | Preserve its raw event and use recurrence ingestion; do not silently suppress it because the earlier candidate has a receipt |
 | Operator stops the monitor | Cancel its model invocations within the shutdown bound and inhibit monitor-initiated publication, integration, and maintenance restart. Leave project dispatchers running within their grant; preserve existing holds and side-effect records for recovery |
@@ -745,12 +795,15 @@ The status view distinguishes `AWAITING APPROVAL`, `WAITING FOR REMOTE CHECKS`,
 and `ROUTE WRITEBACK PENDING`. Boundary states are `WAITING FOR PASS BOUNDARY`,
 `STOPPED BOUNDARY READY`, and `MAINTENANCE HELD`. After merge, distinguish
 `MERGED — INTEGRATION PENDING`, `INTEGRATED — RESTART PENDING`, and
-`MERGED — LOCAL INTEGRATION ABORTED`. Show `PROJECT REMAINS PAUSED` and the
-project's running/stopped state separately from the tooling stage. Waiting for
-remote actions does not itself pause it. Show hold owners and project/process
-allowances separately. Every `NEEDS INPUT` message states what is preserved,
-what may continue, and one concrete next action; reconnecting is not a cure
-for a persistent hold.
+`MERGED — LOCAL INTEGRATION ABORTED`. Route-only cancellation reports
+`WRITEBACK ABORTED`. Show unresolved upstream dependencies with their merge
+revisions, prior failures, required decisions, and active-slot occupancy,
+including when a different job is running. Show `PROJECT REMAINS PAUSED` and
+the project's running/stopped state separately from the tooling stage.
+Waiting for remote actions does not pause it. Show hold owners and the project
+and process-work allowances separately. Every `NEEDS INPUT` message states
+what is preserved, what may continue, and one concrete next action.
+Reconnecting is not a cure for a persistent hold.
 
 ## 10. Acceptance criteria and rollout
 
@@ -825,6 +878,15 @@ implementation acceptance requirements, not claims of existing test coverage:
   resumption and continued stopping under other holds or spent grants. Test
   route-only abort without a remote merge claim and a later approved integration
   attempt with new pins and preserved earlier abort evidence.
+- After abort/cleanup, admit a new tooling job within its allowance while the
+  old merge remains indexed as a dependency. Refuse a descendant integration
+  whose local approval omits that dependency; accept explicitly covered combined
+  adoption only after its checks pass. Verify target-specific revert evidence:
+  a target before the revert, a partial revert, or a later reintroduction must
+  not inherit a resolved status blindly. Persist resolution and abort evidence
+  through restart/cleanup. With the monitor stopped, detect a manual rebase that
+  brings back an unapproved dependency and block new pass admission while normal
+  passes on old tooling remain admissible. Route-only abort adds no dependency.
 - Report identical raw learning before and after a fix. Only a new post-fix pass
   creates one recurrence candidate with provenance, including for a previously
   `accepted` candidate whose fix was integrated. Preserve immutable receipts.
