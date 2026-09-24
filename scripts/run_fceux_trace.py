@@ -158,7 +158,7 @@ def capture(args):
     if args.input2:
         command += ["--input2", args.input2]
     if movie:
-        command += ["--playmovie", str(movie)]
+        command += ["--playmov", str(movie)]
     command += ["--loadlua", str(lua), str(rom)]
     environment = dict(os.environ, TRACE_OUT=str(trace), TRACE_DIR=str(run_dir),
                        TRACE_MAX_FRAMES=str(args.max_frames))

@@ -115,11 +115,19 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(observed["directory"], str(self.run_dir))
         self.assertEqual(observed["cwd"], str(self.run_dir))
         self.assertEqual(observed["max_frames"], "12")
-        for path in (self.rom, self.lua, movie):
-            self.assertIn(str(path), observed["argv"])
+        self.assertEqual(observed["argv"][-5:],
+                         ["--playmov", str(movie), "--loadlua", str(self.lua), str(self.rom)])
         self.assertEqual(self.result["status"], "complete")
         self.assertEqual(len(self.result["rom"]["sha256"]), 64)
         self.assertEqual(self.result["emulator_exit"], 0)
+
+    def test_capture_without_movie_omits_playback_option(self):
+        result = self.run_capture()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        observed = json.loads((self.run_dir / "arguments.json").read_text())
+        self.assertFalse(any(arg.startswith("--playmov") for arg in observed["argv"]))
+        self.assertEqual(observed["argv"][-3:], ["--loadlua", str(self.lua), str(self.rom)])
+        self.assertIsNone(self.result["movie"])
 
     def test_stale_capture_cannot_supply_completion_or_be_overwritten(self):
         self.assertEqual(self.run_capture().returncode, 0)
@@ -279,7 +287,10 @@ class RunnerTests(unittest.TestCase):
         rows[1]["name"] = "scenario_started"
         rows[2]["name"] = "result_resolved"
         lua = project / "tools/trace/fceux_frame_poll_trace.lua"
-        environment = dict(os.environ, PROJECT_SLUG="demo", FCEUX_BIN=str(self.emulator))
+        movie = self.inputs / "input movie.fm2"
+        movie.write_text("synthetic movie")
+        environment = dict(os.environ, PROJECT_SLUG="demo", FCEUX_BIN=str(self.emulator),
+                           MOVIE=str(movie))
         for include_result in (True, False):
             with self.subTest(include_result=include_result):
                 selected = rows if include_result else [row for row in rows if row.get("name") != "result_resolved"]
@@ -287,6 +298,13 @@ class RunnerTests(unittest.TestCase):
                 result = subprocess.run(["bash", str(wrapper)], cwd=self.root, env=environment,
                                         text=True, capture_output=True, timeout=8)
                 self.assertEqual(result.returncode, 0 if include_result else 1, result.stderr)
+                directory_line = next(line for line in result.stdout.splitlines()
+                                      if line.startswith("Capture directory: "))
+                run_dir = Path(directory_line.removeprefix("Capture directory: "))
+                observed = json.loads((run_dir / "arguments.json").read_text())
+                self.assertEqual(observed["argv"][-5:],
+                                 ["--playmov", str(movie), "--loadlua", str(lua),
+                                  str(project / "reference/demo.nes")])
                 if not include_result:
                     self.assertIn("missing required milestones: result_resolved", result.stderr)
 
