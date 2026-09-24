@@ -94,7 +94,7 @@ ceilings, expected manual work, and capabilities the host cannot enforce.
 | Execution | Primary budget, secondary limits, closeout/shutdown reserves, clock and backend lease contract, checkpoint eligibility policy, metering precision, restart/retry and primary-attempt rules, input-event detection bounds, human assistance and permission policy |
 | Stopping | Budget and owner stops, local gold/review-exhaustion/input/quota/history-rewrite outcomes, target-quality submission opportunities and permitted feedback, unused-budget reporting |
 | Policy | Experiment-only overrides, affected rules/checks, exact permitted deviations, reference-intake consent requirements |
-| Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, shared subject-assessability and pending-judgment policy, scoring/denominator rules, adjudication policy, per-phase evaluation budgets |
+| Evaluation | Rubric/profile version, reference-set digest, hidden task/sample commitment, evaluator identities/settings, calibration receipt, shared subject-assessability and pending-judgment policy, scoring/denominator rules, adjudication policy, shared block-review and per-candidate/phase budgets |
 | Retention | Artifact locations, capture completeness requirements, secret redaction, access controls, retention and export policy |
 
 Keep credentials out of manifests and logs. Private asset identifiers resolve
@@ -375,11 +375,12 @@ events, bound to run, role, and worker generation. Run instructions require
 an explicit `needs_input` outcome for questions to the user. At each active
 role's turn end, the controller checks that outcome and the recorded handoff
 state. Expected handoff waits are normal. A turn ending without a recognized
-outcome or handoff stops as `infrastructure failed: unclassified agent stop`,
-preserving its text; an unmarked question cannot idle to the budget deadline.
-Missing event telemetry also fails closed. Pane silence alone cannot identify
-either productive work or an input request. Rehearse actual adapter events,
-including a question displayed in a pane without the required marker.
+outcome or handoff stops as `agent failed: unclassified stop`, preserving its
+text and counting as an agent outcome for that arm. V1 sends no automatic
+continuation prompt. Missing event telemetry instead stops as infrastructure
+failed. Pane silence alone cannot identify either productive work or an input
+request. Rehearse actual adapter events, including a question displayed in a
+pane without the required marker.
 
 For later studies permitting live help, preregister response windows, maximum
 wait, allowed content, and time accounting identically across arms. Semantic
@@ -395,9 +396,10 @@ In v1, local gold approval stops further passes as `local gold stop`;
 independent evaluation still determines quality. `REVIEW_ROUNDS_EXHAUSTED`
 stops as `review rounds exhausted`, without a human override or a fresh retry.
 Capture the latest eligible checkpoint and keep unfinished work separate.
-Report the stop reason, consumed and unused budget for every early stop: input,
-quota, failure, and owner stops. Do not describe a partial-budget outcome as
-having used the full cap or as independently attaining the target.
+Report the stop reason and consumed and unused budget for every terminal
+outcome in section 6, including protocol violations. Do not describe a
+partial-budget outcome as having used the full cap or as independently
+attaining the target.
 
 ## 6. Controller state and recovery
 
@@ -429,7 +431,8 @@ Track execution outcomes separately from validity and quality:
   protocol violation, agent failed, or infrastructure failed.
 - Validity: compliant, approved deviation, protocol invalid, contaminated,
   or evidence incomplete.
-- Assessment: target met/not met/unassessed plus the quality dimensions.
+- Assessment: evaluation pending/complete/incomplete, target outcome
+  (met/not met/unassessed), and the quality dimensions.
 
 V1 permits recovery of the same attempt, not automatic fresh attempts. Its
 first attempt is the primary one even if it fails. Resume only when its state,
@@ -523,10 +526,10 @@ seeded candidate order and a common subject order before evaluation, then
 compare matched candidates with randomized presentation order. Reserve equal,
 non-transferable per-candidate budgets for each assessment/adjudication phase
 and fixed pairwise-comparison budgets. Do not consume a shared pool on early
-candidates and leave later ones unassessed. Log exhaustion and apply the same
-provisional-result rules to each candidate. For pairwise model judging, repeat
-consequential comparisons with reversed order under the fixed evaluation
-budget; disagreements remain visible.
+candidates and leave later ones unassessed. Log exhaustion and apply the pilot
+profile's pending-judgment and incomplete-evaluation rules to each candidate.
+For pairwise model judging, repeat consequential comparisons with reversed
+order under the fixed evaluation budget; disagreements remain visible.
 
 Preserve originals and provide a documented presentation layer for identity
 redaction. The initial quality view excludes original Git metadata, co-author
@@ -623,11 +626,12 @@ Only after judgments are locked reveal the assignment and cost mapping.
 
 `pilot-evaluation-v1` names the reference protocol for the first implementation.
 Its counts are bounded pilot defaults, not a statistical power claim. Freeze
-the concrete subjects, selection algorithm/seed, severity definitions,
-evaluator settings, and separate limits for mechanical checks, semantic
-review, developer tasks, comparison, and human adjudication before launching
-runs. Refuse unresolved limits. A different sample size or scoring policy
-requires a named profile revision before outputs exist.
+the concrete subjects, answer criteria, initial shared assessability decisions,
+selection algorithm/seed, severity definitions, evaluator settings, and separate
+limits for shared block review, mechanical checks, semantic review, developer
+tasks, comparison, and human adjudication before launching runs. Refuse
+unresolved limits. A different sample size or scoring policy requires a named
+profile revision before outputs exist.
 
 | Evidence set | Selection and use |
 |---|---|
@@ -640,13 +644,15 @@ If a ROM cannot support those populations or tasks, choose and approve a
 revised profile before launch. Do not invent subjects or substitute easier
 ones after inspecting candidate outputs.
 
-First determine assessability for each primary subject in the ROM block from
-the reference evidence and required evaluator capability. If these cannot
-settle its answer criteria, mark it not assessable for every candidate,
-including confident guesses, explicit unknowns, and omissions. Record the
-same subject IDs and reason across candidates; candidate wording cannot change
-this decision. Newly established evidence requires the versioned amendment
-and reassessment of all affected candidates described above.
+Before launching runs or opening any candidate output, record each primary
+subject's initial assessability, reason, and evidence/capability basis alongside
+its answer criteria in the frozen protocol. If that basis cannot settle the
+criteria, mark the subject not assessable for every candidate, including
+confident guesses, explicit unknowns, and omissions. Candidate wording cannot
+change this decision. Later changes require a versioned amendment identifying
+new evidence or capability, with the original decision retained and every
+affected candidate reassessed. Relative candidate performance is not a basis
+for changing assessability.
 
 Only for assessable subjects, judge each candidate against the answer criteria.
 Inspection or adjudication left unfinished by one evaluator's budget exhaustion
@@ -656,6 +662,13 @@ primary scores, bounds, and comparative conclusions involving that candidate
 while required judgments remain pending. Candidate-specific authored claims
 are a separate evidence set and never change which primary subjects can be
 assessed.
+
+Provisional dispositions elsewhere in this specification mean pending judgments
+under this rule. If required judgments remain when their fixed inspection or
+adjudication budget is exhausted, close assessment as `evaluation incomplete`,
+retain the partial judgments and reasons, and withhold the final primary scores
+and comparisons. V1 provides no additional evaluation budget or selective
+retry. Report incomplete evaluation as an outcome, without dropping the run.
 
 For completed judgments, use these statuses:
 
@@ -701,15 +714,21 @@ incorrect ownership or axis identity; report them separately. More correct
 minor subjects cannot cancel them. V1 produces dimensional comparisons and
 explicit tradeoffs, without a weighted overall winner.
 
-For each candidate, human review covers every proposed material contradiction
-plus a seeded 20% sample from each remaining nonempty status stratum, rounded
-up separately. Apply this to primary subjects and sampled authored claims
-separately, never to a pooled population across candidates. Include unresolved,
-unaddressed, and not-assessable ratings: search for missed explanations under
-different names or locations as well as checking over-credit. Freeze selection
-rules/seeds, retain selected IDs and denominators, and preserve initial and
-adjudicated ratings. Exhausted per-candidate adjudication budgets leave
-dispositions provisional and visible; they do not authorize dropping a stratum.
+Human review checks the shared primary-subject assessability decisions once per
+ROM block before the protocol freezes, using the shared block-review budget.
+Any amendment rechecks its changed decisions before reassessment. Candidate
+content cannot replace this evidence/capability check.
+
+For each candidate's assessable primary subjects, human review covers every
+proposed material contradiction plus a seeded 20% sample from each remaining
+nonempty rating stratum, rounded up separately. Include unresolved and
+unaddressed ratings: search for missed explanations under different names or
+locations as well as checking over-credit. Apply the same sampling separately
+to authored claims, including their not-assessable claims, whose subjects may
+differ by candidate. Freeze rules/seeds, retain selected IDs and denominators,
+and preserve initial and adjudicated ratings. Budget exhaustion follows the
+pending-judgment and evaluation-incomplete rule above; it never permits dropping
+a required stratum.
 
 Before spending on live project pilots, the evaluator must pass a synthetic
 calibration suite with four planted-error pairs (swapped axes, false RAM
@@ -876,9 +895,13 @@ Required behaviors:
    evaluator revision cannot reuse its exposed acceptance set to qualify.
    Incomplete answer evidence must give a guess, honest unknown, and omission
    the same primary not-assessable subjects and bounds. New verified evidence
-   updates every affected candidate through an amendment. A candidate-specific
-   inspection timeout leaves a pending judgment and no finalized primary
-   comparison; it cannot change the common not-assessable count.
+   updates every affected candidate through an amendment. Verify that initial
+   assessability and its block review predate the runs and any output access;
+   an unamended post-output reassignment must fail. Review shared assessability
+   once per block, never as a candidate rating. Inspection timeouts leave
+   pending judgments; exhausting the fixed judgment budget records evaluation
+   incomplete with no finalized primary comparison and no change to the common
+   not-assessable count.
 7. Blind presentation preserves semantic evidence; reversed pair order,
    identity leaks, prompt injection in artifacts, judge disagreement, and
    evaluation-budget exhaustion receive recorded dispositions.
@@ -896,9 +919,11 @@ Required behaviors:
    the original aggregate cap and deterministic primary-attempt selection.
    Hidden answer keys never enter logistical responses or helper context.
    Inject mid-pass permission requests, explicit input outcomes, unmarked
-   questions at turn end, and event-channel loss. Each must stop with its
-   diagnostic within the declared bound, rather than idle to budget exhaustion.
-   Normal handoff waits must not trigger those failures.
+   questions at turn end, and event-channel loss. Recognized input requests
+   stop as blocked awaiting input; unclassified turn ends count as agent failed;
+   lost telemetry counts as infrastructure failed. Each stops within the
+   declared bound, without a v1 continuation prompt. Expected handoff waits
+   must not trigger failures, and agent stops remain in arm failure counts.
 
 Demonstrate bad-direction proofs in disposable fixtures: remove a visibility
 restriction, disable manifest binding, reset a budget on restart, accept a
