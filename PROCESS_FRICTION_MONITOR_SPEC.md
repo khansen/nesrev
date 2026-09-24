@@ -166,9 +166,9 @@ launching model-backed work. Version 1 permits at most one tooling job in flight
 per repository, one triage invocation per new candidate batch, and a bounded
 number of implementation/review rounds. The initial allowance should cover one
 tooling job; further jobs require a renewed allowance. A zero implementation
-allowance supports triage-only operation.
-Verified abort and cleanup release the active slot under section 8; retaining
-an unresolved upstream dependency does not reserve it.
+allowance supports triage-only operation. Verified abort and cleanup release
+the active slot under section 8; retaining an unresolved upstream dependency
+does not reserve it.
 
 Persist limits for jobs, review rounds, and elapsed work time.
 Reserve part of the allowance for review and recovery. Exhaustion prevents new
@@ -444,10 +444,11 @@ assumption about that launcher:
   baseline, including any pass in flight; missing state is not zero work.
 - The project launcher admits the initial pass; its designated continuation
   watcher admits subsequent passes. Both call the same local admission routine
-  under the checkout control lock before dispatch. A pending hold or spent grant
-  refuses dispatch. One admission covers intake/pass 0 or one later pass,
-  including reviews, fixes, and archive; debit a finite grant once on admission,
-  with no automatic refund for failed or abandoned work.
+  under the checkout control lock before dispatch. A pending hold, spent grant,
+  or unreviewed aborted-merge dependency carried by the checkout refuses
+  dispatch. One admission covers intake/pass 0 or one later pass, including
+  reviews, fixes, and archive; debit a finite grant once on admission, with no
+  automatic refund for failed or abandoned work.
 - Update kickoff and handoff prompts to use `project-next-pass`, select the
   corridor, and call `project-pass-start` before edits. That wrapper must
   validate the already-issued admission and record planning, not debit again.
