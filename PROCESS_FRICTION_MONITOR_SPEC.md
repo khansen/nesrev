@@ -38,6 +38,7 @@ This specification extends, rather than replaces:
 | Triage agent | Evaluate new candidates and propose a bounded change or a disposition | Invoked on demand with a limited evidence packet |
 | Tooling implementer | Reproduce the defect, implement the fix, and verify it | Separate worktree and branch from fetched `origin/master` |
 | Tooling reviewer | Independently review the exact change and its evidence | Distinct agent session; implementation checkout is read-only during review |
+| Project launcher/watchers | Admit and dispatch authorized passes, respecting durable holds | Project-owned processes; no dependency on a live monitor |
 | Project implementer/reviewer | Continue their pass cycle, acknowledge holds when running, resume when authorized | Enrolled checkout with the new managed admission protocol |
 | Human operator | Set work allowance and approve publication/integration | Approve the concrete proposal and any later out-of-scope changes |
 
@@ -142,8 +143,7 @@ An existing immutable receipt wins: retain it and skip any new decision for that
 ID. A missing unreceipted candidate needs reconciliation, not an invented
 receipt. If all job candidates are decided before publication or merge, stop
 the job unless the operator approves a refreshed proposal with independent
-scope.
-Changes in scope or contradictory new evidence invalidate the old proposal.
+scope. Changes in scope or contradictory evidence invalidate the old proposal.
 
 If another writer decides a candidate after merge, record that decision and
 skip its receipt update; local integration must not fail solely because the
@@ -186,8 +186,13 @@ Waiting for human approval consumes no model work and must not start a
 replacement worker. A turn limit is optional and may be claimed only when the
 adapter can measure and enforce it. Prompts alone are not budget enforcement.
 
-A supervisor controls each tooling invocation's owned processes and deadline.
-V1 additionally requires a new independent backend watchdog with an expiring
+A supervisor controls every monitor-launched model invocation, including
+triage, implementation, review, and any model-backed recovery. This applies
+from stage 1's first triage call. Each invocation requires the same budget
+reservation and independent watchdog; a detector-only subset may run without
+the watchdog, but may make no model calls.
+
+V1 requires a new independent backend watchdog with an expiring
 invocation lease, installed before the worker starts. Its expiry enforcement
 runs outside the controller and supervisor processes and their termination
 groups. The supervisor renews a short liveness lease that cannot exceed the
@@ -380,10 +385,13 @@ permission to run. Missing or malformed control state fails closed for a
 registered managed workspace; an ordinary workspace without monitor enrollment
 keeps its existing behavior.
 
-New controller locks serialize repository jobs and checkout admission/ownership.
-Their generation is checked by managed mutating commands so a replaced
-coordinator cannot keep writing. Takeover first reconciles actual Git, PR,
-process, and operation state; a timeout is not a release of ownership.
+Separate locks serialize repository tooling jobs and checkout control-state
+transactions. Project dispatchers and the monitor use the same local checkout
+lock for admission and holds; it is not held across model calls or remote waits.
+Track monitor-owner and project-dispatcher generations separately. Managed
+commands reject replaced owners, but restarting the monitor does not invalidate
+the project dispatcher. Takeover first reconciles actual Git, PR, process, and
+operation state; a timeout is not a release of maintenance ownership.
 
 The current triage/archive tools have no writer lock; their documentation only
 requires one writer at a time. In v1, receipt/prune writes are serialized by
@@ -420,21 +428,31 @@ assumption about that launcher:
   A stopped-only enrollment grants no new passes. Never infer a remaining count
   from prose. Importing an existing workspace requires a reviewed enrollment
   baseline, including any pass in flight; missing state is not zero work.
-- Before sending an implementation kickoff or continuation, the launcher must
-  obtain an admission under the checkout control lock. A pending hold or spent
-  grant refuses dispatch. One admission covers intake/pass 0 or one later pass,
-  including its reviews, fixes, and archive; debit a finite grant once on
-  admission, with no automatic refund for failed or abandoned work.
+- The project launcher admits the initial pass; its designated continuation
+  watcher admits subsequent passes. Both call the same local admission routine
+  under the checkout control lock before dispatch. A pending hold or spent grant
+  refuses dispatch. One admission covers intake/pass 0 or one later pass,
+  including reviews, fixes, and archive; debit a finite grant once on admission,
+  with no automatic refund for failed or abandoned work.
 - Update kickoff and handoff prompts to use `project-next-pass`, select the
   corridor, and call `project-pass-start` before edits. That wrapper must
   validate the already-issued admission and record planning, not debit again.
-  After archive and admission completion, the implementer yields; only the
-  coordinator may admit and dispatch the next pass. Update watcher continuation
-  as well as prompts so enforcement does not depend on a remembered wrapper.
+  After archive and admission completion, the implementer yields to the project
+  continuation watcher for the next admission and dispatch. Update both the
+  watcher and prompts; admission must not depend on remembering a wrapper.
 - Canonical pass-start and continuation commands check the same admission and
   hold state. Guarding only post-commit `agent_review.py start-pass` cannot stop
   an extra implementation pass. Review/fix/archive handoffs remain deliverable
   under the existing admission while a boundary hold waits.
+
+Project dispatchers run independently of the monitor's process lifetime and
+shutdown group. Admission, completion, and archive observation writes use local
+durable state, without a monitor RPC, heartbeat, or approval. The monitor only
+participates when it requests a hold or performs authorized maintenance; it
+does not issue routine pass admissions. With valid control state, no blocking
+hold, and remaining project authorization, monitor failure or shutdown leaves
+ordinary pass continuation running. It neither releases an existing hold nor
+resets the grant. Missing/malformed control state still fails closed.
 
 Admission and hold acquisition share the new checkout lock. A pause request
 records its admission watermark atomically: the admitted pass may finish,
@@ -466,9 +484,8 @@ The second path covers gold completion, exhausted grants, idle needs-input
 stops before another pass, and closed sessions. A crashed or closed pane with
 unfinished admitted work does not qualify merely because the tree is clean.
 Reconciliation may retire an admission whose required completion evidence is
-already committed; it must not invent approval. A stopped legacy or solo
-checkout can enroll with an explicit no-active-pass baseline and inspected
-evidence.
+already committed; it must not invent approval. Enroll stopped legacy or solo
+checkouts with an explicit no-active-pass baseline and inspected evidence.
 Missing or contradictory evidence needs input, not phantom acknowledgements.
 
 If a blocked pass or exhausted review still has unfinished work, preserve it
@@ -543,14 +560,15 @@ and the exhausted pass allowance remain intact.
 
 Restore the previously resolved agent applications and explicit model/effort
 settings. Initial app fallback is not repeated during recovery: a missing app
-requires input. Stage fresh workers without dispatching semantic work, then
-atomically recheck user/correctness holds, remaining pass allowance, and the
-integration generation before releasing this job's maintenance hold and
-admitting the continuation. A user pause registered before admission blocks
-dispatch; a pass admitted first follows the finish-current-pass rule in
-section 7. Stop any staged idle workers when resumption is disallowed. Confirm
-the new worker's acknowledgement before reporting `RESUMED`; uncertainty
-remains a pending restart, not a reason to launch another pair.
+requires input. Stage fresh project workers without dispatching semantic work.
+After confirmed local completion, the coordinator releases only its maintenance
+hold. The project launcher then atomically rechecks all holds, remaining pass
+allowance, and the integration generation before admitting the continuation.
+A user pause registered before admission blocks dispatch; a pass admitted first
+follows the finish-current-pass rule in section 7. Stop staged idle workers when
+resumption is disallowed. Confirm the new worker's acknowledgement before
+reporting `RESUMED`; uncertainty remains a pending restart, not a reason to
+launch another pair.
 
 Receipt routing is not completion. The existing queue contract permits an
 accepted candidate to leave the queue once evidence is preserved at a durable
@@ -619,8 +637,9 @@ Recovery must preserve work and explain the next action:
 
 | Event | Required behavior |
 |---|---|
-| Coordinator or worker exits | Preserve state; reconcile before a bounded retry; do not spend unlimited budget restarting |
-| Controller, supervisor, or both die during tooling work | The independent watchdog lease still stops owned tooling work within the bound; preserve its deadline/reservation and leave project authorization intact |
+| Monitor coordinator or tooling worker exits | Preserve job state and reconcile before a bounded retry; project dispatchers continue within their grant unless a durable hold blocks them |
+| Project dispatcher or worker exits | Preserve project state and reconcile its admission before authorized recovery; a failed project dispatcher can stall continuation, independently of monitor availability |
+| Controller, supervisor, or both die during a monitor model invocation | The independent watchdog lease still stops that invocation within the bound; preserve its deadline/reservation and leave project authorization intact |
 | Approval deferred or rejected | Preserve the project's prior running/stopped state unless a separate hold applies; disposition decisions remain pending until Route writeback |
 | Merge blocked by remote checks or review | Leave project work running without a maintenance hold; resume the guarded remote stage when ready |
 | Uncertain publication or merge result | Reconcile the operation identity; do not blindly retry or take the checkout merely to wait |
@@ -634,7 +653,7 @@ Recovery must preserve work and explain the next action:
 | Fix merged but local integration failed | Record the actual merged revision; retry integration only, never create a duplicate merge |
 | Crash after local completion but before restart | Detect committed records and actual workspace state; resume at most once if authorized and this maintenance parked the pair |
 | Same observation after a verified fix | Preserve its raw event and use recurrence ingestion; do not silently suppress it because the earlier candidate has a receipt |
-| Operator stops the monitor | Cancel owned tooling work within its shutdown bound; inhibit new publication, integration, and restart; preserve existing holds and side-effect records for recovery |
+| Operator stops the monitor | Cancel its model invocations within the shutdown bound and inhibit monitor-initiated publication, integration, and maintenance restart. Leave project dispatchers running within their grant; preserve existing holds and side-effect records for recovery |
 | User pauses the project or project-pass allowance is exhausted | Preserve that hold across maintenance; do not dispatch another pass |
 | Process-work allowance is exhausted | Stop tooling dispatch; continue authorized project work unless a separate hold or unfinished maintenance prevents it |
 | Final record checks, restart, or cleanup fail | Preserve prior milestones and evidence; retry only the incomplete step, and do not claim overall completion |
@@ -649,15 +668,14 @@ requires a separate explicit retention decision. Never publish private pins or
 delete unrelated branches, files, sessions, or worktrees.
 
 The status view distinguishes `AWAITING APPROVAL`, `WAITING FOR REMOTE CHECKS`,
-`ROUTE WRITEBACK PENDING`, `WAITING FOR PASS BOUNDARY`,
-`STOPPED BOUNDARY READY`,
-`MAINTENANCE HELD`, `MERGED — INTEGRATION PENDING`, and
-`INTEGRATED — RESTART PENDING` or `PROJECT REMAINS PAUSED`. Show the project's
-actual running/stopped state separately from the tooling stage. Waiting for
-remote actions does not itself pause it. Show every active hold's owner and the
-remaining project and process-work allowances separately. Every `NEEDS INPUT`
-message states what is preserved, what may continue, and one concrete next
-action; merely reconnecting must not be offered as a cure for a persistent hold.
+and `ROUTE WRITEBACK PENDING`. Boundary states are `WAITING FOR PASS BOUNDARY`,
+`STOPPED BOUNDARY READY`, and `MAINTENANCE HELD`. After merge, distinguish
+`MERGED — INTEGRATION PENDING`, `INTEGRATED — RESTART PENDING`, and
+`PROJECT REMAINS PAUSED`. Show the project's actual running/stopped state
+separately from the tooling stage. Waiting for remote actions does not itself
+pause it. Show hold owners and project/process allowances separately. Every
+`NEEDS INPUT` message states what is preserved, what may continue, and one
+concrete next action; reconnecting is not a cure for a persistent hold.
 
 ## 10. Acceptance criteria and rollout
 
@@ -681,15 +699,24 @@ implementation acceptance requirements, not claims of existing test coverage:
   have one job/ownership winner. Runtime state appears in neither worktree's
   untracked listing. Stale owners cannot mutate after takeover; test each
   external side effect's intent/result crash window and ambiguous outcomes.
-- Kill the controller, the supervisor alone, then both during an invocation.
-  The independent watchdog stops owned processes within the original bound and
-  leaves unrelated processes alive. Recovery preserves deadlines and uncertain
-  reservations. Unsupported enforcement cannot enable automatic workers.
+- Kill the controller, the supervisor alone, then both during triage,
+  implementation, and review invocations. The independent watchdog stops owned
+  processes within the original bound and leaves unrelated processes alive.
+  Recovery preserves deadlines and uncertain reservations. Stage 1 refuses
+  model-backed triage without the watchdog, while its detector-only subset
+  continues without model calls.
 - Exercise real launcher kickoff and post-archive continuation: obtain admission
   before dispatch, require pre-edit pass planning, debit once, and yield after
   archive. A pending hold blocks the next pass while current review/fix/archive
   completes. Missing control state, duplicate admissions, old acknowledgements,
   and expired worker generations cannot authorize new work.
+- Crash the monitor, then separately stop it intentionally, while a project has
+  no hold and multiple authorized passes remaining. Its watcher still completes
+  and admits subsequent passes without monitor contact, stopping at the grant
+  limit. Repeat with a pending or acquired hold: current admitted work follows
+  the boundary protocol, and no new pass starts. A monitor restart neither
+  replaces the project dispatcher nor duplicates an admission. Also exercise
+  invalid control state and a failed project dispatcher as distinct blockers.
 - Running paired work requires both acknowledgements and committed approval/
   archive evidence. Clean stopped cases at gold, a spent grant, needs-input,
   closed sessions, and completed solo work integrate without acknowledgements.
@@ -739,10 +766,13 @@ Deliver in stages under this single contract:
 
 1. Detection, candidate bookkeeping, bounded triage, and operator status; no
    autonomous tooling jobs, live queue/receipt writes, holds, or integration.
+   Model-backed triage requires the independent watchdog and budget reservation
+   from section 4. Before those exist, only the detector/status subset may ship,
+   with no model calls. Stage 1 is complete only with enforced bounded triage.
    Validate the triage policy on synthetic blocker, repeated-cost, duplicate,
    deferred, and project-local cases before spending on live queues.
-2. Isolated implementation/review and concrete human approval proposals, with
-   independent invocation enforcement. No automated remote/local rollout yet.
+2. Isolated implementation/review and concrete human approval proposals, using
+   the same invocation enforcement. No automated remote/local rollout yet.
 3. Structured grants and enforced dispatch/admission, shared checkout control,
    guarded publication/merge, running/stopped integration, Route writeback,
    recurrence ingestion, and restart. Include fault/recovery tests and a
