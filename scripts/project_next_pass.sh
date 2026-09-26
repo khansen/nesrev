@@ -28,6 +28,7 @@ if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
     "xref_summary_generic.json"
     "xref_with_data.json"
     "data_consumers.json"
+    "instructions.json"
   )
   # Freshness is not just the asm. The cached baseline records gate status, and
   # a commit that fixes a gate without touching the asm used to leave the cache
@@ -725,93 +726,62 @@ def build_lowaddr_ram_equ_symbols(xref):
             by_addr.setdefault(f"0x{value:04x}", []).append(name)
     return by_addr
 
-def build_xref_equ_values(xref):
-    values = {}
-    for symbol in xref.get("symbols", []):
-        name = symbol.get("name")
-        if not isinstance(name, str):
-            continue
-        if symbol.get("kind") != "equ" or symbol.get("scope") != "global" or symbol.get("defined") is not True:
-            continue
-        definition = symbol.get("definition")
-        value = definition.get("value") if isinstance(definition, dict) else None
-        if isinstance(value, int) and not isinstance(value, bool):
-            values[name] = value
-    return values
+# Memory addressing modes whose operand names a RAM byte. JMP/JSR and branches
+# never qualify; indirect-indexed modes read a two-byte pointer.
+RAM_OPERAND_MODES = {"zeropage", "zeropage_x", "zeropage_y", "absolute", "absolute_x", "absolute_y"}
+RAM_POINTER_MODES = {"preindexed_indirect", "postindexed_indirect"}
+CONTROL_FLOW_MNEMONICS = {"JMP", "JSR"}
 
-SYMBOLIC_OPERAND_TOKEN_RE = re.compile(r"\$[0-9A-Fa-f]+|%[01]+|[A-Za-z_][A-Za-z0-9_]*|\d+|[-+*/()]|\s+")
+def load_instruction_records(path):
+    """Instruction records from the pass-prep analysis bundle, or [] if absent."""
+    if not os.path.exists(path):
+        return []
+    payload = load_json(path)
+    records = payload.get("records") if isinstance(payload, dict) else None
+    if not isinstance(records, list):
+        raise ContractError(f"{path}: instruction records must be a list")
+    return records
 
-def resolve_symbolic_operand(expression, values):
-    """Evaluate an operand expression using only xref-resolved equate values."""
-    parts = []
-    pos = 0
-    while pos < len(expression):
-        m = SYMBOLIC_OPERAND_TOKEN_RE.match(expression, pos)
-        if not m:
-            return None
-        token = m.group(0)
-        pos = m.end()
-        if token.isspace():
-            continue
-        if token.startswith("$"):
-            parts.append(str(int(token[1:], 16)))
-        elif token.startswith("%"):
-            parts.append(str(int(token[1:], 2)))
-        elif token[0].isalpha() or token[0] == "_":
-            if token not in values:
-                return None
-            parts.append(str(values[token]))
-        elif token == "/":
-            parts.append("//")
-        else:
-            parts.append(token)
-    try:
-        value = eval("".join(parts), {"__builtins__": {}}, {})
-    except Exception:
-        return None
-    return value if isinstance(value, int) else None
+def instruction_ram_sites(records, addr_symbols):
+    """RAM accesses whose operand the assembler resolved from a canonical RAM equate.
 
-def parse_symbolic_lowaddr_accesses(path, owner_index, values):
-    """Find instruction operands whose base is a ZP_/RAM_ equate.
-
-    xref v2 records no references for equate operands, so owners of fully
-    symbolized RAM bytes come from source operands. Every value, including the
-    base symbol, must resolve through xref; unresolved operands are skipped.
+    Addresses come from the assembled operand value and owners from the
+    assembler's lexical owner, so spaced or compound operand expressions need
+    no source parsing. An operand counts when its structural base or, for
+    symbol-plus-symbol expressions that have no structural base, one of its
+    referenced symbols is a canonical xref RAM equate.
     """
+    canonical = {symbol for symbols in addr_symbols.values() for symbol in symbols}
     out = []
-    for lineno, text in enumerate(load_file_lines(path), start=1):
-        m = MNEMONIC_RE.match(text)
-        if not m:
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            raise ContractError(f"instruction_records[{index}] must be an object")
+        mode = record.get("addressing_mode")
+        mnemonic = str(record.get("mnemonic") or "").upper()
+        if mode not in RAM_OPERAND_MODES | RAM_POINTER_MODES or mnemonic in CONTROL_FLOW_MNEMONICS:
             continue
-        mnemonic = m.group(1).upper()
-        parts = m.group(2).strip().split()
-        if not parts or parts[0].startswith("#"):
+        base = record.get("structural_base")
+        names = [base.get("symbol")] if isinstance(base, dict) else []
+        names += [name for name in record.get("referenced_symbols") or [] if isinstance(name, str)]
+        ram_symbol = next((name for name in names if name in canonical), None)
+        if ram_symbol is None:
             continue
-        operand = parts[0]
-        indirect = operand.startswith("[")
-        expression = re.sub(r",\s*[XYxy]$", "", operand)
-        if indirect:
-            expression = re.sub(r"[\])]$", "", expression[1:])
-            expression = re.sub(r",\s*[Xx]$", "", expression)
-        base = re.match(r"[A-Za-z_][A-Za-z0-9_]*", expression)
-        if not base or not RAM_SYMBOL_RE.fullmatch(base.group(0)) or base.group(0) not in values:
-            continue
-        addr = resolve_symbolic_operand(expression, values)
-        if addr is None or not 0 <= addr <= 0x0FFF:
-            continue
-        owner = find_lexical_owner(owner_index, path, lineno)
-        # An indirect operand reads the pointer's low byte and the next byte.
-        for byte_addr in ((addr, addr + 1) if indirect else (addr,)):
-            if byte_addr > 0x0FFF:
+        value = record.get("operand_value")
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ContractError(f"instruction_records[{index}].operand_value must be int")
+        use = record.get("use") if isinstance(record.get("use"), dict) else {}
+        pointer = mode in RAM_POINTER_MODES
+        for addr in ((value, value + 1) if pointer else (value,)):
+            if not 0 <= addr <= 0x0FFF:
                 continue
             out.append({
-                "addr_hex": f"0x{byte_addr:04x}",
-                "symbol": base.group(0),
+                "addr_hex": f"0x{addr:04x}",
+                "symbol": ram_symbol,
                 "mnemonic": mnemonic,
-                "access_kind": "read" if indirect else mnemonic_access_kind(mnemonic),
-                "file": path,
-                "line": lineno,
-                "owner_routine": owner,
+                "access_kind": "read" if pointer else mnemonic_access_kind(mnemonic),
+                "file": use.get("file"),
+                "line": use.get("line"),
+                "owner_routine": record.get("lexical_owner"),
             })
     return out
 
@@ -849,8 +819,9 @@ def build_symbolized_raw_ram_candidates(xref, addr_symbols, source_sites=None):
     out = {}
     for addr_hex, sites in by_addr.items():
         owners = sorted({r["owner_routine"] for r in sites if r.get("owner_routine")})
-        read_count = sum(1 for row in sites if row["access_kind"] == "read")
-        write_count = sum(1 for row in sites if row["access_kind"] == "write")
+        # Read-modify-write instructions count as both a read and a write.
+        read_count = sum(1 for row in sites if row["access_kind"] in {"read", "readwrite"})
+        write_count = sum(1 for row in sites if row["access_kind"] in {"write", "readwrite"})
         out[addr_hex] = {
             "addr_hex": addr_hex,
             "operand_count": len(sites),
@@ -1742,7 +1713,10 @@ except ContractError as exc:
 symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
     xref,
     lowaddr_ram_symbols,
-    parse_symbolic_lowaddr_accesses(asm_file, source_owner_index, build_xref_equ_values(xref)),
+    instruction_ram_sites(
+        load_instruction_records(os.path.join(pass_dir, "instructions.json")),
+        lowaddr_ram_symbols,
+    ),
 )
 merged_raw_ram_review_rows = merge_raw_ram_review(
     all_raw_ram_candidates,
