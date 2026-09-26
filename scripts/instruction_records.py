@@ -1,4 +1,4 @@
-"""Validate xasm instruction-record v1 facts without parsing assembly text."""
+"""Validate xasm instruction-record v2 facts without parsing assembly text."""
 
 KINDS = {"integer", "string", "symbol", "local_symbol", "forward_label", "backward_label",
          "current_pc", "operator", "member", "scope", "index", "sizeof", "mask", "datatype"}
@@ -7,6 +7,17 @@ MODES = {"implied", "accumulator", "immediate", "zeropage", "zeropage_x", "zerop
          "indirect", "relative"}
 OPERATORS = {"+", "-", "*", "/", "%", "&", "|", "^", "<<", ">>", "<", ">", "==",
              "!=", "<=", ">=", "bit_not", "logical_not", "low_byte", "high_byte", "negate", "bank"}
+DATA_KINDS = {"read", "write", "read_modify_write"}
+POINTER_MODES = {"preindexed_indirect", "postindexed_indirect", "indirect"}
+DATA_INDEX = {"zeropage_x": "X", "absolute_x": "X", "zeropage_y": "Y", "absolute_y": "Y",
+              "postindexed_indirect": "Y"}
+TERM_KINDS = {"integer", "string", "symbol", "local_symbol", "forward_label", "backward_label",
+              "current_pc", "expression"}
+NAMED_TERM_KINDS = {"symbol", "local_symbol", "forward_label", "backward_label"}
+BINDING_KINDS = {"label", "constant", "procedure", "variable", "enum_member"}
+BYTE_MODES = {"immediate", "zeropage", "zeropage_x", "zeropage_y",
+              "preindexed_indirect", "postindexed_indirect"}
+WORD_MODES = {"absolute", "absolute_x", "absolute_y", "indirect"}
 
 
 def require(condition, message):
@@ -50,8 +61,87 @@ def expression(value, check_source=None):
         expression(child, check_source)
 
 
+def memory_access(record):
+    """Checks the shape of memory_access and its consistency with mode and operand value.
+
+    Which mnemonics read or write is xasm's fact; it is not re-derived here.
+    """
+    access = record.get("memory_access", ...)
+    require(access is not ..., "missing memory_access")
+    mode, value = record["addressing_mode"], record["operand_value"]
+    if access is None:
+        require(mode not in POINTER_MODES, "pointer mode without memory_access")
+        return
+    require(isinstance(access, dict) and set(access) == {"data", "pointer"}, "invalid memory_access")
+    pointer_mode = mode in {"preindexed_indirect", "postindexed_indirect"}
+    data = access["data"]
+    if data is not None:
+        require(isinstance(data, dict) and data.get("kind") in DATA_KINDS, "invalid data access kind")
+        require(data.get("via_pointer") is pointer_mode, "data via_pointer/mode mismatch")
+        require(data.get("address") == (None if pointer_mode else value), "data address must be the operand value")
+        require(data.get("index_register") == DATA_INDEX.get(mode), "data index/mode mismatch")
+    pointer = access["pointer"]
+    require((pointer is not None) == (mode in POINTER_MODES), "pointer/mode mismatch")
+    if pointer is not None:
+        high = (value & 0xFF00) | ((value + 1) & 0xFF) if mode == "indirect" else (value + 1) & 0xFF
+        require(isinstance(pointer, dict) and pointer.get("address") == value
+                and pointer.get("high_byte_address") == high
+                and pointer.get("index_register") == ("X" if mode == "preindexed_indirect" else None),
+                "invalid pointer access")
+    require(data is not None or mode == "indirect", "memory_access without data")
+
+
+def truncated_operand(value, mode):
+    """xasm truncates an operand that is a constant after translation."""
+    if mode in BYTE_MODES:
+        return value if -128 <= value <= 255 else value & 0xFF
+    if mode in WORD_MODES:
+        return value & 0xFFFF if value < 0 or value >= 0x10000 else value
+    return value
+
+
+def additive_terms(record, check_source=None):
+    terms = record.get("additive_terms", ...)
+    require(terms is not ..., "missing additive_terms")
+    if record["expression"] is None:
+        require(terms is None, "additive terms for an operandless record")
+        return
+    require(isinstance(terms, dict) and terms.get("projection") in {"none", "low", "high"},
+            "invalid additive terms projection")
+    items = terms.get("terms")
+    require(isinstance(items, list) and items, "additive terms required")
+    total = 0
+    for term in items:
+        require(isinstance(term, dict) and term.get("sign") in (1, -1)
+                and term.get("kind") in TERM_KINDS and type(term.get("value")) is int, "invalid additive term")
+        kind = term["kind"]
+        require(isinstance(term.get("name"), str) if kind in NAMED_TERM_KINDS else "name" not in term,
+                "invalid term name")
+        symbols = term.get("referenced_symbols")
+        require(isinstance(symbols, list) and all(isinstance(name, str) for name in symbols)
+                if kind == "expression" else "referenced_symbols" not in term, "invalid term symbols")
+        require(("binding" in term) == (kind in NAMED_TERM_KINDS), "binding presence/kind mismatch")
+        binding = term.get("binding")
+        if binding is not None:
+            require(kind in {"symbol", "local_symbol"} and isinstance(binding, dict)
+                    and binding.get("kind") in BINDING_KINDS, "invalid term binding")
+            if binding["definition"] is not None:
+                span(binding["definition"], check_source)
+            require(isinstance(binding.get("enum"), str) if binding["kind"] == "enum_member"
+                    else "enum" not in binding, "invalid enum binding")
+        source(term.get("source"), check_source)
+        total += term["sign"] * term["value"]
+    if terms["projection"] == "low":
+        total &= 0xFF
+    elif terms["projection"] == "high":
+        total = (total >> 8) & 0xFF
+    value = record["operand_value"]
+    require(value in (total, truncated_operand(total, record["addressing_mode"])),
+            "additive terms do not add up to the operand value")
+
+
 def validate(payload, check_source=None):
-    require(isinstance(payload, dict) and payload.get("version") == "1", "version 1 required")
+    require(isinstance(payload, dict) and payload.get("version") == "2", "version 2 required")
     records = payload.get("records")
     require(isinstance(records, list), "complete records array required")
     origins = set()
@@ -105,6 +195,8 @@ def validate(payload, check_source=None):
         expected_index = ("X" if mode.endswith("_x") or mode == "preindexed_indirect" else
                           "Y" if mode.endswith("_y") or mode == "postindexed_indirect" else None)
         require(record["index_register"] == expected_index, "index/mode mismatch")
+        memory_access(record)
+        additive_terms(record, check_source)
     return records
 
 

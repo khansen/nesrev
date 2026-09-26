@@ -4,7 +4,7 @@ Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
 data-analysis bundle are implemented. Branch-literal consumers now use validated
 instruction records, as do the raw-address KPI and the symbolized raw-RAM owner
-refresh. Negative indexed offsets are next, starting with the bounded
+refresh, all on instruction records version 2. Negative indexed offsets are next, starting with the bounded
 feasibility check in their section; other Phase 2 consumer migrations and
 Phase 3 remain planned.
 
@@ -174,13 +174,12 @@ They required no additional xasm schema beyond data-directive xref v2.
   function for similar mixed paths; do not attempt a wholesale rewrite because
   both scripts also perform legitimate textual residue and readability checks.
 - The raw-RAM refresh for fully symbolized bytes reads the pass-prep
-  instruction records: resolved operand value, addressing mode, lexical owner,
-  and a canonical RAM equate as structural base or referenced symbol. Pass-prep
-  keeps `instructions.json` in the pass cache for it. The same script's raw
-  low-address operand scan and source owner index still parse source text and
-  are the next functions to migrate onto those records, once
-  [instruction records version 2](#planned-dependency-instruction-records-version-2)
-  supplies each operand's access kind and terms.
+  instruction records: the accessed bytes from `memory_access`, the lexical
+  owner, and a canonical RAM equate among the operand's additive terms (see
+  [instruction records version 2](#implemented-dependency-instruction-records-version-2)).
+  Pass-prep keeps `instructions.json` in the pass cache for it. The same
+  script's raw low-address operand scan and source owner index still parse
+  source text and are the next functions to migrate onto those records.
 
 ## Phase 2: Instruction Producer, Fresh Bundle, and Consumers
 
@@ -236,10 +235,10 @@ and tested, then the remaining consumers below. Review active-code, macro,
 same-line, and lexical-policy coverage differences explicitly; a changed count
 is not automatically equivalent behavior.
 
-### Planned dependency: instruction records version 2
+### Implemented dependency: instruction records version 2
 
-xasm's instruction records version 2 (`XASM_INSTRUCTION_RECORDS_V2_SPEC.md`
-in xorcyst, implemented on its `feat/instruction-records-v2` branch) adds two fields to every record. `memory_access` gives the data and
+xasm's [instruction records version 2](https://github.com/khansen/xorcyst/blob/f8fe9805ca84186269afd8cb2449e88f3d13b512/XASM_INSTRUCTION_RECORDS_V2_SPEC.md),
+landed in xorcyst [`f8fe980`](https://github.com/khansen/xorcyst/commit/f8fe9805ca84186269afd8cb2449e88f3d13b512), adds two fields to every record. `memory_access` gives the data and
 pointer bytes an instruction reads or writes, including read-modify-write.
 `additive_terms` splits the operand into signed terms, each with its value and
 the definition the assembler used for it. The same release replaces xasm's
@@ -262,28 +261,32 @@ change: 1,050 immediates that were `read`; 355 `CMP` operands that were
 `other` (233 now reads, 122 now immediates); 16 `BIT` references that were
 branches; and 212 new `CMP` index-pattern read sites.
 
-Version 2 has no compatibility mode, so NESrev adopts it in the same landing
-unit as the xasm release that produces it:
+Version 2 has no compatibility mode, so NESrev adopted it in one landing unit:
 
-- `scripts/instruction_records.py`: require version `"2"` and validate
-  `memory_access` and `additive_terms`, including that the terms sum to
-  `operand_value`.
-- `scripts/analysis_bundle.py`: validate through the updated records validator.
-  The index-pattern schema already accepts any string as `access_kind`.
+- `scripts/instruction_records.py` requires version `"2"` and validates the
+  shape of `memory_access` and `additive_terms` and their consistency with the
+  addressing mode and operand value, including that the terms add up to
+  `operand_value` (allowing xasm's truncation of constant operands). It checks
+  consistency only; which mnemonics read or write stays xasm's fact.
+  `tests/instruction_records_test.py` refuses each fact independently.
+- `scripts/analysis_bundle.py` validates through the updated records
+  validator. The index-pattern schema already accepts any string as
+  `access_kind`.
 - `scripts/project_next_pass.sh`:
-  - The symbolized raw-RAM refresh (`build_symbolized_raw_ram_candidates`)
-    builds one site row per instruction from the records, taking its access
-    kind from `memory_access` and its RAM term from `additive_terms`. It drops
-    its mnemonic table, its name lookup in the final xref symbol table, and
-    the rows it adds from `data_reads` and `data_writes`. A read-modify-write
-    site has an edge in each, so one row per edge would count the instruction
-    twice. A test covers `INC` of a RAM data label as one site with one read
-    and one write.
-  - Its internal site kind `readwrite` becomes `read_modify_write`, xasm's term,
-    so no mapping is needed. Only the generated pass cache carries the name,
-    and no other script reads it; `raw_ram_review.csv` stores counts and
-    owners, not kinds.
-  - Reference grouping puts `read_modify_write` references in both the
+  - The symbolized raw-RAM refresh (`instruction_ram_sites`) takes the bytes
+    each instruction touches from `memory_access`: the data address and kind,
+    and both pointer bytes as reads, with the 6502 page wrap already applied.
+    `JMP [addr]` vectors now count as reads of their bytes. Its RAM term is the
+    first symbol term in `additive_terms` whose name is a canonical xref RAM
+    equate. That canonical set stays: it is policy (global, defined,
+    low-address `.equ` names), not a value lookup, and a term binding cannot
+    express it, since `.equ` and `=` both bind as constants. The mnemonic and
+    addressing-mode tables are gone from the refresh; the source-text raw scan
+    below still uses its own until it migrates.
+  - Its site kind `readwrite` became `read_modify_write`, xasm's term. Only
+    the generated pass cache carries the name, and no other script reads it;
+    `raw_ram_review.csv` stores counts and owners, not kinds.
+  - Outbound-edge grouping puts `read_modify_write` references in both the
     data-read and data-write groups; `immediate` and `address_compute` stay in
     `other`.
   - The summary sections need no code change, but their contents shift with
@@ -291,7 +294,7 @@ unit as the xasm release that produces it:
     targets to data labels.
 - `scripts/project_pass_prep.sh`: no code change; the cached summaries
   regenerate.
-- `scripts/data_extent_missing_scan.py`: accept `read_modify_write`
+- `scripts/data_extent_missing_scan.py` accepts `read_modify_write`
   index-pattern sites alongside `read`, since both read the table at the
   bounded index. `CMP Table,X` sites now arrive as bounded `read` sites too, so
   the scan can report new advisory findings; review them in the corpus
@@ -303,9 +306,22 @@ unit as the xasm release that produces it:
 - `scripts/branch_literals.py` and `scripts/raw_addresses.py`: version bump
   only.
 
-Follow the [migration contract](#migration-contract-for-each-work-item). In the
-pinned-corpus comparison, every changed summary, index-pattern and
-data-consumer row must trace to one of the classifier changes above.
+The [migration contract](#migration-contract-for-each-work-item) comparison ran
+all 23 projects on the old stack (these scripts' predecessors with xasm
+`83a618e`) and the new one (these scripts with xasm `f8fe980`).
+`project-verify` gave the same exit status and KPI output everywhere, and
+`project-next-pass` the same recommendation and cluster anchors. Every
+difference traces to a change above:
+
+- 53 raw-RAM review rows in 14 projects gained one read per indirect `JMP`
+  through a canonical RAM vector; each count delta matches the vector bytes in
+  the records. Vectors whose bytes have no review row, or an active row that the
+  raw text scan counts, are unchanged.
+- The pass cache gained the 212 `CMP` index-pattern read sites, and summary
+  entries shifted with the classifier.
+- The extent scan reports six new advisory tables in four projects, all
+  bounded `CMP Table,X` or `CMP Table,Y` sites that the old classifier hid.
+  Their `data_extent_assertions.csv` rows belong on the `projects` branch.
 
 ### 5. Branch-literal inventory and KPI
 
@@ -563,7 +579,7 @@ removed:
       from measurements rather than optimizing the superseded text parsers.
 - [ ] Introduce a shared cross-project constant cache, then migrate hardware
       drift and prior-project reuse where useful.
-- [ ] Adopt xasm instruction records version 2 in the same landing unit as its
+- [x] Adopt xasm instruction records version 2 in the same landing unit as its
       xasm release.
 - [ ] Migrate `project_next_pass.sh`'s raw low-address operand scan and source
       owner index to instruction records version 2.
