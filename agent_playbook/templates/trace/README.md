@@ -66,6 +66,22 @@ specific mod to be curated.
    `CANONICAL_TRACE_DOC=docs/reverse_engineering/<DOMAIN>_TRANSITIONS.md` so
    the analyzer refuses accidental direct overwrites.
 
+<a id="screen-captures"></a>
+## Screen captures
+
+[`fceux_screen_capture.lua`](fceux_screen_capture.lua) supports
+[visual identity evidence](../../PASS_WORKFLOW.md#visual-identity-evidence).
+Copy it into `projects/<slug>/tools/trace/` with a small wrapper that assembles
+a fresh listing, refuses one that differs from the ROM, prepends a `watch` table
+of symbol-backed addresses and runs the supervisor below with one
+`--require-milestone` per capture. Each `capture(name)` writes `<name>.gd` into
+`TRACE_DIR` and one milestone record holding the four nametable views
+(`nt0`-`nt3`), the 32-byte palette, optional `CONTEXT` bytes and, for CHR-RAM
+games, the pattern tables. `HOLD` rewrites bytes every frame to reach later
+screens; record each entry in the trace plan. The unmodified template stops
+with `stalled`. Convert and render the output with the
+[shared graphics helpers](../../TOOLING.md#visual-evidence-tools).
+
 <a id="supervised-captures"></a>
 ## Supervised captures
 

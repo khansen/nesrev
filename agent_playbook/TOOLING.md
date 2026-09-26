@@ -1217,6 +1217,25 @@ ignore it.
 Trace scripts install watches and inputs; no manual debugger setup is needed.
 Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) and the [supervised FCEUX runner](templates/trace/README.md#supervised-captures) before requesting human help.
 
+<a id="visual-evidence-tools"></a>
+### Visual evidence tools
+
+`scripts/nes_graphics.py` holds the shared parts of
+[visual identity evidence](PASS_WORKFLOW.md#visual-identity-evidence): iNES/CHR
+decoding, tile pixels, an approximate NTSC palette, nametable and pattern-table
+renders, FCEUX GD screenshot conversion and a dependency-free PNG writer.
+Project renderers import it and implement only their draw-data walk.
+
+```sh
+python3 scripts/nes_graphics.py chr-sheet --rom <rom.nes> --output chr.png
+python3 scripts/nes_graphics.py gd2png <capture>/<name>.gd <name>.png --scale 2
+python3 scripts/nes_graphics.py nametable --rom <rom.nes> --nametable @nt0.hex --palette @palette.hex --pattern-table 1 --output nt0.png
+```
+
+`--nametable`/`--palette` take hex or `@file`; `--pattern-table` is the table
+PPUCTRL selects for the background. CHR-RAM games pass `--chr-file` with a
+captured 8 KiB pattern-table dump instead of `--rom`.
+
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs
 

@@ -323,14 +323,17 @@ ROOT_WORD_CEILING = 6000
 # Tmux startup now documents the launcher, readiness confirmation, and pending
 # review resumption. These TOOLING routes retain measured-plus-headroom for
 # that new operator workflow; the underlying review gates are unchanged.
-# The data-label family rule (a note comment keeps the family header; a tagged
-# comment starts a new header) is documented in DOCUMENTATION.md. Affected
-# ceilings grow by exactly that addition and retain their prior headroom.
+# Visual identity evidence adds the render-then-capture identity method to
+# PASS_WORKFLOW.md (consumer details, capture rules and how the two channels are
+# fused with code), its helper commands to TOOLING.md, the data-label family and
+# note-comment rule to DOCUMENTATION.md, and one AGENTS.md index row. The method
+# is kept at readable length rather than compressed; affected ceilings grow by
+# exactly those additions and retain their prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3511, 25650),
-    "data-recovery": (3201, 24079),
-    "new-project": (4220, 31053),
-    "project-pass-review": (4555, 32451),
+    "default": (3567, 26073),
+    "data-recovery": (3215, 24119),
+    "new-project": (4263, 31453),
+    "project-pass-review": (4617, 32954),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
