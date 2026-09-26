@@ -3,9 +3,10 @@
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
 data-analysis bundle are implemented. Branch-literal consumers now use validated
-instruction records, as does the raw-address KPI. Negative indexed offsets are
-next; other Phase 2 consumer
-migrations and Phase 3 remain planned.
+instruction records, as do the raw-address KPI and the symbolized raw-RAM owner
+refresh. Negative indexed offsets are next, starting with the bounded
+feasibility check in their section; other Phase 2 consumer migrations and
+Phase 3 remain planned.
 
 ## Purpose
 
@@ -307,6 +308,24 @@ remains visible. The requirements below are the regression contract.
 
 ### 7. Negative indexed data offsets
 
+The gains are correctness and maintenance: assembler-owned label and expression
+facts, consistent recognition of active expanded instructions, and one fewer
+assembly-text parser. This advisory check has no demonstrated performance
+benefit, so the migration is modest and non-urgent.
+
+Start with a bounded feasibility check. Inspect the existing consumer and the
+available xasm facts, using only a small focused fixture if needed, and report
+whether the existing schema supports a straightforward migration. Stop before
+implementation if substantial producer/schema work or broader infrastructure is
+needed; record the gap and reassess the benefit and cost.
+
+Keep execution proportional to this small check: stabilize focused fixtures
+before the required final suite, corpus comparison and reviews, and avoid
+redundant runs against unchanged inputs. This does not waive mandatory reviews,
+final verification or reruns after changes that affect a check.
+
+Implementation scope, if the feasibility check supports it:
+
 - Replace `scripts/negative_data_offset_check.py`'s label and operand parser.
 - Consume structured data-label kind, base symbol, negative displacement, index
   register, opcode, owner, and source location.
@@ -460,6 +479,8 @@ removed:
 - [x] Migrate branch literals with one typed classifier, CSV v2 provenance,
       validated instruction profiles, and explicit refusal in owning wrappers.
 - [x] Migrate the raw-address KPI and its owning-wrapper measurement paths.
+- [ ] Run the bounded negative-offset feasibility check before implementing that
+      migration.
 - [ ] Migrate negative offsets, suspicious immediates, and
       raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.

@@ -17,6 +17,11 @@ projects/*/docs/reverse_engineering/inventory/intake_listing.json
 projects/*/docs/reverse_engineering/inventory/intake_xref.json
 projects/*/docs/reverse_engineering/inventory/raw_address_audit.json
 
+# Regenerate-on-demand policy-baseline pending-queue snapshots: embed absolute
+# source line numbers, so any earlier edit invalidates most rows and produces
+# a full-file diff with no durable content. Regenerate locally; do not track.
+projects/*/scripts/policy_baseline_remaining.txt
+
 # Project-specific binaries and build artifacts
 projects/*/reference/*
 projects/*/build/
