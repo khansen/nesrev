@@ -329,11 +329,15 @@ ROOT_WORD_CEILING = 6000
 # note-comment rule to DOCUMENTATION.md, and one AGENTS.md index row. The method
 # is kept at readable length rather than compressed; affected ceilings grow by
 # exactly those additions and retain their prior measured headroom.
+# Tooling Rule One puts the structured-output rule at the top of TOOLING.md,
+# with an AGENTS.md index row, so every tooling route loads it before any
+# command detail. TOOLING routes grow by exactly that prose and the new-project
+# route by the index row; each retains its prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3567, 26073),
-    "data-recovery": (3215, 24119),
-    "new-project": (4263, 31453),
-    "project-pass-review": (4617, 32954),
+    "default": (3589, 26285),
+    "data-recovery": (3237, 24331),
+    "new-project": (4264, 31471),
+    "project-pass-review": (4639, 33166),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
