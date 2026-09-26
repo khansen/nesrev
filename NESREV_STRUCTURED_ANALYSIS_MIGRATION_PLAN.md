@@ -388,6 +388,10 @@ Do not migrate these merely because they open an asm file:
   including comments, rather than semantic references. Do not silently replace
   it with xref use counts. This lexical definition does not exempt constant
   definition/kind/value discovery from the structured classification rule.
+- `data_label_doc_kpi.sh` reads `Format:` and `Used by:` headers as text, but
+  it finds data labels and their contiguous families with label and
+  data-directive regexes. That identity is an assembler fact and belongs to
+  structured output; only the header reading is lexical.
 - comment-quality, stale-comment, inferred-prose, documentation, and naming
   checks
 - source-format checks for packet boundaries, table-body representation, and
@@ -467,6 +471,8 @@ removed:
       drift and prior-project reuse where useful.
 - [ ] Migrate `project_next_pass.sh`'s raw low-address operand scan and source
       owner index to instruction records.
+- [ ] Take `data_label_doc_kpi.sh`'s data-label and family identity from
+      structured output, keeping its header parsing lexical.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.
 
 ## Existing Spec Disposition

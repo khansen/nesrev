@@ -333,11 +333,14 @@ ROOT_WORD_CEILING = 6000
 # with an AGENTS.md index row, so every tooling route loads it before any
 # command detail. TOOLING routes grow by exactly that prose and the new-project
 # route by the index row; each retains its prior measured headroom.
+# The visual evidence helpers take CHR dumps as the capture's hex text and need
+# a bank for multi-bank CHR ROM; the TOOLING routes grow by exactly that note
+# and keep their prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3589, 26285),
-    "data-recovery": (3237, 24331),
+    "default": (3590, 26303),
+    "data-recovery": (3238, 24349),
     "new-project": (4264, 31471),
-    "project-pass-review": (4639, 33166),
+    "project-pass-review": (4640, 33184),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -12,6 +12,9 @@ Commands:
   nametable  render one 1 KiB nametable dump with a 32-byte palette dump
   gd2png     convert an FCEUX truecolor GD screenshot to PNG
 
+Pattern-table, nametable and palette dumps are hex text, inline or as @file,
+exactly as the screen-capture template records them.
+
 Colors come from a common approximation of the NTSC 2C02 palette. Renders are
 for identifying art, not for exact color reproduction.
 """
@@ -174,22 +177,37 @@ def read_gd(path):
     return rows
 
 
-def hex_argument(value, name):
-    text = Path(value[1:]).read_text() if value.startswith("@") else value
-    text = "".join(text.split())
+def hex_argument(value, name, size):
+    """Decode hex text given inline or as @file; it must hold exactly size bytes."""
     try:
-        return bytes.fromhex(text)
+        text = Path(value[1:]).read_text() if value.startswith("@") else value
+        data = bytes.fromhex("".join(text.split()))
     except ValueError as exc:
         raise GraphicsError(f"{name} is not hex: {exc}") from exc
+    if len(data) != size:
+        raise GraphicsError(f"{name} needs {size} bytes, got {len(data)}")
+    return data
 
 
 def load_chr(args):
-    if args.chr_file:
-        return Path(args.chr_file).read_bytes()
+    """Return the 8 KiB of pattern tables to render."""
+    if args.chr:
+        if args.chr_bank is not None:
+            raise GraphicsError("--chr-bank selects a CHR ROM bank and needs --rom")
+        return hex_argument(args.chr, "--chr", CHR_UNIT)
     _, chr_data = read_ines(args.rom)
     if not chr_data:
-        raise GraphicsError("the ROM has CHR RAM; pass --chr-file with a captured pattern-table dump")
-    return chr_data
+        raise GraphicsError("the ROM has CHR RAM; pass --chr with a captured pattern-table dump")
+    banks = len(chr_data) // CHR_UNIT
+    bank = args.chr_bank
+    if bank is None:
+        if banks > 1:
+            raise GraphicsError(f"the ROM has {banks} 8 KiB CHR banks; pass --chr-bank, "
+                                "or --chr with a captured pattern-table dump")
+        bank = 0
+    if not 0 <= bank < banks:
+        raise GraphicsError(f"--chr-bank {bank} is outside the ROM's {banks} CHR banks")
+    return chr_data[bank * CHR_UNIT:(bank + 1) * CHR_UNIT]
 
 
 def main(argv=None):
@@ -200,7 +218,8 @@ def main(argv=None):
     for command in (sheet, table):
         source = command.add_mutually_exclusive_group(required=True)
         source.add_argument("--rom", help="iNES file supplying CHR ROM")
-        source.add_argument("--chr-file", help="raw 8 KiB pattern-table dump, for CHR-RAM games")
+        source.add_argument("--chr", help="8 KiB pattern-table dump as hex, or @file (CHR-RAM or banked CHR)")
+        command.add_argument("--chr-bank", type=int, help="8 KiB CHR ROM bank, required when --rom has several")
         command.add_argument("--output", required=True)
         command.add_argument("--scale", type=int, default=2)
     table.add_argument("--nametable", required=True, help="1 KiB nametable as hex, or @file")
@@ -218,9 +237,9 @@ def main(argv=None):
         if args.command == "chr-sheet":
             rows, channels = render_pattern_tables(load_chr(args)), 1
         elif args.command == "nametable":
-            rows = render_nametable(hex_argument(args.nametable, "--nametable"), load_chr(args),
+            rows = render_nametable(hex_argument(args.nametable, "--nametable", NAMETABLE_BYTES), load_chr(args),
                                     args.pattern_table * PATTERN_TABLE_BYTES,
-                                    hex_argument(args.palette, "--palette"))
+                                    hex_argument(args.palette, "--palette", PALETTE_BYTES))
             channels = 3
         else:
             rows, channels = read_gd(args.input), 3

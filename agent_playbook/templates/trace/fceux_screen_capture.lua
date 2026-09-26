@@ -10,8 +10,10 @@ local log = assert(io.open(assert(os.getenv('TRACE_OUT'), 'use the supervised ca
 local out = assert(os.getenv('TRACE_DIR'), 'use the supervised capture runner')
 local limit = assert(tonumber(os.getenv('TRACE_MAX_FRAMES')), 'missing frame limit')
 local frame = 0
+local finished = false
 
--- Set true for CHR-RAM games so captures can be rendered without CHR ROM.
+-- Set true for CHR-RAM or bank-switched CHR games so each capture renders with
+-- the tiles mapped at that moment.
 local DUMP_PATTERN_TABLES = false
 -- Bytes rewritten every frame to reach later screens (for example holding a
 -- lives or miss counter). Record every entry in the trace plan; never pin a
@@ -25,10 +27,19 @@ local function emit(event, fields)
     log:flush()
 end
 
-local function finish(reason)
+local function close_log(reason)
+    if finished then return end
+    finished = true
     emit('done', ',"reason":"' .. reason .. '"')
     log:close()
+end
+
+-- emu.exit() requests shutdown and returns, so park the script afterwards:
+-- nothing may run or be logged after the done record.
+local function finish(reason)
+    close_log(reason)
     emu.exit()
+    while true do emu.frameadvance() end
 end
 
 local function step(buttons)
@@ -77,6 +88,7 @@ local function capture(name, ppuctrl_shadow)
 end
 
 emit('start', ',"scenario":"screens"')
+emu.registerexit(function() close_log('exit') end)
 emu.frameadvance()
 if movie.active() then movie.stop() end
 emu.speedmode('maximum')

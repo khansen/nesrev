@@ -49,6 +49,10 @@ def read_png(path):
     return width, height, channels, rows
 
 
+def cli(*args):
+    return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)], capture_output=True, text=True)
+
+
 class NesGraphicsTest(unittest.TestCase):
     def test_tile_pixels_combines_both_planes(self):
         data = chr_with_tile(1, 0b10100000, 0b11000000)
@@ -124,7 +128,56 @@ class NesGraphicsTest(unittest.TestCase):
             result = subprocess.run([sys.executable, str(SCRIPT), "chr-sheet", "--rom", str(rom),
                                      "--output", str(Path(tmp) / "x.png")], capture_output=True, text=True)
         self.assertEqual(result.returncode, 1)
-        self.assertIn("--chr-file", result.stderr)
+        self.assertIn("pass --chr with a captured pattern-table dump", result.stderr)
+
+    def test_chr_dump_reads_the_capture_templates_hex_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dump = Path(tmp) / "chr.hex"
+            dump.write_text(chr_with_tile(0, 0xFF, 0xFF).hex().upper())
+            png = Path(tmp) / "sheet.png"
+            result = cli("chr-sheet", "--chr", f"@{dump}", "--output", png, "--scale", 1)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            _, _, _, rows = read_png(png)
+        self.assertEqual(rows[0][0], g.GRAY_SHADES[3])
+        self.assertEqual(rows[0][8], g.GRAY_SHADES[0])
+
+    def test_chr_dump_must_be_8_kib_of_hex(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            short = Path(tmp) / "short.hex"
+            short.write_text(bytes(0x1000).hex())
+            binary = Path(tmp) / "chr.bin"
+            binary.write_bytes(bytes(range(256)) * 32)
+            too_short = cli("chr-sheet", "--chr", f"@{short}", "--output", Path(tmp) / "a.png")
+            not_hex = cli("chr-sheet", "--chr", f"@{binary}", "--output", Path(tmp) / "b.png")
+        self.assertEqual(too_short.returncode, 1)
+        self.assertIn("--chr needs 8192 bytes, got 4096", too_short.stderr)
+        self.assertEqual(not_hex.returncode, 1)
+        self.assertIn("--chr is not hex", not_hex.stderr)
+
+    def test_banked_chr_rom_requires_a_bank(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rom = Path(tmp) / "banked.nes"
+            rom.write_bytes(ines(chr_bytes=bytes(0x2000) + chr_with_tile(0, 0xFF, 0xFF)))
+            png = Path(tmp) / "bank1.png"
+            unbanked = cli("chr-sheet", "--rom", rom, "--output", Path(tmp) / "x.png")
+            outside = cli("chr-sheet", "--rom", rom, "--chr-bank", 2, "--output", Path(tmp) / "y.png")
+            bank1 = cli("chr-sheet", "--rom", rom, "--chr-bank", 1, "--output", png, "--scale", 1)
+            self.assertEqual(bank1.returncode, 0, bank1.stderr)
+            _, _, _, rows = read_png(png)
+        self.assertEqual(unbanked.returncode, 1)
+        self.assertIn("2 8 KiB CHR banks; pass --chr-bank", unbanked.stderr)
+        self.assertEqual(outside.returncode, 1)
+        self.assertIn("outside the ROM's 2 CHR banks", outside.stderr)
+        self.assertEqual(rows[0][0], g.GRAY_SHADES[3])
+
+    def test_nametable_dump_must_be_one_nametable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rom = Path(tmp) / "t.nes"
+            rom.write_bytes(ines(chr_bytes=bytes(0x2000)))
+            result = cli("nametable", "--rom", rom, "--nametable", bytes(0x1000).hex(),
+                         "--palette", bytes(32).hex(), "--output", Path(tmp) / "nt.png")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("--nametable needs 1024 bytes, got 4096", result.stderr)
 
 
 if __name__ == "__main__":

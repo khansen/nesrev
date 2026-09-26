@@ -1253,9 +1253,10 @@ python3 scripts/nes_graphics.py gd2png <capture>/<name>.gd <name>.png --scale 2
 python3 scripts/nes_graphics.py nametable --rom <rom.nes> --nametable @nt0.hex --palette @palette.hex --pattern-table 1 --output nt0.png
 ```
 
-`--nametable`/`--palette` take hex or `@file`; `--pattern-table` is the table
-PPUCTRL selects for the background. CHR-RAM games pass `--chr-file` with a
-captured 8 KiB pattern-table dump instead of `--rom`.
+`--nametable`, `--palette` and `--chr` take a capture's hex fields inline or as
+`@file`; `--pattern-table` is the table PPUCTRL selects for the background.
+CHR-RAM games pass `--chr` with the captured pattern tables instead of `--rom`;
+a ROM with several CHR banks needs `--chr-bank` or a captured `--chr`.
 
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs

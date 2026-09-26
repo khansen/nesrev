@@ -56,6 +56,9 @@ def signal_group(process, signum):
 def stop_group(process, grace):
     # start_new_session makes this child's PID its private process-group ID.
     # Clean the group even if the emulator exited but left a helper behind.
+    # Reap an exited emulator first: macOS refuses to signal a group whose only
+    # member is an unreaped zombie (EPERM), but reports a reaped one as missing.
+    process.poll()
     if signal_group(process, signal.SIGTERM):
         deadline = time.monotonic() + grace
         while time.monotonic() < deadline:

@@ -76,11 +76,13 @@ a fresh listing, refuses one that differs from the ROM, prepends a `watch` table
 of symbol-backed addresses and runs the supervisor below with one
 `--require-milestone` per capture. Each `capture(name)` writes `<name>.gd` into
 `TRACE_DIR` and one milestone record holding the four nametable views
-(`nt0`-`nt3`), the 32-byte palette, optional `CONTEXT` bytes and, for CHR-RAM
-games, the pattern tables. `HOLD` rewrites bytes every frame to reach later
-screens; record each entry in the trace plan. The unmodified template stops
-with `stalled`. Convert and render the output with the
-[shared graphics helpers](../../TOOLING.md#visual-evidence-tools).
+(`nt0`-`nt3`), the 32-byte palette, the PPUCTRL shadow when `capture` is given
+its address, optional `CONTEXT` bytes and, with `DUMP_PATTERN_TABLES` for
+CHR-RAM or bank-switched CHR games, the pattern tables (`chr`). `HOLD` rewrites
+bytes every frame to reach later screens; record each entry in the trace plan.
+The unmodified template stops with `stalled`. Convert and render the output
+with the [shared graphics helpers](../../TOOLING.md#visual-evidence-tools),
+which take the milestone's hex fields as they are.
 
 <a id="supervised-captures"></a>
 ## Supervised captures
