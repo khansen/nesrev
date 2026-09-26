@@ -238,8 +238,8 @@ is not automatically equivalent behavior.
 
 ### Planned dependency: instruction records version 2
 
-xasm's proposed instruction records version 2 (`XASM_INSTRUCTION_RECORDS_V2_SPEC.md`
-in xorcyst) adds two fields to every record. `memory_access` gives the data and
+xasm's instruction records version 2 (`XASM_INSTRUCTION_RECORDS_V2_SPEC.md`
+in xorcyst, implemented on its `feat/instruction-records-v2` branch) adds two fields to every record. `memory_access` gives the data and
 pointer bytes an instruction reads or writes, including read-modify-write.
 `additive_terms` splits the operand into signed terms, each with its value and
 the definition the assembler used for it. The same release replaces xasm's
@@ -248,8 +248,19 @@ index-pattern and data-consumer outputs:
 
 - read-modify-write accesses gain a kind of their own;
 - `BIT` and `JMP [addr]` references become reads;
+- `CMP` operands, which the old `CP` prefix test missed, become reads, or
+  `immediate` for immediates;
 - pointer-mode references become reads of the pointer;
 - non-projection immediates get their own `immediate` value.
+
+A read-only sweep of all 23 projects against the version 1 assembler found the
+same bytes and warnings everywhere, 177,819 records that pass the term-sum
+check, and legacy changes limited to that list. Because NESrev's RAM is named
+by equates, which never appear in xref references, the read-modify-write,
+`JMP [addr]` and pointer-mode changes left project output untouched. What did
+change: 1,050 immediates that were `read`; 355 `CMP` operands that were
+`other` (233 now reads, 122 now immediates); 16 `BIT` references that were
+branches; and 212 new `CMP` index-pattern read sites.
 
 Version 2 has no compatibility mode, so NESrev adopts it in the same landing
 unit as the xasm release that produces it:
@@ -282,7 +293,9 @@ unit as the xasm release that produces it:
   regenerate.
 - `scripts/data_extent_missing_scan.py`: accept `read_modify_write`
   index-pattern sites alongside `read`, since both read the table at the
-  bounded index.
+  bounded index. `CMP Table,X` sites now arrive as bounded `read` sites too, so
+  the scan can report new advisory findings; review them in the corpus
+  comparison.
 - `scripts/embedded_pointer_audit.py`: no change; it uses only
   `paired_byte_reads`, which stays read-only.
 - `scripts/used_by_xref_check.py`: no change; it takes owners from references
