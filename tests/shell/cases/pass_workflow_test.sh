@@ -3745,6 +3745,23 @@ if row["top_readers"] != "Reset:1" or row["top_writers"] != "Reset:1":
 PY
 }
 
+# Assemble the fixture asm with xasm into the pass cache: instruction records
+# always, and the xref too unless the test supplies its own symbol table.
+_assemble_pass_cache() {
+  local slug="$1" xref="${2:-with-xref}"
+  local pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  local args=(
+    --pure-binary -o "${NESREV_TEST_TMPDIR}/${slug}.bin"
+    --instruction-records-output="${pass_dir}/instructions.json"
+    --dependency-manifest="${NESREV_TEST_TMPDIR}/${slug}.deps.json"
+  )
+  if [[ "${xref}" == "with-xref" ]]; then
+    args+=(--xref="${pass_dir}/xref_with_data.json" --xref-format=json
+      --xref-include-owner=true --xref-data=true)
+  fi
+  "${XASM_BIN:-$(command -v xasm)}" "${args[@]}" "projects/${slug}/asm/${slug}.asm"
+}
+
 test_next_pass_raw_ram_review_refreshes_symbolized_owner_columns() {
   local slug; slug="$(unique_slug raw_owner_symbolized)"
   trap "cleanup_project ${slug}" EXIT
@@ -3761,53 +3778,7 @@ NewOwner:
   STA ZP_FrameCounter
   RTS
 ASM
-  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
-{
-  "version": "2",
-  "data_directive_references": [],
-  "symbols": [
-    {
-      "name": "NewOwner",
-      "scope": "global",
-      "definition": {
-        "file": "projects/${slug}/asm/${slug}.asm",
-        "line": 5,
-        "cpu_address": "\$C000"
-      }
-    },
-    {
-      "name": "ZP_FrameCounter",
-      "kind": "equ",
-      "scope": "global",
-      "defined": true,
-      "definition": {
-        "file": "projects/${slug}/asm/${slug}.asm",
-        "line": 3,
-        "value": 16
-      }
-    }
-  ],
-  "references": [],
-  "data_reads": [
-    {
-      "symbol": "ZP_FrameCounter",
-      "owner_routine": "NewOwner",
-      "file": "projects/${slug}/asm/${slug}.asm",
-      "line": 6,
-      "opcode": "LDA"
-    }
-  ],
-  "data_writes": [
-    {
-      "symbol": "ZP_FrameCounter",
-      "owner_routine": "NewOwner",
-      "file": "projects/${slug}/asm/${slug}.asm",
-      "line": 7,
-      "opcode": "STA"
-    }
-  ]
-}
-EOF
+  _assemble_pass_cache "${slug}"
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
 addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
 0x0010,symbolized,ZP_FrameCounter,,5,no,2,1,1,1,OldOwner:1,OldOwner:1
@@ -3833,12 +3804,148 @@ if row["operand_count"] != "2" or row["read_count"] != "1" or row["write_count"]
 PY
 }
 
+test_next_pass_raw_ram_review_refreshes_owners_from_instruction_records() {
+  local slug; slug="$(unique_slug raw_owner_instructions)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared instruction-record raw owner refresh fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_RecordBase .EQU $10
+TempByte .EQU $13
+ZP_Counter .EQU $18
+ZP_Ptr .EQU $20
+ZP_TablePtr .EQU $22
+RAM_Base .EQU $0300
+FIELD_OFFSET .EQU 2
+
+NewOwner:
+  LDA ZP_RecordBase+2
+  STA ZP_RecordBase+2
+  LDA [ZP_Ptr],Y
+  STA [ZP_TablePtr,X]
+  STA RAM_Base+FIELD_OFFSET
+  INC ZP_Counter
+  LDA TempByte
+  LDA #ZP_RecordBase
+  RTS
+ASM
+  _assemble_pass_cache "${slug}"
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,symbolized,ZP_RecordBase,,5,no,1,1,1,0,OldOwner:1,
+0x0012,symbolized,ZP_RecordBase,,5,no,2,1,1,1,OldOwner:1,OldOwner:1
+0x0013,symbolized,TempByte,,5,no,1,1,1,0,OldOwner:1,
+0x0018,symbolized,ZP_Counter,,5,no,1,1,0,0,OldOwner:1,OldOwner:1
+0x0020,symbolized,ZP_Ptr,,5,no,1,1,1,0,OldOwner:1,
+0x0021,symbolized,ZP_Ptr,,5,no,1,1,1,0,OldOwner:1,
+0x0022,symbolized,ZP_TablePtr,,5,no,1,1,1,0,OldOwner:1,
+0x0023,symbolized,ZP_TablePtr,,5,no,1,1,1,0,OldOwner:1,
+0x0300,symbolized,RAM_Base,,5,no,1,1,0,1,,OldOwner:1
+0x0302,symbolized,RAM_Base,,5,no,1,1,0,1,,OldOwner:1
+EOF
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+expected = {
+    # addr: (top_readers, top_writers, operand_count, read_count, write_count)
+    "0x0012": ("NewOwner:1", "NewOwner:1", "2", "1", "1"),
+    "0x0018": ("NewOwner:1", "NewOwner:1", "1", "1", "1"),
+    "0x0020": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0021": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0022": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0023": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0302": ("", "NewOwner:1", "1", "0", "1"),
+}
+for addr, want in expected.items():
+    row = rows[addr]
+    got = (row["top_readers"], row["top_writers"], row["operand_count"], row["read_count"], row["write_count"])
+    if got != want:
+        raise SystemExit(f"{addr}: expected {want}, got {got}")
+    if row["status"] != "symbolized" or row["active"] != "no":
+        raise SystemExit(f"{addr}: review state must stay symbolized/inactive: {row!r}")
+# An immediate operand, a noncanonical equate name, and the base of a compound
+# expression must not collect owners.
+for addr in ("0x0010", "0x0013", "0x0300"):
+    if "OldOwner:1" not in rows[addr]["top_readers"] + rows[addr]["top_writers"]:
+        raise SystemExit(f"{addr}: must keep its prior owners: {rows[addr]!r}")
+PY
+}
+
+test_next_pass_raw_ram_review_rejects_malformed_instruction_records() {
+  local slug; slug="$(unique_slug raw_owner_bad_records)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared malformed instruction-record fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_Counter .EQU $18
+
+NewOwner:
+  INC ZP_Counter
+  RTS
+ASM
+  _assemble_pass_cache "${slug}"
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/instructions.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+payload["version"] = 1
+with open(sys.argv[1], "w", encoding="utf-8") as handle:
+    json.dump(payload, handle)
+PY
+
+  local output rc
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+
+  assert_eq "${rc}" "65" "malformed instruction records must fail with a contract error"
+  assert_match 'instructions\.json: invalid instruction records: version 1 required' "${output}"
+  assert_not_match 'Traceback' "${output}"
+}
+
 test_next_pass_raw_ram_symbol_map_refuses_noncanonical_xref_symbols() {
   local slug; slug="$(unique_slug raw_symbol_refusals)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
   _write_pass_one_scorecard "${slug}" "Prepared structured RAM-symbol refusal fixture."
 
+  # The instruction records read every symbol; the xref below then gives each
+  # one a property that must keep it out of the low-address equate map.
+  # ZP_Canonical is the control that proves the records were consumed.
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_LabelPretender .EQU $10
+ZP_LocalEqu .EQU $11
+ZP_UndefinedEqu .EQU $12
+OTHER_Equ .EQU $13
+ZP_Canonical .EQU $14
+RAM_OutsideLowRange .EQU $1000
+
+NewOwner:
+  LDA ZP_LabelPretender
+  LDA ZP_LocalEqu
+  LDA ZP_UndefinedEqu
+  LDA OTHER_Equ
+  LDA ZP_Canonical
+  LDA RAM_OutsideLowRange
+  RTS
+ASM
+  _assemble_pass_cache "${slug}" records-only
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
 {
   "version": "2",
@@ -3847,19 +3954,13 @@ test_next_pass_raw_ram_symbol_map_refuses_noncanonical_xref_symbols() {
     {"name":"ZP_LabelPretender","kind":"label","scope":"global","defined":true,"definition":{"value":16}},
     {"name":"ZP_LocalEqu","kind":"equ","scope":"local","defined":true,"definition":{"value":17}},
     {"name":"ZP_UndefinedEqu","kind":"equ","scope":"global","defined":false,"definition":{"value":18}},
-    {"name":"RAM_OutsideLowRange","kind":"equ","scope":"global","defined":true,"definition":{"value":4096}},
     {"name":"OTHER_Equ","kind":"equ","scope":"global","defined":true,"definition":{"value":19}},
+    {"name":"ZP_Canonical","kind":"equ","scope":"global","defined":true,"definition":{"value":20}},
+    {"name":"RAM_OutsideLowRange","kind":"equ","scope":"global","defined":true,"definition":{"value":4096}},
     {"name":"ZP_NegativeEqu","kind":"equ","scope":"global","defined":true,"definition":{"value":-1}}
   ],
   "references": [],
-  "data_reads": [
-    {"symbol":"ZP_LabelPretender","owner_routine":"NewOwner","opcode":"LDA"},
-    {"symbol":"ZP_LocalEqu","owner_routine":"NewOwner","opcode":"LDA"},
-    {"symbol":"ZP_UndefinedEqu","owner_routine":"NewOwner","opcode":"LDA"},
-    {"symbol":"RAM_OutsideLowRange","owner_routine":"NewOwner","opcode":"LDA"},
-    {"symbol":"OTHER_Equ","owner_routine":"NewOwner","opcode":"LDA"},
-    {"symbol":"ZP_NegativeEqu","owner_routine":"NewOwner","opcode":"LDA"}
-  ],
+  "data_reads": [],
   "data_writes": []
 }
 EOF
@@ -3870,6 +3971,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0012,symbolized,ZP_UndefinedEqu,,5,no,1,1,1,0,OldOwner:1,
 0x1000,symbolized,RAM_OutsideLowRange,,5,no,1,1,1,0,OldOwner:1,
 0x0013,symbolized,OTHER_Equ,,5,no,1,1,1,0,OldOwner:1,
+0x0014,symbolized,ZP_Canonical,,5,no,1,1,1,0,OldOwner:1,
 0x-001,symbolized,ZP_NegativeEqu,,5,no,1,1,1,0,OldOwner:1,
 EOF
 
@@ -3881,9 +3983,11 @@ import csv
 import sys
 
 with open(sys.argv[1], encoding="utf-8", newline="") as handle:
-    rows = list(csv.DictReader(handle))
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
 
-wrong = [row for row in rows if row["top_readers"] != "OldOwner:1"]
+if rows["0x0014"]["top_readers"] != "NewOwner:1":
+    raise SystemExit(f"canonical control was not refreshed: {rows['0x0014']!r}")
+wrong = [row for addr, row in rows.items() if addr != "0x0014" and row["top_readers"] != "OldOwner:1"]
 if wrong:
     raise SystemExit(f"unsafe xref symbol entered the low-address equate map: {wrong!r}")
 PY
@@ -3898,36 +4002,41 @@ test_next_pass_raw_ram_symbol_map_does_not_fall_back_to_source_equates() {
   cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
 .ORG $C000
 ZP_SourceOnly .EQU $10
+ZP_Control .EQU $11
 
 NewOwner:
   LDA ZP_SourceOnly
+  LDA ZP_Control
   RTS
 ASM
+  _assemble_pass_cache "${slug}" records-only
   cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<'JSON'
 {
   "version": "2",
   "data_directive_references": [],
-  "symbols": [],
-  "references": [],
-  "data_reads": [
-    {"symbol":"ZP_SourceOnly","owner_routine":"NewOwner","opcode":"LDA"}
+  "symbols": [
+    {"name":"ZP_Control","kind":"equ","scope":"global","defined":true,"definition":{"value":17}}
   ],
+  "references": [],
+  "data_reads": [],
   "data_writes": []
 }
 JSON
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
 addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
 0x0010,symbolized,ZP_SourceOnly,,5,no,1,1,1,0,OldOwner:1,
+0x0011,symbolized,ZP_Control,,5,no,1,1,1,0,OldOwner:1,
 EOF
 
   PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
     bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
-  assert_match 'OldOwner:1' \
-    "$(cat "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv")"
-  if rg -q 'NewOwner:1' "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv"; then
-    fail "source text must not supply a RAM-symbol mapping absent from xref"
-  fi
+  local review
+  review="$(cat "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv")"
+  assert_match '0x0011,symbolized,ZP_Control,,5,no,1,1,1,0,NewOwner:1,' "${review}" \
+    "the xref-listed control must refresh"
+  assert_match '0x0010,symbolized,ZP_SourceOnly,,5,no,1,1,1,0,OldOwner:1,' "${review}" \
+    "source text must not supply a RAM-symbol mapping absent from xref"
 }
 
 test_next_pass_raw_ram_symbol_map_rejects_malformed_resolved_value() {

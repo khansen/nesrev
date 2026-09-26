@@ -30,6 +30,8 @@ identify an object:
    Correlate screenshots with frame numbers, object slots, state transitions,
    and supplied manual/FAQ terms. Appearance alone cannot prove which handler
    owns the object; use the render/dispatch relationship and scenario gate.
+   For entity or screen identity, pair captures with a static render of the
+   draw data per [visual identity evidence](PASS_WORKFLOW.md#visual-identity-evidence).
    Capture audio when sound identity is the question; some distinctions need
    human listening, while others follow from trace and reference evidence.
 4. Analyze actual captures using scenario gates and milestones, repeat the

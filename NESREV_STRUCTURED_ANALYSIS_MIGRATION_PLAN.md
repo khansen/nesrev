@@ -18,6 +18,7 @@ formatting changes, and disagreements between NESrev's interpretation of an
 operand and xasm's interpretation of the same operand. It must not increase the
 number of xasm invocations in normal wrapper flows.
 
+<a id="classification-rule"></a>
 ## Classification Rule
 
 A check should consume structured assembler output when it needs one or more of
@@ -171,6 +172,12 @@ They required no additional xasm schema beyond data-directive xref v2.
 - Audit `project_next_pass.sh` and `project_pass_residue_check.sh` function by
   function for similar mixed paths; do not attempt a wholesale rewrite because
   both scripts also perform legitimate textual residue and readability checks.
+- The raw-RAM refresh for fully symbolized bytes reads the pass-prep
+  instruction records: resolved operand value, addressing mode, lexical owner,
+  and a canonical RAM equate as structural base or referenced symbol. Pass-prep
+  keeps `instructions.json` in the pass cache for it. The same script's raw
+  low-address operand scan and source owner index still parse source text and
+  are the next functions to migrate onto those records.
 
 ## Phase 2: Instruction Producer, Fresh Bundle, and Consumers
 
@@ -381,6 +388,10 @@ Do not migrate these merely because they open an asm file:
   including comments, rather than semantic references. Do not silently replace
   it with xref use counts. This lexical definition does not exempt constant
   definition/kind/value discovery from the structured classification rule.
+- `data_label_doc_kpi.sh` reads `Format:` and `Used by:` headers as text, but
+  it finds data labels and their contiguous families with label and
+  data-directive regexes. That identity is an assembler fact and belongs to
+  structured output; only the header reading is lexical.
 - comment-quality, stale-comment, inferred-prose, documentation, and naming
   checks
 - source-format checks for packet boundaries, table-body representation, and
@@ -458,6 +469,10 @@ removed:
       from measurements rather than optimizing the superseded text parsers.
 - [ ] Introduce a shared cross-project constant cache, then migrate hardware
       drift and prior-project reuse where useful.
+- [ ] Migrate `project_next_pass.sh`'s raw low-address operand scan and source
+      owner index to instruction records.
+- [ ] Take `data_label_doc_kpi.sh`'s data-label and family identity from
+      structured output, keeping its header parsing lexical.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.
 
 ## Existing Spec Disposition

@@ -210,10 +210,15 @@ they are not part of the command syntax.
 - \`project-pass-start\`: \`PASS=<id>\`, \`TARGET=<corridor_anchor>\` —
   set the pass id and record the selected corridor objective; omitting
   \`TARGET=<corridor_anchor>\` warns and uses the first generated evidence
-  bucket only as a mechanical fallback.
+  bucket only as a mechanical fallback. \`CORRIDOR=<text>\`,
+  \`WHY_NOW=<text>\`, \`BOUNDARIES=<text>\`, \`EVIDENCE=<text>\`,
+  \`REFERENCE_SCOPE=<text>\` and \`OUT_OF_SCOPE=<text>\` record the
+  objective fields.
 - \`project-pass-closeout\`: \`PASS=<id>\`, \`VERIFY_MODE=strict|relaxed\`,
-  \`FOCUS=<text>\`, \`NOTES=<text>\` — close out a specific pass id rather
-  than the latest and control verification/scorecard text.
+  \`FOCUS=<text>\`, \`NOTES=<text>\`, \`DEFERRALS=<...>\`,
+  \`REWORK_ITEMS=<count>\` — close out a specific pass id rather than the
+  latest and control verification/scorecard text. Without the rework count
+  the row stays \`pending\` and the process check fails.
 - \`project-next-pass\`, \`project-audit\`, \`project-compare\`,
   \`project-comment-audit\`: \`FORMAT=text|json\` — change output mode
   (default \`text\`). The Core Commands list above invokes

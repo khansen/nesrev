@@ -14,6 +14,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts/run_fceux_trace.py"
+sys.path.insert(0, str(ROOT / "scripts"))
+import run_fceux_trace  # noqa: E402
 
 FAKE_EMULATOR = r'''
 import json, os, signal, subprocess, sys, time
@@ -198,6 +200,14 @@ class RunnerTests(unittest.TestCase):
                 result = self.json_capture(rows)
                 self.assertEqual(result.returncode, 1)
                 self.assertNotIn("Capture complete", result.stdout)
+
+    def test_cleanup_reaps_an_emulator_that_already_exited(self):
+        # A trace can fail validation after the emulator exits but before it is
+        # reaped; cleanup must not replace that failure with a signal error.
+        process = subprocess.Popen([sys.executable, "-c", ""], start_new_session=True)
+        os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+        run_fceux_trace.stop_group(process, 0.1)
+        self.assertEqual(process.returncode, 0)
 
     def test_malformed_json_fails(self):
         result = self.run_capture('json:{"event":"start"}\n{', ["--require-milestone", "entered"])

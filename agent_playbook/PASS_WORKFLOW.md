@@ -258,6 +258,48 @@ parameter records, or drop/damage behavior. Keep shared names for shared code;
 name selectors or records when those own identity. Stop where channels disagree
 and record the missing link rather than presenting a guess as settled.
 
+<a id="visual-identity-evidence"></a>
+### Visual identity evidence: render, then capture
+
+When the gap is what an entity, pose or screen looks like, look at the art the
+code draws. A static render and a runtime capture are two evidence channels;
+use both before settling on an appearance-based identity.
+
+1. **Static render.** Walk the game's own draw data exactly as its consumer
+   does (selector table, descriptor or metasprite records, sprite streams,
+   packed background rows, column streams) and draw every entry from the
+   supplied ROM's CHR into one indexed contact sheet with a JSON sidecar that
+   lists each entry's sources and origins. Follow the consumer's details: the
+   pattern table each path selects through PPUCTRL, the sprite Y offset, flip
+   bits and coordinate groups. Keep the walk in a project tool under
+   `tools/analysis/` that refuses a listing whose bytes differ from the ROM,
+   built on the [shared graphics helpers](TOOLING.md#visual-evidence-tools).
+   Raw pixel values are enough to recognize art. When color matters, compare
+   palette packets across variants: streams that differ in one palette slot
+   usually belong to the entity drawn with that slot.
+2. **Supervised capture.** Reach each screen in FCEUX with the
+   [screen-capture template](templates/trace/README.md#screen-captures): drive
+   menu input, gate each capture on symbol-backed state, and save a screenshot
+   plus the nametables and palette at each milestone. Rewriting a counter to
+   reach later screens is acceptable when the trace plan records it and the
+   counter is not what the question measures. Run the capture twice, keep images
+   untracked, and track a small summary of the values read with image and
+   nametable hashes.
+
+Then fuse the channels with the code:
+
+- Predict each view from the code (selector ranges, scroll targets, viewports)
+  and confirm it in the capture. A disagreement means the model is wrong.
+- Bind art to a reference term through a non-visual channel as well: a score or
+  penalty table, a palette request, a placement row, or in-ROM text read in the
+  capture (signs, menus, titles). Appearance proves which art a record draws,
+  not which handler owns an entity.
+- Correct names the capture disproves, such as a value believed to change per
+  screen that actually changes per round. Name by appearance only when no
+  reference name exists, and record which aspect remains unproven.
+- Feed each confirmed result back into the asm through the
+  [runtime evidence workflow](#runtime-evidence-workflow).
+
 <a id="worked-examples"></a>
 ## Worked Examples
 

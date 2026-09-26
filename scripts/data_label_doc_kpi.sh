@@ -14,8 +14,19 @@ if [[ ! -f "${ASM_FILE}" ]]; then
   exit 65
 fi
 
+# If KPI_DETAIL_FILE is set, write one line per noncompliant data label there:
+# <line>:<label>:<problem> (<header source>). Otherwise use a temp file scoped
+# to this invocation so a gate failure can still name offenders.
+if [[ -n "${KPI_DETAIL_FILE:-}" ]]; then
+  tmp_details="${KPI_DETAIL_FILE}"
+  : > "${tmp_details}"
+else
+  tmp_details="$(mktemp)"
+  trap 'rm -f "${tmp_details}"' EXIT
+fi
+
 report="$(
-  awk '
+  awk -v details_file="${tmp_details}" '
     function is_blank(s) { return s ~ /^[[:space:]]*$/ }
     function is_comment(s) { return s ~ /^[[:space:]]*;/ }
     function is_global_label(s,   t) {
@@ -32,6 +43,7 @@ report="$(
       header_has_comment[lbl]=0
       header_has_format[lbl]=0
       header_has_usage[lbl]=0
+      header_line[lbl]=0
 
       if (!(lbl in label_line)) return
 
@@ -42,6 +54,7 @@ report="$(
       while (i >= 1 && is_global_label(lines[i])) i--
       while (i >= 1 && is_blank(lines[i])) i--
       if (i < 1 || !is_comment(lines[i])) return
+      header_line[lbl] = i
 
       saw_comment = 0
       nonempty_comment = 0
@@ -56,6 +69,13 @@ report="$(
       }
 
       if (saw_comment && nonempty_comment) header_has_comment[lbl]=1
+    }
+
+    # A comment with Format: or Used by: is a header and must be complete on its
+    # own. A comment with neither is a note: the label, and later labels in the
+    # same contiguous family, keep inheriting the family header above it.
+    function is_tagged_header(lbl) {
+      return header_has_comment[lbl] && (header_has_format[lbl] || header_has_usage[lbl])
     }
 
     function inherit_family_header(lbl,   i, cand) {
@@ -81,10 +101,11 @@ report="$(
           sub(/:.*/, "", cand)
           if (cand != lbl) {
             parse_direct_header(cand)
-            if (header_has_comment[cand]) {
-              header_has_comment[lbl] = header_has_comment[cand]
+            if (is_tagged_header(cand)) {
+              header_has_comment[lbl] = 1
               header_has_format[lbl] = header_has_format[cand]
               header_has_usage[lbl] = header_has_usage[cand]
+              header_source[lbl] = "family header of " cand " at line " header_line[cand]
               return 1
             }
           }
@@ -96,9 +117,24 @@ report="$(
       return 0
     }
 
-    function parse_header(lbl) {
+    function parse_header(lbl,   note_line) {
       parse_direct_header(lbl)
-      if (!header_has_comment[lbl]) inherit_family_header(lbl)
+      if (is_tagged_header(lbl)) {
+        header_source[lbl] = "own header at line " header_line[lbl]
+        return
+      }
+      note_line = header_has_comment[lbl] ? header_line[lbl] : 0
+      header_source[lbl] = note_line ? "note comment at line " note_line ", no family header" : "no header"
+      if (inherit_family_header(lbl)) return
+      if (note_line) {
+        header_has_comment[lbl] = 1
+        header_has_format[lbl] = 0
+        header_has_usage[lbl] = 0
+      }
+    }
+
+    function record_detail(lbl, problem) {
+      print label_line[lbl] ":" lbl ":" problem " (" header_source[lbl] ")" > details_file
     }
 
     {
@@ -137,20 +173,27 @@ report="$(
         if (!header_has_comment[lbl]) {
           undocumented++
           noncompliant++
+          record_detail(lbl, "undocumented")
           continue
         }
 
         bad=0
+        problem=""
         if (!header_has_format[lbl]) {
           missing_format++
           bad=1
+          problem="missing Format:"
         }
         if (!header_has_usage[lbl]) {
           missing_usage++
           bad=1
+          problem=(problem == "" ? "missing Used by:" : problem " and Used by:")
         }
 
-        if (bad) noncompliant++
+        if (bad) {
+          noncompliant++
+          record_detail(lbl, problem)
+        }
         else documented++
       }
 
@@ -162,6 +205,7 @@ report="$(
       print "strict_data_labels_missing_usage=" missing_usage
       print "strict_data_labels_noncompliant=" noncompliant
       print "strict_data_label_doc_coverage_pct=" coverage
+      close(details_file)
     }
   ' "${ASM_FILE}"
 )"
@@ -200,6 +244,10 @@ STRICT_ACTIVE_NONCOMPLIANT_DATA_LABELS="$({
 
 if (( STRICT_ACTIVE_NONCOMPLIANT_DATA_LABELS > MAX_UNDOCUMENTED_DATA_LABELS )); then
   echo "FAIL: strict_data_labels_noncompliant (${STRICT_ACTIVE_NONCOMPLIANT_DATA_LABELS}) exceeds KPI max (${MAX_UNDOCUMENTED_DATA_LABELS})" >&2
+  if [[ -s "${tmp_details}" ]]; then
+    echo "Noncompliant data labels (line:label:problem (header source)):" >&2
+    sed 's/^/  /' "${tmp_details}" >&2
+  fi
   exit 68
 fi
 

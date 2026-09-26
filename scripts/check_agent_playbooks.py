@@ -323,11 +323,24 @@ ROOT_WORD_CEILING = 6000
 # Tmux startup now documents the launcher, readiness confirmation, and pending
 # review resumption. These TOOLING routes retain measured-plus-headroom for
 # that new operator workflow; the underlying review gates are unchanged.
+# Visual identity evidence adds the render-then-capture identity method to
+# PASS_WORKFLOW.md (consumer details, capture rules and how the two channels are
+# fused with code), its helper commands to TOOLING.md, the data-label family and
+# note-comment rule to DOCUMENTATION.md, and one AGENTS.md index row. The method
+# is kept at readable length rather than compressed; affected ceilings grow by
+# exactly those additions and retain their prior measured headroom.
+# Tooling Rule One puts the structured-output rule at the top of TOOLING.md,
+# with an AGENTS.md index row, so every tooling route loads it before any
+# command detail. TOOLING routes grow by exactly that prose and the new-project
+# route by the index row; each retains its prior measured headroom.
+# The visual evidence helpers take CHR dumps as the capture's hex text and need
+# a bank for multi-bank CHR ROM; the TOOLING routes grow by exactly that note
+# and keep their prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3505, 25570),
-    "data-recovery": (3195, 23999),
-    "new-project": (4214, 30973),
-    "project-pass-review": (4555, 32451),
+    "default": (3590, 26303),
+    "data-recovery": (3238, 24349),
+    "new-project": (4264, 31471),
+    "project-pass-review": (4640, 33184),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

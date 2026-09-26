@@ -28,6 +28,7 @@ if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
     "xref_summary_generic.json"
     "xref_with_data.json"
     "data_consumers.json"
+    "instructions.json"
   )
   # Freshness is not just the asm. The cached baseline records gate status, and
   # a commit that fixes a gate without touching the asm used to leave the cache
@@ -98,6 +99,7 @@ from pathlib import Path
     deferrals_file, proof_debt_ack_file,
 ) = sys.argv[1:]
 sys.path.insert(0, script_dir)
+import instruction_records
 import proof_debt
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
@@ -725,35 +727,77 @@ def build_lowaddr_ram_equ_symbols(xref):
             by_addr.setdefault(f"0x{value:04x}", []).append(name)
     return by_addr
 
-def build_symbolized_raw_ram_candidates(xref, addr_symbols):
-    symbol_to_addr = {
-        symbol: addr_hex
-        for addr_hex, symbols in addr_symbols.items()
-        for symbol in symbols
-    }
-    by_addr = {}
-    for access_kind, section in (("read", "data_reads"), ("write", "data_writes")):
-        for row in xref.get(section, []):
-            symbol = row.get("symbol")
-            addr_hex = symbol_to_addr.get(symbol)
-            if not addr_hex:
+# Memory addressing modes whose operand names a RAM byte. JMP/JSR and branches
+# never qualify; indirect-indexed modes read a two-byte pointer.
+RAM_OPERAND_MODES = {"zeropage", "zeropage_x", "zeropage_y", "absolute", "absolute_x", "absolute_y"}
+RAM_POINTER_MODES = {"preindexed_indirect", "postindexed_indirect"}
+CONTROL_FLOW_MNEMONICS = {"JMP", "JSR"}
+
+def load_instruction_records(path):
+    """Validated instruction records from the pass-prep analysis bundle, or [] if absent."""
+    if not os.path.exists(path):
+        return []
+    try:
+        return instruction_records.validate(load_json(path))
+    except ValueError as exc:
+        raise ContractError(f"{path}: {exc}") from exc
+
+def instruction_ram_sites(records, addr_symbols):
+    """RAM accesses whose operand the assembler resolved from a canonical RAM equate.
+
+    Addresses come from the assembled operand value and owners from the
+    assembler's lexical owner, so spaced or compound operand expressions need
+    no source parsing. An operand counts when its structural base or any symbol
+    it references is a canonical xref RAM equate; a symbol-plus-symbol operand
+    such as a base plus a field-offset equate has no structural base.
+    """
+    canonical = {symbol for symbols in addr_symbols.values() for symbol in symbols}
+    out = []
+    for index, record in enumerate(records):
+        mode = record["addressing_mode"]
+        mnemonic = record["mnemonic"].upper()
+        if mode not in RAM_OPERAND_MODES | RAM_POINTER_MODES or mnemonic in CONTROL_FLOW_MNEMONICS:
+            continue
+        base = record["structural_base"]
+        names = ([base["symbol"]] if base else []) + record["referenced_symbols"]
+        ram_symbol = next((name for name in names if name in canonical), None)
+        if ram_symbol is None:
+            continue
+        value = record["operand_value"]
+        if value is None:
+            raise ContractError(f"instruction_records[{index}] has no resolved operand value")
+        use = record["use"]
+        pointer = mode in RAM_POINTER_MODES
+        for addr in ((value, value + 1) if pointer else (value,)):
+            if not 0 <= addr <= 0x0FFF:
                 continue
-            site = {
-                "addr_hex": addr_hex,
-                "symbol": symbol,
-                "mnemonic": row.get("opcode") or "",
-                "access_kind": access_kind,
-                "file": row.get("file"),
-                "line": row.get("line"),
-                "owner_routine": row.get("owner_routine") or row.get("routine"),
-            }
-            by_addr.setdefault(addr_hex, []).append(site)
+            out.append({
+                "addr_hex": f"0x{addr:04x}",
+                "symbol": ram_symbol,
+                "mnemonic": mnemonic,
+                "access_kind": "read" if pointer else mnemonic_access_kind(mnemonic),
+                "file": use["file"],
+                "line": use["line"],
+                "owner_routine": record["lexical_owner"],
+            })
+    return out
+
+def build_symbolized_raw_ram_candidates(sites):
+    """Group instruction-record RAM sites by address.
+
+    xref v2 data_reads and data_writes record label edges only, never equate
+    operands, so the instruction records are the only source for these bytes.
+    """
+    by_addr = {}
+    for site in sites:
+        by_addr.setdefault(site["addr_hex"], []).append(site)
 
     out = {}
     for addr_hex, sites in by_addr.items():
         owners = sorted({r["owner_routine"] for r in sites if r.get("owner_routine")})
-        read_count = sum(1 for row in sites if row["access_kind"] == "read")
-        write_count = sum(1 for row in sites if row["access_kind"] == "write")
+        # Read-modify-write instructions count as both a read and a write.
+        read_count = sum(1 for row in sites if row["access_kind"] in {"read", "readwrite"})
+        write_count = sum(1 for row in sites if row["access_kind"] in {"write", "readwrite"})
         out[addr_hex] = {
             "addr_hex": addr_hex,
             "operand_count": len(sites),
@@ -1639,10 +1683,15 @@ all_raw_ram_candidates = build_raw_ram_candidates(raw_accesses, raw_ram_review, 
 raw_ram_candidates = all_raw_ram_candidates[:12]
 try:
     lowaddr_ram_symbols = build_lowaddr_ram_equ_symbols(xref)
+    symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
+        instruction_ram_sites(
+            load_instruction_records(os.path.join(pass_dir, "instructions.json")),
+            lowaddr_ram_symbols,
+        )
+    )
 except ContractError as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc
-symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(xref, lowaddr_ram_symbols)
 merged_raw_ram_review_rows = merge_raw_ram_review(
     all_raw_ram_candidates,
     raw_ram_review,

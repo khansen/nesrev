@@ -121,7 +121,7 @@ fi
 validate_project_analysis_bundle "$1"
 cp "${TMPDIR_PASS_PREP}/summary.json" "${pass_dir}/xref_summary_all.json"
 cp "${TMPDIR_PASS_PREP}/coverage.json" "${pass_dir}/data_coverage.json"
-for artifact in xref_with_data index_patterns data_consumers; do
+for artifact in xref_with_data index_patterns data_consumers instructions; do
   cp "${TMPDIR_PASS_PREP}/${artifact}.json" "${pass_dir}/${artifact}.json"
 done
 echo "[2/5] Refreshing inventory from the primary xref"

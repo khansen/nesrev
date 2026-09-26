@@ -2,6 +2,27 @@
 
 This playbook is the canonical home for xasm, NESrev, and project-wrapper tooling — listing/xref options, structured analysis workflow, NESrev regeneration controls, inventory commands, parity-drift diagnostics, the consolidated command reference, exit-code interpretation, and auxiliary-script hygiene. The root `AGENTS.md` keeps only the Mandatory Routing Table entry that names this file.
 
+<a id="rule-one-structured-output"></a>
+## Rule One: Consume Structured Assembler Output
+
+Scripts never parse assembly source to recover a fact the assembler already
+produces. Instruction and directive identity, operands and their expression
+structure, resolved addresses and values, symbol definitions, kinds, scopes and
+owners, and reference, read, write and control-flow edges come from the xref,
+the instruction records or the JSON listing that xasm emits. Do not add regex or
+line parsers for these facts, not even as a quick fix or a fallback, and do not
+extend an existing source parser to cover more of them. When a needed fact is
+missing from structured output, add it to xasm or the analysis bundle first.
+
+Source text stays the input only when the rule is about the text itself:
+literal spelling, comments and documentation, naming style, deliberate layout,
+and authored ledgers. Hybrid checks take assembler facts from structured output
+and read source text only for that lexical part. The
+[migration plan](../NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#classification-rule)
+holds the classification and the remaining legacy parsers; when a change touches
+a legacy parser's feature, migrate it instead of building on it. Reviewers reject
+any change that adds or extends source parsing of assembler facts.
+
 ## Ownership
 
 This playbook owns commands, tool options, and diagnostic procedures:
@@ -1216,6 +1237,26 @@ ignore it.
 
 Trace scripts install watches and inputs; no manual debugger setup is needed.
 Use [agent capture](RUNTIME_EVIDENCE.md#agent-capture) and the [supervised FCEUX runner](templates/trace/README.md#supervised-captures) before requesting human help.
+
+<a id="visual-evidence-tools"></a>
+### Visual evidence tools
+
+`scripts/nes_graphics.py` holds the shared parts of
+[visual identity evidence](PASS_WORKFLOW.md#visual-identity-evidence): iNES/CHR
+decoding, tile pixels, an approximate NTSC palette, nametable and pattern-table
+renders, FCEUX GD screenshot conversion and a dependency-free PNG writer.
+Project renderers import it and implement only their draw-data walk.
+
+```sh
+python3 scripts/nes_graphics.py chr-sheet --rom <rom.nes> --output chr.png
+python3 scripts/nes_graphics.py gd2png <capture>/<name>.gd <name>.png --scale 2
+python3 scripts/nes_graphics.py nametable --rom <rom.nes> --nametable @nt0.hex --palette @palette.hex --pattern-table 1 --output nt0.png
+```
+
+`--nametable`, `--palette` and `--chr` take a capture's hex fields inline or as
+`@file`; `--pattern-table` is the table PPUCTRL selects for the background.
+CHR-RAM games pass `--chr` with the captured pattern tables instead of `--rom`;
+a ROM with several CHR banks needs `--chr-bank` or a captured `--chr`.
 
 <a id="trace-helper-roms"></a>
 ### Trace helper ROMs

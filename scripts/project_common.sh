@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Resolve this file's directory at source time. Inside a function zsh leaves
+# BASH_SOURCE unset, but at the top level of a sourced file $0 names the file,
+# so the helpers below also work when the audit snippets are run from zsh.
+NESREV_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
 load_project_conf() {
   if [[ $# -ne 1 ]]; then
     echo "usage: load_project_conf <project_slug>" >&2
@@ -27,7 +32,7 @@ load_project_conf() {
   NESREV_INLINECALLS_FILE=""
   NESREV_DATARANGES_FILE=""
 
-  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/project_policy_config_check.py" \
+  python3 "${NESREV_SCRIPTS_DIR}/project_policy_config_check.py" \
     config "${conf}"
 
   # shellcheck disable=SC1090
@@ -197,13 +202,13 @@ project_analysis_policy_paths() {
 }
 
 load_project_analysis_conf() {
-  PROJECT_ANALYSIS_CONFIG_DIGEST="$(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" fingerprint "projects/$1/project.conf")"
+  PROJECT_ANALYSIS_CONFIG_DIGEST="$(python3 "${NESREV_SCRIPTS_DIR}/analysis_bundle.py" fingerprint "projects/$1/project.conf")"
   load_project_conf "$1"
 }
 
 prepare_project_analysis_bundle() {
   project_analysis_policy_paths
-  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" prepare \
+  python3 "${NESREV_SCRIPTS_DIR}/analysis_bundle.py" prepare \
     --profile "$3" "$2" "$1" "projects/$1/project.conf" "${PROJECT_ANALYSIS_CONFIG_DIGEST}" \
     "${ASM_FILE}" "${XASM_AUDIT_ROM_RANGE}" "${XASM_COMPARE_CPU_BASE}" "${analysis_policy_paths[@]}"
 }
@@ -220,7 +225,7 @@ validate_project_analysis_bundle() {
     if [[ -n "${NESREV_XREF_FILE+x}" ]]; then
       validation_args+=(--xref "${NESREV_XREF_FILE}")
     fi
-    python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/analysis_bundle.py" validate \
+    python3 "${NESREV_SCRIPTS_DIR}/analysis_bundle.py" validate \
       "${NESREV_ANALYSIS_BUNDLE}" --source "${ASM_FILE}" --project "$1" \
       --config "projects/$1/project.conf" --rom-range "${XASM_AUDIT_ROM_RANGE}" --cpu-base "${XASM_COMPARE_CPU_BASE}" \
       "${validation_args[@]}"
