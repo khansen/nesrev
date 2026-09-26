@@ -323,10 +323,13 @@ ROOT_WORD_CEILING = 6000
 # Tmux startup now documents the launcher, readiness confirmation, and pending
 # review resumption. These TOOLING routes retain measured-plus-headroom for
 # that new operator workflow; the underlying review gates are unchanged.
+# The data-label family rule (a note comment keeps the family header; a tagged
+# comment starts a new header) is documented in DOCUMENTATION.md. Affected
+# ceilings grow by exactly that addition and retain their prior headroom.
 ROUTE_BUDGETS = {
-    "default": (3505, 25570),
-    "data-recovery": (3195, 23999),
-    "new-project": (4214, 30973),
+    "default": (3511, 25650),
+    "data-recovery": (3201, 24079),
+    "new-project": (4220, 31053),
     "project-pass-review": (4555, 32451),
 }
 

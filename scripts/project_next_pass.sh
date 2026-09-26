@@ -725,18 +725,115 @@ def build_lowaddr_ram_equ_symbols(xref):
             by_addr.setdefault(f"0x{value:04x}", []).append(name)
     return by_addr
 
-def build_symbolized_raw_ram_candidates(xref, addr_symbols):
+def build_xref_equ_values(xref):
+    values = {}
+    for symbol in xref.get("symbols", []):
+        name = symbol.get("name")
+        if not isinstance(name, str):
+            continue
+        if symbol.get("kind") != "equ" or symbol.get("scope") != "global" or symbol.get("defined") is not True:
+            continue
+        definition = symbol.get("definition")
+        value = definition.get("value") if isinstance(definition, dict) else None
+        if isinstance(value, int) and not isinstance(value, bool):
+            values[name] = value
+    return values
+
+SYMBOLIC_OPERAND_TOKEN_RE = re.compile(r"\$[0-9A-Fa-f]+|%[01]+|[A-Za-z_][A-Za-z0-9_]*|\d+|[-+*/()]|\s+")
+
+def resolve_symbolic_operand(expression, values):
+    """Evaluate an operand expression using only xref-resolved equate values."""
+    parts = []
+    pos = 0
+    while pos < len(expression):
+        m = SYMBOLIC_OPERAND_TOKEN_RE.match(expression, pos)
+        if not m:
+            return None
+        token = m.group(0)
+        pos = m.end()
+        if token.isspace():
+            continue
+        if token.startswith("$"):
+            parts.append(str(int(token[1:], 16)))
+        elif token.startswith("%"):
+            parts.append(str(int(token[1:], 2)))
+        elif token[0].isalpha() or token[0] == "_":
+            if token not in values:
+                return None
+            parts.append(str(values[token]))
+        elif token == "/":
+            parts.append("//")
+        else:
+            parts.append(token)
+    try:
+        value = eval("".join(parts), {"__builtins__": {}}, {})
+    except Exception:
+        return None
+    return value if isinstance(value, int) else None
+
+def parse_symbolic_lowaddr_accesses(path, owner_index, values):
+    """Find instruction operands whose base is a ZP_/RAM_ equate.
+
+    xref v2 records no references for equate operands, so owners of fully
+    symbolized RAM bytes come from source operands. Every value, including the
+    base symbol, must resolve through xref; unresolved operands are skipped.
+    """
+    out = []
+    for lineno, text in enumerate(load_file_lines(path), start=1):
+        m = MNEMONIC_RE.match(text)
+        if not m:
+            continue
+        mnemonic = m.group(1).upper()
+        parts = m.group(2).strip().split()
+        if not parts or parts[0].startswith("#"):
+            continue
+        operand = parts[0]
+        indirect = operand.startswith("[")
+        expression = re.sub(r",\s*[XYxy]$", "", operand)
+        if indirect:
+            expression = re.sub(r"[\])]$", "", expression[1:])
+            expression = re.sub(r",\s*[Xx]$", "", expression)
+        base = re.match(r"[A-Za-z_][A-Za-z0-9_]*", expression)
+        if not base or not RAM_SYMBOL_RE.fullmatch(base.group(0)) or base.group(0) not in values:
+            continue
+        addr = resolve_symbolic_operand(expression, values)
+        if addr is None or not 0 <= addr <= 0x0FFF:
+            continue
+        owner = find_lexical_owner(owner_index, path, lineno)
+        # An indirect operand reads the pointer's low byte and the next byte.
+        for byte_addr in ((addr, addr + 1) if indirect else (addr,)):
+            if byte_addr > 0x0FFF:
+                continue
+            out.append({
+                "addr_hex": f"0x{byte_addr:04x}",
+                "symbol": base.group(0),
+                "mnemonic": mnemonic,
+                "access_kind": "read" if indirect else mnemonic_access_kind(mnemonic),
+                "file": path,
+                "line": lineno,
+                "owner_routine": owner,
+            })
+    return out
+
+def build_symbolized_raw_ram_candidates(xref, addr_symbols, source_sites=None):
     symbol_to_addr = {
         symbol: addr_hex
         for addr_hex, symbols in addr_symbols.items()
         for symbol in symbols
     }
     by_addr = {}
+    seen = set()
+    for site in source_sites or []:
+        key = (site["addr_hex"], site.get("line"))
+        seen.add(key)
+        by_addr.setdefault(site["addr_hex"], []).append(site)
     for access_kind, section in (("read", "data_reads"), ("write", "data_writes")):
         for row in xref.get(section, []):
             symbol = row.get("symbol")
             addr_hex = symbol_to_addr.get(symbol)
             if not addr_hex:
+                continue
+            if row.get("line") is not None and (addr_hex, row.get("line")) in seen:
                 continue
             site = {
                 "addr_hex": addr_hex,
@@ -1642,7 +1739,11 @@ try:
 except ContractError as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc
-symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(xref, lowaddr_ram_symbols)
+symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
+    xref,
+    lowaddr_ram_symbols,
+    parse_symbolic_lowaddr_accesses(asm_file, source_owner_index, build_xref_equ_values(xref)),
+)
 merged_raw_ram_review_rows = merge_raw_ram_review(
     all_raw_ram_candidates,
     raw_ram_review,

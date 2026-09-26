@@ -3833,6 +3833,76 @@ if row["operand_count"] != "2" or row["read_count"] != "1" or row["write_count"]
 PY
 }
 
+test_next_pass_raw_ram_review_refreshes_owners_from_symbolic_source_operands() {
+  local slug; slug="$(unique_slug raw_owner_source_operands)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared symbolic-operand raw owner refresh fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_RecordBase .EQU $10
+RECORD_FIELD_STATE .EQU 2
+SOURCE_ONLY_FIELD .EQU 3
+ZP_Ptr .EQU $20
+
+NewOwner:
+  LDA ZP_RecordBase+RECORD_FIELD_STATE
+  STA ZP_RecordBase+RECORD_FIELD_STATE
+  LDA [ZP_Ptr],Y
+  LDA ZP_RecordBase+SOURCE_ONLY_FIELD
+  RTS
+ASM
+  # Assembler xref v2 records no data_reads for equate operands.
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/pass/xref_with_data.json" <<EOF
+{
+  "version": "2",
+  "data_directive_references": [],
+  "symbols": [
+    {"name":"NewOwner","scope":"global","definition":{"file":"projects/${slug}/asm/${slug}.asm","line":7,"cpu_address":"\$C000"}},
+    {"name":"ZP_RecordBase","kind":"equ","scope":"global","defined":true,"definition":{"value":16}},
+    {"name":"RECORD_FIELD_STATE","kind":"equ","scope":"global","defined":true,"definition":{"value":2}},
+    {"name":"ZP_Ptr","kind":"equ","scope":"global","defined":true,"definition":{"value":32}}
+  ],
+  "references": [],
+  "data_reads": [],
+  "data_writes": []
+}
+EOF
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0012,symbolized,ZP_RecordBase,,5,no,2,1,1,1,OldOwner:1,OldOwner:1
+0x0013,symbolized,ZP_RecordBase,,5,no,1,1,1,0,OldOwner:1,
+0x0020,symbolized,ZP_Ptr,,5,no,1,1,1,0,OldOwner:1,
+0x0021,symbolized,ZP_Ptr,,5,no,1,1,1,0,OldOwner:1,
+EOF
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'PY'
+import csv
+import sys
+
+with open(sys.argv[1], encoding="utf-8", newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+
+expected = {
+    "0x0012": ("NewOwner:1", "NewOwner:1", "2"),
+    "0x0020": ("NewOwner:1", "", "1"),
+    "0x0021": ("NewOwner:1", "", "1"),
+}
+for addr, (readers, writers, count) in expected.items():
+    row = rows[addr]
+    if (row["top_readers"], row["top_writers"], row["operand_count"]) != (readers, writers, count):
+        raise SystemExit(f"{addr}: symbolic source owners were not refreshed: {row!r}")
+    if row["status"] != "symbolized" or row["active"] != "no":
+        raise SystemExit(f"{addr}: review state must stay symbolized/inactive: {row!r}")
+if rows["0x0013"]["top_readers"] != "OldOwner:1":
+    raise SystemExit(f"a constant absent from xref must not resolve: {rows['0x0013']!r}")
+PY
+}
+
 test_next_pass_raw_ram_symbol_map_refuses_noncanonical_xref_symbols() {
   local slug; slug="$(unique_slug raw_symbol_refusals)"
   trap "cleanup_project ${slug}" EXIT

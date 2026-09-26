@@ -568,6 +568,12 @@ Rules:
 
 - `Format:` must state the minimal self-contained record/stream shape that is actually proven — record width, field order, and any sentinel/terminator the reader needs to scan the bytes locally.
 - `Used by:` must name the consumer routine(s). `Consumer:` is also acceptable.
+- One header covers a contiguous family: data labels that follow it with no
+  blank line inherit its `Format:` and `Used by:`. A comment directly above a
+  later label that carries `Format:` or `Used by:` starts a new header and must
+  carry both; a comment with neither is a note and keeps the family header. A
+  blank line ends the family. On failure the data-label gate lists each label
+  with the header it used, and `KPI_DETAIL_FILE=<path>` writes the same list.
 - `Used by: X through <dispatcher>` may name an indirect dispatcher (jump/pointer table or ZP pointer). Xref v2 proves named symbolic pointer-table edges; runtime ZP and other unresolved dispatch remain advisory when no edge exists (hard only under `--strict`). A named consumer that is not a real symbol still hard-fails.
 - Inline `.DW` handler words immediately after a `JSR DispatchInlineJumpTable*`
   call are control-flow payload, not a standalone data table. When the call
