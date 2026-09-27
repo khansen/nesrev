@@ -666,4 +666,8 @@ bash scripts/project_docs_check.sh "$1"
 
 
 if __name__ == "__main__":
-    unittest.main()
+    if len(sys.argv) > 1:
+        unittest.main()
+    else:
+        from isolated_unittest import run
+        raise SystemExit(run(BundleTests))

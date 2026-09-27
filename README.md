@@ -435,6 +435,13 @@ Run `make test` with the [toolchain](agent_playbook/NEW_PROJECT.md#prerequisites
 installed. It checks playbook links and budgets, repository hygiene, the shell
 regressions (including Python tests), and the Java disassembler tests.
 
+The analysis-bundle suite runs its independent temporary-repository cases in
+two worker processes. Other suites remain sequential. Every case still runs;
+reports include subprocess diagnostics and are printed in discovery order.
+Worker crashes retain available logs and identify every failed case future.
+For serial debugging, run `python3 tests/analysis_bundle_test.py -v`, or select
+a case with `python3 tests/analysis_bundle_test.py BundleTests.test_schema_refusals`.
+
 [GitHub CI](.github/workflows/ci.yml) runs the same command on Ubuntu 24.04 and
 macOS 15 for every pull request and push to `master`. It can also be started
 manually from the Actions tab. The workflow pins its action revisions, Python,
