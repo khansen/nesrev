@@ -49,7 +49,7 @@ class IsolatedRunnerTests(unittest.TestCase):
         pids = {(self.root / name).read_text() for name in "abcdef"}
         self.assertEqual(len(pids), 2)
         self.assertNotIn(str(os.getpid()), pids)
-        self.assertIn("Isolated tests: 6 run, 0 failed", result.stderr)
+        self.assertIn("Isolated tests: 6 selected, 0 failed", result.stderr)
 
     def test_assertion_failure_keeps_diagnostics_and_runs_other_cases(self):
         result = self.launch("""
@@ -63,7 +63,7 @@ class IsolatedRunnerTests(unittest.TestCase):
         """)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         for text in ("failure stdout", "failure stderr", "child stdout", "child stderr", "deliberate failure",
-                     "Isolated tests: 2 run, 1 failed"):
+                     "Isolated tests: 2 selected, 1 failed"):
             self.assertIn(text, result.stderr)
         self.assertTrue((self.root / "survivor").exists())
         self.assertEqual(result.stdout, "")
@@ -78,7 +78,7 @@ class IsolatedRunnerTests(unittest.TestCase):
             with self.subTest(methods=methods):
                 result = self.launch(methods)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                self.assertIn("Isolated tests: 1 run, 1 failed", result.stderr)
+                self.assertIn("Isolated tests: 1 selected, 1 failed", result.stderr)
 
     def test_skip_and_expected_failure_remain_visible(self):
         result = self.launch("""
@@ -100,6 +100,60 @@ class IsolatedRunnerTests(unittest.TestCase):
         """)
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("BrokenProcessPool", result.stderr)
+        self.assertIn("ERROR Cases.test_a:", result.stderr)
+
+    def test_worker_crash_preserves_logs_and_completed_failure(self):
+        result = self.launch("""
+        def test_a_crash(self):
+            print('Python stdout before crash', flush=True)
+            print('Python stderr before crash', file=sys.stderr, flush=True)
+            subprocess.run([sys.executable, '-c',
+                            "import sys; print('child stdout before crash', flush=True); "
+                            "print('child stderr before crash', file=sys.stderr, flush=True)"], check=True)
+            deadline = time.monotonic() + 10
+            while not (ROOT / 'failure-finished').exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue((ROOT / 'failure-finished').exists(), 'failure case did not finish')
+            os._exit(17)
+        def test_b_failure(self):
+            self.fail('completed assertion before worker crash')
+        def test_c_after_failure(self):
+            # This worker can reach this case only after test_b returned its result.
+            (ROOT / 'failure-finished').write_text('ran')
+        """)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertTrue((self.root / "failure-finished").exists())
+        for text in ("Python stdout before crash", "Python stderr before crash",
+                     "child stdout before crash", "child stderr before crash",
+                     "ERROR Cases.test_a_crash: BrokenProcessPool",
+                     "FAIL: test_b_failure", "completed assertion before worker crash"):
+            self.assertIn(text, result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertLess(result.stderr.index("ERROR Cases.test_a_crash:"),
+                        result.stderr.index("FAIL: test_b_failure"))
+
+    def test_submission_error_names_case_and_preserves_other_reports(self):
+        result = self.launch("""
+        def test_a(self):
+            print('first case output')
+        def test_b(self):
+            self.fail('must not be submitted')
+        def test_c(self):
+            print('last case output')
+        """, textwrap.dedent("""
+        import isolated_unittest
+        class FailingSubmission(isolated_unittest.ProcessPoolExecutor):
+            def submit(self, fn, case, name, log_path):
+                if name == 'test_b':
+                    raise RuntimeError('submission refused')
+                return super().submit(fn, case, name, log_path)
+        isolated_unittest.ProcessPoolExecutor = FailingSubmission
+        """))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        for text in ("first case output", "last case output",
+                     "ERROR Cases.test_b: RuntimeError: submission refused",
+                     "Isolated tests: 3 selected, 1 failed"):
+            self.assertIn(text, result.stderr)
 
     def test_empty_case_is_a_failure(self):
         result = self.launch("pass\n")

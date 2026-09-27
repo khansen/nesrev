@@ -438,6 +438,7 @@ regressions (including Python tests), and the Java disassembler tests.
 The analysis-bundle suite runs its independent temporary-repository cases in
 two worker processes. Other suites remain sequential. Every case still runs;
 reports include subprocess diagnostics and are printed in discovery order.
+Worker crashes retain available logs and identify every failed case future.
 For serial debugging, run `python3 tests/analysis_bundle_test.py -v`, or select
 a case with `python3 tests/analysis_bundle_test.py BundleTests.test_schema_refusals`.
 
