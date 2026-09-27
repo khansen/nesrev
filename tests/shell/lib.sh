@@ -83,29 +83,20 @@ make_ines() {
   flags6=$(( ((mapper & 0x0F) << 4) | ((trainer & 1) << 2) ))
   flags7=$(( (mapper & 0xF0) | ((header_fmt & 0x03) << 2) ))
 
-  # Write 16-byte header
-  python3 - "${out}" "${magic}" "${prg}" "${chr}" "${flags6}" "${flags7}" <<'PY'
+  python3 - "${out}" "${magic}" "${prg}" "${chr}" "${flags6}" "${flags7}" "${trainer}" "${trailing}" <<'PY'
 import sys
-out, magic, prg, chr_, f6, f7 = sys.argv[1:]
+out, magic, prg, chr_, f6, f7, trainer, trailing = sys.argv[1:]
 header = bytes.fromhex(magic) + bytes([int(prg), int(chr_), int(f6), int(f7)]) + b'\x00' * 8
 with open(out, "wb") as fh:
     fh.write(header)
+    if int(trainer) == 1:
+        fh.write(b'\xee' * 512)
+    fh.write(b'\xa9\x00\x60' + b'\x00' * (int(prg) * 16384 - 3))
+    if int(chr_) > 0:
+        fh.write(b'\x00' * (int(chr_) * 8192))
+    if int(trailing) > 0:
+        fh.write(b'\xff' * int(trailing))
 PY
-
-  # Trainer
-  if (( trainer == 1 )); then
-    python3 -c 'import sys; open(sys.argv[1],"ab").write(b"\xee"*512)' "${out}"
-  fi
-  # PRG (16 KB units)
-  python3 -c 'import sys; open(sys.argv[1],"ab").write(b"\xa9\x00\x60"+b"\x00"*(int(sys.argv[2])*16384-3))' "${out}" "${prg}"
-  # CHR (8 KB units)
-  if (( chr > 0 )); then
-    python3 -c 'import sys; open(sys.argv[1],"ab").write(b"\x00"*(int(sys.argv[2])*8192))' "${out}" "${chr}"
-  fi
-  # Trailing
-  if (( trailing > 0 )); then
-    python3 -c 'import sys; open(sys.argv[1],"ab").write(b"\xff"*int(sys.argv[2]))' "${out}" "${trailing}"
-  fi
 }
 
 scaffold_project() {

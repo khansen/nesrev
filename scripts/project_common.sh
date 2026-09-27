@@ -299,5 +299,6 @@ extract_reference_prg_from_ines() {
   fi
 
   mkdir -p "$(dirname "${ref_prg}")"
-  dd if="${ref_nes}" of="${ref_prg}" bs=1 skip="${prg_offset}" count="${prg_size}" status=none
+  python3 "${NESREV_SCRIPTS_DIR}/copy_binary_range.py" \
+    "${ref_nes}" "${ref_prg}" "${prg_offset}" "${prg_size}"
 }
