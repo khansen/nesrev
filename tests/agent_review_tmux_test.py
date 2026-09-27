@@ -807,6 +807,106 @@ class LauncherTests(unittest.TestCase):
         self.assertTrue(self.config().with_name("ready").exists())
         self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
 
+    def test_bypass_restart_overrides_legacy_guidance_on_delivered_handoffs(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        state = self.state(status="CHANGES_REQUESTED")
+        guide = self.root / ".agents/permissions/commands.md"
+        guide.parent.mkdir(parents=True)
+        guide.write_text("stage-project other_project -- <path>\n")
+        # Frozen pre-bypass guidance, including extra operator instructions that
+        # must survive the restart rather than being lost by re-rendering.
+        legacy = (
+            "Run: demo-pass-1\nReview: .agents/review-01.md\n"
+            "Fix or dispute each finding; use reready --generate-packet.\n"
+            "If `.agents/permissions/commands.md` exists, follow its Git command forms.\n"
+            "Operator instruction: stop after the agreed three passes.\n"
+        )
+        original = self.root / ".agents/legacy-prompt.md"
+        original.write_text(legacy)
+        state["prompts"] = {role: ".agents/legacy-prompt.md" for role in launcher.ROLES}
+        review.write_state(self.root, state)
+        self.launch()
+        workers = {}
+        for role in launcher.ROLES:
+            _, execute = self.run_worker(role=role)
+            argv = execute.call_args.args[1]
+            workers[role] = (
+                review.build_parser().parse_args([*argv[2:], "--once"]),
+                execute.call_args.args[2],
+            )
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+        for status, role in (
+            ("CHANGES_REQUESTED", "implementer"), ("APPROVED", "implementer"),
+            ("REVIEW_ROUNDS_EXHAUSTED", "implementer"),
+            ("READY_FOR_REVIEW", "reviewer"), ("READY_FOR_REREVIEW", "reviewer"),
+        ):
+            with self.subTest(status=status):
+                state["status"] = status
+                review.write_state(self.root, state)
+                before = review.state_path(self.root).read_bytes()
+                args, env = workers[role]
+                with patch.object(review, "repo_root", return_value=self.root), patch.dict(os.environ, env):
+                    self.assertEqual(review.command_watch(args), 0)
+                    delivered_count = len(self.calls())
+                    self.assertEqual(review.command_watch(args), 3)
+                self.assertEqual(len(self.calls()), delivered_count, "restart must not duplicate a turn")
+                loaded = [c for c in self.calls() if c[0] == "load-buffer"][-1]
+                delivery = Path(loaded[-1])
+                self.assertNotEqual(delivery, original)
+                text = delivery.read_text()
+                self.assertTrue(text.startswith(legacy + "\n\n"))
+                suffix = text[len(legacy):]
+                self.assertIn("supersede any saved permission-guide instructions above", suffix)
+                self.assertIn("--permissions bypass", suffix)
+                self.assertIn("not this run's permission setup", suffix)
+                self.assertEqual(original.read_text(), legacy)
+                self.assertEqual(guide.read_text(), "stage-project other_project -- <path>\n")
+                self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_bypass_missing_or_empty_delivery_context_does_not_mark_turn_seen(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        state = self.state()
+        self.launch()
+        self.run_worker()
+        _, execute = self.run_worker(role="reviewer")
+        args = review.build_parser().parse_args([*execute.call_args.args[1][2:], "--once"])
+        context = self.config().with_name("prompt-context.md")
+        saved = context.read_text()
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                if missing:
+                    context.unlink()
+                else:
+                    context.write_text("  \n")
+                with patch.object(review, "repo_root", return_value=self.root), \
+                     patch.object(review, "run_notify") as notify:
+                    with self.assertRaisesRegex(review.UserError, "prompt context"):
+                        review.command_watch(args)
+                notify.assert_not_called()
+                self.assertFalse(list(review.run_dir(self.root, state).glob("workers/*.seen")))
+        context.write_text(saved)
+        with patch.object(review, "repo_root", return_value=self.root), patch.object(review, "run_notify"):
+            self.assertEqual(review.command_watch(args), 0)
+
+    def test_non_bypass_workers_keep_original_handoff_delivery(self):
+        for mode in ("pass-cycle", "inherit"):
+            with self.subTest(mode=mode):
+                self.args.permissions = mode
+                self.state()
+                if mode == "pass-cycle":
+                    self.permission_agents()
+                old_configs = set((self.root / ".agents/logs").glob("*/workspace.json"))
+                with patch("builtins.input", return_value="yes"):
+                    self.launch()
+                config, = set((self.root / ".agents/logs").glob("*/workspace.json")) - old_configs
+                with patch.object(self, "config", return_value=config):
+                    self.run_worker()
+                    _, execute = self.run_worker(role="reviewer")
+                self.assertNotIn("--prompt-context", execute.call_args.args[1])
+                self.assertFalse(config.with_name("prompt-context.md").exists())
+
     def test_dead_agent_prevents_startup(self):
         self.launch()
         with patch.object(launcher, "tmux", return_value=subprocess.CompletedProcess([], 0, "1\n", "")):

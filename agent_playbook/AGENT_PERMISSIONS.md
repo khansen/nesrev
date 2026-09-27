@@ -104,11 +104,17 @@ competing permission modes, require `--permissions inherit`; unknown agents
 are refused rather than assigned a guessed bypass flag.
 
 Bypass prompts use the current project's handoff and staging/commit helpers,
-not a possibly stale saved command guide. Review ownership, verification,
-the startup reference choice, and the no-push rule still apply. Authentication,
-trust, administrator restrictions, usage limits, and missing evidence can still
-block work; bypass is not an unattended-completion guarantee. Reconnecting
-keeps the running mode; restart to change it.
+not a possibly stale saved command guide.
+Every bypass watcher delivery appends the current permission instructions,
+explicitly overriding saved guide directions in pending older handoffs. The
+original prompt and review state are preserved; a missing context file blocks
+delivery rather than silently falling back to the old directions.
+
+Review ownership, verification, the startup reference choice, and the no-push
+rule still apply. Authentication, trust, administrator restrictions, usage
+limits, and missing evidence can still block work; bypass is not an
+unattended-completion guarantee. Reconnecting keeps the running mode; restart
+to change it.
 
 If a routine command still prompts, compare it with the generated guide and
 check workspace trust and the agent's loaded permissions. Do not allow a

@@ -350,6 +350,8 @@ def run_worker(config_path: Path, role: str) -> int:
         "--worker-id", config_path.parent.name,
         "--notify", str(SCRIPT.with_name("agent_review_tmux_notify.sh")),
     ]
+    if config.get("permission_mode") == "bypass":
+        command.extend(["--prompt-context", str(config_path.with_name("prompt-context.md"))])
     os.execve(sys.executable, command, env)
     return 0
 
@@ -443,6 +445,13 @@ def launch(args: argparse.Namespace) -> int:
     run = Path(tempfile.mkdtemp(prefix="tmux-", dir=logs))
     config_path = run / "workspace.json"
     (run / "task.md").write_text(kickoff(root, args.project, args.task, args.permissions))
+    if args.permissions == "bypass":
+        (run / "prompt-context.md").write_text(
+            "## Current launcher permissions\n\n"
+            "This launch's permission instructions supersede any saved permission-guide "
+            "instructions above, including in handoffs created before this session.\n"
+            + permission_guidance(args.permissions)
+        )
     session_id = None
     try:
         created = tmux(

@@ -1222,6 +1222,16 @@ def command_watch(args: argparse.Namespace) -> int:
             token = notify_token(state, args.role)
             previous = seen_path.read_text().strip() if seen_path.exists() else ""
             if previous != token:
+                context = getattr(args, "prompt_context", None)
+                if context:
+                    context_file = require_file(root, context, "prompt context")
+                    context_text = resolve_path(root, context_file).read_text()
+                    if not context_text.strip():
+                        raise UserError("prompt context is empty")
+                    delivery = seen_path.with_suffix(".prompt.md")
+                    atomic_write(delivery, resolve_path(root, prompt).read_text()
+                                 + "\n\n" + context_text)
+                    prompt = rel(root, delivery)
                 run_notify(root, args, state, args.role, prompt)
                 seen_path.parent.mkdir(parents=True, exist_ok=True)
                 seen_path.write_text(token + "\n")
@@ -1331,6 +1341,7 @@ def build_parser() -> argparse.ArgumentParser:
     watch.add_argument("--project", help="notify only for this project")
     watch.add_argument("--worker-id", help="notification identity for a new pair of agent sessions")
     watch.add_argument("--notify")
+    watch.add_argument("--prompt-context", help="append this context file to a delivery copy; keep the saved prompt unchanged")
     watch.add_argument("--once", action="store_true")
     watch.add_argument("--timeout", type=float, default=None)
     watch.add_argument("--interval", type=float, default=2.0)
