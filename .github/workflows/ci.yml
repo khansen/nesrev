@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    name: Regression (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    defaults:
+      run:
+        shell: bash
+    env:
+      # xorcyst v1.8.0; keep the assembler fixed when runner images change.
+      XORCYST_REVISION: f149be658a680de877310a755eca179eb824b1d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Prepare log directory
+        run: mkdir -p "$RUNNER_TEMP/nesrev-ci"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.13.15'
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '21.0.12+101.0.LTS'
+      - name: Install Linux build and test dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential autoconf automake ripgrep zsh
+      - name: Install macOS build and test dependencies
+        if: runner.os == 'macOS'
+        run: brew install autoconf automake ripgrep
+      - name: Build pinned xorcyst
+        run: |
+          {
+            git init "$RUNNER_TEMP/xorcyst-src"
+            git -C "$RUNNER_TEMP/xorcyst-src" fetch --depth=1 \
+              https://github.com/khansen/xorcyst.git "$XORCYST_REVISION"
+            git -C "$RUNNER_TEMP/xorcyst-src" checkout --detach FETCH_HEAD
+            test "$(git -C "$RUNNER_TEMP/xorcyst-src" rev-parse HEAD)" = "$XORCYST_REVISION"
+            cd "$RUNNER_TEMP/xorcyst-src"
+            ./configure --disable-maintainer-mode \
+              --prefix="$RUNNER_TEMP/xorcyst-install" \
+              YACC=: LEX=: HELP2MAN=: CFLAGS='-g -O2 -Werror'
+            make -j2
+            make install
+          } 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/xorcyst-build.log"
+          echo "$RUNNER_TEMP/xorcyst-install/bin" >> "$GITHUB_PATH"
+      - name: Report toolchain and optional coverage
+        run: |
+          {
+            python3 --version
+            java -version
+            javac -version
+            bash --version
+            zsh --version
+            xasm --version
+            printf 'xorcyst revision: %s\n' "$XORCYST_REVISION"
+            make project-doctor
+            if command -v codex >/dev/null 2>&1; then
+              codex --version
+              coverage='Native Codex execution-policy test: enabled (CLI present).'
+            else
+              coverage='Native Codex execution-policy test: SKIPPED (CLI not installed).'
+            fi
+            printf '%s\n' "$coverage" | tee -a "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' 'Agent/emulator integration tests use local fakes; no accounts or private ROMs are used.' \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          } 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/toolchain.log"
+      - name: Run playbook, hygiene, shell, and Java checks
+        # Explicit bash above enables pipefail, preserving make's failure through tee.
+        run: make test 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/test.log"
+      - name: Upload build and test logs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-logs-${{ matrix.os }}
+          path: ${{ runner.temp }}/nesrev-ci/*.log
+          if-no-files-found: warn
+          retention-days: 14

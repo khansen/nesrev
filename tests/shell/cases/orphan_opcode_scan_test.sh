@@ -349,7 +349,7 @@ test_orphan_opcode_scan_invalid_targets_lose_strong_filtering() {
   fi
   grep -q "CandidateValidTargetBank0" "${out}" \
     || fail "a validated run must still be reported"
-  python3 "${ORPHAN_SCAN}" --asm "${asm}" --mapper 1 --min-size 1 --threshold 10 --all \
-    | grep -q "CandidateMidInstrTargetBank0" \
+  python3 "${ORPHAN_SCAN}" --asm "${asm}" --mapper 1 --min-size 1 --threshold 10 --all > "${out}"
+  grep -q "CandidateMidInstrTargetBank0" "${out}" \
     || fail "--all must still expose rejected runs for review"
 }
