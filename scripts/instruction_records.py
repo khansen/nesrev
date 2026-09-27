@@ -27,6 +27,11 @@ def require(condition, message):
         raise ValueError("invalid instruction records: " + message)
 
 
+def same_int(value, expected):
+    """Integer equality that refuses JSON booleans, which Python compares equal to 0 and 1."""
+    return type(value) is int and value == expected
+
+
 def one_of(value, allowed):
     """Set membership that refuses JSON lists and objects instead of raising TypeError."""
     return isinstance(value, str) and value in allowed
@@ -87,14 +92,15 @@ def memory_access(record):
     if data is not None:
         require(isinstance(data, dict) and one_of(data.get("kind"), DATA_KINDS), "invalid data access kind")
         require(data.get("via_pointer") is pointer_mode, "data via_pointer/mode mismatch")
-        require(data.get("address") == (None if pointer_mode else value), "data address must be the operand value")
+        require(data.get("address", ...) is None if pointer_mode else same_int(data.get("address"), value),
+                "data address must be the operand value")
         require(data.get("index_register") == DATA_INDEX.get(mode), "data index/mode mismatch")
     pointer = access["pointer"]
     require((pointer is not None) == (mode in POINTER_MODES), "pointer/mode mismatch")
     if pointer is not None:
         high = (value & 0xFF00) | ((value + 1) & 0xFF) if mode == "indirect" else (value + 1) & 0xFF
-        require(isinstance(pointer, dict) and pointer.get("address") == value
-                and pointer.get("high_byte_address") == high
+        require(isinstance(pointer, dict) and same_int(pointer.get("address"), value)
+                and same_int(pointer.get("high_byte_address"), high)
                 and pointer.get("index_register") == ("X" if mode == "preindexed_indirect" else None),
                 "invalid pointer access")
     require((data is None) == (mode == "indirect"), "data access/mode mismatch")

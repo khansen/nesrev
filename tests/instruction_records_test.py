@@ -25,6 +25,8 @@ Start:
     JMP [$12FF]
     LDA #<Start
     LDA #$123
+    LDA [$00],Y
+    LDA $01
     BNE Start
     RTS
 END
@@ -53,7 +55,7 @@ class InstructionRecords(unittest.TestCase):
 
     def test_xasm_output_validates(self):
         records = instruction_records.validate(copy.deepcopy(self.payload))
-        self.assertEqual(len(records), 9)
+        self.assertEqual(len(records), 11)
         # The truncated immediate is accepted: its term sums to $123 and the operand is $23.
         truncated = self.record("LDA #$123")
         self.assertEqual((truncated["operand_value"], truncated["additive_terms"]["terms"][0]["value"]),
@@ -90,6 +92,15 @@ class InstructionRecords(unittest.TestCase):
             "pointer": None}), "memory_access on a mode without a memory operand")
         self.refuse("LDA [ZP_Ptr],Y", lambda r: r.update(operand_value=None),
                     "memory_access requires an operand value")
+        # JSON booleans compare equal to 0 and 1 in Python; a pointer at $00 is common.
+        self.refuse("LDA [$00],Y", lambda r: r["memory_access"]["pointer"].update(address=False),
+                    "invalid pointer access")
+        self.refuse("LDA [$00],Y", lambda r: r["memory_access"]["pointer"].update(high_byte_address=True),
+                    "invalid pointer access")
+        self.refuse("LDA $01", lambda r: r["memory_access"]["data"].update(address=True),
+                    "data address must be the operand value")
+        self.refuse("LDA [$00],Y", lambda r: r["memory_access"]["data"].pop("address"),
+                    "data address must be the operand value")
 
     def test_additive_terms_refusals(self):
         self.refuse("LDA Base+2,X", lambda r: r.pop("additive_terms"), "missing additive_terms")
