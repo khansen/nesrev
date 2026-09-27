@@ -89,6 +89,129 @@ class LauncherTests(unittest.TestCase):
             launcher.main()
         self.assertEqual(launch.call_args.args[0].permissions, "pass-cycle")
 
+    def test_cli_accepts_explicit_bypass(self):
+        argv = ["launcher", "--project", "demo", "--permissions", "bypass"]
+        with patch.object(sys, "argv", argv), patch.object(launcher, "launch", return_value=0) as launch:
+            self.assertEqual(launcher.main(), 0)
+        self.assertEqual(launch.call_args.args[0].permissions, "bypass")
+
+    def test_bypass_reaches_both_agents_without_installing_or_changing_profiles(self):
+        self.permission_agents()
+        binaries = {name: shlex.quote(str(Path(self.temp.name) / name)) for name in ("codex", "claude")}
+        saved = self.root / ".agents/permissions/commands.md"
+        saved.parent.mkdir(parents=True)
+        saved.write_text("Existing guide for another project; preserve me.\n")
+        rules = self.root / ".codex/rules/nesrev-pass-cycle.rules"
+        rules.parent.mkdir(parents=True)
+        rules.write_text("Existing rules; preserve me.\n")
+        self.args.permissions = "bypass"
+        self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
+        self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
+        for implementer in ("codex", "claude"):
+            for reviewer in ("codex", "claude"):
+                with self.subTest(implementer=implementer, reviewer=reviewer):
+                    self.log.write_text("")
+                    old_configs = set((self.root / ".agents/logs").glob("*/workspace.json"))
+                    self.args.implementer_cmd, self.args.reviewer_cmd = binaries[implementer], binaries[reviewer]
+                    with patch("builtins.input", side_effect=AssertionError("bypass must not request profile consent")), \
+                         patch.object(launcher.permissions, "build_plan", side_effect=AssertionError("bypass must not manage profiles")):
+                        self.launch()
+                    config_path, = set((self.root / ".agents/logs").glob("*/workspace.json")) - old_configs
+                    config = json.loads(config_path.read_text())
+                    self.assertEqual(config["permission_mode"], "bypass")
+                    commands = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
+                    self.assertEqual(len(commands), 2)
+                    for role, agent, command, model, effort in zip(
+                        launcher.ROLES, (implementer, reviewer), commands,
+                        ("first-model", "second-model"), ("high", "medium"),
+                    ):
+                        subprocess.run(["/bin/sh", "-c", command], cwd=self.root, check=True)
+                        actual = json.loads(self.agent_log.read_text())
+                        expected_effort = ["--config", f'model_reasoning_effort="{effort}"'] if agent == "codex" else ["--effort", effort]
+                        flag = "--dangerously-bypass-approvals-and-sandbox" if agent == "codex" else "--dangerously-skip-permissions"
+                        self.assertEqual(actual[:-1], ["--model", model, *expected_effort, flag])
+                        self.assertEqual(config["commands"][role][1:], actual[:-1])
+                        self.assertIn("not this run's permission setup", actual[-1])
+                        self.assertIn("Reply READY and end your turn", actual[-1])
+                    self.assertIn("not this run's permission setup", config_path.with_name("task.md").read_text())
+                    self.assertFalse(config_path.with_name("ready").exists())
+                    self.assertFalse(any(c[0] in {"send-keys", "load-buffer", "paste-buffer"} for c in self.calls()))
+        self.assertEqual(saved.read_text(), "Existing guide for another project; preserve me.\n")
+        self.assertEqual(rules.read_text(), "Existing rules; preserve me.\n")
+        self.assertFalse((saved.parent / "receipt.json").exists())
+
+    def test_bypass_fallback_preserves_agent_model_defaults(self):
+        self.args.permissions = "bypass"
+        self.args.implementer_cmd, self.args.reviewer_cmd = "codex", None
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: None if name == "claude" else "/agents/codex"):
+            commands = launcher.launch_commands(self.args)
+        self.assertEqual(commands, {role: ["/agents/codex", "--dangerously-bypass-approvals-and-sandbox"] for role in launcher.ROLES})
+
+    def test_bypass_rejects_unknown_agents_before_creating_project_or_workspace(self):
+        self.args.permissions, self.args.project = "bypass", "new_project"
+        with self.assertRaisesRegex(review.UserError, "bypass permissions require codex or claude"):
+            self.launch()
+        self.assertFalse((self.root / "projects/new_project").exists())
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_bypass_rejects_competing_native_permission_options_before_launch(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        codex, claude = self.args.implementer_cmd, self.args.reviewer_cmd
+        for agent, options in (
+            (codex, "--sandbox read-only"), (codex, "--ask-for-approval on-request"),
+            (codex, '-c approval_policy="on-request"'), (codex, "-- --sandbox read-only"),
+            (claude, "--permission-mode default"), (claude, "--settings another-profile.json"),
+        ):
+            with self.subTest(options=options):
+                self.args.reviewer_cmd = agent + " " + options
+                with self.assertRaisesRegex(review.UserError, "bypass permissions accept only"):
+                    self.launch()
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_bypass_check_previews_native_commands_without_creating_or_prompting(self):
+        self.permission_agents()
+        self.args.permissions, self.args.check = "bypass", True
+        self.scaffold_tools()
+        for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid")):
+            subprocess.run(["git", "config", key, value], cwd=self.root, check=True)
+        output = io.StringIO()
+        with patch("builtins.input", side_effect=AssertionError("check must not prompt")), \
+             patch.object(launcher.permissions, "build_plan", side_effect=AssertionError("bypass must not manage profiles")), \
+             contextlib.redirect_stdout(output):
+            self.assertEqual(launcher.launch(self.args), 0)
+        for flag in ("--dangerously-bypass-approvals-and-sandbox", "--dangerously-skip-permissions"):
+            self.assertIn(flag, output.getvalue())
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertFalse((self.root / ".codex").exists())
+        self.assertEqual(self.calls(), [])
+
+    def test_bypass_reconnect_preserves_running_permission_mode(self):
+        self.args.permissions = "bypass"
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$5\treview-test\t{self.root}\tdemo"}), \
+             patch.object(launcher, "launch_commands", side_effect=AssertionError("reconnect must not change commands")), \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(launcher.launch(self.args), 0)
+        self.assertIn("permissions", output.getvalue())
+        self.assertIn("require a restart", output.getvalue())
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_bypass_does_not_waive_missing_manual_or_startup_confirmation(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        self.manual.unlink()
+        self.launch()
+        output = io.StringIO()
+        with self.assertRaises(EOFError):
+            self.run_worker(answer=["", EOFError], output=output)
+        self.assertIn("NEEDS INPUT", output.getvalue())
+        self.assertFalse(self.config().with_name("ready").exists())
+        self.assertFalse((self.root / ".agents/reference_intake/demo.json").exists())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
     def test_permission_confirmation_happens_before_agents_start(self):
         self.permission_agents()
         def consent(_):
@@ -683,6 +806,106 @@ class LauncherTests(unittest.TestCase):
         self.run_worker()
         self.assertTrue(self.config().with_name("ready").exists())
         self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+
+    def test_bypass_restart_overrides_legacy_guidance_on_delivered_handoffs(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        state = self.state(status="CHANGES_REQUESTED")
+        guide = self.root / ".agents/permissions/commands.md"
+        guide.parent.mkdir(parents=True)
+        guide.write_text("stage-project other_project -- <path>\n")
+        # Frozen pre-bypass guidance, including extra operator instructions that
+        # must survive the restart rather than being lost by re-rendering.
+        legacy = (
+            "Run: demo-pass-1\nReview: .agents/review-01.md\n"
+            "Fix or dispute each finding; use reready --generate-packet.\n"
+            "If `.agents/permissions/commands.md` exists, follow its Git command forms.\n"
+            "Operator instruction: stop after the agreed three passes.\n"
+        )
+        original = self.root / ".agents/legacy-prompt.md"
+        original.write_text(legacy)
+        state["prompts"] = {role: ".agents/legacy-prompt.md" for role in launcher.ROLES}
+        review.write_state(self.root, state)
+        self.launch()
+        workers = {}
+        for role in launcher.ROLES:
+            _, execute = self.run_worker(role=role)
+            argv = execute.call_args.args[1]
+            workers[role] = (
+                review.build_parser().parse_args([*argv[2:], "--once"]),
+                execute.call_args.args[2],
+            )
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+        for status, role in (
+            ("CHANGES_REQUESTED", "implementer"), ("APPROVED", "implementer"),
+            ("REVIEW_ROUNDS_EXHAUSTED", "implementer"),
+            ("READY_FOR_REVIEW", "reviewer"), ("READY_FOR_REREVIEW", "reviewer"),
+        ):
+            with self.subTest(status=status):
+                state["status"] = status
+                review.write_state(self.root, state)
+                before = review.state_path(self.root).read_bytes()
+                args, env = workers[role]
+                with patch.object(review, "repo_root", return_value=self.root), patch.dict(os.environ, env):
+                    self.assertEqual(review.command_watch(args), 0)
+                    delivered_count = len(self.calls())
+                    self.assertEqual(review.command_watch(args), 3)
+                self.assertEqual(len(self.calls()), delivered_count, "restart must not duplicate a turn")
+                loaded = [c for c in self.calls() if c[0] == "load-buffer"][-1]
+                delivery = Path(loaded[-1])
+                self.assertNotEqual(delivery, original)
+                text = delivery.read_text()
+                self.assertTrue(text.startswith(legacy + "\n\n"))
+                suffix = text[len(legacy):]
+                self.assertIn("supersede any saved permission-guide instructions above", suffix)
+                self.assertIn("--permissions bypass", suffix)
+                self.assertIn("not this run's permission setup", suffix)
+                self.assertEqual(original.read_text(), legacy)
+                self.assertEqual(guide.read_text(), "stage-project other_project -- <path>\n")
+                self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_bypass_missing_or_empty_delivery_context_does_not_mark_turn_seen(self):
+        self.permission_agents()
+        self.args.permissions = "bypass"
+        state = self.state()
+        self.launch()
+        self.run_worker()
+        _, execute = self.run_worker(role="reviewer")
+        args = review.build_parser().parse_args([*execute.call_args.args[1][2:], "--once"])
+        context = self.config().with_name("prompt-context.md")
+        saved = context.read_text()
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                if missing:
+                    context.unlink()
+                else:
+                    context.write_text("  \n")
+                with patch.object(review, "repo_root", return_value=self.root), \
+                     patch.object(review, "run_notify") as notify:
+                    with self.assertRaisesRegex(review.UserError, "prompt context"):
+                        review.command_watch(args)
+                notify.assert_not_called()
+                self.assertFalse(list(review.run_dir(self.root, state).glob("workers/*.seen")))
+        context.write_text(saved)
+        with patch.object(review, "repo_root", return_value=self.root), patch.object(review, "run_notify"):
+            self.assertEqual(review.command_watch(args), 0)
+
+    def test_non_bypass_workers_keep_original_handoff_delivery(self):
+        for mode in ("pass-cycle", "inherit"):
+            with self.subTest(mode=mode):
+                self.args.permissions = mode
+                self.state()
+                if mode == "pass-cycle":
+                    self.permission_agents()
+                old_configs = set((self.root / ".agents/logs").glob("*/workspace.json"))
+                with patch("builtins.input", return_value="yes"):
+                    self.launch()
+                config, = set((self.root / ".agents/logs").glob("*/workspace.json")) - old_configs
+                with patch.object(self, "config", return_value=config):
+                    self.run_worker()
+                    _, execute = self.run_worker(role="reviewer")
+                self.assertNotIn("--prompt-context", execute.call_args.args[1])
+                self.assertFalse(config.with_name("prompt-context.md").exists())
 
     def test_dead_agent_prevents_startup(self):
         self.launch()
