@@ -155,6 +155,57 @@ class IsolatedRunnerTests(unittest.TestCase):
                      "Isolated tests: 3 selected, 1 failed"):
             self.assertIn(text, result.stderr)
 
+    def test_worker_interrupt_preserves_completed_failure_and_later_reports(self):
+        result = self.launch("""
+        def test_a_interrupt(self):
+            print('worker output before interrupt', flush=True)
+            deadline = time.monotonic() + 10
+            while not (ROOT / 'failure-finished').exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue((ROOT / 'failure-finished').exists(), 'failure case did not finish')
+            raise KeyboardInterrupt('worker-only interrupt')
+        def test_b_failure(self):
+            self.fail('completed assertion before worker interrupt')
+        def test_c_after_failure(self):
+            (ROOT / 'failure-finished').write_text('ran')
+            print('last case output')
+        """)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertTrue((self.root / "failure-finished").exists())
+        for text in ("worker output before interrupt",
+                     "ERROR Cases.test_a_interrupt: KeyboardInterrupt: worker-only interrupt",
+                     "FAIL: test_b_failure", "completed assertion before worker interrupt",
+                     "last case output", "Isolated tests: 3 selected, 2 failed"):
+            self.assertIn(text, result.stderr)
+        self.assertLess(result.stderr.index("ERROR Cases.test_a_interrupt:"),
+                        result.stderr.index("FAIL: test_b_failure"))
+        self.assertLess(result.stderr.index("FAIL: test_b_failure"),
+                        result.stderr.index("last case output"))
+        self.assertEqual(result.stdout, "")
+
+    def test_parent_interrupt_during_replay_is_not_a_worker_failure(self):
+        for accessor in ("exception", "result"):
+            with self.subTest(accessor=accessor):
+                result = self.launch("def test_a(self):\n    pass\n", textwrap.dedent(f"""
+                import isolated_unittest, signal
+                class InterruptingParent(isolated_unittest.ProcessPoolExecutor):
+                    def submit(self, *args, **kwargs):
+                        future = super().submit(*args, **kwargs)
+                        original = getattr(future, {accessor!r})
+                        def interrupt_parent(*args, **kwargs):
+                            print('sending SIGINT to parent', flush=True)
+                            signal.raise_signal(signal.SIGINT)
+                            return original(*args, **kwargs)
+                        setattr(future, {accessor!r}, interrupt_parent)
+                        return future
+                isolated_unittest.ProcessPoolExecutor = InterruptingParent
+                """))
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("sending SIGINT to parent", result.stdout)
+                self.assertIn("KeyboardInterrupt", result.stderr)
+                self.assertNotIn("ERROR Cases.", result.stderr)
+                self.assertNotIn("Isolated tests:", result.stderr)
+
     def test_empty_case_is_a_failure(self):
         result = self.launch("pass\n")
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)

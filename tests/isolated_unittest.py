@@ -72,10 +72,15 @@ def run(case):
         for name, log, future in jobs:
             sys.stderr.write(log.read_text(encoding="utf-8", errors="replace"))
             try:
-                passed = future.result()
+                # Inspect stored worker exceptions without re-raising them:
+                # a worker's KeyboardInterrupt must not interrupt parent replay.
+                error = future.exception()
+                passed = error is None and future.result()
             except Exception as exc:
+                error = exc
                 passed = False
-                print(f"ERROR {case.__name__}.{name}: {type(exc).__name__}: {exc}",
+            if error is not None:
+                print(f"ERROR {case.__name__}.{name}: {type(error).__name__}: {error}",
                       file=sys.stderr)
             failed += not passed
     print(f"Isolated tests: {len(names)} selected, {failed} failed", file=sys.stderr)
