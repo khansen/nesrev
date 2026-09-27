@@ -6,6 +6,12 @@ not accepted implementation work or a historical log. The canonical
 an observation belongs in tooling, a playbook, a project-local artifact, or
 nowhere. Routing ends queue residency even when implementation is unfinished.
 
+Record unresolved friction even when no fix is proposed. Do not record friction
+that is already fixed. Once a fix is verified, prune the entry entirely: leave
+no resolved section, completion note, or historical summary in the queue.
+Use the receipt/prune workflow below; receipts prevent re-import from old
+archives. A workaround that leaves the underlying issue open is not a fix.
+
 ## Migration and commands
 
 Run from the repository root:

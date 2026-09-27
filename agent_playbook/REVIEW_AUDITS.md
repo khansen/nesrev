@@ -64,10 +64,10 @@ copy.
 <a id="process-learning-triage"></a>
 ## Process-Learning Triage
 
-Agent-review handoffs may copy `## Learning Candidates` sections into
-`projects/<slug>/PROCESS_FRICTION.md`. Treat that file as a raw triage queue,
-not as canonical process doctrine. A candidate becomes a rule only after a
-process/tooling review decides its disposition.
+Agent-review handoffs copy `## Learning Candidates` into the project's
+`PROCESS_FRICTION.md` for triage. No proposed fix is required. Never record
+already-fixed friction; prune fixed entries entirely, leaving no history in the
+queue. Candidates require process/tooling review before promotion into rules.
 
 Learning-candidate production is evidence-triggered, not a per-pass quota. As
 recurring defects are fixed, the candidate rate should normally decline;
