@@ -412,6 +412,28 @@ Optional variable: `FORMAT=ips|bps` on `mod-patch` (default `ips`).
 `make project-regenerate-asm PROJECT=<slug>`. You normally don't call
 `NESrev` directly; use the project-aware target instead.)
 
+## Tests and continuous integration
+
+Run `make test` with the [toolchain](agent_playbook/NEW_PROJECT.md#prerequisites)
+installed. It checks playbook links and budgets, repository hygiene, the shell
+regressions (including Python tests), and the Java disassembler tests.
+
+[GitHub CI](.github/workflows/ci.yml) runs the same command on Ubuntu 24.04 and
+macOS 15 for every pull request and push to `master`. It can also be started
+manually from the Actions tab. The workflow pins its action revisions, Python,
+Java, and xorcyst source revision; update those pins deliberately when changing
+the supported toolchain. Both platforms exercise Bash and zsh.
+
+The tests use synthetic fixtures and fake agent/emulator processes. No private
+ROMs, manuals, agent accounts, or FCEUX installation are needed. The native
+Codex execution-policy test runs only when the Codex CLI is installed; CI
+reports that optional coverage explicitly in its job summary and toolchain log.
+A green CI run does not replace project-specific parity or runtime evidence.
+
+Each job has a 30-minute limit. New runs cancel older runs for the same ref,
+and completed jobs retain build, toolchain, and test logs as artifacts for
+14 days, including when a check fails.
+
 ## NESrev Recovery Controls
 
 The disassembler accepts five optional control inputs for ROMs whose
