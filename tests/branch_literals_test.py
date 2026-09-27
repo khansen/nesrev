@@ -205,6 +205,45 @@ Start: bne ($ + $02) : BEQ $+%10
         with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
             analysis.load_instruction_cache(cache)
 
+    def test_production_refuses_null_memory_access_before_publication(self):
+        self.source.write_text(".ORG $C000\nZP_Count .EQU $10\nOwner: INC ZP_Count\n RTS\n")
+        real_run = subprocess.run
+
+        def corrupt_records(argv, **kwargs):
+            result = real_run(argv, **kwargs)
+            self.assertEqual(result.returncode, 0)
+            path = self.directory / "instructions.json"
+            document = json.loads(path.read_bytes())
+            record = document["records"][0]
+            self.assertEqual(record["addressing_mode"], "zeropage")
+            self.assertEqual(record["memory_access"]["data"]["kind"], "read_modify_write")
+            record["memory_access"] = None
+            path.write_text(json.dumps(document))
+            return result
+
+        with patch.object(analysis.subprocess, "run", side_effect=corrupt_records):
+            with self.assertRaisesRegex(ValueError, "memory mode without memory_access"):
+                self.produce()
+        self.assertFalse(self.path.exists(), "invalid records must not publish a bundle")
+
+    def test_pass_cache_refuses_null_memory_access_with_stale_or_missing_stamp(self):
+        self.source.write_text(".ORG $C000\nZP_Count .EQU $10\nOwner: INC ZP_Count\n RTS\n")
+        _, cache = self.cached_instructions()
+        document = analysis.load_instruction_cache(cache)
+        self.assertEqual(document["records"][0]["memory_access"]["data"]["kind"], "read_modify_write")
+        document["records"][0]["memory_access"] = None
+        cache.write_text(json.dumps(document))
+        for stamp in ("stale", "previous-reader", "missing"):
+            with self.subTest(stamp=stamp):
+                if stamp == "previous-reader":
+                    receipt = analysis.instruction_cache_stamp(cache.read_bytes())
+                    receipt["instruction_reader"] = "0" * 64
+                    analysis.write_json(str(cache) + ".validated.json", receipt)
+                elif stamp == "missing":
+                    Path(str(cache) + ".validated.json").unlink()
+                with self.assertRaisesRegex(ValueError, "memory mode without memory_access"):
+                    analysis.load_instruction_cache(cache)
+
     def test_standalone_once_and_supplied_refusal_no_fallback(self):
         spy = self.root / "xasm"
         shutil.copyfile(ROOT / "tests/fixtures/analysis_count_xasm.py", spy)

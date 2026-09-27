@@ -81,7 +81,9 @@ def memory_access(record):
     require(access is not ..., "missing memory_access")
     mode, value = record["addressing_mode"], record["operand_value"]
     if access is None:
-        require(mode not in POINTER_MODES, "pointer mode without memory_access")
+        # Absolute also encodes direct JMP/JSR targets, which are not data accesses.
+        require(mode in {"implied", "accumulator", "immediate", "relative", "absolute"},
+                "memory mode without memory_access")
         return
     require(mode in MEMORY_MODES | POINTER_MODES, "memory_access on a mode without a memory operand")
     require(type(value) is int, "memory_access requires an operand value")

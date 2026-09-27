@@ -28,6 +28,13 @@ Start:
     LDA [$00],Y
     LDA $01
     BNE Start
+    INC $10
+    LDA $10,X
+    LDX $10,Y
+    LDA Base,Y
+    JSR Start
+    JMP Start
+    ASL A
     RTS
 END
 """
@@ -55,7 +62,7 @@ class InstructionRecords(unittest.TestCase):
 
     def test_xasm_output_validates(self):
         records = instruction_records.validate(copy.deepcopy(self.payload))
-        self.assertEqual(len(records), 11)
+        self.assertEqual(len(records), 18)
         # The truncated immediate is accepted: its term sums to $123 and the operand is $23.
         truncated = self.record("LDA #$123")
         self.assertEqual((truncated["operand_value"], truncated["additive_terms"]["terms"][0]["value"]),
@@ -103,7 +110,7 @@ class InstructionRecords(unittest.TestCase):
                     "invalid pointer access")
         self.refuse("JMP [$12FF]", lambda r: r["memory_access"]["pointer"].update(high_byte_address=0x1300),
                     "invalid pointer access")
-        self.refuse("JMP [$12FF]", lambda r: r.update(memory_access=None), "pointer mode without memory_access")
+        self.refuse("JMP [$12FF]", lambda r: r.update(memory_access=None), "memory mode without memory_access")
         self.refuse("JMP [$12FF]", lambda r: r["memory_access"].update(
             data={"kind": "read", "address": 0x12FF, "index_register": None, "via_pointer": False}),
             "data access/mode mismatch")
@@ -122,6 +129,19 @@ class InstructionRecords(unittest.TestCase):
         self.refuse("LDA [$00],Y", lambda r: r["memory_access"]["data"].pop("address"),
                     "data address must be the operand value")
 
+    def test_memory_only_modes_require_memory_access(self):
+        for text in ("INC $10", "LDA $10,X", "LDX $10,Y", "LDA Base+2,X",
+                     "LDA Base,Y", "LDA [ZP_Ptr],Y", "STA [ZP_Ptr,X]", "JMP [$12FF]"):
+            with self.subTest(instruction=text):
+                self.assertIsNotNone(self.record(text)["memory_access"])
+                self.refuse(text, lambda r: r.update(memory_access=None), "memory mode without memory_access")
+
+    def test_non_memory_and_direct_control_modes_allow_null_access(self):
+        for text in ("RTS", "ASL A", "LDA #<Start", "BNE Start", "JMP Start", "JSR Start"):
+            with self.subTest(instruction=text):
+                self.assertIsNone(self.record(text)["memory_access"])
+        instruction_records.validate(copy.deepcopy(self.payload))
+
     def test_additive_terms_refusals(self):
         self.refuse("LDA Base+2,X", lambda r: r.pop("additive_terms"), "missing additive_terms")
         self.refuse("RTS", lambda r: r.update(additive_terms={"projection": "none", "terms": []}),
@@ -139,8 +159,11 @@ class InstructionRecords(unittest.TestCase):
         self.refuse("LDA Base+2,X", lambda r: r["additive_terms"]["terms"][0]["binding"].pop("definition"),
                     "invalid term binding")
 
-    def test_every_corrupted_field_is_refused_not_crashed(self):
-        """Deleting or retyping any record value raises ValueError, never another exception."""
+    def test_record_mutations_refuse_invalid_types_without_crashing(self):
+        """Required fields reject deletion/floats; general nested mutations never crash.
+
+        Some nested changes are valid, such as replacing an optional binding with null.
+        """
         def paths(value, prefix=()):
             yield prefix
             if isinstance(value, dict):
@@ -172,6 +195,9 @@ class InstructionRecords(unittest.TestCase):
                             pass
                         except Exception as exc:
                             self.fail(f"{path} = {replacement!r} raised {type(exc).__name__}: {exc}")
+                        else:
+                            if len(path) == 1 and replacement in ("delete", 1.5):
+                                self.fail(f"required field {path} accepted {replacement!r}")
         self.assertGreater(tried, 5000)
 
 
