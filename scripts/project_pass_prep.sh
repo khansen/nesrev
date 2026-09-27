@@ -124,6 +124,8 @@ cp "${TMPDIR_PASS_PREP}/coverage.json" "${pass_dir}/data_coverage.json"
 for artifact in xref_with_data index_patterns data_consumers instructions; do
   cp "${TMPDIR_PASS_PREP}/${artifact}.json" "${pass_dir}/${artifact}.json"
 done
+python3 "${SCRIPT_DIR}/analysis_bundle.py" stamp-instructions \
+  "${NESREV_ANALYSIS_BUNDLE}" "${pass_dir}/instructions.json"
 echo "[2/5] Refreshing inventory from the primary xref"
 bash "${SCRIPT_DIR}/refresh_inventory.sh" "${slug}"
 

@@ -30,12 +30,13 @@ def qualifies(record):
             and tree["children"][1]["kind"] == "integer")
 
 
-def portable(value, root):
+def portable(value, root, files):
+    """Resolves span file indices through the records' file table, relative to root."""
     if isinstance(value, dict):
-        return {key: os.path.relpath(absolute(child), root) if key == "file" else portable(child, root)
-                for key, child in value.items()}
+        return {key: os.path.relpath(absolute(files[child]), root) if key == "file"
+                else portable(child, root, files) for key, child in value.items()}
     if isinstance(value, list):
-        return [portable(child, root) for child in value]
+        return [portable(child, root, files) for child in value]
     return value
 
 
@@ -43,18 +44,19 @@ def rows(bundle):
     document = bundle.load("instructions")
     context = bundle.data["context"]
     root = os.getcwd() if context.get("project") else os.path.dirname(context["source"])
+    files = document["files"]
     result = []
     for record in document["records"]:
         if not qualifies(record):
             continue
         source = record["source"]
-        location, use = portable(source["span"], root), portable(record["use"], root)
+        location, use = portable(source["span"], root, files), portable(record["use"], root, files)
         result.append(dict(zip(FIELDS, [location["line"], record["lexical_owner"] or "(none)",
             record["mnemonic"], record["operand_source"]["text"], source["text"], "2",
             location["file"], location["column"], location["end_line"], location["end_column"],
             use["file"], use["line"], use["column"], use["end_line"], use["end_column"],
             record["origin_id"], record["output_offset"], record["segment_id"], record["cpu_address"],
-            json.dumps(portable(record["expression"], root), ensure_ascii=False, separators=(",", ":"))])))
+            json.dumps(portable(record["expression"], root, files), ensure_ascii=False, separators=(",", ":"))])))
     bundle.validate()
     return result
 

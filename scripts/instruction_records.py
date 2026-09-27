@@ -1,4 +1,4 @@
-"""Validate xasm instruction-record v2 facts without parsing assembly text."""
+"""Validate xasm instruction-record v3 facts without parsing assembly text."""
 
 KINDS = {"integer", "string", "symbol", "local_symbol", "forward_label", "backward_label",
          "current_pc", "operator", "member", "scope", "index", "sizeof", "mask", "datatype"}
@@ -37,25 +37,24 @@ def one_of(value, allowed):
     return isinstance(value, str) and value in allowed
 
 
-def span(value, check_source=None):
+def span(value, file_count):
+    """A span names its file by index into the document's files table."""
     require(isinstance(value, dict), "source span required")
-    require(isinstance(value.get("file"), str) and value["file"], "span file required")
+    require(type(value.get("file")) is int and 0 <= value["file"] < file_count, "invalid span file index")
     for key in ("line", "column", "end_line", "end_column"):
         require(type(value.get(key)) is int and value[key] > 0, "invalid span " + key)
     require((value["end_line"], value["end_column"]) >= (value["line"], value["column"]),
             "reversed source span")
-    if check_source is not None:
-        check_source(value["file"])
 
 
-def source(value, check_source=None):
+def source(value, file_count):
     require(isinstance(value, dict) and isinstance(value.get("text"), str), "source text required")
-    span(value.get("span"), check_source)
+    span(value.get("span"), file_count)
 
 
-def expression(value, check_source=None):
+def expression(value, file_count):
     require(isinstance(value, dict) and one_of(value.get("kind"), KINDS), "unknown expression kind")
-    source(value.get("source"), check_source)
+    source(value.get("source"), file_count)
     children = value.get("children")
     require(isinstance(children, list), "expression children required")
     kind = value["kind"]
@@ -70,7 +69,7 @@ def expression(value, check_source=None):
         unary = value["operator"] in {"bit_not", "logical_not", "low_byte", "high_byte", "negate", "bank"}
         require(len(children) == (1 if unary else 2), "invalid operator arity")
     for child in children:
-        expression(child, check_source)
+        expression(child, file_count)
 
 
 def memory_access(record):
@@ -115,7 +114,7 @@ def truncated_operand(value, mode):
     return value
 
 
-def additive_terms(record, check_source=None):
+def additive_terms(record, file_count):
     terms = record.get("additive_terms", ...)
     require(terms is not ..., "missing additive_terms")
     if record["expression"] is None:
@@ -143,10 +142,10 @@ def additive_terms(record, check_source=None):
                     and one_of(binding.get("kind"), BINDING_KINDS) and "definition" in binding,
                     "invalid term binding")
             if binding["definition"] is not None:
-                span(binding["definition"], check_source)
+                span(binding["definition"], file_count)
             require(isinstance(binding.get("enum"), str) if binding["kind"] == "enum_member"
                     else "enum" not in binding, "invalid enum binding")
-        source(term.get("source"), check_source)
+        source(term.get("source"), file_count)
         total += term["sign"] * term["value"]
     if terms["projection"] == "low":
         total &= 0xFF
@@ -158,7 +157,15 @@ def additive_terms(record, check_source=None):
 
 
 def validate(payload, check_source=None):
-    require(isinstance(payload, dict) and payload.get("version") == "2", "version 2 required")
+    """Validates a records document; check_source is called once per file in its table."""
+    require(isinstance(payload, dict) and payload.get("version") == "3", "version 3 required")
+    files = payload.get("files")
+    require(isinstance(files, list) and all(isinstance(name, str) and name for name in files)
+            and len(files) == len(set(files)), "file table of distinct paths required")
+    if check_source is not None:
+        for name in files:
+            check_source(name)
+    file_count = len(files)
     records = payload.get("records")
     require(isinstance(records, list), "complete records array required")
     origins = set()
@@ -197,13 +204,13 @@ def validate(payload, check_source=None):
                 "invalid emitted size")
         require(all(type(b) is int and 0 <= b <= 255 for b in octets) and octets[0] == record["opcode"],
                 "invalid emitted bytes")
-        span(record.get("use"), check_source)
-        source(record.get("source"), check_source)
+        span(record.get("use"), file_count)
+        source(record.get("source"), file_count)
         require("operand_source" in record and "expression" in record, "missing operand provenance")
         if record["operand_source"] is not None:
-            source(record["operand_source"], check_source)
+            source(record["operand_source"], file_count)
         if record["expression"] is not None:
-            expression(record["expression"], check_source)
+            expression(record["expression"], file_count)
         operandless = record["addressing_mode"] in {"implied", "accumulator"}
         require((record["expression"] is None) == operandless, "operand/mode mismatch")
         require((record["operand_source"] is None) == (record["parsed_addressing_mode"] == "implied"),
@@ -214,7 +221,7 @@ def validate(payload, check_source=None):
                           "Y" if mode.endswith("_y") or mode == "postindexed_indirect" else None)
         require(record["index_register"] == expected_index, "index/mode mismatch")
         memory_access(record)
-        additive_terms(record, check_source)
+        additive_terms(record, file_count)
     return records
 
 

@@ -99,7 +99,7 @@ from pathlib import Path
     deferrals_file, proof_debt_ack_file,
 ) = sys.argv[1:]
 sys.path.insert(0, script_dir)
-import instruction_records
+import analysis_bundle
 import proof_debt
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
@@ -729,15 +729,15 @@ def build_lowaddr_ram_equ_symbols(xref):
     return by_addr
 
 def load_instruction_records(path):
-    """Validated instruction records from the pass-prep analysis bundle, or [] if absent."""
+    """Validated instruction-records document from the pass-prep cache, or an empty one."""
     if not os.path.exists(path):
-        return []
+        return {"files": [], "records": []}
     try:
-        return instruction_records.validate(load_json(path))
+        return analysis_bundle.load_instruction_cache(path)
     except ValueError as exc:
         raise ContractError(f"{path}: {exc}") from exc
 
-def instruction_ram_sites(records, addr_symbols):
+def instruction_ram_sites(document, addr_symbols):
     """RAM bytes that instructions access through a canonical RAM equate.
 
     xasm reports each access (memory_access) and the terms the operand is built
@@ -747,8 +747,9 @@ def instruction_ram_sites(records, addr_symbols):
     binding cannot express it, since .equ and = both bind as constants.
     """
     canonical = {symbol for symbols in addr_symbols.values() for symbol in symbols}
+    files = document["files"]
     out = []
-    for record in records:
+    for record in document["records"]:
         access = record["memory_access"]
         terms = record["additive_terms"]
         if access is None or terms is None:
@@ -773,7 +774,7 @@ def instruction_ram_sites(records, addr_symbols):
                 "symbol": ram_symbol,
                 "mnemonic": record["mnemonic"],
                 "access_kind": kind,
-                "file": use["file"],
+                "file": files[use["file"]],
                 "line": use["line"],
                 "owner_routine": record["lexical_owner"],
             })

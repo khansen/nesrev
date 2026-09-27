@@ -27,6 +27,19 @@ and detailed results belong in the local-only companion
 `projects/PROJECT_CI_PERFORMANCE_EVIDENCE.md`, not in shared changes. Public
 fixtures, commits, and PR descriptions must remain project-agnostic.
 
+<a id="non-regression-requirement"></a>
+## Non-regression requirement
+
+Every change to NESrev tooling, or to the xasm outputs it consumes, must not
+noticeably slow the wrappers it affects. This applies to features and migrations,
+not only to work done for performance. Measure each affected wrapper before and
+after on the largest local project, following
+[Measurement, verification, and landing](#measurement-verification-and-landing).
+The median wall time may grow by at most 5%. A larger regression needs explicit
+approval, recorded with its reason and measurements. Artifact sizes may grow for
+new content, not for repetition. Game-specific numbers go in the local evidence
+file; shared changes state the percentages.
+
 ## CI-P1 — Completed: batched lexical constant counting
 
 [PR #107](https://github.com/khansen/nesrev/pull/107) replaced the per-constant

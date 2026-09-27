@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Version 2 instruction-record validation: accepted xasm output and one refusal per fact."""
+"""Version 3 instruction-record validation: accepted xasm output and one refusal per fact."""
 
 import copy
 import json
@@ -61,11 +61,31 @@ class InstructionRecords(unittest.TestCase):
         self.assertEqual((truncated["operand_value"], truncated["additive_terms"]["terms"][0]["value"]),
                          (0x23, 0x123))
 
-    def test_version_1_refused(self):
-        payload = copy.deepcopy(self.payload)
-        payload["version"] = "1"
-        with self.assertRaisesRegex(ValueError, "version 2 required"):
-            instruction_records.validate(payload)
+    def test_earlier_versions_refused(self):
+        for version in ("1", "2"):
+            payload = copy.deepcopy(self.payload)
+            payload["version"] = version
+            with self.assertRaisesRegex(ValueError, "version 3 required"):
+                instruction_records.validate(payload)
+
+    def test_file_table_refusals(self):
+        def document(mutate, message):
+            payload = copy.deepcopy(self.payload)
+            mutate(payload)
+            with self.assertRaisesRegex(ValueError, message):
+                instruction_records.validate(payload)
+        document(lambda d: d.pop("files"), "file table of distinct paths required")
+        document(lambda d: d.update(files=[""]), "file table of distinct paths required")
+        document(lambda d: d.update(files=d["files"] * 2), "file table of distinct paths required")
+        self.refuse("INC Base", lambda r: r["use"].update(file=1), "invalid span file index")
+        self.refuse("INC Base", lambda r: r["source"]["span"].update(file="input.asm"), "invalid span file index")
+        self.refuse("LDA Base+2,X", lambda r: r["additive_terms"]["terms"][0]["binding"]["definition"].update(file=-1),
+                    "invalid span file index")
+
+    def test_source_check_runs_once_per_file(self):
+        seen = []
+        instruction_records.validate(copy.deepcopy(self.payload), seen.append)
+        self.assertEqual(seen, self.payload["files"])
 
     def test_memory_access_refusals(self):
         self.refuse("INC Base", lambda r: r.pop("memory_access"), "missing memory_access")

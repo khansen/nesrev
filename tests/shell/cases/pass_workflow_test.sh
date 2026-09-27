@@ -3927,7 +3927,7 @@ PY
   set -e
 
   assert_eq "${rc}" "65" "malformed instruction records must fail with a contract error"
-  assert_match 'instructions\.json: invalid instruction records: version 2 required' "${output}"
+  assert_match 'instructions\.json: invalid instruction records: version 3 required' "${output}"
   assert_not_match 'Traceback' "${output}"
 }
 
