@@ -322,6 +322,8 @@ Optional variables:
 - `project-pass-start`: append `PASS=<id>` to set the pass id and
   `TARGET=<corridor_anchor>` to record the selected corridor objective
   (without `TARGET` the wrapper warns and defaults to the first candidate).
+  Exact candidate anchors, cluster names, and symbol aliases take precedence
+  over membership in another candidate.
   Append `CORRIDOR=`, `WHY_NOW=`, `BOUNDARIES=`, `EVIDENCE=`,
   `OUT_OF_SCOPE=` to persist the full objective.
 - `project-pass-closeout`: append `PASS=<id>` to close out a specific
@@ -344,6 +346,9 @@ operands remain, it can switch into `raw_ram_symbolization` mode and rank
 unnamed RAM bytes/windows for the next semantic symbolization pass. It also
 persists the computed briefing to
 `docs/reverse_engineering/inventory/pass/next_pass.json`.
+Caller names come from the detailed xref's recorded owners. Nearby-symbol
+hints require matching CPU-to-output mappings, so overlapping bank addresses
+do not imply proximity; missing ownership or mapping facts produce no hint.
 In `raw_ram_symbolization` mode, it also maintains a persistent review queue at
 `docs/reverse_engineering/inventory/raw_ram_review.csv` so already reviewed or
 deferred bytes are not re-triaged from scratch every pass.

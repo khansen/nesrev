@@ -3762,6 +3762,158 @@ _assemble_pass_cache() {
   "${XASM_BIN:-$(command -v xasm)}" "${args[@]}" "projects/${slug}/asm/${slug}.asm"
 }
 
+_make_banked_selection_fixture() {
+  local slug="$1"
+  local root="projects/${slug}" pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  _make_workflow_project "${slug}" "none"
+  _write_pass_zero_scorecard "${slug}"
+  cat > "${root}/asm/${slug}.asm" <<ASM
+.ORG \$8000
+L18000:
+  .DB 1,2
+L18002:
+  .DB 3,4
+OtherBankReader:
+  LDA L18000,Y
+  RTS
+.INCLUDE "second.inc"
+ASM
+  cat > "${root}/asm/second.inc" <<'ASM'
+.ORG $8000
+L19000:
+  .DB 5,6
+L19002:
+  .DB 7,8
+L19004:
+  LDA L19000,Y
+  ADC L19000,Y
+  ADC L19000,Y
+  RTS
+CrossBankReader:
+  LDA L18000,Y
+  RTS
+ASM
+  _assemble_pass_cache "${slug}"
+  "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+    -o "${NESREV_TEST_TMPDIR}/${slug}.bin" --xref-summary \
+    --xref-summary-format=json --xref-summary-output="${pass_dir}/xref_summary_all.json" \
+    "${root}/asm/${slug}.asm"
+}
+
+test_next_pass_uses_bank_safe_caller_and_neighbor_evidence() {
+  local slug; slug="$(unique_slug banked_selection)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_banked_selection_fixture "${slug}"
+  local pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  # Cover both the filtered summary and the all-summary fallback.
+  local mode
+  for mode in fallback filtered; do
+    if [[ "${mode}" == filtered ]]; then
+      cp "${pass_dir}/xref_summary_all.json" "${pass_dir}/xref_summary_generic.json"
+    fi
+    PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" text > "${NESREV_TEST_TMPDIR}/brief.txt"
+    python3 - "${pass_dir}" "${NESREV_TEST_TMPDIR}/brief.txt" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+xref = json.loads((p / "xref_with_data.json").read_text())
+defs = {s["name"]: s["definition"] for s in xref["symbols"]}
+assert defs["L18000"]["cpu_address"] == defs["L19000"]["cpu_address"]
+assert defs["L18000"]["output_offset"] != defs["L19000"]["output_offset"]
+payload = json.loads((p / "next_pass.json").read_text())
+clusters = {c["anchor"]: c for c in payload["cluster_candidates"]}
+cluster = clusters["L19000"]
+assert cluster["top_callers"] == ["L19004"], cluster
+assert {s["routine"] for s in cluster["caller_sites"]} == {"L19004"}, cluster
+assert {s["call_output_offset"] for s in cluster["caller_sites"]} == {
+    r["use_output_offset"] for r in xref["references"] if r["symbol"] == "L19000"
+}, cluster
+assert all(s["call_file"].endswith("second.inc") for s in cluster["caller_sites"])
+neighbors = {s["symbol"] for s in cluster["nearby_symbol_sites"]}
+assert neighbors == {"L19002", "L19004", "CrossBankReader"}, neighbors
+assert {m["symbol"] for m in cluster["members"]} == {"L19000", "L19002", "L19004"}, cluster
+assert set(clusters["L18000"]["top_callers"]) == {"OtherBankReader", "CrossBankReader"}
+assert "L19004" in payload["recommended_pass"]["reason"], payload["recommended_pass"]
+assert "OtherBankReader" not in payload["recommended_pass"]["reason"], payload["recommended_pass"]
+brief = Path(sys.argv[2]).read_text()
+assert "Directly consumed by L19004" in brief, brief
+PY
+  done
+}
+
+test_next_pass_omits_hints_without_structured_ownership_or_mapping() {
+  local slug; slug="$(unique_slug selection_unknown)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_banked_selection_fixture "${slug}"
+  local pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  python3 - "${pass_dir}/xref_with_data.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+xref = json.loads(p.read_text())
+for r in xref["references"]:
+    r.pop("owner_routine", None)
+for s in xref["symbols"]:
+    s["definition"].pop("output_offset", None)
+p.write_text(json.dumps(xref))
+PY
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  python3 - "${pass_dir}/next_pass.json" <<'PY'
+import json
+import sys
+
+payload = json.load(open(sys.argv[1]))
+assert payload["cluster_candidates"], payload
+for c in payload["cluster_candidates"]:
+    assert c["top_callers"] == [], c
+    assert c["caller_sites"] == [], c
+    assert c["nearby_symbol_sites"] == [], c
+    assert len(c["members"]) == 1, c
+assert "Highest-fanout unresolved data declaration" in payload["recommended_pass"]["reason"]
+PY
+}
+
+test_pass_start_prefers_exact_candidate_over_earlier_member() {
+  local slug; slug="$(unique_slug exact_corridor)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  local pass_dir="projects/${slug}/docs/reverse_engineering/inventory/pass"
+  cat > "${pass_dir}/next_pass.json" <<'JSON'
+{"cluster_candidates":[
+  {"cluster":"First corridor","anchor":"L8000","members":[
+    {"symbol":"L8004"},{"label":"Second corridor"},{"addr_hex":"SecondAlias"},
+    {"symbol":"MemberOnly"},{"label":"LabelOnly"},{"addr_hex":"0x0010"}]},
+  {"cluster":"Second corridor","anchor":"L8004","symbol":"SecondAlias","members":[]}
+]}
+JSON
+  local target
+  for target in L8004 'Second corridor' SecondAlias MemberOnly LabelOnly 0x0010 ManualOwner notes_plan; do
+    bash "${PASS_START}" "${slug}" 1 "${target}" >/dev/null
+    python3 - "${pass_dir}/current_pass_plan.json" "${target}" <<'PY'
+import json
+import sys
+
+plan = json.load(open(sys.argv[1]))
+target = sys.argv[2]
+if target in {"L8004", "Second corridor", "SecondAlias"}:
+    assert plan["anchor_target"] == "L8004", plan
+    assert plan["selected_cluster"] == "Second corridor", plan
+elif target in {"MemberOnly", "LabelOnly", "0x0010"}:
+    assert plan["anchor_target"] == "L8000", plan
+else:
+    assert plan["anchor_target"] == target, plan
+assert plan["anchor_source"] == (
+    "manual_override" if target == "ManualOwner" else
+    "notes_plan" if target == "notes_plan" else "cluster_candidate"
+), plan
+PY
+  done
+}
+
 test_next_pass_raw_ram_review_refreshes_symbolized_owner_columns() {
   local slug; slug="$(unique_slug raw_owner_symbolized)"
   trap "cleanup_project ${slug}" EXIT

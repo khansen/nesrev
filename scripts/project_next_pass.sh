@@ -90,6 +90,7 @@ import os
 import re
 import sys
 from bisect import bisect_right
+from collections import Counter
 from pathlib import Path
 
 (
@@ -297,8 +298,45 @@ def build_symbol_def_map(xref):
             "file": definition.get("file"),
             "line": definition.get("line"),
             "cpu_address": definition.get("cpu_address"),
+            "output_offset": definition.get("output_offset"),
         }
     return out
+
+def build_rom_mapping_keys(xref):
+    out = {}
+    for sym in xref.get("symbols", []):
+        if sym.get("kind") != "label" or sym.get("scope") != "global":
+            continue
+        definition = sym.get("definition") or {}
+        offset = definition.get("output_offset")
+        address = definition.get("cpu_address")
+        if type(offset) is not int or offset < 0 or not isinstance(address, str):
+            continue
+        try:
+            out[sym["name"]] = int(address.lstrip("$"), 16) - offset
+        except ValueError:
+            continue
+    return out
+
+def refresh_summary_evidence(summary, ref_map, mapping_keys):
+    # Summary counts are per symbol, but its owner/neighbor hints join on CPU
+    # address alone. Overlaid banks need the detailed xref's owners and offsets.
+    if not summary:
+        return
+    for section in ("top_callables", "top_jump_targets", "top_data_labels"):
+        for entry in summary.get(section, []):
+            label = entry["label"]
+            counts = Counter(ref["owner_routine"] for ref in ref_map.get(label, [])
+                             if ref.get("owner_routine"))
+            entry["top_referring_routines"] = [
+                {"routine": name, "count": count}
+                for name, count in sorted(counts.items(), key=lambda row: (-row[1], row[0]))
+            ]
+            mapping = mapping_keys.get(label)
+            entry["nearby_symbols"] = [
+                name for name in entry.get("nearby_symbols", [])
+                if mapping is not None and mapping_keys.get(name) == mapping
+            ]
 
 def build_file_symbol_index(xref):
     out = {}
@@ -1106,11 +1144,11 @@ def top_named_routines(entry, limit=2):
                 break
     return out
 
-def top_caller_sites(label, ref_map, symbol_defs, file_symbol_index, limit=3):
+def top_caller_sites(label, ref_map, symbol_defs, limit=3):
     out = []
     seen = set()
     for ref in ref_map.get(label, []):
-        routine = find_lexical_owner(file_symbol_index, ref.get("file"), ref.get("line"))
+        routine = ref.get("owner_routine")
         if not routine:
             continue
         defn = symbol_defs.get(routine, {})
@@ -1123,6 +1161,7 @@ def top_caller_sites(label, ref_map, symbol_defs, file_symbol_index, limit=3):
             "call_file": ref.get("file"),
             "call_line": ref.get("line"),
             "call_cpu_address": ref.get("use_cpu_address"),
+            "call_output_offset": ref.get("use_output_offset"),
             "routine_file": defn.get("file"),
             "routine_line": defn.get("line"),
         })
@@ -1141,6 +1180,7 @@ def nearby_symbol_sites(entry, symbol_defs, limit=6):
             "file": defn.get("file"),
             "line": defn.get("line"),
             "cpu_address": defn.get("cpu_address"),
+            "output_offset": defn.get("output_offset"),
         })
         if len(out) >= limit:
             break
@@ -1422,7 +1462,7 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
             ),
             "top_callers": top_named_routines(entry, 3),
             "definition": definition or None,
-            "caller_sites": top_caller_sites(owner, ref_map, symbol_defs, file_symbol_index),
+            "caller_sites": top_caller_sites(owner, ref_map, symbol_defs),
             "nearby_symbol_sites": nearby_symbol_sites(entry, symbol_defs),
             "recommended_open_range": open_range,
             "outbound_edges": summarize_outbound_edges(owner, owner_ref_map),
@@ -1591,7 +1631,7 @@ def make_cluster_candidates(recommended_type, generic_summary, all_label_map, co
             "summary": f"{label} is the top generated evidence anchor for this pass type.",
             "top_callers": top,
             "definition": definition or None,
-            "caller_sites": top_caller_sites(label, ref_map, symbol_defs, file_symbol_index),
+            "caller_sites": top_caller_sites(label, ref_map, symbol_defs),
             "nearby_symbol_sites": nearby_symbol_sites(entry, symbol_defs),
             "recommended_open_range": open_range,
             "outbound_edges": summarize_outbound_edges(label, owner_ref_map),
@@ -1663,6 +1703,10 @@ baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
 all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
 generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
 xref = load_xref(os.path.join(pass_dir, "xref_with_data.json"))
+ref_map = build_ref_map(xref)
+mapping_keys = build_rom_mapping_keys(xref)
+refresh_summary_evidence(all_summary, ref_map, mapping_keys)
+refresh_summary_evidence(generic_summary, ref_map, mapping_keys)
 if generic_summary is None:
     generic_summary = fallback_generic_targets(all_summary)
 
@@ -1671,7 +1715,6 @@ consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.
 symbol_defs = build_symbol_def_map(xref)
 file_symbol_index = build_file_symbol_index(xref)
 source_owner_index = build_source_owner_index(asm_file)
-ref_map = build_ref_map(xref)
 owner_ref_map = build_owner_ref_map(xref)
 owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
 globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
