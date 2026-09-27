@@ -101,7 +101,7 @@ jobs:
           } 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/toolchain.log"
       - name: Run playbook, hygiene, shell, and Java checks
         # Explicit bash above enables pipefail, preserving make's failure through tee.
-        run: make test 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/test.log"
+        run: make test TEST_JSON="$RUNNER_TEMP/nesrev-ci/shell-tests.json" 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/test.log"
       - name: Build pinned source-model producer and test structured passes
         env:
           PYTHONPATH: scripts
@@ -123,6 +123,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ci-logs-${{ matrix.os }}
-          path: ${{ runner.temp }}/nesrev-ci/*.log
+          path: |
+            ${{ runner.temp }}/nesrev-ci/*.log
+            ${{ runner.temp }}/nesrev-ci/*.json
           if-no-files-found: warn
           retention-days: 14

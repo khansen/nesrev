@@ -4,6 +4,13 @@
 # prevents Make from consuming a dollar-prefixed target before this helper runs.
 shell_quote_raw = '$(subst ','"'"',$(1))'
 
+# Full verification must not inherit development-only selection filters.
+ifneq ($(filter test,$(MAKECMDGOALS)),)
+ifneq ($(strip $(value TEST_SUITE)$(value TEST_CASE)),)
+$(error TEST_SUITE and TEST_CASE are for test-shell only; make test runs the full suite)
+endif
+endif
+
 nesrev:
 	javac NESrev.java -Xlint:unchecked
 
@@ -14,7 +21,7 @@ check-repo-hygiene:
 	bash scripts/check_repo_hygiene.sh
 
 test-shell:
-	bash tests/shell/run_all.sh
+	bash tests/shell/run_all.sh $(if $(value TEST_SUITE),--suite $(call shell_quote_raw,$(value TEST_SUITE))) $(if $(value TEST_CASE),--test $(call shell_quote_raw,$(value TEST_CASE))) $(if $(value TEST_JSON),--json $(call shell_quote_raw,$(value TEST_JSON)))
 
 test: check-agent-playbooks check-repo-hygiene test-shell
 	javac NESrev.java NESrevTest.java -Xlint:unchecked
