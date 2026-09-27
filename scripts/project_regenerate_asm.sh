@@ -158,7 +158,8 @@ trap 'rm -rf "${TMPDIR_REGEN}"' EXIT
 RAW_PRG="${TMPDIR_REGEN}/rom.prg"
 OUT_ASM="${TMPDIR_REGEN}/regen.asm"
 
-dd if="${REF_NES}" of="${RAW_PRG}" bs=1 skip="${PRG_OFFSET}" count="${PRG_SIZE}" status=none
+python3 "${SCRIPT_DIR}/copy_binary_range.py" \
+  "${REF_NES}" "${RAW_PRG}" "${PRG_OFFSET}" "${PRG_SIZE}"
 
 javac NESrev.java -Xlint:unchecked >/dev/null
 
