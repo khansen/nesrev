@@ -22,6 +22,10 @@ from reference_tools import project_reference_files, reference_files, reference_
 
 SCRIPT = Path(__file__).resolve()
 ROLES = ("implementer", "reviewer")
+BYPASS_OPTIONS = {
+    "codex": "--dangerously-bypass-approvals-and-sandbox",
+    "claude": "--dangerously-skip-permissions",
+}
 MANUAL_WAIVER = "continue without a manual"
 MANUAL_WARNING = (
     "Without a manual, the final disassembly's terminology and semantic precision "
@@ -93,6 +97,33 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
     return command
 
 
+def launch_commands(args: argparse.Namespace) -> dict[str, list[str]]:
+    commands = {role: role_command(args, role) for role in ROLES}
+    if args.permissions == "bypass":
+        for command in commands.values():
+            agent = permissions.native_agent(command, profile="bypass")
+            command.append(BYPASS_OPTIONS[agent])
+        print("Permission bypass selected for both agents; no scoped profile will be installed.")
+        print("Codex runs without its approval/sandbox controls; Claude skips its permission checks.")
+        print("Existing policy, login/trust, and reference-input requirements still apply.")
+    return commands
+
+
+def permission_guidance(mode: str) -> str:
+    if mode == "bypass":
+        return (
+            "The user explicitly selected --permissions bypass for both agents. "
+            "Do not ask for renewed approval of ordinary operations within the assigned task. "
+            "The saved .agents/permissions/commands.md is not this run's permission setup. "
+            "Use the current project's stage-project/commit-project helpers and generated handoff commands. "
+            "Keep the review, verification, project ownership, and no-push rules.\n"
+        )
+    return (
+        "When using the scoped pass-cycle profile, follow .agents/permissions/commands.md "
+        "as standalone commands and verify it names this project.\n"
+    )
+
+
 def current_state(root: Path, project: str) -> dict | None:
     if not review.state_path(root).exists():
         return None
@@ -105,7 +136,7 @@ def current_state(root: Path, project: str) -> dict | None:
     return state if state.get("project") == project else None
 
 
-def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
+def bootstrap(role: str, project: str, root: Path, task_path: Path, permission_mode: str = "pass-cycle") -> str:
     ownership = (
         "You own implementation, verification, commits, and review archives. "
         f"Read {task_path} for the objective and the pass/review loop, including when resuming an existing review."
@@ -126,7 +157,7 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
         "Read AGENTS.md and agent_playbook/TOOLING.md#agent-review-handoff. "
         "One implementer and one reviewer share this checkout and take turns; "
         "watchers deliver the handoffs. Never push the projects branch.\n"
-        "If .agents/permissions/commands.md exists, follow its exact Git and handoff command forms.\n"
+        f"{permission_guidance(permission_mode)}"
         f"Before acting on a handoff, read .agents/reference_intake/{project}.json for the user's "
         "reference choice. The launcher records it at startup after your READY reply. "
         "Only a manual_decision of waived authorizes proceeding without a manual.\n"
@@ -135,13 +166,13 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path) -> str:
     )
 
 
-def kickoff(root: Path, project: str, task: str) -> str:
+def kickoff(root: Path, project: str, task: str, permission_mode: str = "pass-cycle") -> str:
     worker = review.script_command(root)
     return (
         f"Begin or resume implementation for {project}.\n\nObjective: {task}\n\n"
         "Follow AGENTS.md and the mandatory playbooks. Stay on the current branch; "
         "never push the projects branch. Preserve unrelated work.\n"
-        "If .agents/permissions/commands.md exists, use its exact Git and handoff commands as standalone calls.\n"
+        f"{permission_guidance(permission_mode)}"
         f"Before semantic analysis, read the user-supplied manual in projects/{project}/docs/game_reference/manuals/ "
         f"and any optional FAQs in projects/{project}/docs/game_reference/faqs/. "
         "Extract vocabulary into MANUAL_TERMS.md and seed TERMINOLOGY_CROSSWALK.md before naming. "
@@ -359,7 +390,7 @@ def launch(args: argparse.Namespace) -> int:
     if not tmux_bin:
         raise review.UserError("tmux executable not found")
     if args.check:
-        commands = {role: role_command(args, role) for role in ROLES}
+        commands = launch_commands(args)
         for role, command in commands.items():
             print(f"{role}: {shlex.join(command)}")
         if args.permissions == "pass-cycle":
@@ -388,7 +419,7 @@ def launch(args: argparse.Namespace) -> int:
     entries = [line.split("\t") for line in sessions.stdout.splitlines() if line]
     for session_id, name, checkout, project in entries:
         if checkout == str(root) and project == args.project:
-            print(f"Reconnecting to {name} for {project}; keeping its existing agents, models, effort, and task.")
+            print(f"Reconnecting to {name} for {project}; keeping its existing agents, permissions, models, effort, and task. Requested changes require a restart.")
             return connect(session_id, name, args.no_attach)
     for session_id, name, checkout, project in entries:
         if name == args.session or checkout == str(root):
@@ -397,7 +428,7 @@ def launch(args: argparse.Namespace) -> int:
                 "(or tmux switch-client -t " + name + " inside tmux)"
             )
 
-    commands = {role: role_command(args, role) for role in ROLES}
+    commands = launch_commands(args)
     plan = permissions.build_plan(root, args.project, commands) if args.permissions == "pass-cycle" else None
     if plan:
         plan.previous()
@@ -411,7 +442,7 @@ def launch(args: argparse.Namespace) -> int:
     logs.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix="tmux-", dir=logs))
     config_path = run / "workspace.json"
-    (run / "task.md").write_text(kickoff(root, args.project, args.task))
+    (run / "task.md").write_text(kickoff(root, args.project, args.task, args.permissions))
     session_id = None
     try:
         created = tmux(
@@ -431,12 +462,13 @@ def launch(args: argparse.Namespace) -> int:
         config = {
             "root": str(root), "project": args.project, "panes": panes,
             "agents_window": agents_window, "tmux_bin": str(Path(tmux_bin).absolute()),
+            "permission_mode": args.permissions, "commands": commands,
         }
         review.atomic_write(config_path, json.dumps(config, indent=2) + "\n")
         for role, pane in panes.items():
             tmux("select-pane", "-t", pane, "-T", role)
             command = "exec " + shlex.join([
-                *commands[role], bootstrap(role, args.project, root, run / "task.md"),
+                *commands[role], bootstrap(role, args.project, root, run / "task.md", args.permissions),
             ])
             tmux("respawn-pane", "-k", "-t", pane, "-c", str(root), command)
 
@@ -480,8 +512,9 @@ def main() -> int:
     parser.add_argument("--implementer-cmd", default="codex", help="executable and arguments; default: codex")
     parser.add_argument("--reviewer-cmd", help="executable and arguments; default: claude if installed, otherwise codex")
     parser.add_argument(
-        "--permissions", choices=("pass-cycle", "inherit"), default="pass-cycle",
-        help="preview and ask to install scoped local grants (default); inherit keeps existing permissions",
+        "--permissions", choices=("pass-cycle", "inherit", "bypass"), default="pass-cycle",
+        help="pass-cycle installs scoped grants (default); inherit keeps existing settings; "
+             "bypass disables native approval checks for both agents (Codex also disables its sandbox)",
     )
     for role in ROLES:
         parser.add_argument(f"--{role}-model", help=f"model for the {role}; omit to use the agent's default")

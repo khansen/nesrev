@@ -91,7 +91,24 @@ the wrong turn, sources outside project scratch space, empty/non-Markdown
 files, and destination symlinks. A draft can replace its current-round copy
 while that role still owns the turn. Verdict and archive checks are unchanged.
 
+<a id="recovery-and-custom-setups"></a>
 ## Recovery and custom setups
+
+`--permissions bypass` explicitly selects native bypass for both roles:
+Codex gets `--dangerously-bypass-approvals-and-sandbox`; Claude gets
+`--dangerously-skip-permissions`. This is broad execution access, not the scoped
+profile. No profile consent is requested and no managed permission files are
+created, removed, or rewritten. `--check` prints the selected native commands.
+Model/effort options remain independent. Other native options, including
+competing permission modes, require `--permissions inherit`; unknown agents
+are refused rather than assigned a guessed bypass flag.
+
+Bypass prompts use the current project's handoff and staging/commit helpers,
+not a possibly stale saved command guide. Review ownership, verification,
+the startup reference choice, and the no-push rule still apply. Authentication,
+trust, administrator restrictions, usage limits, and missing evidence can still
+block work; bypass is not an unattended-completion guarantee. Reconnecting
+keeps the running mode; restart to change it.
 
 If a routine command still prompts, compare it with the generated guide and
 check workspace trust and the agent's loaded permissions. Do not allow a

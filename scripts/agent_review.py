@@ -476,7 +476,8 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
     if role == "implementer" and status == "APPROVED":
         body.extend(["```sh", f"{command} archive --pass-id <reviewed-pass-id>", "```", ""])
     body.extend([
-        "If `.agents/permissions/commands.md` exists, follow its Git command forms.",
+        "When using the scoped pass-cycle profile, follow `.agents/permissions/commands.md` "
+        "and verify it names this project; otherwise follow the launcher's permission mode.",
         "Run handoff commands exactly as shown, as separate commands without",
         "shell redirection, environment assignments, or compound scripts.",
         "The command's stdout and generated artifacts provide the handoff result.",

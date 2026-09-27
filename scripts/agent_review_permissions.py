@@ -22,10 +22,10 @@ def digest(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def native_agent(command: list[str]) -> str:
+def native_agent(command: list[str], profile: str = "pass-cycle") -> str:
     agent = Path(command[0]).name
     if agent not in {"codex", "claude"}:
-        raise review.UserError("pass-cycle permissions require codex or claude; use --permissions inherit for wrappers")
+        raise review.UserError(f"{profile} permissions require codex or claude; use --permissions inherit for wrappers")
     # Permission options must come from this profile. Model/effort are independent.
     options = command[1:]
     while options:
@@ -33,11 +33,11 @@ def native_agent(command: list[str]) -> str:
         flag, equal, value = option.partition("=")
         allowed = {"--model", "-m", "--config", "-c"} if agent == "codex" else {"--model", "--effort"}
         if flag not in allowed or (not equal and not options):
-            raise review.UserError("pass-cycle permissions accept only model/effort agent options; use --permissions inherit for custom options")
+            raise review.UserError(f"{profile} permissions accept only model/effort agent options; use --permissions inherit for custom options")
         if not equal:
             value = options.pop(0)
         if flag in {"--config", "-c"} and not value.startswith("model_reasoning_effort="):
-            raise review.UserError("pass-cycle permissions accept only model_reasoning_effort config overrides")
+            raise review.UserError(f"{profile} permissions accept only model_reasoning_effort config overrides")
         if "\n" in value or "\r" in value:
             raise review.UserError("agent options must be single-line values")
     return agent

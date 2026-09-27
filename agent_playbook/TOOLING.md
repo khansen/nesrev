@@ -261,9 +261,9 @@ python3 scripts/agent_review_tmux.py --project <slug> \
 `--repo <path>` selects the checkout; `--session <name>` names a new workspace.
 `--implementer-model/--reviewer-model` and `--implementer-effort/--reviewer-effort`
 set independent choices; omitted values use agent defaults. See [examples](../README.md#choose-models-and-effort).
-Matching workspaces reconnect with existing settings. Overrides apply only at creation.
+Matching workspaces keep their settings; restart for overrides.
+`--permissions bypass` uses native bypass for both agents ([scope](AGENT_PERMISSIONS.md#recovery-and-custom-setups)).
 `--no-attach` leaves it detached. `--*-cmd` takes executable/arguments, not shell programs.
-Permissions, authentication, supervision, and restart remain user-controlled.
 `--check` checks tools, supplied references' PDF/OCR prerequisites, and Git identity
 without scaffolding or launching agents; `project-doctor PROJECT=<slug>` shares the reference check.
 

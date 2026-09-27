@@ -111,6 +111,23 @@ you previously installed. A running tmux workspace keeps its original settings;
 new permissions take effect when you restart it through the documented recovery
 procedure.
 
+For an explicitly unattended run, select native permission bypass for both
+agents:
+
+```sh
+python3 scripts/agent_review_tmux.py --project my_game --permissions bypass
+```
+
+This uses Codex's `--dangerously-bypass-approvals-and-sandbox` or Claude's
+`--dangerously-skip-permissions`, according to the agent chosen for each role.
+Selecting bypass authorizes it; there is no additional profile-consent prompt.
+It grants broad command access, creates no scoped permission profile, and leaves
+existing settings intact. Startup still waits for both agents and your reference
+choice; authentication, administrator policy, usage limits, and genuine missing
+input can still block work. Reconnecting preserves the running permission mode;
+restart to change it. Unsupported agents require `--permissions inherit` and
+their native options in `--implementer-cmd` / `--reviewer-cmd`.
+
 To leave the screen while work continues, press **Ctrl+b**, then **d**.
 Keep the computer awake and online. Run the same launch command to reconnect;
 it keeps the running agents and their current task. Detaching does not stop
