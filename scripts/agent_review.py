@@ -57,6 +57,11 @@ PACKET_LXXXX_FAILURE_RE = re.compile(
     r"(?m)^FAIL: [0-9]+ distinct LXXXX/LXXXXX labels \([0-9]+ refs\)$"
 )
 LEARNING_HEADING_RE = re.compile(r"^(#{1,6})\s+Learning Candidates\s*$", re.IGNORECASE)
+LEARNING_CANDIDATE_GUIDANCE = (
+    "Include a `## Learning Candidates` section for unresolved process, harness, "
+    "or tooling friction, or `_None._`. No proposed fix is required. "
+    "Do not record already-fixed friction or completed-work history."
+)
 RUNTIME_EXCLUDE_PATTERNS = (
     ".agents/current.json",
     ".agents/runs/",
@@ -374,8 +379,7 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             "MANUAL_TERMS.md, the crosswalk, supplied sources, and code evidence. Check",
             "newly answerable identities and shared handlers; explain remaining gaps.",
             "Justified WIP gaps may pass; an infrastructure-only pass explains why none apply.",
-            "Include a `## Learning Candidates` section with process, harness,",
-            "or tooling lessons for later triage, or `_None._`.",
+            LEARNING_CANDIDATE_GUIDANCE,
             "Import the draft, then run either approve or request-changes:",
             "",
             "```sh",
@@ -419,8 +423,8 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
                 f"Review: {state.get('last_review')}",
                 "",
                 "Fix or dispute each finding. Commit implementation fixes, write",
-                f"`{draft}` with a `## Learning Candidates` section",
-                "or `_None._`, then run:",
+                f"`{draft}`. {LEARNING_CANDIDATE_GUIDANCE}",
+                "Then run:",
                 "",
                 "```sh",
                 f"{command} import-artifact --kind response --source {draft}",

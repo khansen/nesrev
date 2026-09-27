@@ -136,10 +136,10 @@ relaxed semantic-pass verification mode.
 
 <a id="agent-review-handoff"></a>
 
-The packet is not the process-learning log. Record process, harness, or tooling
-lessons in `## Learning Candidates` sections in the implementation note, review,
-or response artifacts so `agent_review.py archive` can copy them to the
-project's `PROCESS_FRICTION.md` queue.
+Under `## Learning Candidates`, record unresolved process/tooling friction in
+implementation notes, reviews or responses for archive into `PROCESS_FRICTION.md`.
+No proposed fix is required. Omit already-fixed friction; prune fixed entries
+without historical notes using the [queue lifecycle](PROCESS_FRICTION.md).
 
 ### Agent Review Handoff
 

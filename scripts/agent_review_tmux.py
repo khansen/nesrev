@@ -170,6 +170,7 @@ def kickoff(root: Path, project: str, task: str) -> str:
         f"`{worker} start-pass --project {project} --pass-id <id> --base <pre-pass-SHA>`. "
         "After successful handoff, end your turn and wait for the reviewer. "
         "Do not edit or start another pass while review owns the turn.\n"
+        f"{review.LEARNING_CANDIDATE_GUIDANCE}\n"
         "On requested changes, address each finding, commit, and use reready with "
         "a response and --generate-packet. On approval, archive the review with "
         "its pass id, commit the archive and any friction entries, then continue "
