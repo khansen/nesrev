@@ -149,20 +149,19 @@ if target_arg == "notes_plan":
     }
     anchor_source = "notes_plan"
 elif target_arg:
+    # An explicit corridor identifier outranks membership in an earlier row.
     for row in cluster_candidates:
-        aliases = {
-            row.get("cluster"),
-            row.get("anchor"),
-            row.get("symbol"),
-        }
-        for member in row.get("members") or []:
-            aliases.add(member.get("symbol"))
-            aliases.add(member.get("addr_hex"))
-            aliases.add(member.get("label"))
-        if target_arg in aliases:
+        if target_arg in {row.get("cluster"), row.get("anchor"), row.get("symbol")}:
             target = row
-            anchor_source = "cluster_candidate"
             break
+    if target is None:
+        for row in cluster_candidates:
+            if any(target_arg in {member.get("symbol"), member.get("addr_hex"), member.get("label")}
+                   for member in row.get("members") or []):
+                target = row
+                break
+    if target is not None:
+        anchor_source = "cluster_candidate"
     if target is None:
         target = {
             "cluster": f"{target_arg} corridor",
