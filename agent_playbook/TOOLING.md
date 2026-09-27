@@ -23,6 +23,11 @@ holds the classification and the remaining legacy parsers; when a change touches
 a legacy parser's feature, migrate it instead of building on it. Reviewers reject
 any change that adds or extends source parsing of assembler facts.
 
+Tooling changes also must not noticeably slow the wrappers they touch. Measure
+them on the largest project before and after, as the
+[non-regression requirement](../PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement)
+describes.
+
 ## Ownership
 
 This playbook owns commands, tool options, and diagnostic procedures:

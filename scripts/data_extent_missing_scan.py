@@ -10,16 +10,18 @@ tying it to the read's index register, resolving symbolic mask/count constants,
 and scoping to the read site's own routine — is done by xasm. This scan is a
 pure join of two artifacts (no assembly here):
 
-  - index_patterns.json : per read site, `index_upper_bound` + `index_bound_kind`
-                          (mask|compare) when xasm can prove a bound.
+  - index_patterns.json : per read or read-modify-write site, `index_upper_bound`
+                          + `index_bound_kind` (mask|compare) when xasm can
+                          prove a bound.
   - data_consumers.json : `declared_size` per data label.
 
 Project wrappers supply a validated invocation-local bundle and --asm to bind
 it to the source. The positional artifact paths are used only by the legacy
 offline interface without a bundle; absent offline evidence is NOT CHECKED.
 
-A table is flagged when a read site carries a proven bound, that bound equals the
-table's declared size, and the project has no assertion row for it. See
+A table is flagged when a read or read-modify-write site carries a proven bound,
+that bound equals the table's declared size, and the project has no assertion
+row for it. See
 agent_playbook/QUALITY_REVIEW.md and PASS_WORKFLOW.md; the xasm side is specified
 in xorcyst/XASM_INDEX_BOUND_ANALYSIS_SPEC.md.
 """
@@ -80,7 +82,8 @@ def main():
 
     hits = {}
     for rec in patterns:
-        if rec.get("access_kind") != "read":
+        # A read-modify-write site reads the table at the same bounded index.
+        if rec.get("access_kind") not in ("read", "read_modify_write"):
             continue
         kind = rec.get("index_bound_kind")
         if kind not in ("mask", "compare"):

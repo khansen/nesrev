@@ -187,32 +187,38 @@ Start: LDA $20 : LDA $21
             self.assertNotIn(b"strict_active_raw_", run.stdout)
             self.assertFalse(calls.exists())
 
-    def test_schema_nonmatching_record_and_binary_guard_independently(self):
+    def test_production_refuses_bad_records_independently(self):
+        # Records are validated once, where the bundle is produced; loads rely on
+        # the stamped output hash and instruction-reader fingerprint.
         shared = self.produce()
         document = shared.load("instructions")
-        original = copy.deepcopy(shared.data)
-        path = Path(shared.data["outputs"]["instructions"]["path"])
+        dependencies = analysis.read_json(shared.data["dependencies"]["path"])
+        binary = Path(shared.data["outputs"]["binary"]["path"]).read_bytes()
+        analysis.check_instructions(copy.deepcopy(document), dependencies, binary)
         for kind in ("schema", "source", "binary"):
             with self.subTest(kind=kind):
                 changed = copy.deepcopy(document)
                 record = changed["records"][-1]
                 if kind == "schema":
                     del record["immediate"]
-                    expected = b"immediate boolean required"
+                    expected = "immediate boolean required"
                 elif kind == "source":
-                    record["source"]["span"]["file"] = str(self.root / "unconsumed.asm")
-                    expected = b"source span absent"
+                    changed["files"].append(str(self.root / "unconsumed.asm"))
+                    record["source"]["span"]["file"] = len(changed["files"]) - 1
+                    expected = "source span absent"
                 else:
                     record["bytes"][0] = record["opcode"] = 234
-                    expected = b"instruction bytes differ"
-                analysis.write_json(path, changed)
-                descriptor = copy.deepcopy(original)
-                descriptor["outputs"]["instructions"] = analysis.fingerprint(path)
-                analysis.write_json(self.path, descriptor)
-                run = self.run_cli()
-                self.assertEqual(run.returncode, 65, run.stderr)
-                self.assertIn(expected, run.stderr)
-                self.assertNotIn(b"strict_active_raw_", run.stdout)
+                    expected = "instruction bytes differ"
+                with self.assertRaisesRegex(ValueError, expected):
+                    analysis.check_instructions(changed, dependencies, binary)
+        second = self.root / "second"
+        second.mkdir()
+        analysis.prepare_source(second, self.source, [self.policy])
+        with patch.object(analysis.instruction_records, "check_binary",
+                          side_effect=ValueError("instruction bytes differ from output")):
+            with self.assertRaisesRegex(ValueError, "instruction bytes differ"):
+                analysis.produce(second, self.source, self.root / "second.bin")
+        self.assertFalse((second / "bundle.json").exists())
 
     def test_late_change_and_unbound_policy_refuse_before_reporting(self):
         shared = self.produce()

@@ -167,6 +167,17 @@ def fields(row, types, name):
         require(type(row.get(field)) is kind, f"invalid {name}.{field}")
 
 
+def check_instructions(payload, dependencies, binary):
+    """Validates the whole record stream once, where the bundle is produced: its
+    shape, span files among the consumed source inputs, and emitted bytes."""
+    sources = {entry["path"] for entry in dependencies["inputs"] if "source" in entry["roles"]}
+    def check_source(path):
+        instruction_records.require(absolute(path) in sources,
+                                    "source span absent from consumed source inputs")
+    instruction_records.validate(payload, check_source)
+    instruction_records.check_binary(payload, binary)
+
+
 def check_schema(name, payload):
     if name == "instructions":
         instruction_records.validate(payload)
@@ -275,16 +286,10 @@ class Bundle:
         entry = self.data["outputs"][name]
         raw = read_bytes(entry["path"])
         require(hashlib.sha256(raw).hexdigest() == entry["sha256"], f"changed artifact: {name}")
-        payload = decode(raw)
-        if name == "instructions":
-            dependencies = read_json(self.data["dependencies"]["path"])
-            sources = {entry["path"] for entry in dependencies["inputs"] if "source" in entry["roles"]}
-            def check_source(path):
-                instruction_records.require(absolute(path) in sources,
-                                            "source span absent from consumed source inputs")
-            instruction_records.validate(payload, check_source)
-            instruction_records.check_binary(payload, read_bytes(self.data["outputs"]["binary"]["path"]))
-        else:
+        # Production refused duplicate keys in these exact bytes, and validated
+        # instruction records in full with the reader this bundle is stamped with.
+        payload = json.loads(raw)
+        if name != "instructions":
             check_schema(name, payload)
         return payload
 
@@ -295,6 +300,37 @@ def supplied(source):
     path = os.environ["NESREV_ANALYSIS_BUNDLE"]
     require(bool(path), "empty supplied bundle path")
     return Bundle(path, source)
+
+
+def instruction_cache_stamp(raw):
+    return {"schema": "nesrev-instruction-cache", "version": "1",
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "instruction_reader": INSTRUCTION_READER_ID["sha256"],
+            "bundle_reader": READER_ID["sha256"]}
+
+
+def stamp_instruction_cache(bundle, path):
+    """Stamp only an exact copy of the records validated during production."""
+    require("instructions" in bundle.data["outputs"], "bundle profile lacks required artifact: instructions")
+    raw = read_bytes(path)
+    stamp = instruction_cache_stamp(raw)
+    require(stamp["sha256"] == bundle.data["outputs"]["instructions"]["sha256"],
+            "instruction cache differs from validated bundle")
+    write_json(str(path) + ".validated.json", stamp)
+
+
+def load_instruction_cache(path):
+    """Reuse schema validation for identical bytes/readers, never source freshness."""
+    raw = read_bytes(path)
+    try:
+        stamp = read_json(str(path) + ".validated.json")
+    except (OSError, ValueError):
+        stamp = None
+    if stamp == instruction_cache_stamp(raw):
+        return json.loads(raw)
+    payload = decode(raw)
+    instruction_records.validate(payload)
+    return payload
 
 
 def expected_argv(context, outputs, manifest, producer):
@@ -361,7 +397,9 @@ def produce(directory, source, output, profile=None):
     check_dependencies(dependencies, context["source"], argv)
     for name, entry in outputs.items():
         raw = read_bytes(entry["path"])
-        if name != "binary":
+        if name == "instructions":
+            check_instructions(decode(raw), dependencies, read_bytes(outputs["binary"]["path"]))
+        elif name != "binary":
             check_schema(name, decode(raw))
         entry.update(size=len(raw), sha256=hashlib.sha256(raw).hexdigest())
     data = {"schema": "nesrev-analysis", "version": "1", "complete": True,
@@ -397,6 +435,9 @@ def main():
     artifact = commands.add_parser("artifact")
     artifact.add_argument("path")
     artifact.add_argument("name")
+    cache = commands.add_parser("stamp-instructions")
+    cache.add_argument("bundle")
+    cache.add_argument("path")
     produce_cmd = commands.add_parser("produce")
     for arg in ("directory", "source", "output"):
         produce_cmd.add_argument(arg)
@@ -434,6 +475,8 @@ def main():
         bundle = Bundle(args.path)
         require(args.name in bundle.data["outputs"], f"bundle profile lacks required artifact: {args.name}")
         print(bundle.data["outputs"][args.name]["path"])
+    elif args.command == "stamp-instructions":
+        stamp_instruction_cache(Bundle(args.bundle), args.path)
     else:
         bundle = Bundle(args.path, args.source)
         if args.profile:

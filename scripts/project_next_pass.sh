@@ -99,7 +99,7 @@ from pathlib import Path
     deferrals_file, proof_debt_ack_file,
 ) = sys.argv[1:]
 sys.path.insert(0, script_dir)
-import instruction_records
+import analysis_bundle
 import proof_debt
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
@@ -436,35 +436,36 @@ def summarize_outbound_edges(label, owner_ref_map, limit_per_kind=4):
     }
     seen = {key: set() for key in grouped}
     access_map = {
-        "call": "calls",
-        "jump": "jumps",
-        "branch": "branches",
-        "read": "data_reads",
-        "write": "data_writes",
+        "call": ("calls",),
+        "jump": ("jumps",),
+        "branch": ("branches",),
+        "read": ("data_reads",),
+        "write": ("data_writes",),
+        "read_modify_write": ("data_reads", "data_writes"),
     }
     for ref in refs:
         symbol = ref.get("symbol")
         if not symbol or symbol == label:
             continue
-        bucket = access_map.get(ref.get("access"), "other")
         key = (
             symbol,
             ref.get("opcode"),
             ref.get("addressing_mode"),
             ref.get("line"),
         )
-        if key in seen[bucket]:
-            continue
-        seen[bucket].add(key)
-        grouped[bucket].append({
-            "symbol": symbol,
-            "file": ref.get("file"),
-            "line": ref.get("line"),
-            "cpu_address": ref.get("use_cpu_address"),
-            "opcode": ref.get("opcode"),
-            "addressing_mode": ref.get("addressing_mode"),
-            "access": ref.get("access"),
-        })
+        for bucket in access_map.get(ref.get("access"), ("other",)):
+            if key in seen[bucket]:
+                continue
+            seen[bucket].add(key)
+            grouped[bucket].append({
+                "symbol": symbol,
+                "file": ref.get("file"),
+                "line": ref.get("line"),
+                "cpu_address": ref.get("use_cpu_address"),
+                "opcode": ref.get("opcode"),
+                "addressing_mode": ref.get("addressing_mode"),
+                "access": ref.get("access"),
+            })
     for key in grouped:
         grouped[key] = grouped[key][:limit_per_kind]
     return grouped
@@ -596,7 +597,7 @@ def mnemonic_access_kind(mnemonic):
     if root in WRITE_ONLY_MNEMONICS:
         return "write"
     if root in READWRITE_MNEMONICS:
-        return "readwrite"
+        return "read_modify_write"
     return "read"
 
 def parse_raw_lowaddr_accesses(path, file_symbol_index):
@@ -696,9 +697,9 @@ def summarize_raw_owner_counts(rows, kind):
         owner = row.get("owner_routine")
         if not owner:
             continue
-        if kind == "read" and row["access_kind"] not in {"read", "readwrite"}:
+        if kind == "read" and row["access_kind"] not in {"read", "read_modify_write"}:
             continue
-        if kind == "write" and row["access_kind"] not in {"write", "readwrite"}:
+        if kind == "write" and row["access_kind"] not in {"write", "read_modify_write"}:
             continue
         out[owner] = out.get(owner, 0) + 1
     return ",".join(
@@ -727,56 +728,53 @@ def build_lowaddr_ram_equ_symbols(xref):
             by_addr.setdefault(f"0x{value:04x}", []).append(name)
     return by_addr
 
-# Memory addressing modes whose operand names a RAM byte. JMP/JSR and branches
-# never qualify; indirect-indexed modes read a two-byte pointer.
-RAM_OPERAND_MODES = {"zeropage", "zeropage_x", "zeropage_y", "absolute", "absolute_x", "absolute_y"}
-RAM_POINTER_MODES = {"preindexed_indirect", "postindexed_indirect"}
-CONTROL_FLOW_MNEMONICS = {"JMP", "JSR"}
-
 def load_instruction_records(path):
-    """Validated instruction records from the pass-prep analysis bundle, or [] if absent."""
+    """Validated instruction-records document from the pass-prep cache, or an empty one."""
     if not os.path.exists(path):
-        return []
+        return {"files": [], "records": []}
     try:
-        return instruction_records.validate(load_json(path))
+        return analysis_bundle.load_instruction_cache(path)
     except ValueError as exc:
         raise ContractError(f"{path}: {exc}") from exc
 
-def instruction_ram_sites(records, addr_symbols):
-    """RAM accesses whose operand the assembler resolved from a canonical RAM equate.
+def instruction_ram_sites(document, addr_symbols):
+    """RAM bytes that instructions access through a canonical RAM equate.
 
-    Addresses come from the assembled operand value and owners from the
-    assembler's lexical owner, so spaced or compound operand expressions need
-    no source parsing. An operand counts when its structural base or any symbol
-    it references is a canonical xref RAM equate; a symbol-plus-symbol operand
-    such as a base plus a field-offset equate has no structural base.
+    xasm reports each access (memory_access) and the terms the operand is built
+    from (additive_terms), so no mnemonic or addressing-mode table is kept here.
+    An operand counts when one of its symbol terms is a canonical xref RAM
+    equate. That set is policy: global, defined, low-address .equ names. A term
+    binding cannot express it, since .equ and = both bind as constants.
     """
     canonical = {symbol for symbols in addr_symbols.values() for symbol in symbols}
+    files = document["files"]
     out = []
-    for index, record in enumerate(records):
-        mode = record["addressing_mode"]
-        mnemonic = record["mnemonic"].upper()
-        if mode not in RAM_OPERAND_MODES | RAM_POINTER_MODES or mnemonic in CONTROL_FLOW_MNEMONICS:
+    for record in document["records"]:
+        access = record["memory_access"]
+        terms = record["additive_terms"]
+        if access is None or terms is None:
             continue
-        base = record["structural_base"]
-        names = ([base["symbol"]] if base else []) + record["referenced_symbols"]
-        ram_symbol = next((name for name in names if name in canonical), None)
+        ram_symbol = next((term["name"] for term in terms["terms"]
+                           if term["kind"] == "symbol" and term["name"] in canonical), None)
         if ram_symbol is None:
             continue
-        value = record["operand_value"]
-        if value is None:
-            raise ContractError(f"instruction_records[{index}] has no resolved operand value")
+        touched = []
+        data = access["data"]
+        if data is not None and not data["via_pointer"]:
+            touched.append((data["address"], data["kind"]))
+        pointer = access["pointer"]
+        if pointer is not None:
+            touched += [(pointer["address"], "read"), (pointer["high_byte_address"], "read")]
         use = record["use"]
-        pointer = mode in RAM_POINTER_MODES
-        for addr in ((value, value + 1) if pointer else (value,)):
+        for addr, kind in touched:
             if not 0 <= addr <= 0x0FFF:
                 continue
             out.append({
                 "addr_hex": f"0x{addr:04x}",
                 "symbol": ram_symbol,
-                "mnemonic": mnemonic,
-                "access_kind": "read" if pointer else mnemonic_access_kind(mnemonic),
-                "file": use["file"],
+                "mnemonic": record["mnemonic"],
+                "access_kind": kind,
+                "file": files[use["file"]],
                 "line": use["line"],
                 "owner_routine": record["lexical_owner"],
             })
@@ -796,8 +794,8 @@ def build_symbolized_raw_ram_candidates(sites):
     for addr_hex, sites in by_addr.items():
         owners = sorted({r["owner_routine"] for r in sites if r.get("owner_routine")})
         # Read-modify-write instructions count as both a read and a write.
-        read_count = sum(1 for row in sites if row["access_kind"] in {"read", "readwrite"})
-        write_count = sum(1 for row in sites if row["access_kind"] in {"write", "readwrite"})
+        read_count = sum(1 for row in sites if row["access_kind"] in {"read", "read_modify_write"})
+        write_count = sum(1 for row in sites if row["access_kind"] in {"write", "read_modify_write"})
         out[addr_hex] = {
             "addr_hex": addr_hex,
             "operand_count": len(sites),
@@ -901,7 +899,7 @@ def build_raw_ram_candidates(raw_accesses, review_rows, limit=None):
     candidates = []
     for addr, rows in by_addr.items():
         owners = sorted({r["owner_routine"] for r in rows if r.get("owner_routine")})
-        by_kind = {"read": 0, "write": 0, "readwrite": 0}
+        by_kind = {"read": 0, "write": 0, "read_modify_write": 0}
         for row in rows:
             by_kind[row["access_kind"]] = by_kind.get(row["access_kind"], 0) + 1
         lines = sorted(r["line"] for r in rows)
@@ -914,8 +912,8 @@ def build_raw_ram_candidates(raw_accesses, review_rows, limit=None):
             "operand_count": len(rows),
             "distinct_owner_routines": owners,
             "distinct_owner_count": len(owners),
-            "read_count": by_kind.get("read", 0) + by_kind.get("readwrite", 0),
-            "write_count": by_kind.get("write", 0) + by_kind.get("readwrite", 0),
+            "read_count": by_kind.get("read", 0) + by_kind.get("read_modify_write", 0),
+            "write_count": by_kind.get("write", 0) + by_kind.get("read_modify_write", 0),
             "compactness": compactness,
             "sites": sorted(rows, key=lambda r: (r["line"], r["mnemonic"], r["operand"])),
         })
@@ -947,9 +945,9 @@ def summarize_unnamed_ram_provenance(candidate, raw_accesses, limit_owners=4, li
         owner = row.get("owner_routine")
         if not owner:
             continue
-        if row["access_kind"] in {"read", "readwrite"}:
+        if row["access_kind"] in {"read", "read_modify_write"}:
             read_owners[owner] = read_owners.get(owner, 0) + 1
-        if row["access_kind"] in {"write", "readwrite"}:
+        if row["access_kind"] in {"write", "read_modify_write"}:
             write_owners[owner] = write_owners.get(owner, 0) + 1
     neighbors = []
     for other_addr in sorted({r["addr"] for r in raw_accesses if abs(r["addr"] - addr) <= 4 and r["addr"] != addr}):
@@ -1306,9 +1304,9 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
                 cluster["actionable_operand_count"] += 1
             else:
                 cluster["reviewed_context_operand_count"] += 1
-            if site["access_kind"] in {"read", "readwrite"}:
+            if site["access_kind"] in {"read", "read_modify_write"}:
                 cluster["read_count"] += 1
-            if site["access_kind"] in {"write", "readwrite"}:
+            if site["access_kind"] in {"write", "read_modify_write"}:
                 cluster["write_count"] += 1
             # An address active across more than one owner cannot take a safe
             # global name, but the proven local role here is a scoped-overlay
@@ -1330,9 +1328,9 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
             member["site_count"] += 1
             if actionable:
                 member["actionable_site_count"] += 1
-            if site["access_kind"] in {"read", "readwrite"}:
+            if site["access_kind"] in {"read", "read_modify_write"}:
                 member["read_count"] += 1
-            if site["access_kind"] in {"write", "readwrite"}:
+            if site["access_kind"] in {"write", "read_modify_write"}:
                 member["write_count"] += 1
 
     clusters = []
@@ -1483,9 +1481,9 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
             owner = site.get("owner_routine")
             if not owner:
                 continue
-            if site["access_kind"] in {"read", "readwrite"}:
+            if site["access_kind"] in {"read", "read_modify_write"}:
                 read_counts[owner] = read_counts.get(owner, 0) + 1
-            if site["access_kind"] in {"write", "readwrite"}:
+            if site["access_kind"] in {"write", "read_modify_write"}:
                 write_counts[owner] = write_counts.get(owner, 0) + 1
         definition = {
             "file": first_site.get("file"),

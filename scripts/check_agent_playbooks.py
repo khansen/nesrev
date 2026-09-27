@@ -336,11 +336,14 @@ ROOT_WORD_CEILING = 6000
 # The visual evidence helpers take CHR dumps as the capture's hex text and need
 # a bank for multi-bank CHR ROM; the TOOLING routes grow by exactly that note
 # and keep their prior measured headroom.
+# Tooling changes must not noticeably slow the wrappers they touch; TOOLING.md
+# points at the CI performance plan's non-regression requirement. TOOLING
+# routes grow by exactly that paragraph and keep their prior measured headroom.
 ROUTE_BUDGETS = {
-    "default": (3590, 26303),
-    "data-recovery": (3238, 24349),
+    "default": (3595, 26328),
+    "data-recovery": (3243, 24374),
     "new-project": (4264, 31471),
-    "project-pass-review": (4640, 33184),
+    "project-pass-review": (4645, 33209),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

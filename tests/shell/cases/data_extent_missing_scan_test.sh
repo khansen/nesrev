@@ -11,6 +11,7 @@ XASM="${XASM_BIN:-xasm}"
 #  - RawMaskTable : AND #$03 / TAY / LDA T,Y            -> bound 4, flagged
 #  - SymMaskTable : MASK EQU $03 / AND #MASK / TAY      -> resolves to 4, flagged
 #  - LoopTable    : LDA T,X / INX / CPX #$08            -> bound 8, flagged
+#  - RmwTable     : AND #$03 / TAX / INC T,X            -> bound 4, flagged
 #  - MismTable    : AND #$03 / TAX  but read via Y      -> no bound, not flagged
 #  - UnrelTable   : AND #$03 feeds a store, unbounded Y -> no bound, not flagged
 _write_missing_scan_fixture_asm() {
@@ -44,6 +45,13 @@ CopyLoop:
   RTS
 LoopTable:
 .DB 0,1,2,3,4,5,6,7
+RmwMask:
+  AND #$03
+  TAX
+  INC RmwTable,X
+  RTS
+RmwTable:
+.DB $00,$01,$02,$03
 RegMismatch:
   AND #$03
   TAX
@@ -94,6 +102,7 @@ test_missing_scan_flags_bounded_tables_including_symbolic() {
   # xasm resolves it, so it must now be flagged.
   assert_match 'SymMaskTable' "${out}" "symbolic-mask table should be flagged"
   assert_match 'LoopTable' "${out}" "compare-loop table should be flagged"
+  assert_match 'RmwTable' "${out}" "read-modify-write table should be flagged"
   if [[ "${out}" == *MismTable* ]]; then
     fail "register-mismatch table must not be flagged"
   fi

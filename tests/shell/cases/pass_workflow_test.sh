@@ -3817,6 +3817,8 @@ TempByte .EQU $13
 ZP_Counter .EQU $18
 ZP_Ptr .EQU $20
 ZP_TablePtr .EQU $22
+ZP_Vector .EQU $24
+ZP_WrapPtr .EQU $FF
 RAM_Base .EQU $0300
 FIELD_OFFSET .EQU 2
 
@@ -3829,7 +3831,8 @@ NewOwner:
   INC ZP_Counter
   LDA TempByte
   LDA #ZP_RecordBase
-  RTS
+  LDA [ZP_WrapPtr],Y
+  JMP [ZP_Vector]
 ASM
   _assemble_pass_cache "${slug}"
   cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
@@ -3842,6 +3845,10 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0021,symbolized,ZP_Ptr,,5,no,1,1,1,0,OldOwner:1,
 0x0022,symbolized,ZP_TablePtr,,5,no,1,1,1,0,OldOwner:1,
 0x0023,symbolized,ZP_TablePtr,,5,no,1,1,1,0,OldOwner:1,
+0x0024,symbolized,ZP_Vector,,5,no,1,1,1,0,OldOwner:1,
+0x0025,symbolized,ZP_Vector,,5,no,1,1,1,0,OldOwner:1,
+0x00ff,symbolized,ZP_WrapPtr,,5,no,1,1,1,0,OldOwner:1,
+0x0000,symbolized,ZP_WrapPtr,,5,no,1,1,1,0,OldOwner:1,
 0x0300,symbolized,RAM_Base,,5,no,1,1,0,1,,OldOwner:1
 0x0302,symbolized,RAM_Base,,5,no,1,1,0,1,,OldOwner:1
 EOF
@@ -3864,6 +3871,12 @@ expected = {
     "0x0021": ("NewOwner:1", "", "1", "1", "0"),
     "0x0022": ("NewOwner:1", "", "1", "1", "0"),
     "0x0023": ("NewOwner:1", "", "1", "1", "0"),
+    # JMP [addr] reads its vector; xasm's memory_access says which bytes.
+    "0x0024": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0025": ("NewOwner:1", "", "1", "1", "0"),
+    # A zero-page pointer at $FF takes its high byte from $00.
+    "0x00ff": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0000": ("NewOwner:1", "", "1", "1", "0"),
     "0x0302": ("", "NewOwner:1", "1", "0", "1"),
 }
 for addr, want in expected.items():
@@ -3914,7 +3927,7 @@ PY
   set -e
 
   assert_eq "${rc}" "65" "malformed instruction records must fail with a contract error"
-  assert_match 'instructions\.json: invalid instruction records: version 1 required' "${output}"
+  assert_match 'instructions\.json: invalid instruction records: version 3 required' "${output}"
   assert_not_match 'Traceback' "${output}"
 }
 
@@ -4266,6 +4279,45 @@ _write_raw_ram_mode_baseline() {
   }
 }
 EOF
+}
+
+test_next_pass_outbound_edges_list_read_modify_write_as_read_and_write() {
+  local slug; slug="$(unique_slug outbound_rmw)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared read-modify-write outbound edge fixture."
+
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+FocusedActionable:
+  LDA $50
+  STA $51
+  INC Counter
+  RTS
+Counter:
+  .DB 0
+ASM
+  _assemble_pass_cache "${slug}"
+  _write_raw_ram_mode_baseline "${slug}" 2
+
+  PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
+import json
+import sys
+
+clusters = json.load(open(sys.argv[1], encoding="utf-8"))["cluster_candidates"]
+cluster = next((c for c in clusters if c["anchor"] == "FocusedActionable"), None)
+if cluster is None:
+    raise SystemExit(f"expected a FocusedActionable cluster, got {[c['anchor'] for c in clusters]!r}")
+edges = cluster["outbound_edges"]
+for group in ("data_reads", "data_writes"):
+    found = [e for e in edges[group] if e["symbol"] == "Counter"]
+    if [e["access"] for e in found] != ["read_modify_write"]:
+        raise SystemExit(f"INC Counter must appear once in {group}: {edges!r}")
+if any(e["symbol"] == "Counter" for e in edges["other"]):
+    raise SystemExit(f"INC Counter must not fall into other: {edges!r}")
+PY
 }
 
 test_next_pass_ranks_actionable_subcorridor_above_broad_mixed_anchor() {

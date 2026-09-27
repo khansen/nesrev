@@ -100,11 +100,12 @@ The descriptor contains:
   path, size, and SHA-256;
 - `reader`: path, size, and SHA-256 of the bundle implementation;
 - `instruction_reader`: the instruction-schema implementation fingerprint,
-  required for instruction-bearing profiles.
+  required for instruction-bearing profiles: the reader that validated the
+  records at production.
 
 Missing optional policies have an explicit negative fingerprint. All other
 fingerprints require regular files and content hashes; size/timestamp alone is
-never evidence of freshness. JSON duplicate keys are refused. Negative lookup
+never evidence of freshness. JSON duplicate keys are refused at production. Negative lookup
 probes retain xasm's absolute lookup paths, including symlink/`..` semantics.
 The selected xasm executable must match the manifest producer digest. Original
 arguments, cwd, source membership, supported schema versions, required output
@@ -113,20 +114,34 @@ set, and profile options are checked, not inferred from file existence.
 Listing, xref and instructions carry explicit producer schema versions. The
 other analyses are unversioned upstream; profiles require their current field/type
 contract and binds the actual producer digest. No source parser reconstructs
-dependencies or assembler facts. At production, required shapes are checked on
-the same bytes whose hashes are stored; reuse checks every output hash and
-decodes only the requested consumer artifacts. Existing xref leaves continue
-their own xref validation. Instruction leaves validate the whole record stream,
-including nonmatching instructions, source-span membership in consumed source
-inputs, and emitted bytes against the bound binary. No display text is parsed
-to recover a tree or an instruction.
+dependencies or assembler facts. At production, required shapes are checked and
+duplicate keys refused on the same bytes whose hashes are stored. The whole
+instruction record stream is validated there once: every record, including
+nonmatching instructions, each file-table entry against the consumed source
+inputs, and emitted bytes against the bound binary. Reuse checks every output
+hash and the stamped instruction reader, then decodes only the requested
+consumer artifacts without validating the same bytes again. On the largest
+project, repeating that validation cost about a second per record load. Existing
+xref leaves continue their own xref validation. No display text is parsed to
+recover a tree or an instruction.
+
+Pass-prep also publishes an ignored `instructions.json.validated.json` beside
+its planning-cache copy. Publication checks that the copy's SHA-256 matches
+the validated bundle; the stamp binds those bytes and both reader fingerprints.
+Cached next-pass checks the stamp against the bytes it actually decodes and
+skips schema validation only on an exact match. Missing, malformed or outdated
+stamps fall back to duplicate-key and complete instruction-schema validation;
+invalid records still refuse. This reuses validation, not source freshness or
+a policy verdict. The existing next-pass freshness check and fresh production
+for verification/CI remain unchanged.
 
 This is an accidental-staleness/consistency contract, not authentication of
 hostile descriptors or a filesystem transaction. As with xasm's manifest, a
 transient edit restored before validation and changes after the final check are
 outside its guarantees. Consumed assembly inputs are xasm snapshots; remaining
 text/ledger consumers read live files and must not be certified after a detected
-change. No result or policy verdict is reused.
+change. No analysis result or policy verdict is reused; only production's
+validation of the exact bytes it hashed is.
 
 ## Verification requirements
 

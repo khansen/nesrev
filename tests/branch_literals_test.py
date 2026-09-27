@@ -141,6 +141,109 @@ Start: bne ($ + $02) : BEQ $+%10
         self.assertEqual(run.returncode, 0, run.stderr)
         self.assertIn(b"strict_active_branch_literals=0", run.stdout)
 
+    def cached_instructions(self):
+        shared = self.produce()
+        cache = self.root / "cached-instructions.json"
+        shutil.copyfile(shared.data["outputs"]["instructions"]["path"], cache)
+        run = subprocess.run([sys.executable, str(ROOT / "scripts/analysis_bundle.py"),
+                              "stamp-instructions", str(self.path), str(cache)], capture_output=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        return shared, cache
+
+    def test_pass_cache_reuses_validation_for_exact_bytes_and_readers(self):
+        shared, cache = self.cached_instructions()
+        expected = shared.load("instructions")
+        with patch.object(analysis.instruction_records, "validate",
+                          side_effect=AssertionError("records were revalidated")):
+            self.assertEqual(analysis.load_instruction_cache(cache), expected)
+
+    def test_pass_cache_stamp_refuses_a_different_copy(self):
+        shared, cache = self.cached_instructions()
+        stamp = Path(str(cache) + ".validated.json")
+        stamp.unlink()
+        cache.write_bytes(cache.read_bytes() + b"\n")
+        with self.assertRaisesRegex(ValueError, "cache differs from validated bundle"):
+            analysis.stamp_instruction_cache(shared, cache)
+        self.assertFalse(stamp.exists())
+
+    def test_pass_cache_changed_bytes_are_validated_and_invalid_records_refused(self):
+        _, cache = self.cached_instructions()
+        cache.write_bytes(cache.read_bytes() + b"\n")
+        with patch.object(analysis.instruction_records, "validate",
+                          wraps=analysis.instruction_records.validate) as validate:
+            analysis.load_instruction_cache(cache)
+            validate.assert_called_once()
+        payload = json.loads(cache.read_bytes())
+        payload["version"] = "2"
+        cache.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(ValueError, "version 3 required"):
+            analysis.load_instruction_cache(cache)
+
+    def test_pass_cache_reader_changes_force_validation(self):
+        _, cache = self.cached_instructions()
+        for reader in (analysis.READER_ID, analysis.INSTRUCTION_READER_ID):
+            with self.subTest(reader=reader["path"]), patch.dict(reader, sha256="0" * 64):
+                with patch.object(analysis.instruction_records, "validate",
+                                  wraps=analysis.instruction_records.validate) as validate:
+                    analysis.load_instruction_cache(cache)
+                    validate.assert_called_once()
+
+    def test_pass_cache_missing_or_malformed_stamp_falls_back_to_validation(self):
+        _, cache = self.cached_instructions()
+        stamp = Path(str(cache) + ".validated.json")
+        for text in (None, "not json", "[]", "{}"):
+            with self.subTest(stamp=text):
+                if text is None:
+                    stamp.unlink()
+                else:
+                    stamp.write_text(text)
+                with patch.object(analysis.instruction_records, "validate",
+                                  wraps=analysis.instruction_records.validate) as validate:
+                    analysis.load_instruction_cache(cache)
+                    validate.assert_called_once()
+        cache.write_text('{"version":"2","version":"3","files":[],"records":[]}')
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
+            analysis.load_instruction_cache(cache)
+
+    def test_production_refuses_null_memory_access_before_publication(self):
+        self.source.write_text(".ORG $C000\nZP_Count .EQU $10\nOwner: INC ZP_Count\n RTS\n")
+        real_run = subprocess.run
+
+        def corrupt_records(argv, **kwargs):
+            result = real_run(argv, **kwargs)
+            self.assertEqual(result.returncode, 0)
+            path = self.directory / "instructions.json"
+            document = json.loads(path.read_bytes())
+            record = document["records"][0]
+            self.assertEqual(record["addressing_mode"], "zeropage")
+            self.assertEqual(record["memory_access"]["data"]["kind"], "read_modify_write")
+            record["memory_access"] = None
+            path.write_text(json.dumps(document))
+            return result
+
+        with patch.object(analysis.subprocess, "run", side_effect=corrupt_records):
+            with self.assertRaisesRegex(ValueError, "memory mode without memory_access"):
+                self.produce()
+        self.assertFalse(self.path.exists(), "invalid records must not publish a bundle")
+
+    def test_pass_cache_refuses_null_memory_access_with_stale_or_missing_stamp(self):
+        self.source.write_text(".ORG $C000\nZP_Count .EQU $10\nOwner: INC ZP_Count\n RTS\n")
+        _, cache = self.cached_instructions()
+        document = analysis.load_instruction_cache(cache)
+        self.assertEqual(document["records"][0]["memory_access"]["data"]["kind"], "read_modify_write")
+        document["records"][0]["memory_access"] = None
+        cache.write_text(json.dumps(document))
+        for stamp in ("stale", "previous-reader", "missing"):
+            with self.subTest(stamp=stamp):
+                if stamp == "previous-reader":
+                    receipt = analysis.instruction_cache_stamp(cache.read_bytes())
+                    receipt["instruction_reader"] = "0" * 64
+                    analysis.write_json(str(cache) + ".validated.json", receipt)
+                elif stamp == "missing":
+                    Path(str(cache) + ".validated.json").unlink()
+                with self.assertRaisesRegex(ValueError, "memory mode without memory_access"):
+                    analysis.load_instruction_cache(cache)
+
     def test_standalone_once_and_supplied_refusal_no_fallback(self):
         spy = self.root / "xasm"
         shutil.copyfile(ROOT / "tests/fixtures/analysis_count_xasm.py", spy)
@@ -219,11 +322,18 @@ Start: bne ($ + $02) : BEQ $+%10
             self.assertEqual(target.read_bytes(), b"original registry\n")
 
     def test_every_typed_span_requires_consumed_source_membership(self):
+        # Spans name files by index into the records' table; production checks
+        # each table entry against the consumed sources and each index against
+        # the table.
         self.source.write_text(".ORG $C000\nStart: LDA Target+0\nTarget: RTS\n")
         shared = self.produce()
         document = shared.load("instructions")
-        path = Path(shared.data["outputs"]["instructions"]["path"])
-        original_descriptor = copy.deepcopy(shared.data)
+        dependencies = analysis.read_json(shared.data["dependencies"]["path"])
+        binary = Path(shared.data["outputs"]["binary"]["path"]).read_bytes()
+        unconsumed = copy.deepcopy(document)
+        unconsumed["files"].append(str(self.root / "unconsumed.asm"))
+        with self.assertRaisesRegex(ValueError, "source span absent from consumed source inputs"):
+            analysis.check_instructions(unconsumed, dependencies, binary)
         for field in ("use", "source", "operand_source", "expression", "child"):
             with self.subTest(field=field):
                 changed = copy.deepcopy(document)
@@ -237,28 +347,19 @@ Start: bne ($ + $02) : BEQ $+%10
                     if field == "child":
                         node = node["children"][1]
                     span = node["source"]["span"]
-                span["file"] = str(self.root / "unconsumed.asm")
-                analysis.write_json(path, changed)
-                descriptor = copy.deepcopy(original_descriptor)
-                descriptor["outputs"]["instructions"] = analysis.fingerprint(path)
-                analysis.write_json(self.path, descriptor)
-                fresh = analysis.Bundle(self.path, self.source)
-                with self.assertRaisesRegex(ValueError, "source span absent from consumed source inputs"):
-                    branch.rows(fresh)
+                span["file"] = len(changed["files"])
+                with self.assertRaisesRegex(ValueError, "invalid span file index"):
+                    analysis.check_instructions(changed, dependencies, binary)
 
     def test_nonmatching_record_bytes_must_agree_with_bound_binary(self):
         self.source.write_text(".ORG $C000\nStart: LDA Target\nTarget: RTS\n")
         shared = self.produce()
         document = shared.load("instructions")
         document["records"][0]["bytes"][-1] ^= 1
-        path = Path(shared.data["outputs"]["instructions"]["path"])
-        analysis.write_json(path, document)
-        descriptor = copy.deepcopy(shared.data)
-        descriptor["outputs"]["instructions"] = analysis.fingerprint(path)
-        analysis.write_json(self.path, descriptor)
-        fresh = analysis.Bundle(self.path, self.source)
+        dependencies = analysis.read_json(shared.data["dependencies"]["path"])
+        binary = Path(shared.data["outputs"]["binary"]["path"]).read_bytes()
         with self.assertRaisesRegex(ValueError, "instruction bytes differ from output"):
-            branch.rows(fresh)
+            analysis.check_instructions(document, dependencies, binary)
 
     def test_malformed_nonmatching_records_are_not_zero(self):
         self.source.write_text(".ORG $C000\n RTS\n")
