@@ -82,6 +82,14 @@ class InstructionRecords(unittest.TestCase):
         self.refuse("JMP [$12FF]", lambda r: r["memory_access"]["pointer"].update(high_byte_address=0x1300),
                     "invalid pointer access")
         self.refuse("JMP [$12FF]", lambda r: r.update(memory_access=None), "pointer mode without memory_access")
+        self.refuse("JMP [$12FF]", lambda r: r["memory_access"].update(
+            data={"kind": "read", "address": 0x12FF, "index_register": None, "via_pointer": False}),
+            "data access/mode mismatch")
+        self.refuse("LDA #<Start", lambda r: r.update(memory_access={
+            "data": {"kind": "read", "address": r["operand_value"], "index_register": None, "via_pointer": False},
+            "pointer": None}), "memory_access on a mode without a memory operand")
+        self.refuse("LDA [ZP_Ptr],Y", lambda r: r.update(operand_value=None),
+                    "memory_access requires an operand value")
 
     def test_additive_terms_refusals(self):
         self.refuse("LDA Base+2,X", lambda r: r.pop("additive_terms"), "missing additive_terms")
@@ -97,6 +105,43 @@ class InstructionRecords(unittest.TestCase):
                     "invalid term binding")
         self.refuse("LDA Base+2,X", lambda r: r["additive_terms"]["terms"][0].pop("name"),
                     "invalid term name")
+        self.refuse("LDA Base+2,X", lambda r: r["additive_terms"]["terms"][0]["binding"].pop("definition"),
+                    "invalid term binding")
+
+    def test_every_corrupted_field_is_refused_not_crashed(self):
+        """Deleting or retyping any record value raises ValueError, never another exception."""
+        def paths(value, prefix=()):
+            yield prefix
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    yield from paths(child, prefix + (key,))
+            elif isinstance(value, list):
+                for index, child in enumerate(value):
+                    yield from paths(child, prefix + (index,))
+        tried = 0
+        for index, record in enumerate(self.payload["records"]):
+            for field in record:
+                for path in list(paths(record[field], (field,))):
+                    for replacement in ("delete", None, "x", 1.5, True, [], {}, -1):
+                        payload = copy.deepcopy(self.payload)
+                        parent = payload["records"][index]
+                        for key in path[:-1]:
+                            parent = parent[key]
+                        if replacement == "delete":
+                            if isinstance(parent, list):
+                                parent.pop(path[-1])
+                            else:
+                                del parent[path[-1]]
+                        else:
+                            parent[path[-1]] = replacement
+                        tried += 1
+                        try:
+                            instruction_records.validate(payload)
+                        except ValueError:
+                            pass
+                        except Exception as exc:
+                            self.fail(f"{path} = {replacement!r} raised {type(exc).__name__}: {exc}")
+        self.assertGreater(tried, 5000)
 
 
 if __name__ == "__main__":
