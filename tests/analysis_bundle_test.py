@@ -336,7 +336,9 @@ class BundleTests(unittest.TestCase):
                               env=env, capture_output=True)
         self.assertEqual(init.returncode, 0, init.stderr)
         calls.write_text("")
-        run = subprocess.run(["make", "project-ci", "PROJECT=synthetic"], env=env, capture_output=True)
+        # Compare wrapper output, excluding Make's recipe and recursive-directory messages.
+        make_ci = ["make", "--silent", "--no-print-directory", "project-ci", "PROJECT=synthetic"]
+        run = subprocess.run(make_ci, env=env, capture_output=True)
         self.assertEqual(run.returncode, 0, run.stdout.decode() + run.stderr.decode())
         self.assertIn(b"Doc consistency checks passed", run.stdout)
         self.assertEqual(len(calls.read_text().splitlines()), 1)
@@ -352,13 +354,13 @@ bash scripts/project_docs_check.sh "$1"
         baseline = subprocess.run(["bash", str(legacy), "synthetic"], env=env, capture_output=True)
         self.assertEqual(baseline.returncode, 0, baseline.stdout.decode() + baseline.stderr.decode())
         self.assertEqual(len(calls.read_text().splitlines()), 4)
-        self.assertEqual(baseline.stdout, run.stdout.split(b"\n", 1)[1])
+        self.assertEqual(baseline.stdout, run.stdout)
         self.assertEqual(baseline.stderr, run.stderr)
         reference = project / "reference/input.nes"
         raw = reference.read_bytes()
         reference.write_bytes(raw[:16] + b"\xea" + raw[17:])
         calls.write_text("")
-        mismatch = subprocess.run(["make", "project-ci", "PROJECT=synthetic"], env=env, capture_output=True)
+        mismatch = subprocess.run(make_ci, env=env, capture_output=True)
         self.assertEqual(mismatch.returncode, 2)
         self.assertIn(b"output PRG differs", mismatch.stderr)
         invocations = [json.loads(line) for line in calls.read_text().splitlines()]
