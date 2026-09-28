@@ -25,6 +25,7 @@ ROLES = ("implementer", "reviewer")
 BYPASS_OPTIONS = {
     "codex": "--dangerously-bypass-approvals-and-sandbox",
     "claude": "--dangerously-skip-permissions",
+    "agy": "--dangerously-skip-permissions",
 }
 MANUAL_WAIVER = "continue without a manual"
 MANUAL_WARNING = (
@@ -62,9 +63,9 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
 
     # Use the invoked name; installed CLIs may resolve to versioned binaries.
     agent = Path(shlex.split(value)[0]).name
-    if agent not in {"codex", "claude"}:
+    if agent not in {"codex", "claude", "agy"}:
         raise review.UserError(
-            f"--{role}-model/--{role}-effort require a codex or claude executable; "
+            f"--{role}-model/--{role}-effort require a codex, claude, or agy executable; "
             f"for a custom wrapper, put its native options in --{role}-cmd"
         )
     if "--" in command[1:]:

@@ -224,7 +224,12 @@ class LauncherTests(unittest.TestCase):
 
     def test_bypass_reaches_both_agents_without_installing_or_changing_profiles(self):
         self.permission_agents()
-        binaries = {name: shlex.quote(str(Path(self.temp.name) / name)) for name in ("codex", "claude")}
+        binaries = {}
+        for name in ("codex", "claude", "agy"):
+            binary = Path(self.temp.name) / name
+            binary.write_bytes(self.agent.read_bytes())
+            binary.chmod(0o755)
+            binaries[name] = shlex.quote(str(binary))
         saved = self.root / ".agents/permissions/commands.md"
         saved.parent.mkdir(parents=True)
         saved.write_text("Existing guide for another project; preserve me.\n")
@@ -234,8 +239,8 @@ class LauncherTests(unittest.TestCase):
         self.args.permissions = "bypass"
         self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
-        for implementer in ("codex", "claude"):
-            for reviewer in ("codex", "claude"):
+        for implementer in ("codex", "claude", "agy"):
+            for reviewer in ("codex", "claude", "agy"):
                 with self.subTest(implementer=implementer, reviewer=reviewer):
                     self.log.write_text("")
                     old_configs = set((self.root / ".agents/logs").glob("*/workspace.json"))
@@ -276,7 +281,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_bypass_rejects_unknown_agents_before_creating_project_or_workspace(self):
         self.args.permissions, self.args.project = "bypass", "new_project"
-        with self.assertRaisesRegex(review.UserError, "bypass permissions require codex or claude"):
+        with self.assertRaisesRegex(review.UserError, "bypass permissions require codex, claude, or agy"):
             self.launch()
         self.assertFalse((self.root / "projects/new_project").exists())
         self.assertFalse((self.root / ".agents").exists())
@@ -528,7 +533,7 @@ class LauncherTests(unittest.TestCase):
         self.args.reviewer_cmd = "codex --model chosen-reviewer"
         which = launcher.shutil.which
         def installed(value):
-            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+            return f"/agents/{value}" if value in ("claude", "codex", "agy") else which(value)
         with patch.object(launcher.shutil, "which", side_effect=installed):
             self.launch()
         commands = [shlex.split(c[-1]) for c in self.calls() if c[0] == "respawn-pane"]
@@ -561,11 +566,11 @@ class LauncherTests(unittest.TestCase):
     def test_independent_models_and_effort_reach_each_tmux_agent(self):
         which = launcher.shutil.which
         def installed(value):
-            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+            return f"/agents/{value}" if value in ("claude", "codex", "agy") else which(value)
         self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
-        for implementer in ("codex", "claude"):
-            for reviewer in ("codex", "claude"):
+        for implementer in ("codex", "claude", "agy"):
+            for reviewer in ("codex", "claude", "agy"):
                 with self.subTest(implementer=implementer, reviewer=reviewer):
                     self.log.write_text("")
                     self.args.implementer_cmd, self.args.reviewer_cmd = implementer, reviewer
@@ -582,7 +587,7 @@ class LauncherTests(unittest.TestCase):
                         self.assertIn(f"You are the {role}", command[-1])
 
     def test_model_and_effort_can_be_selected_separately(self):
-        for agent in ("codex", "claude"):
+        for agent in ("codex", "claude", "agy"):
             self.args.implementer_cmd = agent
             with self.subTest(agent=agent), patch.object(launcher.shutil, "which", return_value=f"/agents/{agent}"):
                 self.args.implementer_model, self.args.implementer_effort = "chosen-model", None
@@ -602,7 +607,7 @@ class LauncherTests(unittest.TestCase):
     def test_model_option_survives_shell_transport_without_expansion(self):
         marker = Path(self.temp.name) / "must-not-exist"
         model = f"chosen 'model' $(touch {shlex.quote(str(marker))}) `touch {shlex.quote(str(marker))}` $HOME"
-        for agent in ("codex", "claude"):
+        for agent in ("codex", "claude", "agy"):
             with self.subTest(agent=agent):
                 executable = Path(self.temp.name) / agent
                 executable.symlink_to(self.agent)
@@ -664,7 +669,7 @@ class LauncherTests(unittest.TestCase):
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
         which = launcher.shutil.which
         output = io.StringIO()
-        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}" if name in ("codex", "claude") else which(name)), contextlib.redirect_stdout(output):
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}" if name in ("codex", "claude", "agy") else which(name)), contextlib.redirect_stdout(output):
             self.assertEqual(launcher.launch(self.args), 0)
         self.assertIn('implementer: /agents/codex --model first-model --config', output.getvalue())
         self.assertIn('model_reasoning_effort="high"', output.getvalue())
@@ -1139,5 +1144,23 @@ class LauncherTests(unittest.TestCase):
         self.assertTrue((review.run_dir(self.root, state) / "workers/launch-1-reviewer.seen").exists())
 
 
+    def test_agy_sandbox_is_passed_for_pass_cycle(self):
+        self.args.permissions = "pass-cycle"
+        for role in ("implementer", "reviewer"):
+            binary = Path(self.temp.name) / "agy"
+            binary.write_bytes(self.agent.read_bytes())
+            binary.chmod(0o755)
+            setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)))
+        
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+            
+        calls = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertIn("--sandbox", call)
+
+
 if __name__ == "__main__":
     unittest.main()
+

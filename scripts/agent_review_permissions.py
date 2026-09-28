@@ -24,8 +24,8 @@ def digest(text: str) -> str:
 
 def native_agent(command: list[str], profile: str = "pass-cycle") -> str:
     agent = Path(command[0]).name
-    if agent not in {"codex", "claude"}:
-        raise review.UserError(f"{profile} permissions require codex or claude; use --permissions inherit for wrappers")
+    if agent not in {"codex", "claude", "agy"}:
+        raise review.UserError(f"{profile} permissions require codex, claude, or agy; use --permissions inherit for wrappers")
     # Permission options must come from this profile. Model/effort are independent.
     options = command[1:]
     while options:
@@ -199,7 +199,7 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
                 "--sandbox", "workspace-write", "--ask-for-approval", "on-request",
                 "--config", 'approval_reviewer="user"',
             ]
-        else:
+        elif agent == "claude":
             # These characters are patterns in Claude rules, even inside shell quotes.
             for value in [str(root), *review.script_argv(root)]:
                 if any(char in value for char in "*?[]{}\n\r\\"):
@@ -218,6 +218,8 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
             configured[role] = command + ["--permission-mode", "default", "--settings", str(root / settings)]
+        elif agent == "agy":
+            configured[role] = command + ["--sandbox"]
     if codex_grants:
         entries = [(argv, "allow") for argv in codex_grants] + restrictions(root)
         files[RULES] = "# Managed by the NESrev launcher after explicit user consent.\n" + "".join(dict.fromkeys(
