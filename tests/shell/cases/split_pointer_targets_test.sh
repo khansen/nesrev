@@ -206,20 +206,116 @@ JSON
 }
 
 test_split_pointer_targets_ignores_unpaired_suffix_match() {
-  local xref="${NESREV_TEST_TMPDIR}/split_targets_missing.json"
-  local csv="${NESREV_TEST_TMPDIR}/split_targets_missing.csv"
-  cat > "${xref}" <<'JSON'
-{"version":"2","symbols":[
-  {"name":"FramePtrLoTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":10,"output_offset":0}},
-  {"name":"AfterTable","kind":"label","scope":"global","definition":{"file":"game.asm","line":20,"output_offset":1}}
-],"data_directive_references":[
-  {"directive":".DB","width_bytes":1,"owner_symbol":"FramePtrLoTable","owner_item_index":0,"expression":"<DataTarget","target_projection":"low","target_kind":"data"}
-]}
-JSON
+  local fixture="${NESREV_TEST_TMPDIR}/lone.asm"
+  local xref="${NESREV_TEST_TMPDIR}/lone.json"
+  local csv="${NESREV_TEST_TMPDIR}/lone.csv"
+  local suffix half projection
+  for suffix in Table ByFrame Bytes; do
+    for half in Lo Hi; do
+      projection='<'
+      [[ "${half}" != Hi ]] || projection='>'
+      printf '%s\n' '.ORG $C000' "SpritePtr${half}${suffix}:" \
+        "  .DB ${projection}TargetA,${projection}TargetB,\$FF" \
+        'TargetA: .DB 1' 'TargetB: .DB 2' > "${fixture}"
+      "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+        --xref="${xref}" --xref-format=json --xref-data=true --xref-include-owner=true \
+        -o "${NESREV_TEST_TMPDIR}/lone.bin" "${fixture}"
+      python3 "${SPLIT_TARGETS}" "${xref}" "${csv}"
+      assert_eq "$(wc -l < "${csv}" | tr -d ' ')" "1" \
+        "a lone ${half}${suffix} table must not require a fully symbolic body"
+      assert_exit 0 bash "${SPLIT_TARGETS_CHECK}" "${xref}" "${csv}"
+    done
+  done
+}
 
-  python3 "${SPLIT_TARGETS}" "${xref}" "${csv}"
-  assert_eq "$(wc -l < "${csv}" | tr -d ' ')" "1" \
-    "a lone low-byte table may use a constant high byte outside the inventory"
+test_split_pointer_targets_requires_selector_word_boundary() {
+  local fixture="${NESREV_TEST_TMPDIR}/suffix.asm"
+  local xref="${NESREV_TEST_TMPDIR}/suffix.json"
+  local csv="${NESREV_TEST_TMPDIR}/suffix.csv"
+  local suffix expected
+  for suffix in ByX By2Frames ByFrame_Index Byte Bytes Bypass By By_frame Byframe; do
+    case "${suffix}" in
+      ByX|By2Frames|ByFrame_Index) expected=3 ;;
+      *) expected=1 ;;
+    esac
+    printf '%s\n' '.ORG $C000' "ScorePtrLo${suffix}:" \
+      '  .DB <TargetA,<TargetB' "ScorePtrHi${suffix}:" \
+      '  .DB >TargetA,>TargetB' 'TargetA: .DB 1' 'TargetB: .DB 2' > "${fixture}"
+    "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+      --xref="${xref}" --xref-format=json --xref-data=true --xref-include-owner=true \
+      -o "${NESREV_TEST_TMPDIR}/suffix.bin" "${fixture}"
+    python3 "${SPLIT_TARGETS}" "${xref}" "${csv}"
+    assert_eq "$(wc -l < "${csv}" | tr -d ' ')" "${expected}" \
+      "${suffix} must follow the By<index> naming boundary"
+  done
+}
+
+test_split_pointer_targets_ignores_mixed_naming_families() {
+  local fixture="${NESREV_TEST_TMPDIR}/mixed.asm"
+  local xref="${NESREV_TEST_TMPDIR}/mixed.json"
+  local csv="${NESREV_TEST_TMPDIR}/mixed.csv"
+  local low high form
+  for form in ending spelling; do
+    low=FramePtrLoByX
+    high=FramePointerHiByX
+    if [[ "${form}" == ending ]]; then
+      low=FramePtrLoTable
+      high=FramePtrHiByX
+    fi
+    printf '%s\n' '.ORG $C000' "${low}:" '  .DB <TargetA,$FF' \
+      "${high}:" '  .DB >TargetA,$FF' 'TargetA: .DB 1' > "${fixture}"
+    "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+      --xref="${xref}" --xref-format=json --xref-data=true --xref-include-owner=true \
+      -o "${NESREV_TEST_TMPDIR}/mixed.bin" "${fixture}"
+    python3 "${SPLIT_TARGETS}" "${xref}" "${csv}"
+    assert_eq "$(wc -l < "${csv}" | tr -d ' ')" "1" \
+      "mixed ${form} tables must not pair or validate each other's bodies"
+  done
+}
+
+test_split_pointer_targets_ignores_literal_pairs_without_xrefs() {
+  local fixture="${NESREV_TEST_TMPDIR}/literal.asm"
+  local xref="${NESREV_TEST_TMPDIR}/literal.json"
+  local csv="${NESREV_TEST_TMPDIR}/literal.csv"
+  local suffix
+  for suffix in Table ByX; do
+    printf '%s\n' '.ORG $C000' "FramePtrLo${suffix}:" '  .DB $38,$52' \
+      "FramePtrHi${suffix}:" '  .DB $04,$04' 'AfterTables: .DB 0' > "${fixture}"
+    "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+      --xref="${xref}" --xref-format=json --xref-data=true --xref-include-owner=true \
+      -o "${NESREV_TEST_TMPDIR}/literal.bin" "${fixture}"
+    python3 "${SPLIT_TARGETS}" "${xref}" "${csv}"
+    assert_eq "$(wc -l < "${csv}" | tr -d ' ')" "1" \
+      "literal ${suffix} pairs must remain outside the symbolic inventory"
+  done
+}
+
+test_split_pointer_targets_selector_pairs_require_complete_bodies() {
+  local fixture="${NESREV_TEST_TMPDIR}/complete.asm"
+  local xref="${NESREV_TEST_TMPDIR}/complete.json"
+  local low high scenario expected diagnostic output rc
+  for scenario in count trailing gap literal_half; do
+    low='<TargetA,<TargetB'
+    high='>TargetA,>TargetB'
+    expected=65
+    case "${scenario}" in
+      count) high='>TargetA'; expected=68; diagnostic='entry count mismatch' ;;
+      trailing) low='<TargetA,$FF'; diagnostic='body contains bytes without symbolic xref records' ;;
+      gap) low='$FF,<TargetB'; diagnostic='operand without a symbolic xref record' ;;
+      literal_half) high='$C0,$C0'; diagnostic='has no symbolic xref records' ;;
+    esac
+    printf '%s\n' '.ORG $C000' 'FramePtrLoByX:' "  .DB ${low}" \
+      'FramePtrHiByX:' "  .DB ${high}" 'TargetA: .DB 1' 'TargetB: .DB 2' > "${fixture}"
+    "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+      --xref="${xref}" --xref-format=json --xref-data=true --xref-include-owner=true \
+      -o "${NESREV_TEST_TMPDIR}/complete.bin" "${fixture}"
+    set +e
+    output="$(python3 "${SPLIT_TARGETS}" "${xref}" 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" "${expected}" "${scenario} must fail for a By pair"
+    assert_match "${diagnostic}" "${output}"
+  done
 }
 
 test_split_pointer_targets_rejects_unequal_entry_counts() {

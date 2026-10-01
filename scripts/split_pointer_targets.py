@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import re
 import sys
 from pathlib import Path
 from typing import Any, TextIO
@@ -35,7 +36,7 @@ def split_counterpart(label: str, from_lo: bool) -> str:
     for lo_part, hi_part in SPLIT_POINTER_PARTS:
         source, dest = (lo_part, hi_part) if from_lo else (hi_part, lo_part)
         prefix, part, suffix = label.rpartition(source)
-        if part and (suffix == "Table" or (suffix.startswith("By") and len(suffix) > 2)):
+        if part and (suffix == "Table" or re.fullmatch(r"By[A-Z0-9]\w*", suffix)):
             return f"{prefix}{dest}{suffix}"
     return ""
 
@@ -80,10 +81,18 @@ def table_records(
         owner = record_owner(record, index)
         if owner is None or not is_split_table_label(owner):
             continue
-        require(record, "owner_item_index", int, index)
         tables.setdefault(owner, []).append((index, record))
 
+    paired_tables: dict[str, list[tuple[int, dict[str, Any]]]] = {}
     for owner, records in tables.items():
+        counterpart = split_counterpart(owner, True) or split_counterpart(owner, False)
+        if counterpart in tables or counterpart in definitions:
+            paired_tables[owner] = records
+            paired_tables.setdefault(counterpart, tables.get(counterpart, []))
+    tables = paired_tables
+    for owner, records in tables.items():
+        if not records:
+            raise ContractError(f"{owner}: split pointer table has no symbolic xref records")
         records.sort(key=lambda item: require(item[1], "owner_item_index", int, item[0]))
         indexes = [require(record, "owner_item_index", int, index) for index, record in records]
         if indexes != list(range(len(indexes))):
