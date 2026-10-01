@@ -790,12 +790,12 @@ mixed with bank, VRAM address, and count bytes. `project-verify` checks the
 ledger when it exists, so reverting such fields to raw low/high bytes fails
 until inventory and xref agree.
 
-`split_pointer_targets.csv` pairs xref low/high byte tables by name: `FooPtrLoTable`
-with `FooPtrHiTable`, or matching `By<index>` endings such as `PtrLoByRoomEdge`
-and `PtrHiByRoomEdge`. Other established low/high spellings support both forms.
-The sync check requires complete symbolic bodies, equal counts, correct projections,
-and identical targets per index. Prefix and index suffix must match; lone halves
-remain excluded because low-only tables can supply a constant high byte elsewhere.
+`split_pointer_targets.csv` inventories symbolic low/high pairs: `FooPtrLoTable` /
+`FooPtrHiTable`, or `PtrLoByRoomEdge` / `PtrHiByRoomEdge`. All five low/high forms
+allow `Table` or `By[A-Z0-9]\w*`; prefix and suffix must match. Lone halves are
+excluded without body validation, as are pairs with no symbolic xrefs. Once either
+paired half has xrefs, both require complete symbolic bodies, equal counts,
+correct projections and identical targets.
 
 Pointer-inventory leaves never assemble. Owners share the
 [validated bundle](../ANALYSIS_BUNDLE_SPEC.md); standalone maturity produces one
