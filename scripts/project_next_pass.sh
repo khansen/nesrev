@@ -18,6 +18,11 @@ if [[ "${FORMAT}" != "text" && "${FORMAT}" != "json" ]]; then
   exit 2
 fi
 
+if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" && "${PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY:-0}" != "1" ]]; then
+  echo "error: supplied analysis bundles require raw-RAM refresh-only mode; unset NESREV_ANALYSIS_BUNDLE for full next-pass" >&2
+  exit 65
+fi
+
 if [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
   PASS_CACHE_DIR="${DOC_ROOT}/inventory/pass"
   PREP_SCRIPT="${PROJECT_NEXT_PASS_PREP_SCRIPT:-${SCRIPT_DIR}/project_pass_prep.sh}"
@@ -102,24 +107,11 @@ from pathlib import Path
 sys.path.insert(0, script_dir)
 import analysis_bundle
 import proof_debt
+from ram_accesses import access_facts, group_sites, instruction_ram_sites
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
 RAM_SYMBOL_RE = re.compile(r"^(?:ZP|RAM)_[A-Za-z0-9_]+$")
 GLOBAL_LABEL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|L[0-9A-F]{4,5}):\s*$")
-DATA_DIRECTIVE_RE = re.compile(r"^\s*\.(?:DB|DW|BYTE|WORD|DS|INCBIN)\b", re.IGNORECASE)
-MNEMONIC_RE = re.compile(r"^\s*([A-Za-z]{3}(?:\.[A-Za-z])?)\s+([^;]+?)(?:\s*;.*)?$")
-RAW_LOWADDR_OPERAND_RE = re.compile(
-    r"^(?:"
-    r"\$([0-9A-F]{1,4})(?:,[XY])?"
-    r"|\(\$([0-9A-F]{1,4})(?:,[XY])?\)(?:,Y)?"
-    r"|\[\$([0-9A-F]{1,4})(?:,[XY])?\](?:,[XY])?"
-    r")$",
-    re.IGNORECASE,
-)
-
-WRITE_ONLY_MNEMONICS = {"STA", "STX", "STY"}
-READWRITE_MNEMONICS = {"INC", "DEC", "ASL", "LSR", "ROL", "ROR"}
-
 def load_json(path):
     p = Path(path)
     if not p.exists():
@@ -357,40 +349,6 @@ def build_file_symbol_index(xref):
             "names": [name for _, name in entries],
         }
     return out
-
-def first_meaningful_line_after(lines, idx):
-    for text in lines[idx:]:
-        body = text.split(";", 1)[0].strip()
-        if body:
-            return body
-    return ""
-
-def data_labels_from_source(path):
-    lines = load_file_lines(path)
-    labels = set()
-    for idx, text in enumerate(lines):
-        m = GLOBAL_LABEL_RE.match(text)
-        if not m:
-            continue
-        body = first_meaningful_line_after(lines, idx + 1)
-        if DATA_DIRECTIVE_RE.match(body):
-            labels.add(m.group(1))
-    return labels
-
-def build_source_owner_index(path):
-    data_labels = data_labels_from_source(path)
-    entries = [
-        (entry["line"], entry["name"])
-        for entry in build_global_symbol_list(path)
-        if entry["name"] not in data_labels
-    ]
-    entries.sort()
-    return {
-        path: {
-            "lines": [line for line, _ in entries],
-            "names": [name for _, name in entries],
-        }
-    }
 
 def find_lexical_owner(file_index, file, line):
     info = file_index.get(file)
@@ -630,54 +588,6 @@ def build_global_symbol_list(path):
         })
     return out
 
-def mnemonic_access_kind(mnemonic):
-    root = (mnemonic or "").split(".", 1)[0].upper()
-    if root in WRITE_ONLY_MNEMONICS:
-        return "write"
-    if root in READWRITE_MNEMONICS:
-        return "read_modify_write"
-    return "read"
-
-def parse_raw_lowaddr_accesses(path, file_symbol_index):
-    out = []
-    for lineno, text in enumerate(load_file_lines(path), start=1):
-        m = MNEMONIC_RE.match(text)
-        if not m:
-            continue
-        mnemonic = m.group(1).upper()
-        operand = m.group(2).strip()
-        if not operand:
-            continue
-        parts = operand.split()
-        if not parts:
-            continue
-        operand = parts[0]
-        if operand.startswith("#"):
-            continue
-        m2 = RAW_LOWADDR_OPERAND_RE.match(operand)
-        if not m2:
-            continue
-        raw = next((group for group in m2.groups() if group), "").upper()
-        if not raw:
-            continue
-        try:
-            addr = int(raw, 16)
-        except ValueError:
-            continue
-        if addr > 0x0FFF:
-            continue
-        out.append({
-            "addr": addr,
-            "addr_hex": f"0x{addr:04x}",
-            "operand": operand,
-            "mnemonic": mnemonic,
-            "access_kind": mnemonic_access_kind(mnemonic),
-            "file": path,
-            "line": lineno,
-            "owner_routine": find_lexical_owner(file_symbol_index, path, lineno),
-        })
-    return out
-
 RAW_RAM_REVIEW_FIELDS = [
     "addr_hex",
     "status",
@@ -767,82 +677,17 @@ def build_lowaddr_ram_equ_symbols(xref):
     return by_addr
 
 def load_instruction_records(path):
-    """Validated instruction-records document from the pass-prep cache, or an empty one."""
+    """Require validated emitted instructions; missing evidence is not zero sites."""
     if not os.path.exists(path):
-        return {"files": [], "records": []}
+        raise ContractError(f"{path}: instruction cache required; rerun project-pass-prep")
     try:
         return analysis_bundle.load_instruction_cache(path)
     except ValueError as exc:
         raise ContractError(f"{path}: {exc}") from exc
 
-def instruction_ram_sites(document, addr_symbols):
-    """RAM bytes that instructions access through a canonical RAM equate.
-
-    xasm reports each access (memory_access) and the terms the operand is built
-    from (additive_terms), so no mnemonic or addressing-mode table is kept here.
-    An operand counts when one of its symbol terms is a canonical xref RAM
-    equate. That set is policy: global, defined, low-address .equ names. A term
-    binding cannot express it, since .equ and = both bind as constants.
-    """
-    canonical = {symbol for symbols in addr_symbols.values() for symbol in symbols}
-    files = document["files"]
-    out = []
-    for record in document["records"]:
-        access = record["memory_access"]
-        terms = record["additive_terms"]
-        if access is None or terms is None:
-            continue
-        ram_symbol = next((term["name"] for term in terms["terms"]
-                           if term["kind"] == "symbol" and term["name"] in canonical), None)
-        if ram_symbol is None:
-            continue
-        touched = []
-        data = access["data"]
-        if data is not None and not data["via_pointer"]:
-            touched.append((data["address"], data["kind"]))
-        pointer = access["pointer"]
-        if pointer is not None:
-            touched += [(pointer["address"], "read"), (pointer["high_byte_address"], "read")]
-        use = record["use"]
-        for addr, kind in touched:
-            if not 0 <= addr <= 0x0FFF:
-                continue
-            out.append({
-                "addr_hex": f"0x{addr:04x}",
-                "symbol": ram_symbol,
-                "mnemonic": record["mnemonic"],
-                "access_kind": kind,
-                "file": files[use["file"]],
-                "line": use["line"],
-                "owner_routine": record["lexical_owner"],
-            })
-    return out
-
 def build_symbolized_raw_ram_candidates(sites):
-    """Group instruction-record RAM sites by address.
-
-    xref v2 data_reads and data_writes record label edges only, never equate
-    operands, so the instruction records are the only source for these bytes.
-    """
-    by_addr = {}
-    for site in sites:
-        by_addr.setdefault(site["addr_hex"], []).append(site)
-
-    out = {}
-    for addr_hex, sites in by_addr.items():
-        owners = sorted({r["owner_routine"] for r in sites if r.get("owner_routine")})
-        # Read-modify-write instructions count as both a read and a write.
-        read_count = sum(1 for row in sites if row["access_kind"] in {"read", "read_modify_write"})
-        write_count = sum(1 for row in sites if row["access_kind"] in {"write", "read_modify_write"})
-        out[addr_hex] = {
-            "addr_hex": addr_hex,
-            "operand_count": len(sites),
-            "distinct_owner_count": len(owners),
-            "read_count": read_count,
-            "write_count": write_count,
-            "sites": sorted(sites, key=lambda r: (r.get("line") or 0, r.get("symbol") or "")),
-        }
-    return out
+    return {addr: {"addr_hex": addr, **access_facts(rows)}
+            for addr, rows in group_sites(sites).items()}
 
 def raw_ram_factual_from_candidate(candidate, *, active):
     return {
@@ -931,29 +776,20 @@ def write_raw_ram_review(path, rows):
             writer.writerow({field: row.get(field, "") for field in RAW_RAM_REVIEW_FIELDS})
 
 def build_raw_ram_candidates(raw_accesses, review_rows, limit=None):
-    by_addr = {}
-    for row in raw_accesses:
-        by_addr.setdefault(row["addr"], []).append(row)
     candidates = []
-    for addr, rows in by_addr.items():
-        owners = sorted({r["owner_routine"] for r in rows if r.get("owner_routine")})
-        by_kind = {"read": 0, "write": 0, "read_modify_write": 0}
-        for row in rows:
-            by_kind[row["access_kind"]] = by_kind.get(row["access_kind"], 0) + 1
-        lines = sorted(r["line"] for r in rows)
-        compactness = (lines[-1] - lines[0]) if len(lines) > 1 else 0
+    for addr_hex, rows in group_sites(raw_accesses).items():
+        primary = [row for row in rows if row["primary"]]
+        if not primary:
+            continue
+        addr = int(addr_hex, 16)
+        lines = sorted(row["line"] for row in primary)
         candidates.append({
             "label": f"raw_${addr:04X}",
             "kind": "raw_ram",
             "addr": addr,
-            "addr_hex": f"0x{addr:04x}",
-            "operand_count": len(rows),
-            "distinct_owner_routines": owners,
-            "distinct_owner_count": len(owners),
-            "read_count": by_kind.get("read", 0) + by_kind.get("read_modify_write", 0),
-            "write_count": by_kind.get("write", 0) + by_kind.get("read_modify_write", 0),
-            "compactness": compactness,
-            "sites": sorted(rows, key=lambda r: (r["line"], r["mnemonic"], r["operand"])),
+            "addr_hex": addr_hex,
+            "compactness": lines[-1] - lines[0],
+            **access_facts(rows),
         })
     def quality_band(candidate):
         owners = candidate["distinct_owner_count"]
@@ -1327,6 +1163,8 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
         review_status = normalize_raw_ram_status(review)
         actionable = is_actionable_raw_ram_status(review_status)
         for site in candidate.get("sites", []):
+            if not site["primary"]:
+                continue
             owner = site.get("owner_routine")
             if not owner:
                 continue
@@ -1372,6 +1210,18 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
                 member["read_count"] += 1
             if site["access_kind"] in {"write", "read_modify_write"}:
                 member["write_count"] += 1
+
+    # Supporting reads enrich an existing owner/member, never create a rename
+    # target. Attach them after every primary site so source order is irrelevant.
+    for candidate in raw_ram_candidates:
+        for site in candidate["sites"]:
+            if site["primary"]:
+                continue
+            cluster = by_owner.get(site["owner_routine"])
+            member = cluster["members"].get(candidate["addr_hex"]) if cluster else None
+            if member is not None:
+                cluster["read_count"] += 1
+                member["read_count"] += 1
 
     clusters = []
     for owner, cluster in by_owner.items():
@@ -1514,7 +1364,8 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
     fallback = []
     for candidate in raw_ram_candidates[:8]:
         sites = candidate.get("sites", [])
-        first_site = sites[0] if sites else {}
+        primary_sites = [site for site in sites if site["primary"]]
+        first_site = primary_sites[0] if primary_sites else {}
         read_counts = {}
         write_counts = {}
         for site in sites:
@@ -1530,7 +1381,8 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
             "line": first_site.get("line"),
             "cpu_address": None,
         } if first_site else None
-        callers = candidate.get("distinct_owner_routines", [])[:3]
+        callers = sorted({site["owner_routine"] for site in primary_sites
+                          if site["owner_routine"]})[:3]
         scoped_overlay = candidate["distinct_owner_count"] > 1
         fallback.append({
             "cluster": f"{candidate['label']} corridor",
@@ -1560,7 +1412,7 @@ def build_raw_ram_clusters(raw_ram_candidates, raw_ram_review, all_label_map, sy
                     "routine_file": row.get("file"),
                     "routine_line": row.get("line"),
                 }
-                for row in sites[:3]
+                for row in primary_sites[:3]
             ],
             "nearby_symbol_sites": [],
             "recommended_open_range": recommended_open_range(definition.get("line")) if definition else None,
@@ -1702,7 +1554,16 @@ def make_follow_up(recommended_type, cluster_candidates):
 baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
 all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
 generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
-xref = load_xref(os.path.join(pass_dir, "xref_with_data.json"))
+try:
+    fresh_bundle = analysis_bundle.supplied(asm_file)
+    if fresh_bundle is not None:
+        analysis_bundle.require(fresh_bundle.data["context"]["project"] == slug,
+                                "bundle project mismatch")
+    xref = load_xref(fresh_bundle.data["outputs"]["xref"]["path"] if fresh_bundle
+                     else os.path.join(pass_dir, "xref_with_data.json"))
+except (ValueError, KeyError) as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    raise SystemExit(65) from exc
 ref_map = build_ref_map(xref)
 mapping_keys = build_rom_mapping_keys(xref)
 refresh_summary_evidence(all_summary, ref_map, mapping_keys)
@@ -1714,23 +1575,25 @@ all_label_map = label_map(all_summary) if all_summary else label_map(generic_sum
 consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.json"))
 symbol_defs = build_symbol_def_map(xref)
 file_symbol_index = build_file_symbol_index(xref)
-source_owner_index = build_source_owner_index(asm_file)
 owner_ref_map = build_owner_ref_map(xref)
 owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
 globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
-raw_accesses = parse_raw_lowaddr_accesses(asm_file, source_owner_index)
 raw_ram_review = load_raw_ram_review(raw_ram_review_path)
-all_raw_ram_candidates = build_raw_ram_candidates(raw_accesses, raw_ram_review, limit=None)
-raw_ram_candidates = all_raw_ram_candidates[:12]
 try:
     lowaddr_ram_symbols = build_lowaddr_ram_equ_symbols(xref)
-    symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
-        instruction_ram_sites(
-            load_instruction_records(os.path.join(pass_dir, "instructions.json")),
-            lowaddr_ram_symbols,
-        )
+    raw_accesses, symbolized_accesses = instruction_ram_sites(
+        fresh_bundle.load("instructions") if fresh_bundle else
+        load_instruction_records(os.path.join(pass_dir, "instructions.json")),
+        lowaddr_ram_symbols, asm_file, repo_root=Path(script_dir).parent,
     )
-except ContractError as exc:
+    all_raw_ram_candidates = build_raw_ram_candidates(raw_accesses, raw_ram_review)
+    raw_ram_candidates = all_raw_ram_candidates[:12]
+    symbolized_raw_ram_candidates = build_symbolized_raw_ram_candidates(
+        symbolized_accesses + [site for site in raw_accesses if not site["primary"]]
+    )
+    if fresh_bundle is not None:
+        fresh_bundle.validate()
+except (ContractError, ValueError) as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc
 merged_raw_ram_review_rows = merge_raw_ram_review(

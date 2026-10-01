@@ -5,7 +5,7 @@ CI-P2's producers, separate instruction output, and validated data bundle are
 implemented, and branch-literal consumers now use the instruction stream.
 The raw-address KPI consumer is implemented; CI-P3 is conditional and CI-P4's
 text indexes are deferred.
-Updated 2026-09-09.
+Updated 2026-10-01.
 
 ## Purpose and ownership
 
@@ -39,6 +39,44 @@ The median wall time may grow by at most 5%. A larger regression needs explicit
 approval, recorded with its reason and measurements. Artifact sizes may grow for
 new content, not for repetition. Game-specific numbers go in the local evidence
 file; shared changes state the percentages.
+
+<a id="raw-ram-pass-selection-measurements"></a>
+### Raw-RAM pass-selection measurements
+
+The v3 migration shares RAM access extraction between raw and symbolized
+operands. It removes the raw operand parser and its separate source owner index.
+Each series uses three alternating measured pairs after one warmup, with the
+same pinned sources and installed producer. The earlier comparison on the
+largest local source by file size (not the largest instruction stream) measured:
+
+| Wrapper path | Change |
+| --- | --- |
+| Cached next-pass generation | −29.9% |
+| Raw-RAM ledger refresh only | −30.8% |
+| Full pass preparation | −1.3% |
+| Complete closeout recheck | −0.2% |
+
+The fresh pass-boundary comparison also measures the largest instruction stream:
+
+| Wrapper path | Largest instruction stream | Raw-heavy input |
+| --- | --- | --- |
+| Cached next-pass generation | −13.6% | −4.5% |
+| Raw-RAM ledger refresh only | −16.0% | −8.6% |
+| Full pass preparation | −0.4% | +0.0% |
+| Complete closeout recheck | −0.1% | Not measured |
+
+Every current timing path completes successfully and meets the 5% budget.
+The earlier smaller-input closeout returned 2 on both consumers before ledger
+refresh; it is excluded from successful-path budget evidence. These are warm
+measurements, not cold-cache claims. The earlier 30% reductions describe the
+largest source file's next/refresh paths, not the raw-heavy input.
+
+The existing assembly budgets remain unchanged: cached next-pass adds none,
+normal prep uses its primary and generic-summary assemblies, and closeout shares
+one assembly. Repository integration tests enforce the prep and closeout counts.
+Source/consumer/producer fingerprints, wall/user/system samples, spreads,
+diagnostics, and the coordinated ledger comparison belong in the local evidence
+companion.
 
 ## CI-P1 — Completed: batched lexical constant counting
 

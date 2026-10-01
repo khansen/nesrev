@@ -536,7 +536,7 @@ refresh factual owner/count fields while preserving review fields. Closeout
 uses the raw-RAM refresh-only path, not a full prep run, so it does not rewrite
 the pass-start baseline before final gates. Normal `project-next-pass` consumes
 refreshed facts in memory and leaves the tracked queue file unchanged,
-including when it auto-preps stale candidate evidence.
+including when it auto-preps stale candidate evidence. [Count semantics](../NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#raw-ram-evidence) distinguish operands from supporting pointer-byte reads.
 **Status values:** `candidate`, `unreviewed`, `deferred`, `revisit`,
 `not_semantic_yet`, `symbolized`.
 **Immediate flush.** As soon as you inspect a byte and reach a

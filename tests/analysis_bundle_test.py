@@ -380,6 +380,7 @@ bash scripts/project_docs_check.sh "$1"
         env = self.counted_environment()
         cache = project / "docs/reverse_engineering/inventory/pass"
         stale = {
+            "instructions.json": {"version": "0", "records": []},
             "index_patterns.json": [{"table_label": "OldTable", "routine": "OldReader",
                                      "access_kind": "read", "index_bound_kind": "mask", "index_upper_bound": 4}],
             "data_consumers.json": [{"label": "OldTable", "declared_size": 4}],
