@@ -767,6 +767,14 @@ producer regression covers byte/word/dword storage in JSON and NDJSON listings,
 debug/non-debug modes, segment changes, data continuations and instructions.
 This corrects listing v1 and does not require instruction records v4.
 
+Local validation passes 658 shell and 1,206 Java tests, including the new
+consumer regressions. Sequential warm before/after measurements on two large
+inputs keep median verification overhead at 3.35% and 3.96%; maturity overhead
+is 2.97% and 4.44%, within the 5% budget. Diagnostics and exit statuses match.
+The maturity measurements cover the same complete, already-failing check
+sequence on both sides; they do not establish a passing maturity result.
+Detailed wall/user/system samples and corpus pins stay in the local companion.
+
 Land in this order:
 
 1. Review and land the xasm listing fix, then build/install the corrected
