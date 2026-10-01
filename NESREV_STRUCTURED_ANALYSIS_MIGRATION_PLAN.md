@@ -759,18 +759,22 @@ The single-label split-RAM ambiguity case also refuses instead of reporting a
 misdecoded ROM table. These checks remain a named-byte heuristic; conversion
 still requires manual layout and target proof.
 
-The migration exposed an existing producer bug: `list_storage()` advances the
-CPU address but not the listing's binary offset for code-segment reservations.
-Fix that counter in xasm, preserving non-emitting data-segment behavior. Do not
-work around it by reparsing source or reconstructing offsets in NESrev. The
-producer regression covers byte/word/dword storage in JSON and NDJSON listings,
-debug/non-debug modes, segment changes, data continuations and instructions.
-This corrects listing v1 and does not require instruction records v4.
+The migration exposed existing producer offset bugs: `list_storage()` does not
+count code-segment reservations, while `print_listing_line()` counts initialized
+data-segment bytes that pure-binary output never emits. Correct both counters
+in xasm. Do not work around them by reparsing source or reconstructing offsets
+in NESrev. The 28 producer subcases cover byte/word/dword storage and its empty
+records, data-segment `.DB` and `.INCBIN`, JSON/NDJSON, debug/non-debug modes,
+segment changes, continuations and later instructions. This corrects listing
+v1 and does not require instruction records v4. Per-row segment/emission
+metadata remains a separate versioned-schema follow-up; initialized data-segment
+rows can still be refused by the consumer's binary validation, as the
+[consumer contract](POINTER_TABLE_BODY_SPEC.md) specifies.
 
 Local validation passes 658 shell and 1,206 Java tests, including the new
 consumer regressions. Sequential warm before/after measurements on two large
-inputs keep median verification overhead at 3.35% and 3.96%; maturity overhead
-is 2.97% and 4.44%, within the 5% budget. Diagnostics and exit statuses match.
+inputs keep median verification overhead at 3.77% and 4.94%; maturity overhead
+is 2.90% and 4.41%, within the 5% budget. Diagnostics and exit statuses match.
 The maturity measurements cover the same complete, already-failing check
 sequence on both sides; they do not establish a passing maturity result.
 Detailed wall/user/system samples and corpus pins stay in the local companion.

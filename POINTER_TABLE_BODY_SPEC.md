@@ -25,11 +25,20 @@ be joined exactly refuse rather than falling back to source parsing. `.DW` and
 symbolic low/high projections exclude the body, including merged symbolic tails.
 Constant-only operands do not contribute raw words; literal expressions do.
 
-Listing output offsets must include code-segment storage bytes. The xasm
-1.8.0 `list_storage()` bug requires a producer fix before rollout; the
-`test_listing_offsets.py` producer regression covers storage widths, segment
-switches and subsequent data/instructions. Incorrect listing/binary joins
-refuse with exit 65 rather than reconstructing offsets in the consumer.
+Listing output offsets must include code-segment storage bytes and exclude
+non-emitting data-segment bytes. The xasm 1.8.0 storage and initialized-data
+offset bugs require a producer fix before rollout. `test_listing_offsets.py`
+covers storage widths and their empty records, data-segment `.DB` / `.INCBIN`,
+segment switches and subsequent data/instructions in 28 subcases.
+Incorrect listing/binary joins refuse with exit 65 rather than reconstructing
+offsets in the consumer.
+
+Listing v1 still gives non-emitting data-segment rows byte arrays and numeric
+offsets without a per-row segment/emission marker. Such initialized data can
+therefore cause this consumer's binary validation to refuse otherwise valid
+assembly. The offset fix does not resolve that schema limitation; a separate
+versioned emission contract is needed before claiming general support for
+joining those rows. Data-segment storage with an empty byte array is supported.
 
 Owning wrappers reuse their fresh bundle without extra assembly. Standalone
 execution assembles once using the source-only `data-listing-v1` profile.
