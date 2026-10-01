@@ -781,12 +781,14 @@ Detailed wall/user/system samples and corpus pins stay in the local companion.
 
 Land in this order:
 
-1. Review and land the xasm listing fix, then build/install the corrected
-   producer. Before installation, run the implementation suite with its build
-   directory prepended to PATH and XASM_BIN selecting that same executable.
-   Update `XORCYST_REVISION` in `.github/workflows/ci.yml` to the reviewed
-   producer commit before landing the consumer; the current v1.8.0 pin lacks
-   the fix and must fail the new storage regression.
+1. The xasm fix is merged and published in
+   [XORcyst 1.8.1](https://github.com/khansen/xorcyst/releases/tag/v1.8.1).
+   `XORCYST_REVISION` in `.github/workflows/ci.yml` pins its release commit
+   `383bdbcf793282ad13b183c76f73e6a937911728`. Install the corrected producer
+   before the consumer rollout. Before installation, run the implementation
+   suite with its build directory prepended to PATH and XASM_BIN selecting
+   that same executable. Older v1.8.0 builds lack the fixes and fail the
+   storage regression.
 2. Review the consumer and the affected project's symbolic target/bank mapping
    independently. Run the full suite, deliberate regression checks, fresh
    cross-project verification/inventory comparisons and affected-wrapper timing
