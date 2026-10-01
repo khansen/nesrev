@@ -19,7 +19,12 @@ profile does not weaken a consumer's context or policy binding.
 | `process-instructions-v1` | inventory set plus index patterns and data consumers | Standalone process checks; ordinary warnings |
 | `maturity-instructions-v1` | data-only set plus instructions | Standalone maturity; ordinary warnings |
 | `instructions-v1` | binary, instructions | Source-only CLI and pending intake calibration; ordinary warnings |
+| `data-listing-v1` | binary, owner/data xref, listing | Source-only named pointer-table check; ordinary warnings |
 | `pass-prep-instructions-v1` | CI instruction set plus all-symbol summary and data coverage | Pass preparation; ordinary warnings |
+
+Both source-only profiles use `prepare-source`; `--profile data-listing-v1`
+selects the named-table profile. They cannot certify project/configuration
+context. Composite wrappers supply their existing richer bundles to this check.
 
 All profiles request the dependency manifest. Instructions are always separate
 from legacy xref, so data readers do not decode unused expression trees.
@@ -43,7 +48,8 @@ only after successful production. The descriptor certifies production, not that
 verification, process, maturity, or documentation policy passed.
 
 `NESREV_ANALYSIS_BUNDLE` supplies that descriptor to the embedded-pointer audit,
-extent checker, missing-extent scan, and branch-literal and raw-address leaves. Each validates dependencies and artifact hashes before
+extent checker, named pointer-table checker, missing-extent scan, and
+branch-literal and raw-address leaves. Each validates dependencies and artifact hashes before
 use and again after collection, before reporting success. Extent assertions must
 be among the bound policies. Project wrappers also check source/project/config
 and effective address-domain identity when loading configuration; CI validates

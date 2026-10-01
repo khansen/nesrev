@@ -9,8 +9,13 @@ feasibility check is complete. Its [v4 producer/consumer design](XASM_INSTRUCTIO
 is technically reviewed but deferred: the current advisory's corpus does not
 justify prioritizing a producer extension. The
 [raw low-address pass-selection migration](#raw-ram-evidence) corrects pointer
-access evidence using xasm v3; its coordinated ledger cutover remains a landing
-requirement. Other Phase 2 consumer migrations and Phase 3 remain planned.
+access evidence using xasm v3; tooling and the coordinated ledger cutover are
+complete. The [named pointer-table audit](#named-pointer-table-bodies) found
+real omissions that existing structured output can expose. Its structured
+consumer and coordinated baseline correction are implemented for review;
+landing also requires the xasm listing-storage offset fix. The broader
+[embedded-pointer feasibility audit](#embedded-pointer-audit) remains separate.
+Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -569,8 +574,9 @@ primary/supporting roles, access-owner ranking, missing-record refusal, and
 expansion identity each fail
 the intended regression test. Source/producer pins, detailed comparisons, and
 test receipts remain in local evidence; project-specific symbols and commit
-identities stay out of this shared plan. Integration into the live project
-checkout still requires the coordinated landing step above.
+identities stay out of this shared plan. The coordinated landing is complete:
+all 23 live project ledgers were regenerated through the wrappers at a pass
+boundary and matched the reviewed results, preserving authored review state.
 The [wrapper measurements](PROJECT_CI_PERFORMANCE_PLAN.md#raw-ram-pass-selection-measurements)
 exclude failed closeout paths from budget evidence and distinguish the largest
 source file from the largest instruction stream.
@@ -683,12 +689,156 @@ Implementation scope, under the v4 contract:
   instruction, destination symbol, and equate values.
 - Keep NESrev's semantic-name matching and exclusion policy in the consumer.
 
+<a id="named-pointer-table-bodies"></a>
+### In review: Named pointer-table bodies
+
+The bounded 2026-10-01 audit of `scripts/pointer_table_body_check.py` found
+nine omitted raw interleaved pointer tables in the current 23-project corpus.
+Manual consumer inspection confirmed their layout. Eight other raw tables in
+the affected project contain RAM pointers and should remain excluded; symbolic
+tables and procedures are also exclusions. This is a concrete consumer benefit
+using existing listing and xref output, with no demonstrated need for xasm v4.
+Detailed names, source pins, commands and results belong in the local evidence
+companion. The audit did not change production behavior.
+
+The implementation replaces this named-table heuristic with validated
+listing/data-xref joins, separate from `embedded_pointer_audit.py`'s dataflow
+confirmation. Do not widen
+the source parser: a probe shows that interpreting a split low-byte table as
+adjacent lo/hi pairs falsely reports ROM pointers when its paired values are
+all RAM addresses.
+
+#### Bounded implementation contract
+
+- Keep names as lexical policy. Cover selector forms such as `ImagePtrByIndex`
+  and `ImagePointerByIndex`, including variant-qualified forms such as
+  `ImagePtrAByIndex` and `ImagePtrBByIndex`. Require an uppercase letter or digit
+  immediately after `By`; reject `Byte`, `Bytes`, `Bypass`, `By_x` and a bare
+  `By`. Enumerate supported qualifier forms in tests rather than treating every
+  name containing `Ptr` and `By` as proof of a pointer table.
+- Obtain active definitions, directive kinds, emitted bytes and boundaries from
+  validated xref/listing artifacts. Join by definition provenance and output
+  position, not CPU address or owner spelling alone. Do not recover missing
+  facts from `source_text`. An instruction must terminate a data run; emission
+  gaps, origin/segment changes, aliases and repeated definitions need explicit
+  handling. Unsupported or ambiguous identity must not silently certify a table.
+- Interpret interleaved bytes as adjacent little-endian words. Recognize all
+  five existing split-name families before the interleaved case and pair by
+  matching prefix and selector. For complete equal-length halves, combine
+  corresponding low/high entries. Never decode one half as interleaved words;
+  unmatched or unequal halves have unresolved layout. Single-label split arrays
+  likewise require layout evidence; names alone do not prove interleaving.
+- Retain the ROM-address range and whole-body/prefix thresholds. RAM-only pairs
+  do not become findings. Preserve the intended `.DW` and symbolic low/high
+  projection exclusions using structured directive/reference fields. Specify
+  constant-only operands and mixed raw/symbolic bodies explicitly; the audit's
+  conservative exclusion of any symbol-bearing data is not a production rule.
+- Both owning wrappers already produce listing and data xref. Reuse their one
+  fresh validated bundle; reject missing, incompatible or stale evidence with
+  exit 65 and no source-parser fallback. Define standalone fresh production and
+  validate its arguments before assembly. Rewrite source-only tests that use
+  undefined symbols into assembling fixtures; distinguish usage errors (64),
+  evidence failures (65) and policy findings (68).
+- Preserve the gate distinction: `project-verify` rejects whole-body-ratio
+  findings; `project-maturity-check` also rejects prefix-only findings. All nine
+  observed omissions meet the whole-body threshold. Correct and verify the
+  affected project baseline in the coordinated landing unit, without weakening
+  the gate or silently introducing a selector-name exemption. Target naming,
+  bank mapping and parity need separate review before those source edits.
+
+#### Implementation and landing
+
+The consumer contract is now specified in
+[POINTER_TABLE_BODY_SPEC.md](POINTER_TABLE_BODY_SPEC.md). It adds the
+source-only `data-listing-v1` bundle profile for standalone execution; owning
+wrappers reuse their existing bundle. Tests exercise active/same-line data,
+code and segment boundaries, aliases, exact table-end markers, includes, repeated emissions, selector
+boundaries, split pairs, constant-only operands and symbolic tails. Macro-local
+and redefined identities with insufficient join evidence refuse with exit 65.
+The single-label split-RAM ambiguity case also refuses instead of reporting a
+misdecoded ROM table. These checks remain a named-byte heuristic; conversion
+still requires manual layout and target proof.
+
+The migration exposed an existing producer bug: `list_storage()` advances the
+CPU address but not the listing's binary offset for code-segment reservations.
+Fix that counter in xasm, preserving non-emitting data-segment behavior. Do not
+work around it by reparsing source or reconstructing offsets in NESrev. The
+producer regression covers byte/word/dword storage in JSON and NDJSON listings,
+debug/non-debug modes, segment changes, data continuations and instructions.
+This corrects listing v1 and does not require instruction records v4.
+
+Land in this order:
+
+1. Review and land the xasm listing fix, then build/install the corrected
+   producer. Before installation, run the implementation suite with its build
+   directory prepended to PATH and XASM_BIN selecting that same executable.
+   Update `XORCYST_REVISION` in `.github/workflows/ci.yml` to the reviewed
+   producer commit before landing the consumer; the current v1.8.0 pin lacks
+   the fix and must fail the new storage regression.
+2. Review the consumer and the affected project's symbolic target/bank mapping
+   independently. Run the full suite, deliberate regression checks, fresh
+   cross-project verification/inventory comparisons and affected-wrapper timing
+   under the existing performance budget. Keep commands, hashes and detailed
+   corpus results in the local evidence companion.
+3. At the project pass boundary, land the shared tooling and reconcile the
+   affected baseline on current sources. Regenerate committed inventories,
+   including branch-literal provenance after source-line movement, and verify
+   parity, process and docs. Do not apply a stale inventory patch or weaken the
+   newly effective gate. Old bundle fingerprints must refuse and be refreshed.
+
+Instruction records v4 remain deferred. The broader embedded-pointer dataflow
+audit below remains separate from this implementation.
+
+<a id="embedded-pointer-audit"></a>
 ### Follow-up: Embedded-pointer audit proof heuristics
 
 `scripts/embedded_pointer_audit.py` is a hybrid, not a completed structured
 migration. Besides listing/index-pattern inputs, `struct_copy_deref_proof()`
 and `pointer_store_proof()` scan instruction text; `routine_block()` and
 `build_equ_aliases()` reconstruct scope and aliases from source.
+
+#### Next step: bounded feasibility and corpus audit
+
+Establish whether this migration would correct actual evidence before committing
+to implementation or another xasm extension. The baseline observed on
+2026-10-01 is **zero confirmed findings across 23 projects**, read from the
+retained final raw-RAM rollout `project-verify` logs. Those runs used
+`ALLOW_UNRESOLVED_LXXXX=1`; the embedded-pointer check remained enabled. This
+is an existing-consumer result, not a fresh embedded-pointer audit or proof that
+its confirmation heuristics are sound. Confirmed findings fail verification,
+so the audit must examine false confirmations as well as missed findings.
+
+1. Pin all 23 projects' sources, configuration, producer and consumer identities.
+   Reproduce the legacy baseline through canonical wrappers and obtain fresh,
+   validated v3 instruction records and the existing listing/index-pattern
+   inputs from the same sources. Do not compare against a stale pass cache.
+2. Compare individual byte-run candidates and proof decisions with the available
+   structured evidence, including candidates the legacy checker leaves
+   unconfirmed. Record supported, contradicted and unresolved relationships;
+   aggregate finding-count agreement alone is insufficient. Inspect differences
+   manually and distinguish actual corpus defects from synthetic coverage or
+   proposed changes in confirmation policy.
+3. Use small positive fixtures and independent refusal cases for different copy
+   indices, overwritten pointer bytes, unrelated dereferences, register clobbers,
+   alias/scope ambiguity, and unproven control-flow or cross-routine reachability.
+   A matching name or later indirect read alone must not establish pointer flow.
+4. Map each proof requirement to an existing structured field or a concrete
+   missing fact. Keep any comparison prototype local and limited to current
+   outputs; do not extend source parsers, implement a general dataflow engine,
+   change production confirmation behavior, or build a producer extension as
+   part of this audit.
+5. Record the baseline, per-candidate differences, fixture outcomes, missing
+   facts and recommendation in the local corpus evidence companion. Finish with
+   a decision: propose a bounded migration using existing output when the
+   evidence justifies it, or defer and state what demonstrated consumer benefit
+   would justify the missing producer work. Synthetic improvements and Rule One
+   cleanup may be useful, but must not be presented as measured corpus gains.
+
+The audit ends with that decision and a concrete scope, not a production
+implementation. Keep instruction-record v4 deferred unless this or another
+consumer establishes a need for its specific label-content facts.
+
+#### Migration requirements, if justified
 
 - Prioritize replacing these parsers, not indexing their current text matches.
   The limited preprocessing exception in
@@ -828,8 +978,16 @@ removed:
       validated instruction profiles, and explicit refusal in owning wrappers.
 - [x] Migrate the raw-address KPI and its owning-wrapper measurement paths.
 - [x] Migrate raw low-address pass selection and owner attribution to v3 records.
-- [ ] Land the tooling and regenerate all project raw-RAM ledgers together at
+- [x] Land the tooling and regenerate all project raw-RAM ledgers together at
       a pass boundary, preserving authored review state.
+- [x] Audit [named pointer-table omissions](#named-pointer-table-bodies) across
+      all 23 projects and separate real ROM candidates from layout exclusions.
+- [x] Implement the named-table consumer contract using existing structured
+      output and prepare the newly visible baseline correction for review.
+- [ ] Land the reviewed listing-storage producer fix, consumer migration and
+      current-source baseline reconciliation with recorded validation.
+- [ ] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
+      separately before deciding whether its dataflow migration is justified.
 - [x] Run the bounded negative-offset feasibility check and identify its
       missing bound-label data/code classification.
 - [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)

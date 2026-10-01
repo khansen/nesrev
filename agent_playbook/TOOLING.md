@@ -970,14 +970,14 @@ reviewed project-local zero baseline; operational/UTF-8 read failures remain
 hard errors in either mode.
 
 <a id="pointer-table-relocation-gate"></a>
-`pointer_table_body_check.py <asm>` flags labels named as a pointer table
-(`...PtrTable`, `...Pointers`, ...) whose body is still a raw numeric `.DB` lo/hi
-run — un-relocated embedded pointers the audit's consumer proof cannot see. It
-skips already-symbolic bodies (`.DW`, `.DB` with `<`/`>`) and non-PRG words, so
-headers and misnamed tables do not fire. `project-verify` hard-fails the
-established whole-body-ratio findings and reports newly detected leading-prefix
-findings as migration advisories; `project-maturity-check` rejects both. Recipe:
-[REVIEW_AUDITS.md#pointer-byte-consolidation-audit](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
+`pointer_table_body_check.py <asm>` uses validated listing/xref data to report
+named raw ROM-pointer bodies, including selector and paired split-table forms.
+Owning wrappers share their bundle; standalone calls assemble once. Missing or
+ambiguous evidence refuses with exit 65. `project-verify` rejects whole-body
+ratio findings and reports prefix-only findings; maturity rejects both (68).
+The [body contract](../POINTER_TABLE_BODY_SPEC.md) defines naming, boundaries,
+exclusions and unresolved layouts. Conversion still requires target review.
+Recipe: [pointer-byte consolidation](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 
 ### Raw-address audit
 

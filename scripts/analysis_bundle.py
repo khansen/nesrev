@@ -31,9 +31,11 @@ PROFILES = {
     "process-instructions-v1": {"binary", "xref", "instructions", "index_patterns", "data_consumers"},
     "maturity-instructions-v1": ARTIFACTS | {"instructions"},
     "instructions-v1": {"binary", "instructions"},
+    "data-listing-v1": {"binary", "xref", "listing"},
     "pass-prep-instructions-v1": ARTIFACTS | {"instructions", "summary", "coverage"},
 }
 STRICT_PROFILES = {PROFILE, "ci-instructions-v1"}
+SOURCE_PROFILES = {"instructions-v1", "data-listing-v1"}
 ROLES = {"source", "binary", "charmap", "analysis_source", "comparison", "producer"}
 
 
@@ -233,7 +235,7 @@ def check_context(context, source=None):
     require(isinstance(context.get("policies"), list), "missing policy inputs")
     for policy in context["policies"]:
         check_stamp(policy, optional=True)
-    if context["profile"] == "instructions-v1":
+    if context["profile"] in SOURCE_PROFILES:
         require(all(context.get(key) is None for key in ("config", "project", "rom_range", "cpu_base")),
                 "source-only profile cannot certify project context")
         return
@@ -362,8 +364,9 @@ def expected_argv(context, outputs, manifest, producer):
     return argv + ["--dependency-manifest=" + manifest, context["source_argument"]]
 
 
-def prepare_source(directory, source, policies):
-    context = {"profile": "instructions-v1", "project": None, "config": None,
+def prepare_source(directory, source, policies, profile="instructions-v1"):
+    require(profile in SOURCE_PROFILES, "source-only profile required")
+    context = {"profile": profile, "project": None, "config": None,
                "source": absolute(source), "source_argument": str(source),
                "rom_range": None, "cpu_base": None,
                "policies": [fingerprint(p) for p in dict.fromkeys(policies)]}
@@ -432,6 +435,7 @@ def main():
     source_prepare.add_argument("directory")
     source_prepare.add_argument("source")
     source_prepare.add_argument("policies", nargs="*")
+    source_prepare.add_argument("--profile", choices=sorted(SOURCE_PROFILES), default="instructions-v1")
     artifact = commands.add_parser("artifact")
     artifact.add_argument("path")
     artifact.add_argument("name")
@@ -459,7 +463,7 @@ def main():
     elif args.command == "prepare":
         config = fingerprint(args.config)
         require(config["sha256"] == args.config_digest, "configuration changed while loading")
-        require(args.profile != "instructions-v1", "use prepare-source for the source-only profile")
+        require(args.profile not in SOURCE_PROFILES, "use prepare-source for the source-only profile")
         context = {"profile": args.profile, "project": args.project, "config": absolute(args.config),
                    "source": absolute(args.source), "source_argument": args.source,
                    "rom_range": args.rom_range, "cpu_base": args.cpu_base,
@@ -468,7 +472,7 @@ def main():
         check_context(context)
         write_json(Path(args.directory) / "context.json", context)
     elif args.command == "prepare-source":
-        prepare_source(args.directory, args.source, args.policies)
+        prepare_source(args.directory, args.source, args.policies, args.profile)
     elif args.command == "produce":
         return produce(args.directory, args.source, args.output, args.profile)
     elif args.command == "artifact":
