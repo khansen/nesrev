@@ -22,20 +22,21 @@ FIELDNAMES = (
     "notes",
 )
 
-SPLIT_POINTER_SUFFIXES = (
-    ("PtrLoTable", "PtrHiTable"),
-    ("PointerLoTable", "PointerHiTable"),
-    ("PtrLowTable", "PtrHighTable"),
-    ("LoPtrTable", "HiPtrTable"),
-    ("LowPtrTable", "HighPtrTable"),
+SPLIT_POINTER_PARTS = (
+    ("PtrLo", "PtrHi"),
+    ("PointerLo", "PointerHi"),
+    ("PtrLow", "PtrHigh"),
+    ("LoPtr", "HiPtr"),
+    ("LowPtr", "HighPtr"),
 )
 
 
 def split_counterpart(label: str, from_lo: bool) -> str:
-    for lo_suffix, hi_suffix in SPLIT_POINTER_SUFFIXES:
-        source, dest = (lo_suffix, hi_suffix) if from_lo else (hi_suffix, lo_suffix)
-        if label.endswith(source):
-            return f"{label[:-len(source)]}{dest}"
+    for lo_part, hi_part in SPLIT_POINTER_PARTS:
+        source, dest = (lo_part, hi_part) if from_lo else (hi_part, lo_part)
+        prefix, part, suffix = label.rpartition(source)
+        if part and (suffix == "Table" or (suffix.startswith("By") and len(suffix) > 2)):
+            return f"{prefix}{dest}{suffix}"
     return ""
 
 

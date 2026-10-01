@@ -790,12 +790,12 @@ mixed with bank, VRAM address, and count bytes. `project-verify` checks the
 ledger when it exists, so reverting such fields to raw low/high bytes fails
 until inventory and xref agree.
 
-`split_pointer_targets.csv` consumes the same xref for paired low/high byte
-tables (`FooPtrLoTable` `<Target` plus `FooPtrHiTable` `>Target`). NESrev keeps
-the suffix-pairing policy; the sync check requires complete symbolic bodies,
-equal counts, correct projections, and identical per-index target expressions.
-A lone suffix match is outside this paired-table ledger because some low-only
-tables supply a constant high byte elsewhere.
+`split_pointer_targets.csv` pairs xref low/high byte tables by name: `FooPtrLoTable`
+with `FooPtrHiTable`, or matching `By<index>` endings such as `PtrLoByRoomEdge`
+and `PtrHiByRoomEdge`. Other established low/high spellings support both forms.
+The sync check requires complete symbolic bodies, equal counts, correct projections,
+and identical targets per index. Prefix and index suffix must match; lone halves
+remain excluded because low-only tables can supply a constant high byte elsewhere.
 
 Pointer-inventory leaves never assemble. Owners share the
 [validated bundle](../ANALYSIS_BUNDLE_SPEC.md); standalone maturity produces one

@@ -4,6 +4,107 @@
 SPLIT_TARGETS="${REPO_ROOT}/scripts/split_pointer_targets.py"
 SPLIT_TARGETS_CHECK="${REPO_ROOT}/scripts/split_pointer_targets_check.sh"
 
+test_split_pointer_targets_preserves_entries_after_selector_rename() {
+  local fixture="${NESREV_TEST_TMPDIR}/split.asm"
+  cat > "${fixture}" <<'ASM'
+.ORG $C000
+ImagePtrLoTable:
+  .DB <North,<South,<West,<East
+ImagePtrHiTable:
+  .DB >North,>South,>West,>East
+MaskPtrLoTable:
+  .DB <East,<West,<South,<North
+MaskPtrHiTable:
+  .DB >East,>West,>South,>North
+North: .DB 1
+South: .DB 2
+West: .DB 3
+East: .DB 4
+ASM
+  local form
+  for form in table selector; do
+    "${XASM_BIN:-$(command -v xasm)}" --pure-binary \
+      --xref="${NESREV_TEST_TMPDIR}/${form}.json" --xref-format=json \
+      --xref-data=true --xref-include-owner=true \
+      -o "${NESREV_TEST_TMPDIR}/${form}.bin" "${fixture}"
+    python3 "${SPLIT_TARGETS}" "${NESREV_TEST_TMPDIR}/${form}.json" \
+      "${NESREV_TEST_TMPDIR}/${form}.csv"
+    if [[ "${form}" == table ]]; then
+      python3 - "${fixture}" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace("Table", "BySide"))
+PY
+    fi
+  done
+  cmp "${NESREV_TEST_TMPDIR}/table.bin" "${NESREV_TEST_TMPDIR}/selector.bin" \
+    || fail "renaming split tables must preserve emitted bytes"
+  python3 - "${NESREV_TEST_TMPDIR}" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+with (root / "table.csv").open() as source:
+    before = list(csv.DictReader(source))
+with (root / "selector.csv").open() as source:
+    after = list(csv.DictReader(source))
+assert len(before) == 8, before
+assert len(after) == 8, f"selector rename lost split pointer targets: {after!r}"
+for row in before:
+    for field in ("lo_source", "hi_source"):
+        row[field] = row[field].replace("Table", "BySide")
+assert after == before, (before, after)
+PY
+  assert_exit 0 bash "${SPLIT_TARGETS_CHECK}" \
+    "${NESREV_TEST_TMPDIR}/selector.json" "${NESREV_TEST_TMPDIR}/selector.csv"
+  printf 'lo_source,hi_source,entry,target_label,target_type,confidence,notes\n' \
+    > "${NESREV_TEST_TMPDIR}/missing.csv"
+  assert_exit 67 bash "${SPLIT_TARGETS_CHECK}" \
+    "${NESREV_TEST_TMPDIR}/selector.json" "${NESREV_TEST_TMPDIR}/missing.csv"
+}
+
+test_split_pointer_targets_selector_names_keep_validation() {
+  python3 - "${REPO_ROOT}/scripts" <<'PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+from split_pointer_targets import inventory_rows
+
+for low, high in (("PtrLo", "PtrHi"), ("PointerLo", "PointerHi"),
+                  ("PtrLow", "PtrHigh"), ("LoPtr", "HiPtr"), ("LowPtr", "HighPtr")):
+    lo, hi = f"Frame{low}ByVariant", f"Frame{high}ByVariant"
+    payload = {"symbols": [
+        {"name": name, "kind": "label", "scope": "global",
+         "definition": {"file": "input.asm", "line": line, "output_offset": offset}}
+        for name, line, offset in ((lo, 1, 0), (hi, 2, 1), ("End", 3, 2))
+    ], "data_directive_references": [
+        {"directive": ".DB", "width_bytes": 1, "owner_symbol": name,
+         "owner_item_index": 0, "expression": expression,
+         "target_projection": projection, "target_kind": "data"}
+        for name, expression, projection in ((lo, "<Target", "low"), (hi, ">Target", "high"))
+    ]}
+    rows, errors = inventory_rows(payload)
+    assert not errors and len(rows) == 1, (lo, rows, errors)
+    high_record = payload["data_directive_references"][1]
+    high_record["expression"] = ">OtherTarget"
+    rows, errors = inventory_rows(payload)
+    assert not rows and any("target mismatch" in error for error in errors), (lo, errors)
+    high_record["expression"] = "<Target"
+    high_record["target_projection"] = "low"
+    rows, errors = inventory_rows(payload)
+    assert not rows and any("must use symbolic >Target" in error for error in errors), (lo, errors)
+    high_record["expression"] = ">Target"
+    high_record["target_projection"] = "high"
+    # A different selector is a different family, even when target bytes agree.
+    high_record["owner_symbol"] = hi.replace("Variant", "Side")
+    payload["symbols"][1]["name"] = high_record["owner_symbol"]
+    rows, errors = inventory_rows(payload)
+    assert not rows and not errors, (lo, rows, errors)
+PY
+}
+
 test_split_pointer_targets_extracts_paired_tables() {
   local xref="${NESREV_TEST_TMPDIR}/split_targets.json"
   local csv="${NESREV_TEST_TMPDIR}/split_pointer_targets.csv"

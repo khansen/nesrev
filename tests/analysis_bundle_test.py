@@ -2,6 +2,7 @@
 """Synthetic producer/refusal tests; no private project inputs."""
 
 import copy
+import csv
 import json
 import os
 from pathlib import Path
@@ -409,6 +410,63 @@ bash scripts/project_docs_check.sh "$1"
                 self.assertEqual(len(self.calls.read_text().splitlines()), 1)
                 for name, rows in stale.items():
                     self.assertEqual(json.loads((cache / name).read_text()), rows)
+
+    def test_closeout_keeps_current_inactive_owners_with_a_valid_stale_cache(self):
+        project = self.make_ci_fixture()
+        env = self.counted_environment()
+        docs = project / "docs/reverse_engineering"
+        inventory = docs / "inventory"
+        cache = inventory / "pass"
+        source = project / "asm/input.asm"
+        source.write_text(source.read_text().replace(
+            ".ORG $C000", "ZP_Counter .EQU $10\n.ORG $C000").replace(
+            " RTS", " LDA ZP_Counter\n STA ZP_Counter\n RTS").replace("16377", "16373"))
+        reference = project / "reference/input.nes"
+        reference.write_bytes(reference.read_bytes()[:16] +
+                              b"\xa5\x10\x85\x10\x60" + bytes(16373) + b"\x00\xc0" * 3)
+        ledger = inventory / "raw_ram_review.csv"
+        ledger.write_text(
+            "addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,"
+            "distinct_owner_count,read_count,write_count,top_readers,top_writers\n"
+            "0x0010,symbolized,ZP_Counter,retain authored decision,1,no,2,1,1,1,Reset:1,Reset:1\n")
+        prep = subprocess.run(["bash", "scripts/project_pass_prep.sh", "synthetic"],
+                              env=env, capture_output=True, text=True)
+        self.assertEqual(prep.returncode, 0, prep.stdout + prep.stderr)
+        cached = {name: (cache / name).read_bytes()
+                  for name in ("instructions.json", "xref_with_data.json")}
+        self.assertIn(b"Reset", cached["instructions.json"])
+        for command in (["git", "init", "-q"], ["git", "add", "."],
+                        ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                         "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null",
+                         "commit", "-qm", "Synthetic owner baseline"]):
+            subprocess.run(command, check=True, capture_output=True)
+        source.write_text(source.read_text().replace("Reset", "FrameEntry"))
+        for document in docs.glob("*.md"):
+            document.write_text(document.read_text().replace("Reset", "FrameEntry"))
+        with (inventory / "renames.csv").open("a") as stream:
+            stream.write("Reset,FrameEntry,name the frame entry,high confidence,1\n")
+        self.calls.write_text("")
+        closeout = subprocess.run(
+            ["bash", "scripts/project_pass_closeout.sh", "synthetic", "1", "strict"],
+            env=env, capture_output=True, text=True)
+        self.assertEqual(closeout.returncode, 0, closeout.stdout + closeout.stderr)
+        self.assertEqual(len(self.calls.read_text().splitlines()), 1)
+        with ledger.open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0], {
+            "addr_hex": "0x0010", "status": "symbolized", "proposed_symbol": "ZP_Counter",
+            "notes": "retain authored decision", "last_pass_reviewed": "1", "active": "no",
+            "operand_count": "2", "distinct_owner_count": "1", "read_count": "1",
+            "write_count": "1", "top_readers": "FrameEntry:1", "top_writers": "FrameEntry:1",
+        })
+        for name, data in cached.items():
+            self.assertEqual((cache / name).read_bytes(), data)
+        before = ledger.read_bytes()
+        residue = subprocess.run(["bash", "scripts/project_pass_residue_check.sh", "synthetic", "1"],
+                                 env=env, capture_output=True, text=True)
+        self.assertEqual(residue.returncode, 0, residue.stdout + residue.stderr)
+        self.assertEqual(ledger.read_bytes(), before, "closeout left stale owner residue")
 
     def test_extent_scan_bundle_binding_and_refusal(self):
         self.source.write_text('.ORG $C000\nReset:\n AND #3\n TAX\n LDA Table,X\n RTS\nTable:\n.DB 1,2,3,4\n')
