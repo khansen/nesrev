@@ -114,6 +114,7 @@ ALLOWED_CONDITIONAL_FIELDS = {
     "TMPDIR_CHECK_DOCS",  # wrapper-owned temporary workspace
     "FORMAT",  # validated presentation choice
     "PROJECT_NEXT_PASS_AUTO_PREP",  # one-run cache refresh control
+    "PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY",  # one-run ledger refresh, not pass selection
     "CURRENT_HEAD",
     "HEAD_MARKER",
     "NEEDS_PREP",

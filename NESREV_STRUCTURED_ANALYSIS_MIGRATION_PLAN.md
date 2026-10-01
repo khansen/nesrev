@@ -3,12 +3,14 @@
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
 data-analysis bundle are implemented. Branch-literal consumers now use validated
-instruction records, as do the raw-address KPI and symbolized raw-RAM owner
-refresh, all on instruction records version 3. The bounded negative-offset
+instruction records, as do the raw-address KPI, raw low-address pass selection,
+and symbolized raw-RAM owner refresh, all on instruction records version 3. The bounded negative-offset
 feasibility check is complete. Its [v4 producer/consumer design](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
 is technically reviewed but deferred: the current advisory's corpus does not
-justify prioritizing a producer extension. Other Phase 2 consumer migrations
-and Phase 3 remain planned.
+justify prioritizing a producer extension. The
+[raw low-address pass-selection migration](#raw-ram-evidence) corrects pointer
+access evidence using xasm v3; its coordinated ledger cutover remains a landing
+requirement. Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
 
@@ -428,6 +430,151 @@ remains visible. The requirements below are the regression contract.
   general instruction records or extend the audit with the exact categories
   required by the KPI.
 
+<a id="raw-ram-evidence"></a>
+### Raw low-address pass-selection scan
+
+`project_next_pass.sh` now shares structured RAM access extraction between raw
+and symbolized operands. Its raw operand parser, mnemonic access classifier,
+and separate source owner index have been removed. The initial read-only
+comparison of all 23 committed project sources produced 177,819 validated v3
+instruction records and established the migration priority:
+
+| Candidate | Corpus result | Decision |
+| --- | --- | --- |
+| Raw low-address pass-selection evidence | All 5,203 operand sites and owners agree, but 76 indirect stores are classified as writes to the pointer byte; 161 reads of pointer high bytes are absent | Migrate next using v3 `memory_access` and `lexical_owner` |
+| Suspicious RAM/ZP immediates | No findings in either the legacy gate or the structured candidate scan | Defer; no observed corpus correction |
+| Raw immediate followed by a state/request store | All 64 findings and candidate sets agree with the same constant policy; resolved equates add three candidates whose semantic applicability still needs review | Defer; distinguish broader constant coverage from proven corrections |
+| Negative indexed data offsets | 105 existing advisory findings; the known synthetic coverage defects do not establish a current corpus payoff for the v4 extension | Defer the producer extension |
+
+The raw access errors affect read/write counts, owner provenance summaries, and
+RAM corridor evidence used by pass selection. For `STA [$02],Y`, the instruction
+reads pointer bytes `$02` and `$03`; its write destination is indirect. The old
+mnemonic-only classifier instead records a write to `$02` and omits `$03`.
+The existing symbolized-RAM analysis already used the producer's pointer-byte
+facts; sharing extraction removes that disagreement with the raw path.
+
+Implemented contract:
+
+- Consume the existing validated instruction document already supplied to pass
+  preparation/next-pass. Closeout and prep refreshes use their supplied fresh
+  bundle's instructions and xref, without consulting stale pass-cache copies.
+  Supplied bundles are accepted only in raw-RAM refresh-only mode; a full
+  next-pass run refuses them with exit 65 before auto-prep or ledger writes.
+  Full runs read all structured analysis artifacts from the pass cache.
+  No xasm schema change, output, or invocation is needed.
+- Keep raw-literal eligibility and the low-address bound explicit. Use the
+  preserved expression for literal identity and source spelling only for the
+  existing hexadecimal policy; do not reparse operands from text. If xasm
+  truncates an out-of-range pointer, retain the written literal as the rename
+  candidate while attributing reads to the producer's resolved pointer bytes.
+- Take direct data reads/writes/read-modify-writes and both pointer-byte reads
+  from `memory_access`, including its resolved wrap behavior. Direct control-flow
+  targets without memory accesses are excluded from the RAM candidate queue,
+  including direct jumps/calls to RAM-resident code. Indirect jumps still expose
+  their pointer-byte reads. Retain source/use provenance
+  and use record identity (`origin_id` within the document), not a source line,
+  to distinguish instructions that share a span.
+- Share access extraction with the existing symbolized-RAM path where practical,
+  retaining their separate eligibility policies. Remove the superseded raw
+  operand parser, mnemonic access classifier, and its unused source owner-index
+  helpers; do not expand this into unrelated source-index migrations.
+
+Queue membership and counts:
+
+- Create raw candidates only for addresses explicitly spelled by eligible raw
+  data-access or pointer literals. A pointer high byte alone must not create a
+  candidate or a new
+  `raw_ram_review.csv` row. Add its read evidence to an address row only if that
+  address is already a raw candidate or has a review row. Retain the complete
+  pointer pair on the originating site even when the high byte has no row.
+- `operand_count` counts distinct instructions explicitly addressing the row's
+  byte: the raw literal for an active raw candidate; the resolved direct address
+  or pointer base for the existing canonical-equate path. Apply this rule to
+  both paths. A high-byte-only touch contributes zero operands. Symbolized
+  expressions retain their current resolved-address policy; a base equate plus
+  an offset contributes to the resolved address, not the equate's own address.
+- `read_count` and `write_count` count per-byte instruction accesses, including
+  supporting pointer-high reads. Deduplicate by record and byte; a
+  read-modify-write contributes once to each count. Active rows use eligible raw
+  records. Existing inactive rows use the symbolized path plus any raw
+  pointer-high support; a row with only that support is inactive with
+  `operand_count=0`. No new row is added solely by the symbolized path either.
+- Keep primary operand sites separate from supporting accesses throughout
+  aggregation. Candidate ranking's `operand_count`, cluster operand counts,
+  actionable counts, and member site counts use primary instructions only.
+  Supporting reads cannot create an actionable cluster member in an owner that
+  never spells that raw address. Read/write summaries and distinct access-owner
+  counts include supporting owners, so scoping decisions still see shared-byte
+  evidence. The owner-count ranking bands and scoped-overlay decision use this
+  full access-owner count, so supporting reads may change either result. A
+  supporting owner alone is not a new place to rename a literal.
+- Preserve authored status, proposed symbol, notes, last-reviewed pass, and row
+  order. Refresh generated facts under these rules; do not promote a reviewed
+  high-byte row to active merely because a pointer reads it. The raw-address KPI
+  keeps its own counting contract. Supporting byte reads are evidence, not
+  additional operands or promised new ledger rows.
+
+Paths and owners:
+
+- Emit the configured `ASM_FILE` spelling for the root source and repo-relative
+  paths for includes in sites, cluster definitions, and briefs. Keep resolved
+  paths internally for identity, validation, and excerpt loading; do not rewrite
+  the validated instruction document's file table. Test from two checkout roots
+  so machine-specific absolute paths cannot leak into generated prose.
+- Use `lexical_owner`, including global data labels. This intentionally replaces
+  the legacy owner index's data-label exclusion: an instruction following a
+  global data label with no intervening global label belongs to that data label.
+  This is lexical provenance, not proof that the label defines a routine. The
+  audited corpus has no primary-site owner differences; the policy change still
+  needs a fixture and must be recorded in the migration comparison.
+
+Acceptance and landing:
+
+- Test indirect loads/stores, read-modify-write, pointer wrapping, expanded
+  instructions sharing spans, and direct control-flow exclusion. Exercise a
+  pointer high byte with no row, with an existing inactive row, and with its own
+  raw literal elsewhere. Assert operand counts, byte counts, active flags,
+  supporting owners, and cluster membership/ranking separately. Update the
+  symbolized-owner refresh fixture's high-byte-only expectations to zero
+  operands while preserving its read evidence.
+- Compare fresh legacy/structured evidence on the same pinned sources for all
+  23 projects, including site membership, owners, ledger facts, clusters, and
+  recommendations. Retain the source and producer identities with the results;
+  a local pass cache that may lag source edits is not a comparison baseline.
+  Measure against the existing wrapper performance budget.
+- Land the tooling, then integrate it on `projects` at a pass boundary before
+  another semantic pass or closeout. Regenerate `raw_ram_review.csv` for all 23
+  projects through the canonical wrappers and commit all resulting ledger
+  changes together in one dedicated regeneration commit. Review pointer-related
+  changes once, verify authored fields are preserved, and account for unchanged
+  ledgers too. This is required even without an xasm schema change: pass-prep
+  and closeout rewrite these committed counts, while inventory sync checks owner
+  names rather than factual count parity and cannot enforce the migration.
+
+The pass-boundary comparison uses 177,819 instructions and 4,829 eligible raw
+sites from freshly prepared sources. Primary site membership and owners match
+the legacy scan exactly. The migration corrects 76 indirect-store access kinds and retains
+158 additional supporting byte reads without introducing high-byte-only queue
+rows. Generated facts change in 190 rows across 18 projects; five ledgers remain
+identical. Authored review fields, row membership/order, recommended pass types,
+cluster ordering, and all 23 committed branch-literal inventories are unchanged.
+All 23 project verification wrappers preserve binary identity, with the existing
+`ALLOW_UNRESOLVED_LXXXX=1` allowance enabled. All 23 process checks pass with
+the refreshed ledgers. This is not a gold-standard maturity claim.
+
+The repository suite passes, including real-producer fixtures and the
+single-assembly closeout test with an intentionally stale instruction cache.
+Disposable mutations of supplied-bundle mode, pointer access kinds,
+primary/supporting roles, access-owner ranking, missing-record refusal, and
+expansion identity each fail
+the intended regression test. Source/producer pins, detailed comparisons, and
+test receipts remain in local evidence; project-specific symbols and commit
+identities stay out of this shared plan. Integration into the live project
+checkout still requires the coordinated landing step above.
+The [wrapper measurements](PROJECT_CI_PERFORMANCE_PLAN.md#raw-ram-pass-selection-measurements)
+exclude failed closeout paths from budget evidence and distinguish the largest
+source file from the largest instruction stream.
+
 ### 7. Negative indexed data offsets
 
 Deferred after design review and corpus prioritization. The v4 contract remains
@@ -680,6 +827,9 @@ removed:
 - [x] Migrate branch literals with one typed classifier, CSV v2 provenance,
       validated instruction profiles, and explicit refusal in owning wrappers.
 - [x] Migrate the raw-address KPI and its owning-wrapper measurement paths.
+- [x] Migrate raw low-address pass selection and owner attribution to v3 records.
+- [ ] Land the tooling and regenerate all project raw-RAM ledgers together at
+      a pass boundary, preserving authored review state.
 - [x] Run the bounded negative-offset feasibility check and identify its
       missing bound-label data/code classification.
 - [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
@@ -697,8 +847,6 @@ removed:
       drift and prior-project reuse where useful.
 - [x] Adopt xasm instruction records versions 2 and 3 together, including
       production-time validation and byte-bound validation reuse.
-- [ ] Migrate `project_next_pass.sh`'s raw low-address operand scan and source
-      owner index to instruction records version 3.
 - [ ] Take `data_label_doc_kpi.sh`'s data-label and family identity from
       structured output, keeping its header parsing lexical.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.

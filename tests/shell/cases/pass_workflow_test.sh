@@ -1733,6 +1733,10 @@ JSON
 cat > "${pass_dir}/index_patterns.json" <<'JSON'
 []
 JSON
+"${XASM_BIN:-xasm}" --pure-binary -o "${pass_dir}/fixture.bin" \
+  --instruction-records-output="${pass_dir}/instructions.json" \
+  --dependency-manifest="${pass_dir}/fixture.deps.json" \
+  "projects/${slug}/asm/${slug}.asm"
 SH
 
   local out err
@@ -3107,6 +3111,7 @@ JSON
 {"recommended_pass":{"type":"doc_closure"}}
 JSON
 
+  _assemble_pass_cache "${slug}" keep-xref
   local output
   output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" text)"
 
@@ -3646,6 +3651,7 @@ ASM
 }
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
     bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
@@ -3666,7 +3672,7 @@ if "LC004" in row["top_readers"] or "LC004" in row["top_writers"]:
 PY
 }
 
-test_next_pass_raw_ram_review_does_not_use_data_label_as_owner() {
+test_next_pass_raw_ram_review_uses_lexical_data_label_owner() {
   local slug; slug="$(unique_slug raw_owner_data)"
   trap "cleanup_project ${slug}" EXIT
   _make_workflow_project "${slug}" "none"
@@ -3727,6 +3733,7 @@ ASM
 }
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
     bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
@@ -3738,10 +3745,8 @@ with open(sys.argv[1], encoding="utf-8", newline="") as handle:
     rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
 
 row = rows["0x0010"]
-if "DataBlob" in row["top_readers"] or "DataBlob" in row["top_writers"]:
-    raise SystemExit(f"data label leaked into raw-RAM owner columns: {row!r}")
-if row["top_readers"] != "Reset:1" or row["top_writers"] != "Reset:1":
-    raise SystemExit(f"expected data-labeled raw sites to fall back to Reset owner, got {row!r}")
+if row["top_readers"] != "DataBlob:1" or row["top_writers"] != "DataBlob:1":
+    raise SystemExit(f"expected assembler lexical owner DataBlob, got {row!r}")
 PY
 }
 
@@ -4020,15 +4025,15 @@ expected = {
     "0x0012": ("NewOwner:1", "NewOwner:1", "2", "1", "1"),
     "0x0018": ("NewOwner:1", "NewOwner:1", "1", "1", "1"),
     "0x0020": ("NewOwner:1", "", "1", "1", "0"),
-    "0x0021": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0021": ("NewOwner:1", "", "0", "1", "0"),
     "0x0022": ("NewOwner:1", "", "1", "1", "0"),
-    "0x0023": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0023": ("NewOwner:1", "", "0", "1", "0"),
     # JMP [addr] reads its vector; xasm's memory_access says which bytes.
     "0x0024": ("NewOwner:1", "", "1", "1", "0"),
-    "0x0025": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0025": ("NewOwner:1", "", "0", "1", "0"),
     # A zero-page pointer at $FF takes its high byte from $00.
     "0x00ff": ("NewOwner:1", "", "1", "1", "0"),
-    "0x0000": ("NewOwner:1", "", "1", "1", "0"),
+    "0x0000": ("NewOwner:1", "", "0", "1", "0"),
     "0x0302": ("", "NewOwner:1", "1", "0", "1"),
 }
 for addr, want in expected.items():
@@ -4081,6 +4086,110 @@ PY
   assert_eq "${rc}" "65" "malformed instruction records must fail with a contract error"
   assert_match 'instructions\.json: invalid instruction records: version 3 required' "${output}"
   assert_not_match 'Traceback' "${output}"
+}
+
+test_next_pass_raw_ram_pointer_support_never_creates_rename_targets() {
+  local slug; slug="$(unique_slug raw_pointer_support)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared pointer evidence fixture."
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+PointerOwner:
+  STA [$20],Y
+  STA [$22],Y
+  LDA [$24],Y
+  LDA [$FF],Y
+LiteralOwner:
+  LDA $21
+  INC $21
+  STA $26
+ASM
+  _write_raw_ram_mode_baseline "${slug}" 7
+  cat > "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" <<'EOF'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0023,deferred,,keep authored note,7,no,9,1,9,0,OldOwner:9,
+EOF
+  _assemble_pass_cache "${slug}"
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json > "${NESREV_TEST_TMPDIR}/result.json"
+  python3 - "projects/${slug}" "${NESREV_TEST_TMPDIR}/result.json" <<'PY'
+import csv
+import json
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+with (root / 'docs/reverse_engineering/inventory/raw_ram_review.csv').open() as f:
+    rows = {row['addr_hex']: row for row in csv.DictReader(f)}
+assert list(rows)[0] == '0x0023'
+assert not {'0x0025', '0x0000'} & set(rows), rows
+high = rows['0x0023']
+assert (high['active'], high['operand_count'], high['read_count']) == ('no', '0', '1'), high
+assert (high['status'], high['notes'], high['last_pass_reviewed']) == ('deferred', 'keep authored note', '7')
+assert high['top_readers'] == 'PointerOwner:1'
+row = rows['0x0021']
+assert (row['operand_count'], row['read_count'], row['write_count'], row['distinct_owner_count']) == ('2', '3', '1', '2'), row
+assert rows['0x0020']['write_count'] == '0'
+clusters = json.loads(Path(sys.argv[2]).read_text())['cluster_candidates']
+by_owner = {c['anchor']: c for c in clusters}
+pointer = by_owner['PointerOwner']
+assert pointer['actionable_operand_count'] == 4, pointer
+assert {m['addr_hex'] for m in pointer['members']} == {'0x0020', '0x0022', '0x0024', '0x00ff'}, pointer
+literal = by_owner['LiteralOwner']
+assert literal['actionable_operand_count'] == 3, literal
+assert literal['scoped_overlay_candidates'] == ['0x0021'], literal
+assert all(not Path(c['definition']['file']).is_absolute() for c in clusters)
+PY
+}
+
+test_next_pass_raw_ram_owner_bands_include_supporting_reads() {
+  local slug; slug="$(unique_slug raw_pointer_bands)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Prepared access-owner ranking fixture."
+  local asm="projects/${slug}/asm/${slug}.asm"
+  cat > "${asm}" <<'ASM'
+.ORG $C000
+Target:
+  LDA $31
+  STA $31
+Other:
+  LDA $40
+ASM
+  local i
+  for i in 1 2 3 4 5 6 7 8; do
+    printf 'PointerReader%s:\n  LDA [$30],Y\n' "${i}" >> "${asm}"
+  done
+  _write_raw_ram_mode_baseline "${slug}" 11
+  _assemble_pass_cache "${slug}"
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json > "${NESREV_TEST_TMPDIR}/result.json"
+  python3 - "${NESREV_TEST_TMPDIR}/result.json" <<'PY'
+import json
+import sys
+clusters = json.load(open(sys.argv[1]))['cluster_candidates']
+anchors = [c['anchor'] for c in clusters]
+assert anchors.index('raw_$0040') < anchors.index('raw_$0031'), anchors
+target = next(c for c in clusters if c['anchor'] == 'raw_$0031')
+assert target['operand_count'] == 2, target
+assert target['members'][0]['read_count'] == 9, target
+assert target['scoped_overlay_candidates'] == ['0x0031'], target
+assert target['top_callers'] == ['Target'], target
+PY
+}
+
+test_next_pass_raw_ram_refuses_missing_instruction_records() {
+  local slug; slug="$(unique_slug raw_missing_records)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  local output rc
+  set +e
+  output="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" "65"
+  assert_match 'instruction cache required; rerun project-pass-prep' "${output}"
+  [[ ! -e "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" ]]
 }
 
 test_next_pass_raw_ram_symbol_map_refuses_noncanonical_xref_symbols() {
@@ -4393,6 +4502,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0013,deferred,,already reviewed; wait for wider owner proof,7,yes,2,1,1,1,DenseReviewed:1,DenseReviewed:1
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
@@ -4505,6 +4615,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0041,deferred,,mixed role,7,yes,1,1,0,1,,BroadMixedAnchor:1
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
@@ -4559,6 +4670,7 @@ OwnerTwo:
 ASM
   _write_raw_ram_mode_baseline "${slug}" 8
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
@@ -4611,6 +4723,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0041,deferred,,mixed role,7,yes,1,1,0,1,,BroadMixedAnchor:1
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   python3 - "projects/${slug}/docs/reverse_engineering/inventory/pass/next_pass.json" <<'PY'
@@ -4657,6 +4770,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x0041,deferred,,mixed role,7,yes,1,1,0,1,,BroadMixedAnchor:1
 EOF
 
+  _assemble_pass_cache "${slug}" keep-xref
   local err
   err="$(PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json 2>&1 >/dev/null)"
 
@@ -4825,6 +4939,7 @@ EOF
   local before="${NESREV_TEST_TMPDIR}/${slug}_raw_before.csv"
   cp "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" "${before}"
 
+  _assemble_pass_cache "${slug}" keep-xref
   PROJECT_NEXT_PASS_AUTO_PREP=0 bash "${NEXT_PASS}" "${slug}" json >/dev/null
 
   cmp -s "${before}" "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" \
@@ -4849,4 +4964,21 @@ EOF
   order="$(awk -F, 'NR>1 {print $1}' "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" | paste -sd ' ' -)"
   assert_eq "${order}" "0x0018 0x0008 0x0010" \
     "manual raw-RAM review updates must preserve existing row order and append new addresses"
+}
+
+
+test_next_pass_supplied_bundle_requires_refresh_only_before_prep() {
+  local slug; slug="$(unique_slug raw_bundle_mode)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  local prep="${NESREV_TEST_TMPDIR}/prep"
+  printf '#!/usr/bin/env bash\ntouch "%s"\n' "${NESREV_TEST_TMPDIR}/prep-called" > "${prep}"
+  local rc=0
+  NESREV_ANALYSIS_BUNDLE="${NESREV_TEST_TMPDIR}/missing-bundle" \
+    PROJECT_NEXT_PASS_PREP_SCRIPT="${prep}" PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >"${NESREV_TEST_TMPDIR}/out" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq 65 "${rc}" "full next-pass must reject supplied bundles"
+  assert_match 'supplied analysis bundles require raw-RAM refresh-only mode' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+  [[ ! -e "${NESREV_TEST_TMPDIR}/prep-called" ]] || fail "refusal must precede auto-prep"
+  [[ ! -e "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" ]] || fail "refusal must precede ledger writes"
 }
