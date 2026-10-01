@@ -3,11 +3,12 @@
 Status: Phase 1 and Phase 2's xasm instruction-record and consumed-input
 manifest producers, separate instruction output, and validated invocation-local
 data-analysis bundle are implemented. Branch-literal consumers now use validated
-instruction records, as do the raw-address KPI and the symbolized raw-RAM owner
-refresh, all on instruction records version 3. Negative indexed offsets are next,
-starting with the bounded
-feasibility check in their section; other Phase 2 consumer migrations and
-Phase 3 remain planned.
+instruction records, as do the raw-address KPI and symbolized raw-RAM owner
+refresh, all on instruction records version 3. The bounded negative-offset
+feasibility check is complete. Its [v4 producer/consumer design](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
+is technically reviewed but deferred: the current advisory's corpus does not
+justify prioritizing a producer extension. Other Phase 2 consumer migrations
+and Phase 3 remain planned.
 
 ## Purpose
 
@@ -71,6 +72,11 @@ acceptance criteria, and measurements; it is not a competing migration roadmap.
 - Re-profile after migrations and optimize the remaining supported paths.
   Exact reproduction of an old parser's output is a compatibility check, not
   sufficient justification for substantial investment in that parser.
+- Before prioritizing another producer extension, compare the legacy consumer
+  with current structured facts on the project corpus. Distinguish actual
+  incorrect findings or evidence from synthetic coverage improvements and
+  semantic-policy broadening. Prefer a bounded migration that corrects current
+  evidence using an existing producer contract.
 
 This sequencing does not weaken the migration/refusal contracts below or
 authorize implementation, publication, or merges without their normal approval.
@@ -424,6 +430,12 @@ remains visible. The requirements below are the regression contract.
 
 ### 7. Negative indexed data offsets
 
+Deferred after design review and corpus prioritization. The v4 contract remains
+available, but implementation should wait for a concrete additional consumer or
+a demonstrated corpus defect needing label-content classification. A future
+data-label inventory must be designed against its actual consumers rather than
+added solely to amortize this advisory's migration.
+
 The gains are correctness and maintenance: assembler-owned label and expression
 facts, consistent recognition of active expanded instructions, and one fewer
 assembly-text parser. This advisory check has no demonstrated performance
@@ -440,7 +452,68 @@ before the required final suite, corpus comparison and reviews, and avoid
 redundant runs against unchanged inputs. This does not waive mandatory reviews,
 final verification or reruns after changes that affect a check.
 
-Implementation scope, if the feasibility check supports it:
+#### Feasibility result
+
+The [focused synthetic fixture](tests/fixtures/negative_data_offset_feasibility.asm)
+was checked with xasm 1.8.0, instruction records v3 and xref v2. Instructions
+provide active emitted uses, index registers, lexical owners, source/use spans,
+and the subtraction tree. `additive_terms` identifies the actual label or
+constant binding; it also distinguishes identically spelled local labels even
+where `structural_base` is null.
+
+The missing direct fact is whether each bound label leads data or code:
+
+- Xref symbol `kind` distinguishes labels, local labels and equates; both
+  `Table` and `CodeEntry` are `label`. Instruction bindings also call both
+  `label`. The default bundle xref omits local symbols.
+- `data_directive_references.target_kind` can classify pointer targets, but
+  the fixture's literal-only data bodies produce no such records.
+- Data-consumer spans choose `Alias` over its same-address `Table` and
+  omit local table names. Index-pattern rows cover direct accesses, but omit
+  the indexed-indirect uses already accepted by this advisory. Neither is a
+  complete replacement for data-label classification.
+- A listing/xref join could establish leading emitted content, but needs an
+  explicit definition/alias/local-scope contract. The standalone process
+  profile has no listing, and the source-only profile has neither listing
+  nor xref. That route would expand bundle production and validation.
+
+xasm already keeps a code/data/unknown `definition_kind` internally in
+`listing.c` for pending labels and pointer-target classification, but it merges
+initialized data, storage, and binary inclusion. The
+[v4 design](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md) adds `binding.definition_content`
+with the original data/storage datatype, resolves each definition instance
+internally, and covers global/local aliases without address or source-span joins. It defines
+producer capture before lowering, strict validation, consumer policy, versioning,
+standalone invocation, and acceptance cases. Per-use metadata can share producer
+classification with a later data-label inventory, but does not enumerate
+unreferenced labels. Design review is complete; implementation is deferred.
+
+The fixture also demonstrates compatibility changes that need explicit review:
+the current scanner reports inactive code and confuses two `@@row` scopes,
+while missing macro expansion, the extra repeated use, and two instructions
+on one line. Preserve the literal-subtraction policy separately from expression
+evaluation: `Table-(1+1)` and `Table+(-1)` remain distinct policy decisions.
+
+Reproduce the producer evidence without a ROM:
+
+```sh
+mkdir -p tmp/negative-offset-feasibility
+xasm --pure-binary tests/fixtures/negative_data_offset_feasibility.asm \
+  -o tmp/negative-offset-feasibility/output.bin \
+  --xref=tmp/negative-offset-feasibility/xref.json \
+  --xref-data=true --xref-include-owner=true --xref-instructions=true \
+  --data-consumers --data-consumers-format=json \
+  --data-consumers-output=tmp/negative-offset-feasibility/consumers.json \
+  --analyze-index-patterns --index-patterns-format=json \
+  --index-patterns-output=tmp/negative-offset-feasibility/indexes.json
+```
+
+The bounded check compared plain assembly, those outputs, and local-symbol
+inclusion: bytes and diagnostics agreed, and the 21 instruction records passed
+the v3 validator. This is feasibility evidence only; no consumer migration,
+corpus equivalence or wrapper-performance result is claimed.
+
+Implementation scope, under the v4 contract:
 
 - Replace `scripts/negative_data_offset_check.py`'s label and operand parser.
 - Consume structured data-label kind, base symbol, negative displacement, index
@@ -548,6 +621,16 @@ Each migration must satisfy all of the following before the source parser is
 removed:
 
 - Pin producer and consumer versions and fail clearly on incompatible input.
+- Treat instruction-record schema changes as coordinated breaking upgrades.
+  Update affected NESrev consumers together; reject and regenerate old artifacts
+  instead of maintaining backward-compatible readers or format adapters.
+  This requires every consumer to reject old artifacts through strict version
+  checks or enforced producer/reader fingerprint validation; unversioned outputs
+  such as `index_patterns` and `data_consumers` need versioning or exclusive
+  access through validated fingerprinted bundles before using this approach.
+  Regenerate and commit derived inventories for every affected project in the
+  same upgrade when embedded record fields change; unchanged formats require
+  byte-identical regeneration as a regression check.
 - Establish whether each entry point runs only after successful assembly or
   must support intake before the source assembles. Preserve a required
   pre-assembly path only as an explicit, separately tested, limited text mode;
@@ -597,8 +680,12 @@ removed:
 - [x] Migrate branch literals with one typed classifier, CSV v2 provenance,
       validated instruction profiles, and explicit refusal in owning wrappers.
 - [x] Migrate the raw-address KPI and its owning-wrapper measurement paths.
-- [ ] Run the bounded negative-offset feasibility check before implementing that
-      migration.
+- [x] Run the bounded negative-offset feasibility check and identify its
+      missing bound-label data/code classification.
+- [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
+      before the negative-offset migration.
+- [ ] Deferred: implement xasm instruction records v4 and adopt its strict reader
+      when a concrete consumer payoff justifies the label-content extension.
 - [ ] Migrate negative offsets, suspicious immediates, and
       raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
