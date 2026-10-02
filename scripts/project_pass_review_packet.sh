@@ -307,6 +307,7 @@ format_lxxxx_count() {
 LEDGER_PATHS=()
 append_path_if_present "${WARN_BASELINE_FILE}"
 append_path_if_present "${DOC_ROOT}/inventory/deferrals.csv"
+append_path_if_present "${DOC_ROOT}/inventory/raw_ram_review.csv"
 append_path_if_present "${PROGRESS_SCORECARD_FILE}"
 append_path_if_present "${RENAMES_FILE}"
 append_path_if_present "${SEMANTIC_CLAIMS_FILE}"
@@ -363,8 +364,8 @@ VERIFY_CMD="$(
 XASM_ENV="XASM_BIN=$(shell_quote "${XASM_BIN:-xasm}")"
 PROCESS_CMD="${XASM_ENV} $(printf '%s project-process-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
 DOCS_CMD="${XASM_ENV} $(printf '%s project-docs-check PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
-NEXT_PASS_CMD="${XASM_ENV} $(printf '%s project-next-pass PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
-PREP_CMD="PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 ${XASM_ENV} $(printf '%s project-pass-prep PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+NEXT_PASS_CMD="PROJECT_NEXT_PASS_AUTO_PREP=0 ${XASM_ENV} $(printf '%s project-next-pass PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
+PREP_CMD="PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 ${XASM_ENV} $(printf '%s project-pass-prep PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
 PROOF_CMD="python3 scripts/proof_debt.py $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
 CROSSWALK_CMD="python3 scripts/proof_debt.py --crosswalk-only $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
 PREREQUISITE_ARGS=(python3 scripts/review_packet_evidence.py environment

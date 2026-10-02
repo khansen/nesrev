@@ -13,6 +13,17 @@ source "${SCRIPT_DIR}/project_common.sh"
 load_project_conf "$1"
 FORMAT="${2:-text}"
 
+if [[ "${PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW:-0}" == "1" ]]; then
+  if [[ "${PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY:-0}" != "1" || "${PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW:-0}" != "0" ]]; then
+    echo "error: raw-RAM reconciliation requires refresh-only mode with ledger writes disabled" >&2
+    exit 64
+  fi
+  if [[ -z "${NESREV_ANALYSIS_BUNDLE:-}" || "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
+    echo "error: raw-RAM reconciliation requires a fresh supplied bundle and auto-prep disabled" >&2
+    exit 65
+  fi
+fi
+
 if [[ "${FORMAT}" != "text" && "${FORMAT}" != "json" ]]; then
   echo "error: format must be text or json" >&2
   exit 2
@@ -1578,7 +1589,16 @@ file_symbol_index = build_file_symbol_index(xref)
 owner_ref_map = build_owner_ref_map(xref)
 owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
 globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
-raw_ram_review = load_raw_ram_review(raw_ram_review_path)
+check_raw_ram_review = os.environ.get("PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW") == "1"
+try:
+    if check_raw_ram_review:
+        import raw_ram_reconciliation
+        raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)
+    else:
+        raw_ram_review = load_raw_ram_review(raw_ram_review_path)
+except (OSError, ValueError, csv.Error) as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    raise SystemExit(65) from exc
 try:
     lowaddr_ram_symbols = build_lowaddr_ram_equ_symbols(xref)
     raw_accesses, symbolized_accesses = instruction_ram_sites(
@@ -1601,6 +1621,18 @@ merged_raw_ram_review_rows = merge_raw_ram_review(
     raw_ram_review,
     symbolized_raw_ram_candidates,
 )
+if check_raw_ram_review:
+    result = raw_ram_reconciliation.compare(raw_ram_review_path, raw_ram_review, merged_raw_ram_review_rows)
+    print(json.dumps(result, indent=2))
+    if result["status"] == "stale":
+        print(
+            f"closeout reconciliation stale: {raw_ram_review_path}: {result['changed_rows']} row(s); "
+            f"rerun make project-pass-closeout PROJECT={slug} for the reviewed pass, "
+            "review and commit the ledger changes, then regenerate the packet",
+            file=sys.stderr,
+        )
+        raise SystemExit(68)
+    raise SystemExit(0)
 raw_ram_review = {
     (row.get("addr_hex") or "").strip().lower(): row
     for row in merged_raw_ram_review_rows

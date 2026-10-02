@@ -11,6 +11,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${SCRIPT_DIR}/project_common.sh"
 
 load_project_analysis_conf "$1"
+if [[ "${PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW:-0}" == "1" && "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-1}" != "0" ]]; then
+  echo "error: raw-RAM reconciliation requires PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0" >&2
+  exit 64
+fi
 if [[ -n "${NESREV_ANALYSIS_BUNDLE+x}" || -n "${NESREV_ANALYSIS_BUILD_DIR+x}" || -n "${NESREV_XREF_FILE+x}" ]]; then
   echo "error: pass prep requires fresh owned analysis; do not supply analysis inputs" >&2
   exit 65
@@ -137,7 +141,18 @@ echo "[3/5] Generating xref summary (generic labels)"
   --xref-summary-include='^L[0-9A-F]{4,5}$' \
   "${ASM_FILE}" >/dev/null
 
-if [[ "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-1}" == "1" ]]; then
+reconciliation_status=0
+if [[ "${PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW:-0}" == "1" ]]; then
+  echo "[4/5] Checking raw-RAM closeout reconciliation without ledger writes"
+  PROJECT_NEXT_PASS_AUTO_PREP=0 \
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=0 \
+  PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1 \
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 \
+    bash "${SCRIPT_DIR}/project_next_pass.sh" "${slug}" json || reconciliation_status=$?
+  if [[ "${reconciliation_status}" != 0 && "${reconciliation_status}" != 68 ]]; then
+    exit "${reconciliation_status}"
+  fi
+elif [[ "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-1}" == "1" ]]; then
   echo "[4/5] Refreshing raw-RAM review queue"
   PROJECT_NEXT_PASS_AUTO_PREP=0 \
   PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
@@ -252,3 +267,4 @@ print(json.dumps(payload, indent=2))
 PY
 
 echo "pass prep complete: ${slug} -> ${pass_dir}"
+exit "${reconciliation_status}"

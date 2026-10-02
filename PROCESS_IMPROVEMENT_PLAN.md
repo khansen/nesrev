@@ -79,10 +79,13 @@ and their migration tests are in place.
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff
 
-Status: planned. Review observations describe green verification, process and
-documentation gates at a head where rerunning closeout still changed factual
-ledger owners. The existing owner-refresh fix and its idempotence regression
-do not establish that every later reviewed head is reconciled.
+Status: implemented for review; validation in progress. A committed stale
+raw-RAM count reproduced an accepted packet with green verification, process and
+documentation gates. Synthetic coverage also reproduces stale owners after a
+rename. The packet now checks the seven derived raw-RAM fields and missing
+candidate rows with fresh assembly evidence, using closeout's existing refresh
+calculation. The precise scope, retained historical-row behavior, and refusal
+contract are in [the packet specification](PROJECT_PASS_REVIEW_PACKET_SPEC.md#cache-preparation).
 
 - Reproduce stale closeout output against current wrappers using a synthetic
   pass whose final edits change ledger ownership. Identify which closeout

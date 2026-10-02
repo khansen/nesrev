@@ -166,6 +166,22 @@ class PacketTests(unittest.TestCase):
         with self.assertRaisesRegex(evidence.PacketError, "preserve the authored"):
             evidence.validate_packet(value, HEAD)
 
+    def test_reconciliation_cannot_be_omitted_or_disabled(self):
+        for replacement in ("", "PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=0 "):
+            value = packet(HEAD).replace("PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 ", replacement)
+            with self.subTest(replacement=replacement), self.assertRaisesRegex(evidence.PacketError, "check closeout reconciliation"):
+                evidence.validate_packet(value, HEAD)
+
+    def test_packet_next_pass_cannot_run_another_unchecked_prep(self):
+        value = packet(HEAD).replace("PROJECT_NEXT_PASS_AUTO_PREP=0", "PROJECT_NEXT_PASS_AUTO_PREP=1")
+        with self.assertRaisesRegex(evidence.PacketError, "prepared cache"):
+            evidence.validate_packet(value, HEAD)
+
+    def test_version_one_packets_require_regeneration(self):
+        value = packet(HEAD).replace('"schema_version": 2', '"schema_version": 1')
+        with self.assertRaisesRegex(evidence.PacketError, "summary schema"):
+            evidence.validate_packet(value, HEAD)
+
     def test_supporting_document_inputs_must_match_context(self):
         value = packet(HEAD).replace("scripts/proof_debt.py docs crosswalk", "scripts/proof_debt.py wrong crosswalk")
         with self.assertRaisesRegex(evidence.PacketError, "Proof Debt Signals.*canonical command"):

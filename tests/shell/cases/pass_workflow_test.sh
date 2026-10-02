@@ -4982,3 +4982,129 @@ test_next_pass_supplied_bundle_requires_refresh_only_before_prep() {
   [[ ! -e "${NESREV_TEST_TMPDIR}/prep-called" ]] || fail "refusal must precede auto-prep"
   [[ ! -e "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" ]] || fail "refusal must precede ledger writes"
 }
+
+test_raw_ram_reconciliation_uses_fresh_bundle_without_writing() {
+  local slug; slug="$(unique_slug reconcile)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" none
+  _write_pass_one_scorecard "${slug}" "Reconciliation fixture."
+  local root="projects/${slug}" inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  cat > "${root}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+FrameEntry:
+  LDA $10
+  STA $10
+  RTS
+ASM
+  cat > "${inventory}/raw_ram_review.csv" <<'CSV'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,deferred,ZP_Proposed,keep authored decision,7,yes,2,1,1,1,OldEntry:1,OldEntry:1
+CSV
+  cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
+  printf 'invalid stale cache\n' > "${inventory}/pass/xref_with_data.json"
+  source "${REPO_ROOT}/scripts/project_common.sh"
+  load_project_analysis_conf "${slug}"
+  local bundle="${NESREV_TEST_TMPDIR}/bundle"
+  mkdir -p "${bundle}"
+  prepare_project_analysis_bundle "${slug}" "${bundle}" inventory-instructions-v1
+  python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce "${bundle}" "${ASM_FILE}" "${bundle}/out.bin" >/dev/null
+  export NESREV_ANALYSIS_BUNDLE="${bundle}/bundle.json"
+  export PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1
+  export PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=0
+  local rc=0
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json \
+    >"${NESREV_TEST_TMPDIR}/check.json" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq "${rc}" 68 "stale owners must refuse reconciliation"
+  assert_match 'closeout reconciliation stale' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+  assert_match 'FrameEntry:1' "$(cat "${NESREV_TEST_TMPDIR}/check.json")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
+  [[ ! -e "${inventory}/pass/next_pass.json" ]] || fail "check must not replace briefing cache"
+
+  # Use closeout's existing refresh, then require two read-only passes.
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >"${NESREV_TEST_TMPDIR}/check.json"
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+  assert_match '"status": "pass"' "$(cat "${NESREV_TEST_TMPDIR}/check.json")"
+  assert_match 'deferred,ZP_Proposed,keep authored decision,7' "$(cat "${inventory}/raw_ram_review.csv")"
+
+  # Backdating an edit cannot make the old bundle valid again.
+  python3 - "${ASM_FILE}" <<'PY'
+import os, sys
+from pathlib import Path
+p = Path(sys.argv[1]); before = p.stat()
+p.write_text(p.read_text().replace('FrameEntry:', 'FrameLoop:'))
+os.utime(p, ns=(before.st_atime_ns, before.st_mtime_ns))
+PY
+  rc=0
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json \
+    >"${NESREV_TEST_TMPDIR}/check.json" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq "${rc}" 65 "changed assembly inputs must refuse stale bundle"
+  assert_match 'changed input|hash mismatch|changed dependency' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+
+  unset NESREV_ANALYSIS_BUNDLE
+  bundle="${NESREV_TEST_TMPDIR}/renamed-bundle"
+  mkdir -p "${bundle}"
+  prepare_project_analysis_bundle "${slug}" "${bundle}" inventory-instructions-v1
+  python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce "${bundle}" "${ASM_FILE}" "${bundle}/out.bin" >/dev/null
+  export NESREV_ANALYSIS_BUNDLE="${bundle}/bundle.json"
+  rc=0
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json \
+    >"${NESREV_TEST_TMPDIR}/check.json" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq "${rc}" 68 "fresh analysis after a rename must find the newly stale owners"
+  assert_match 'FrameLoop:1' "$(cat "${NESREV_TEST_TMPDIR}/check.json")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+
+  rc=0
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 \
+    bash "${NEXT_PASS}" "${slug}" json >"${NESREV_TEST_TMPDIR}/out" 2>&1 || rc=$?
+  assert_eq "${rc}" 64 "conflicting check/write flags must refuse before writing"
+  assert_match 'ledger writes disabled' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+}
+
+test_packet_prep_reconciliation_refuses_stale_counts_without_ledger_writes() {
+  local slug; slug="$(unique_slug reconcile_prep)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" none
+  _write_pass_one_scorecard "${slug}" "Preparation reconciliation fixture."
+  local root="projects/${slug}" inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  cat > "${root}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+FrameEntry:
+  LDA $10
+  STA $10
+  RTS
+.DSB 16379
+ASM
+  python3 - "${root}/reference/${slug}.nes" <<'PY'
+import sys
+from pathlib import Path
+Path(sys.argv[1]).write_bytes(b'NES\x1a' + bytes([1, 0]) + bytes(10) + bytes.fromhex('A5 10 85 10 60') + bytes(16379))
+PY
+  cat > "${inventory}/raw_ram_review.csv" <<'CSV'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,deferred,ZP_Proposed,keep authored decision,7,yes,2,1,99,1,FrameEntry:1,FrameEntry:1
+CSV
+  cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
+  local rc=0
+  PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >"${NESREV_TEST_TMPDIR}/out" 2>&1 || rc=$?
+  assert_eq "${rc}" 68 "packet prep must propagate stale factual counts"
+  assert_match 'closeout reconciliation stale' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
+  [[ -f "${inventory}/pass/baseline_status.json" ]] || fail "stale ledger must not hide other baseline results"
+
+  python3 - "${inventory}/raw_ram_review.csv" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1]); p.write_text(p.read_text().replace(',99,1,', ',1,1,'))
+PY
+  cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/good.csv"
+  PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 \
+    bash "${REPO_ROOT}/scripts/project_pass_prep.sh" "${slug}" >"${NESREV_TEST_TMPDIR}/out" 2>&1
+  assert_match '"check": "raw_ram_reconciliation"' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/good.csv"
+}

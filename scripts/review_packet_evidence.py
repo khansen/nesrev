@@ -161,9 +161,15 @@ def validate_command(record, environment, project):
             raise PacketError(f"{title} command does not match recorded make tool")
         allowed = {"XASM_BIN"}
         if name == "cache-preparation":
-            allowed.add("PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW")
+            allowed.update({"PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW", "PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW"})
             if assignments.get("PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW") != "0":
                 raise PacketError("Cache Preparation must preserve the authored raw-RAM queue")
+            if assignments.get("PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW") != "1":
+                raise PacketError("Cache Preparation must check closeout reconciliation")
+        if name == "next-pass":
+            allowed.add("PROJECT_NEXT_PASS_AUTO_PREP")
+            if assignments.get("PROJECT_NEXT_PASS_AUTO_PREP") != "0":
+                raise PacketError("Next-Pass Evidence must use the packet's prepared cache")
         if name == "project-verify":
             allowed.add("ALLOW_UNRESOLVED_LXXXX")
             if assignments.get("ALLOW_UNRESOLVED_LXXXX", "0") not in {"0", "1"}:
@@ -190,7 +196,7 @@ def validate_packet(document, expected_head, expected_project=None):
         summary = evidence_json(code_block(section(document, "Required Gate Summary", 2), "json"))
     except json.JSONDecodeError as exc:
         raise PacketError(f"invalid terminal gate summary: {exc}") from exc
-    if not isinstance(summary, dict) or type(summary.get("schema_version")) is not int or summary["schema_version"] != 1:
+    if not isinstance(summary, dict) or type(summary.get("schema_version")) is not int or summary["schema_version"] != 2:
         raise PacketError("invalid terminal gate summary schema")
     if summary.get("review_head") != expected_head.lower():
         raise PacketError("terminal gate summary does not match review head")
@@ -326,7 +332,7 @@ def main():
                 "command": getattr(args, name.replace("-", "_") + "_command"),
                 "exit_status": exits(getattr(args, name.replace("-", "_") + "_exit"))} for name in COMMANDS]
     failures = failure_summary(prerequisite, records, args.state_integrity)
-    print(json.dumps({"schema_version": 1, "review_head": args.head, "project": args.project,
+    print(json.dumps({"schema_version": 2, "review_head": args.head, "project": args.project,
                       "environment": prerequisite, "state_integrity": args.state_integrity,
                       "gates": records[:len(GATES)], "supporting_evidence": records[len(GATES):],
                       "failures": failures, "status": "fail" if failures else "pass"}, indent=2))

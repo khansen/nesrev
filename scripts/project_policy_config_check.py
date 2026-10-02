@@ -115,6 +115,8 @@ ALLOWED_CONDITIONAL_FIELDS = {
     "FORMAT",  # validated presentation choice
     "PROJECT_NEXT_PASS_AUTO_PREP",  # one-run cache refresh control
     "PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY",  # one-run ledger refresh, not pass selection
+    "PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW",  # read-only closeout reconciliation
+    "PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW",  # rejects writes during reconciliation
     "CURRENT_HEAD",
     "HEAD_MARKER",
     "NEEDS_PREP",

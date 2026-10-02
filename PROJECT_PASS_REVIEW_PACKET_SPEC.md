@@ -162,14 +162,37 @@ exit status. If prerequisites or preparation fail, dependent commands are
 explicitly `not-run`, never implicitly green. This is evidence preparation,
 not `project-pass-start`, mutating closeout or scorecard/history synchronization.
 Set `PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0` so preparation does not rewrite
-the authored raw-RAM review queue.
+the authored raw-RAM review queue, and
+`PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1` to check closeout reconciliation.
+Preparation compares the committed queue with the rows computed by the same
+raw-RAM refresh path used by closeout, using its fresh, validated assembly
+bundle. HEAD, timestamps, or an earlier closeout invocation cannot substitute
+for this comparison. The subsequent next-pass command uses
+`PROJECT_NEXT_PASS_AUTO_PREP=0` to consume the explicitly prepared cache.
+
+The comparison covers missing candidate rows and seven derived columns:
+`active`, `operand_count`, `distinct_owner_count`, `read_count`, `write_count`,
+`top_readers`, and `top_writers`. Existing refresh policy still applies: supporting
+pointer reads do not create candidates, and historical rows without current
+access evidence retain their facts. Authored status, proposed symbols, notes,
+and last-reviewed pass are preserved. An absent ledger with no candidates passes
+without creating a file. This checks raw-RAM reconciliation only; it does not
+certify authored decisions, deferral capture, or scorecard/history synchronization.
+
+Preparation prints a `raw_ram_reconciliation` JSON result with changed addresses
+and actual/expected fields. Stale facts return 68 from the preparation script;
+malformed ledgers or invalid analysis evidence return 65. Make may report these
+as exit 2. Both block dependent packet commands and handoff; an unrun preparation
+is also a refusal. The operator reruns closeout for the reviewed pass, reviews
+and commits its changes, then regenerates the packet. Packet creation itself
+never performs that repair or changes tracked project files.
 
 ### Review Ledger Deltas
 
 Include diffs for authored review ledgers present at either endpoint of the
 range. At minimum this covers warning baseline, scorecard, rename ledger,
 deferral ledger, semantic claims, crosswalk, and proof-debt acknowledgement
-ledger when those files exist.
+ledger, plus the raw-RAM review queue, when those files exist.
 
 ### Aggregate Signals
 
@@ -196,7 +219,7 @@ a tool cannot be parsed as packet metadata.
 ### Required Gate Summary
 
 End with one `## Required Gate Summary` section containing a fenced JSON object
-using schema version 1. It records the project and exact review-head SHA,
+using schema version 2. It records the project and exact review-head SHA,
 prerequisite/environment evidence, final state-integrity result, three required
 gate records and four supporting-evidence records (cache preparation, next-pass,
 proof-debt and crosswalk currency). Each record includes name, SHA, exact command
@@ -215,8 +238,10 @@ agreement on commands, SHA, statuses, subject and complete required membership.
 Build commands must use the recorded Make/assembler; supporting commands must
 run their canonical targets against the recorded documentation context.
 Every prerequisite, required gate and
-supporting evidence command must succeed before handoff. Missing legacy summaries
-require packet regeneration; archived review judgements are not rewritten.
+supporting evidence command must succeed before handoff. The parser also requires
+the read-only reconciliation flags and disabled next-pass auto-preparation in
+the recorded commands. Version 1 and missing legacy summaries require packet
+regeneration; archived review judgements are not rewritten.
 
 ### Reviewer Instructions
 
