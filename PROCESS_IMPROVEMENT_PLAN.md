@@ -1,28 +1,35 @@
 # Process Improvement Plan
 
-Status: PI-1, PI-2 policy evidence, PI-3 through PI-5, and queue receipts merged.
-PI-2 runtime delivery is tracked in [PR #105](https://github.com/khansen/nesrev/pull/105),
-with activation approved under the explicit failing-evidence-debt boundary.
-Updated 2026-09-06.
+Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
+delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 through
+PI-8 below are planned; accepting the work does not claim those defects are
+fixed or freshly reproduced. Updated 2026-10-02.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
 contracts and acceptance criteria; corpus-specific evidence and progress
 remain on the local-only corpus branch.
 
+<a id="recommended-order"></a>
 ## Recommended order
 
-Start with PI-1, then PI-2: both address checks that can pass without
-examining the evidence their output appears to cover. Follow with PI-3
-through PI-5. Triage decisions and routing can accompany these changes,
-but queue pruning must wait for the receipt migration, receipt-aware
-ingestion, and acceptance tests described below. Once that prerequisite is
-complete, accepted items leave the queue when routed, without waiting for
-their implementation.
+1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness). Establish
+   that a reviewed head's ledgers are reconciled before another unattended
+   pass run relies on the packet's green gates.
+2. [PI-7: Deferral capture](#pi-7-deferral-capture). Reject misplaced kind
+   keywords and carry the persisted corridor into new deferrals.
+3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
+   Make the existing synthetic-fixture requirement demonstrable at handoff.
+4. Run the [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
+   That plan owns its scope and acceptance criteria. End with a migration or
+   deferral recommendation; production implementation is a separate decision.
 
-To support incremental pruning, implement queue receipts after the PI-2
-policy-evidence lane and before continuing with runtime evidence and PI-3
-through PI-5. Do not prune during that prerequisite's implementation.
+This is the next-work priority order. PI-1 through PI-5 and the queue-receipt
+prerequisite are delivered; their implementation and activation records remain
+below. Start each follow-up with a current reproducer and a bounded contract.
+If existing tooling already resolves the observation, record that evidence and
+retriage it instead of adding another gate. Keep other undecided friction
+candidates in their project queues.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -52,7 +59,7 @@ migration and each newly exposed failure before landing.
 |---|---|---|
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
-| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
+| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
@@ -68,6 +75,77 @@ updated `master`. Rerun affected CI after each merge; report pre-existing
 unfinished-input failures separately and never relabel relaxed checks as
 strict-CI success. Prune eligible queue entries incrementally once receipts
 and their migration tests are in place.
+
+<a id="pi-6-review-handoff-freshness"></a>
+## PI-6 — Check closeout reconciliation at review handoff
+
+Status: planned. Review observations describe green verification, process and
+documentation gates at a head where rerunning closeout still changed factual
+ledger owners. The existing owner-refresh fix and its idempotence regression
+do not establish that every later reviewed head is reconciled.
+
+- Reproduce stale closeout output against current wrappers using a synthetic
+  pass whose final edits change ledger ownership. Identify which closeout
+  outputs need checking and document that boundary in the packet contract.
+- Add the smallest read-only validation that detects outstanding reconciliation
+  against the exact reviewed inputs and tooling. A timestamp or recorded
+  invocation alone must not certify freshness. Packet creation must preserve
+  tracked ledgers, authored decisions, scorecards and pass history.
+- Report stale, failed and unrun validation explicitly, and make handoff refuse
+  each state. Keep packet generation, handoff validation and their spec aligned;
+  diagnostics must identify the stale output and the required operator action.
+
+Done when: a stale-owner fixture with otherwise green gates is refused for the
+intended reason; a reconciled head succeeds; relevant edits after reconciliation
+make it stale again; cold-cache and repeated checks leave tracked files unchanged.
+Confirm the refusal through the handoff path as well as packet generation.
+
+<a id="pi-7-deferral-capture"></a>
+## PI-7 — Preserve meaningful deferral conditions and corridor context
+
+Status: planned. The current explicit-entry parser accepts a bare `static` or
+`runtime` as the revisit condition, and closeout supplies only `FOCUS` as the
+corridor even when a persisted pass objective exists.
+
+- Reject kind keywords misplaced in the condition field before writing the
+  ledger, with the supported `subject :: revisit condition :: kind` syntax in
+  the diagnostic. Preserve valid two-field entries and meaningful conditions;
+  this check does not claim to judge the quality of arbitrary prose.
+- Prefer an explicit nonempty `FOCUS`; otherwise use the corridor saved for
+  the matching project and pass. Specify missing/legacy-plan behavior and
+  diagnose missing context without borrowing another pass's objective.
+- Preserve existing authored rows and repeated-closeout idempotence. Do not
+  silently rewrite old conditions or classify incomplete entries as runtime
+  evidence. Review any required ledger migration separately.
+
+Done when: both misplaced keywords fail without ledger changes; valid static
+and runtime entries retain their meanings; explicit focus wins, a matching
+saved corridor fills an omitted focus, and a mismatched plan cannot supply it.
+Exercise both the parser and the canonical closeout wrapper.
+
+<a id="pi-8-analyzer-portability"></a>
+## PI-8 — Demonstrate runtime-analyzer test portability at handoff
+
+Status: planned. Repeated reviews requested proof that new analyzer acceptance
+and refusal tests run from committed synthetic inputs without private captures.
+The existing playbook requirement needs an observable handoff result.
+
+- Audit the current [runtime-evidence fixture contract](agent_playbook/RUNTIME_EVIDENCE.md)
+  and packet checks first. Define the affected analyzer/manifest/fixture scope,
+  then reuse declared test commands rather than inventing another test registry.
+- Run the affected synthetic tests in a clean export with only committed test
+  inputs and documented tool dependencies. They must need no reference ROM,
+  emulator, ignored capture or live recording. Keep this check separate from
+  ROM-dependent parity gates and pending live runtime evidence.
+- Include command, checked scope and actual exit status in the handoff evidence.
+  Missing, failed or unrun required tests must be visible and prevent acceptance;
+  finding a test filename is insufficient.
+
+Done when: a portable positive fixture passes; a failing test and a test relying
+on an ignored local capture are refused with useful diagnostics; malformed
+synthetic evidence fails its analyzer's refusal case. Existing supported
+analyzers and changes outside the affected scope retain explicit, tested
+behavior. Passing fixtures do not close pending live-capture questions.
 
 ## PI-1 — Make checker coverage explicit
 

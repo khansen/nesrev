@@ -12,9 +12,10 @@ justify prioritizing a producer extension. The
 access evidence using xasm v3; tooling and the coordinated ledger cutover are
 complete. The [named pointer-table audit](#named-pointer-table-bodies) found
 real omissions that existing structured output can expose. Its structured
-consumer and coordinated baseline correction are implemented for review;
-landing also requires the xasm listing-storage offset fix. The broader
-[embedded-pointer feasibility audit](#embedded-pointer-audit) remains separate.
+consumer landed in [PR #140](https://github.com/khansen/nesrev/pull/140), and
+the coordinated baseline correction is complete using XORcyst 1.8.1. The broader
+[embedded-pointer feasibility audit](#embedded-pointer-audit) follows the
+[process follow-up priorities](PROCESS_IMPROVEMENT_PLAN.md#recommended-order).
 Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
@@ -690,7 +691,7 @@ Implementation scope, under the v4 contract:
 - Keep NESrev's semantic-name matching and exclusion policy in the consumer.
 
 <a id="named-pointer-table-bodies"></a>
-### In review: Named pointer-table bodies
+### Completed: Named pointer-table bodies
 
 The bounded 2026-10-01 audit of `scripts/pointer_table_body_check.py` found
 nine omitted raw interleaved pointer tables in the current 23-project corpus.
@@ -762,11 +763,11 @@ advisory instead of claiming a ROM table. Aliases share one finding per body.
 These checks remain a named-byte heuristic; conversion
 still requires manual layout and target proof.
 
-The migration exposed existing producer offset bugs: `list_storage()` does not
-count code-segment reservations, while `print_listing_line()` counts initialized
-data-segment bytes that pure-binary output never emits. Correct both counters
-in xasm. Do not work around them by reparsing source or reconstructing offsets
-in NESrev. The 28 producer subcases cover byte/word/dword storage and its empty
+The migration exposed producer offset bugs: `list_storage()` did not count
+code-segment reservations, while `print_listing_line()` counted initialized
+data-segment bytes that pure-binary output never emits. XORcyst 1.8.1 corrects
+both counters; NESrev uses the corrected output without reconstructing offsets.
+The 28 producer subcases cover byte/word/dword storage and its empty
 records, data-segment `.DB` and `.INCBIN`, JSON/NDJSON, debug/non-debug modes,
 segment changes, continuations and later instructions. This corrects listing
 v1 and does not require instruction records v4. Per-row segment/emission
@@ -784,26 +785,28 @@ The maturity measurements cover the same complete, already-failing check
 sequence on both sides; they do not establish a passing maturity result.
 Detailed wall/user/system samples and corpus pins stay in the local companion.
 
-Land in this order:
+Completed rollout on 2026-10-02:
 
-1. The xasm fix is merged and published in
-   [XORcyst 1.8.1](https://github.com/khansen/xorcyst/releases/tag/v1.8.1).
-   `XORCYST_REVISION` in `.github/workflows/ci.yml` pins its release commit
-   `383bdbcf793282ad13b183c76f73e6a937911728`. Install the corrected producer
-   before the consumer rollout. Before installation, run the implementation
-   suite with its build directory prepended to PATH and XASM_BIN selecting
-   that same executable. Older v1.8.0 builds lack the fixes and fail the
-   storage regression.
-2. Review the consumer and the affected project's symbolic target/bank mapping
-   independently. Run the full suite, deliberate regression checks, fresh
-   cross-project verification/inventory comparisons and affected-wrapper timing
-   under the existing performance budget. Keep commands, hashes and detailed
-   corpus results in the local evidence companion.
-3. At the project pass boundary, land the shared tooling and reconcile the
-   affected baseline on current sources. Regenerate committed inventories,
-   including branch-literal provenance after source-line movement, and verify
-   parity, process and docs. Do not apply a stale inventory patch or weaken the
-   newly effective gate. Old bundle fingerprints must refuse and be refreshed.
+1. The producer fixes were merged and published in
+   [XORcyst 1.8.1](https://github.com/khansen/xorcyst/releases/tag/v1.8.1), then
+   installed before consumer validation. `XORCYST_REVISION` in
+   `.github/workflows/ci.yml` pins release commit
+   `383bdbcf793282ad13b183c76f73e6a937911728`. Older v1.8.0 builds lack the
+   fixes and fail the storage regression.
+2. The consumer and symbolic target/bank mapping received independent review.
+   The installed-producer suite, deliberate regressions and timing results
+   above passed. Ubuntu and macOS CI passed before
+   [PR #140](https://github.com/khansen/nesrev/pull/140) merged as
+   `ec6bf32cbdd94f17287dfab622943f5642151f76`; its tree matches approved head
+   `aaf1e5ac147c8581d43bbe54b73bdf7f22f10f03`.
+3. At a completed pass boundary, the project branch was rebased onto the merged
+   tooling and the reviewed baseline correction was committed locally. All six
+   generated inventories were regenerated on current sources in all 23
+   projects, including branch-literal provenance. All 23 verification wrappers
+   passed with `ALLOW_UNRESOLVED_LXXXX=1`; binaries and all 138 inventory files
+   matched the reviewed snapshots. The affected project's verification,
+   process and docs checks passed again in the main checkout. Source pins,
+   project commits and detailed receipts remain in the local evidence companion.
 
 Instruction records v4 remain deferred. The broader embedded-pointer dataflow
 audit below remains separate from this implementation.
@@ -817,6 +820,9 @@ and `pointer_store_proof()` scan instruction text; `routine_block()` and
 `build_equ_aliases()` reconstruct scope and aliases from source.
 
 #### Next step: bounded feasibility and corpus audit
+
+Scheduling follows [PI-6 through PI-8](PROCESS_IMPROVEMENT_PLAN.md#recommended-order);
+this section remains the authority for the audit scope and acceptance criteria.
 
 Establish whether this migration would correct actual evidence before committing
 to implementation or another xasm extension. The baseline observed on
@@ -1003,8 +1009,8 @@ removed:
       all 23 projects and separate real ROM candidates from layout exclusions.
 - [x] Implement the named-table consumer contract using existing structured
       output and prepare the newly visible baseline correction for review.
-- [ ] Land the reviewed listing-storage producer fix, consumer migration and
-      current-source baseline reconciliation with recorded validation.
+- [x] Land the reviewed listing-storage producer fix, consumer migration and
+      current-source baseline reconciliation with recorded validation (PR #140).
 - [ ] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
       separately before deciding whether its dataflow migration is justified.
 - [x] Run the bounded negative-offset feasibility check and identify its
