@@ -79,7 +79,7 @@ and their migration tests are in place.
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff
 
-Status: implemented for review; validation in progress. A committed stale
+Status: implemented; awaiting external review. A committed stale
 raw-RAM count reproduced an accepted packet with green verification, process and
 documentation gates. Synthetic coverage also reproduces stale owners after a
 rename. The packet now checks the seven derived raw-RAM fields and missing
@@ -102,6 +102,18 @@ Done when: a stale-owner fixture with otherwise green gates is refused for the
 intended reason; a reconciled head succeeds; relevant edits after reconciliation
 make it stale again; cold-cache and repeated checks leave tracked files unchanged.
 Confirm the refusal through the handoff path as well as packet generation.
+
+Validation on xasm 1.8.1: 661 shell tests and 1,206 Java tests pass. Fresh
+comparisons pass on all 23 local project ledgers without tracked changes.
+The real stale-count packet passes the old gates and parser, then fails the new
+handoff; reconciled, cold-cache and repeated packets succeed without tracked
+writes. Five deliberate regressions fail their targeted tests. Three alternating
+timed pairs after warmup on the largest source project show median wall changes
+of +4.82% for read-only preparation with reconciliation, +0.39% for cached
+next-pass, and +2.70% for the complete packet. All remain within the 5% budget.
+Assembly counts remain two, zero and five respectively in that warm-cache setup.
+Packet runs use the explicit unresolved-label allowance; these are semantic-pass
+verification results, not strict maturity evidence.
 
 <a id="pi-7-deferral-capture"></a>
 ## PI-7 — Preserve meaningful deferral conditions and corridor context
