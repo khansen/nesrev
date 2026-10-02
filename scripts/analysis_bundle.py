@@ -374,7 +374,7 @@ def prepare_source(directory, source, policies, profile="instructions-v1"):
     write_json(Path(directory) / "context.json", context)
 
 
-def produce(directory, source, output, profile=None):
+def produce(directory, source, output, profile=None, *, stderr=None):
     directory = Path(absolute(directory))
     context = read_json(directory / "context.json")
     check_context(context, source)
@@ -393,7 +393,7 @@ def produce(directory, source, output, profile=None):
     manifest = str(directory / "dependencies.json")
     require(not os.path.lexists(manifest), "dependency output already exists")
     argv = expected_argv(context, outputs, manifest, executable())
-    rc = subprocess.run(argv).returncode
+    rc = subprocess.run(argv, stderr=stderr).returncode
     if rc:
         return 128 - rc if rc < 0 else rc
     dependencies = read_json(manifest)

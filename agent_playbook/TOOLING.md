@@ -971,12 +971,12 @@ hard errors in either mode.
 
 <a id="pointer-table-relocation-gate"></a>
 `pointer_table_body_check.py <asm>` uses validated listing/xref data to report
-named raw ROM-pointer bodies, including selector and paired split-table forms.
-Owning wrappers share their bundle; standalone calls assemble once. Missing or
-ambiguous evidence refuses with exit 65. `project-verify` rejects whole-body
-ratio findings and reports prefix-only findings; maturity rejects both (68).
-The [body contract](../POINTER_TABLE_BODY_SPEC.md) defines naming, boundaries,
-exclusions and unresolved layouts. Conversion still requires target review.
+named raw ROM-pointer bodies. Wrappers share bundles; standalone assembles once.
+Bad evidence exits 65. `project-verify` rejects whole-body findings (68);
+maturity also rejects prefix-only findings and unresolved layouts (68).
+Lone split halves and ambiguous layouts remain verification advisories.
+Aliases share one finding. The [body contract](../POINTER_TABLE_BODY_SPEC.md)
+defines naming, boundaries and exclusions. Conversion requires target review.
 Recipe: [pointer-byte consolidation](REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 
 ### Raw-address audit

@@ -726,7 +726,9 @@ all RAM addresses.
   five existing split-name families before the interleaved case and pair by
   matching prefix and selector. For complete equal-length halves, combine
   corresponding low/high entries. Never decode one half as interleaved words;
-  unmatched or unequal halves have unresolved layout. Single-label split arrays
+  unmatched, unequal or overlapping halves produce unresolved-layout advisories.
+  Report and verification modes allow these; maturity rejects them with exit 68.
+  Single-label split arrays
   likewise require layout evidence; names alone do not prove interleaving.
 - Retain the ROM-address range and whole-body/prefix thresholds. RAM-only pairs
   do not become findings. Preserve the intended `.DW` and symbolic low/high
@@ -755,8 +757,9 @@ wrappers reuse their existing bundle. Tests exercise active/same-line data,
 code and segment boundaries, aliases, exact table-end markers, includes, repeated emissions, selector
 boundaries, split pairs, constant-only operands and symbolic tails. Macro-local
 and redefined identities with insufficient join evidence refuse with exit 65.
-The single-label split-RAM ambiguity case also refuses instead of reporting a
-misdecoded ROM table. These checks remain a named-byte heuristic; conversion
+The single-label split-RAM ambiguity case also produces an unresolved-layout
+advisory instead of claiming a ROM table. Aliases share one finding per body.
+These checks remain a named-byte heuristic; conversion
 still requires manual layout and target proof.
 
 The migration exposed existing producer offset bugs: `list_storage()` does not
@@ -771,10 +774,12 @@ metadata remains a separate versioned-schema follow-up; initialized data-segment
 rows can still be refused by the consumer's binary validation, as the
 [consumer contract](POINTER_TABLE_BODY_SPEC.md) specifies.
 
-Local validation passes 658 shell and 1,206 Java tests, including the new
-consumer regressions. Sequential warm before/after measurements on two large
-inputs keep median verification overhead at 3.77% and 4.94%; maturity overhead
-is 2.90% and 4.41%, within the 5% budget. Diagnostics and exit statuses match.
+Validation on installed XORcyst 1.8.1 passes 658 shell and 1,206 Java tests,
+including 22 consumer tests. Nine deliberate regressions fail their targeted
+tests. Sequential warm before/after measurements on two large inputs keep
+median verification overhead at 3.73% and 3.62%; maturity overhead is 3.69%
+and 4.11%, within the 5% budget. Exit statuses match; diagnostics differ only
+by the new zero-valued unresolved-layout counter.
 The maturity measurements cover the same complete, already-failing check
 sequence on both sides; they do not establish a passing maturity result.
 Detailed wall/user/system samples and corpus pins stay in the local companion.

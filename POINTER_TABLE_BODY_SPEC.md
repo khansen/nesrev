@@ -8,14 +8,19 @@ Split families `PtrLo/PtrHi`, `PointerLo/PointerHi`, `PtrLow/PtrHigh`,
 `LoPtr/HiPtr` and `LowPtr/HighPtr`, ending in `Table` or `By<Index>`, are
 paired before interpreting bytes; equal
 low/high halves contribute one finding at the low declaration. RAM-only pairs
-remain excluded. A raw lone half, unequal/overlapping pair, ambiguous definition,
-or body interrupted by a label whose scope is unavailable refuses with exit 65.
+remain excluded. A raw lone half or unequal/overlapping pair produces an
+unresolved-layout advisory. An ambiguous definition or body interrupted by a
+label whose scope is unavailable refuses with exit 65.
 If an interleaved finding could instead be two equal halves containing only RAM
-pointers, the checker refuses that ambiguous single-label layout with exit 65.
+pointers, the checker reports that single-label layout as unresolved.
+Unresolved layouts pass report and `--strict-whole-body` modes; `--strict`
+rejects them with exit 68. They do not count as proven raw pointer bodies.
 These are naming/byte heuristics; conversion still requires target and layout
 review, including any other possible single-label split layout.
 
-Consecutive same-address aliases share a body. A `NameEnd` declaration is an
+Consecutive same-address aliases share a body and one finding, which lists the
+aliases. A split-table alias takes precedence over an interleaved name on the
+same body. A `NameEnd` declaration is an
 extent marker only if `Name` has a nonempty body ending at that exact binary
 offset and CPU address; it does not claim the following payload as a pointer table. An orphan
 or displaced `NameEnd` gets the ordinary name/body check. Code, origin/segment directives
@@ -42,10 +47,12 @@ joining those rows. Data-segment storage with an empty byte array is supported.
 
 Owning wrappers reuse their fresh bundle without extra assembly. Standalone
 execution assembles once using the source-only `data-listing-v1` profile.
+Successful assembly diagnostics are suppressed; failed production retains its
+assembler diagnostics.
 Bad arguments exit 64 before assembly; bad/stale evidence and failed production
 exit 65 (interrupt statuses 130/143 pass through). Report mode exits 0;
 `--strict-whole-body` rejects whole-body-ratio findings with exit 68, while
-`--strict` also rejects prefix-only findings. `project-verify` uses the former;
+`--strict` also rejects prefix-only findings and unresolved layouts. `project-verify` uses the former;
 `project-maturity-check` uses the latter. Recipe:
 [REVIEW_AUDITS.md#pointer-byte-consolidation-audit](agent_playbook/REVIEW_AUDITS.md#pointer-byte-consolidation-audit).
 

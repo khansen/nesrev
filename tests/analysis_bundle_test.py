@@ -174,8 +174,8 @@ class BundleTests(unittest.TestCase):
 
     def test_zero_exit_with_missing_outputs_does_not_publish(self):
         actual_run = bundle.subprocess.run
-        def remove_after_run(command):
-            result = actual_run(command)
+        def remove_after_run(command, **kwargs):
+            result = actual_run(command, **kwargs)
             (self.directory / "listing.json").unlink()
             return result
         with patch.object(bundle.subprocess, "run", side_effect=remove_after_run):
@@ -251,8 +251,8 @@ class BundleTests(unittest.TestCase):
 
     def test_production_detects_policy_change_before_publication(self):
         actual_run = bundle.subprocess.run
-        def change_after_run(command):
-            result = actual_run(command)
+        def change_after_run(command, **kwargs):
+            result = actual_run(command, **kwargs)
             self.config.write_text('NESREV_RECOVERY_STATUS="configured"\n')
             return result
         with patch.object(bundle.subprocess, "run", side_effect=change_after_run), \

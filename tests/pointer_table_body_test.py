@@ -39,7 +39,7 @@ class PointerTables(unittest.TestCase):
         return analysis.Bundle(directory / 'bundle.json', self.source)
 
     def names(self, source):
-        return [name for name, _, _ in checker.findings(self.bundle(source))]
+        return [row.name for row in checker.findings(self.bundle(source))]
 
     def cli(self, *args, env=None):
         return subprocess.run([sys.executable, str(ROOT / 'scripts/pointer_table_body_check.py'),
@@ -92,8 +92,8 @@ class PointerTables(unittest.TestCase):
         self.assertEqual(self.names(source), [])
 
     def test_single_label_split_ram_layout_is_not_guessed(self):
-        with self.assertRaisesRegex(analysis.BundleError, 'ambiguous interleaved ROM'):
-            checker.findings(self.bundle('.ORG $C000\nImagePtrByX: .DB $80,$80,$90,$90,$04,$04,$04,$04\n'))
+        self.assert_unresolved_layout('ImagePtrByX: .DB $80,$80,$90,$90,$04,$04,$04,$04\n',
+                                      'ambiguous interleaved ROM')
 
     def test_split_rom_all_spellings_and_order(self):
         for lo, hi in (('PtrLo','PtrHi'), ('PointerLo','PointerHi'), ('PtrLow','PtrHigh'),
@@ -102,18 +102,50 @@ class PointerTables(unittest.TestCase):
                 self.assertEqual(self.names(f'.ORG $C000\nImage{hi}ByX: .DB $90,$90\n'
                                             f'Image{lo}ByX: .DB $00,$20\n'), [f'Image{lo}ByX'])
 
-    def test_split_refusals(self):
+    def assert_unresolved_layout(self, source, message):
+        shared = self.bundle('.ORG $C000\n' + source)
+        rows = checker.findings(shared)
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertIsNone(row.proof)
+            self.assertIn(message, row.unresolved)
+        for mode, status in (('', 0), ('--strict-whole-body', 0), ('--strict', 68)):
+            run = self.cli(self.source, *([mode] if mode else []),
+                           env={'NESREV_ANALYSIS_BUNDLE': str(shared.path)})
+            self.assertEqual(run.returncode, status, run.stderr)
+            self.assertIn('has unresolved layout:', run.stderr)
+            self.assertNotIn('evidence refused', run.stderr)
+            self.assertIn('raw_pointer_table_bodies=0', run.stdout)
+            self.assertIn(f'unresolved_layout_bodies={len(rows)}', run.stdout)
+
+    def test_split_unresolved_layouts(self):
         cases = [
-            ('ImagePtrLoByX: .DB $00,$20\n', 'counterpart missing'),
-            ('ImagePtrHiByX: .DB $90,$90\n', 'counterpart missing'),
-            ('ImagePtrLoByX: .DB $00,$20\nImagePtrHiByX: .DB $90\n', 'incomplete or unequal'),
-            ('ImagePtrLoByX: .DB $00,$20\nImagePtrHiByY: .DB $90,$90\n', 'counterpart missing'),
-            ('ImagePtrLoByX:\nImagePtrHiByX: .DB $90,$90\n', 'incomplete or unequal'),
+            ('ZpCursorPtrLoTable: .DB $10,$12,$14\n', 'counterpart'),
+            ('RomPtrLoTable: .DB $00,$90,$20,$90\n', 'counterpart'),
+            ('ImagePtrLoByX: .DB $00,$20\n', 'counterpart'),
+            ('ImagePtrHiByX: .DB $90,$90\n', 'counterpart'),
+            ('ImagePtrLoByX: .DB $00,$20\nImagePtrHiByX: .DB $90\n', 'incomplete, unequal'),
+            ('ImagePtrLoByX: .DB $00,$20\nImagePtrHiByY: .DB $90,$90\n', 'counterpart'),
+            ('ImagePtrLoByX:\nImagePtrHiByX: .DB $90,$90\n', 'incomplete, unequal'),
         ]
         for source, message in cases:
             with self.subTest(source=source):
-                with self.assertRaisesRegex(analysis.BundleError, message):
-                    checker.findings(self.bundle('.ORG $C000\n' + source))
+                self.assert_unresolved_layout(source, message)
+
+    def test_named_aliases_report_once_per_body(self):
+        shared = self.bundle('.ORG $C000\nOnePtrTable:\nTwoPtrTable:\nAlias:\n'
+                             '.DB $00,$90,$20,$90\n')
+        rows = checker.findings(shared)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].aliases, ['TwoPtrTable', 'Alias'])
+        run = self.cli(self.source, '--strict-whole-body',
+                       env={'NESREV_ANALYSIS_BUNDLE': str(shared.path)})
+        self.assertEqual(run.returncode, 68, run.stderr)
+        self.assertEqual(run.stderr.count('advisory:'), 1)
+        self.assertIn('aliases: TwoPtrTable, Alias', run.stderr)
+        self.assertIn('raw_pointer_table_bodies=1', run.stdout)
+        self.assertEqual(self.names('.ORG $C000\nAliasPtrTable:\nImagePtrLoByX:\n'
+                                    '.DB $80,$80,$90,$90\nImagePtrHiByX: .DB 4,4,4,4\n'), [])
 
     def test_origin_segment_and_trailing_boundaries(self):
         source = ('.ORG $C000\nImagePtrByX: .DB $00,$90\n.ORG $D000\n.DB $20,$90\n'
@@ -210,8 +242,12 @@ class PointerTables(unittest.TestCase):
         run = self.cli(self.source,'--strict',env=env)
         self.assertEqual(run.returncode,68,run.stderr)
         self.assertEqual(len(log.read_text().splitlines()),1)
+        self.assertNotIn('defined but not used', run.stderr)
+        self.assertNotIn('warning:', run.stderr)
         self.source.write_text('LDA MissingLabel\n')
-        self.assertEqual(self.cli(self.source,env=env).returncode,65)
+        run = self.cli(self.source,env=env)
+        self.assertEqual(run.returncode,65)
+        self.assertIn('MissingLabel', run.stderr)
 
 
 if __name__ == '__main__':

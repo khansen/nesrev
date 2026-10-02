@@ -48,6 +48,15 @@ class Body:
     named: bool = False
 
 
+@dataclass
+class Finding:
+    name: str
+    definition: dict
+    aliases: list
+    proof: tuple | None = None
+    unresolved: str | None = None
+
+
 def table_bodies(xref, listing, binary):
     """Group consecutive declarations and contiguous data; never read source_text."""
     definitions = {}
@@ -164,7 +173,7 @@ def classify(pairs):
 def findings(bundle):
     tables = table_bodies(bundle.load('xref'), bundle.load('listing'),
                           analysis.read_bytes(bundle.data['outputs']['binary']['path']))
-    result = []
+    candidates = {}
     for name, body in tables.items():
         if not named_table(name) or body.symbolic:
             continue
@@ -176,42 +185,72 @@ def findings(bundle):
         analysis.require(not body.opaque, f'{name}: body interrupted by a label with unavailable scope')
         if not body.values:
             continue
+        names = candidates.setdefault(id(body), [])
+        names.append(name)
+
+    result, reported = [], set()
+    for names in candidates.values():
+        # A split alias supplies layout evidence for every alias on this body.
+        name = next((n for n in names if split_counterpart(n, True)),
+                    next((n for n in names if split_counterpart(n, False)), names[0]))
+        body = tables[name]
+        definition = next(d for label, d in body.labels if label == name)
+        aliases = [label for label, _ in body.labels if label != name]
+        finding = Finding(name, definition, aliases)
+        key = (id(body),)
         high_name, low_name = split_counterpart(name, True), split_counterpart(name, False)
         if high_name or low_name:
             if low_name:
-                analysis.require(low_name in tables, f'{name}: split pointer counterpart missing')
-                continue
-            high = tables.get(high_name)
-            analysis.require(high is not None, f'{name}: split pointer counterpart missing')
-            analysis.require(not high.opaque and len(body.values) == len(high.values)
-                             and high is not body, f'{name}: split pointer bodies are incomplete or unequal')
-            if high.symbolic:
-                continue
-            pairs = zip(body.values, high.values)
+                if low_name in tables:
+                    continue
+                finding.unresolved = f'split pointer counterpart {low_name} missing'
+            else:
+                high = tables.get(high_name)
+                if high is None:
+                    finding.unresolved = f'split pointer counterpart {high_name} missing'
+                else:
+                    analysis.require(not high.opaque,
+                                     f'{high_name}: body interrupted by a label with unavailable scope')
+                    if high.symbolic:
+                        continue
+                    key = tuple(sorted({id(body), id(high)}))
+                    if len(body.values) != len(high.values) or high is body:
+                        finding.unresolved = 'split pointer bodies are incomplete, unequal or overlapping'
+                    else:
+                        finding.proof = classify(zip(body.values, high.values))
         else:
-            pairs = zip(body.values[::2], body.values[1::2])
-        proof = classify(pairs)
-        if proof and not (high_name or low_name) and len(body.values) % 2 == 0:
+            finding.proof = classify(zip(body.values[::2], body.values[1::2]))
+        if finding.proof and not (high_name or low_name) and len(body.values) % 2 == 0:
             high_half = body.values[len(body.values) // 2:]
-            analysis.require(not all(value is not None and value < 0x80 for value in high_half),
-                             f'{name}: ambiguous interleaved ROM or single-label split RAM layout')
-        if proof:
-            definition = next(d for label, d in body.labels if label == name)
-            result.append((name, definition, proof))
+            if all(value is not None and value < 0x80 for value in high_half):
+                finding.proof = None
+                finding.unresolved = 'ambiguous interleaved ROM or single-label split RAM layout'
+        if (finding.proof or finding.unresolved) and key not in reported:
+            result.append(finding)
+            reported.add(key)
     bundle.validate()
     return result
 
 
 def report(rows, mode):
-    for name, definition, (count, prg, leading, ratio) in rows:
+    for row in rows:
+        name, definition = row.name, row.definition
+        aliases = f' (aliases: {", ".join(row.aliases)})' if row.aliases else ''
+        location = f'{definition["file"]}:{definition["line"]}  {name}{aliases}'
+        if row.unresolved:
+            print(f'advisory: {location} has unresolved layout: {row.unresolved} '
+                  '-- review the layout and its consumers before conversion', file=sys.stderr)
+            continue
+        count, prg, leading, ratio = row.proof
         proof = 'whole-body ratio' if ratio else 'leading prefix'
-        print(f'advisory: {definition["file"]}:{definition["line"]}  {name} has a raw .DB body '
+        print(f'advisory: {location} has a raw .DB body '
               f'({count} words, {prg} in $8000-$FFFF, {leading} in the leading prefix; proof: {proof}) '
               '-- relocate to .DW Target or .DB <Target,>Target', file=sys.stderr)
-    print(f'[pointer-table] raw_pointer_table_bodies={len(rows)}')
-    blocking = [row for row in rows if mode == '--strict' or row[2][3]]
+    print(f'[pointer-table] raw_pointer_table_bodies={sum(row.proof is not None for row in rows)}')
+    print(f'[pointer-table] unresolved_layout_bodies={sum(row.unresolved is not None for row in rows)}')
+    blocking = [row for row in rows if mode == '--strict' or (row.proof and row.proof[3])]
     if mode and blocking:
-        print(f'FAIL: {len(blocking)} pointer-table label(s) still hold raw .DB pointer bytes', file=sys.stderr)
+        print(f'FAIL: {len(blocking)} pointer-table body(s) require layout or relocation review', file=sys.stderr)
         return 68
     return 0
 
@@ -237,7 +276,12 @@ def main(argv):
             return report(findings(bundle), mode)
         with tempfile.TemporaryDirectory(prefix='nesrev-pointer-tables-') as directory:
             analysis.prepare_source(directory, source, [], profile='data-listing-v1')
-            rc = analysis.produce(directory, source, str(Path(directory) / 'out.bin'))
+            with tempfile.TemporaryFile(mode='w+') as diagnostics:
+                rc = analysis.produce(directory, source, str(Path(directory) / 'out.bin'),
+                                      stderr=diagnostics)
+                if rc:
+                    diagnostics.seek(0)
+                    sys.stderr.write(diagnostics.read())
             if rc:
                 return rc if rc in (130, 143) else 65
             return report(findings(analysis.Bundle(Path(directory) / 'bundle.json', source)), mode)
