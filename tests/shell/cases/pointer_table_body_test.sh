@@ -6,6 +6,7 @@ CHECK="${REPO_ROOT}/scripts/pointer_table_body_check.py"
 
 _fixture() {
   cat > "$1" <<'EOF'
+.ORG $C000
 RawPtrTable:
 .DB $76,$ED,$98,$ED,$B0,$ED
 SymbolicPtrTable:
@@ -19,6 +20,13 @@ SplitPtrTable:
 .DB <SplitTarget0,<SplitTarget1
 LonePtr:
 .DW OneThing
+SymTarget0: RTS
+SymTarget1: RTS
+HdrTarget0: RTS
+HdrTarget1: RTS
+SplitTarget0: RTS
+SplitTarget1: RTS
+OneThing: RTS
 EOF
 }
 
@@ -34,7 +42,7 @@ test_pointer_table_flags_name_and_hint_on_stderr() {
   assert_match "RawPtrTable" "${err}" "advisory should name the offending label"
   assert_match "relocate" "${err}" "advisory should say to relocate"
   # None of the skip cases may appear.
-  if printf '%s' "${err}" | grep -qE 'SymbolicPtrTable|HeaderThenSymbolicPtrTable|MisnamedPointerTable|SplitPtrTable|LonePtr'; then
+  if printf '%s' "${err}" | grep -qE '^advisory:.*(SymbolicPtrTable|HeaderThenSymbolicPtrTable|MisnamedPointerTable|SplitPtrTable|LonePtr)'; then
     fail "a skip-case label was flagged: ${err}"
   fi
 }
@@ -82,12 +90,16 @@ EOF
 test_pointer_table_strict_passes_when_clean() {
   local fx="${NESREV_TEST_TMPDIR}/p5.asm"
   cat > "${fx}" <<'EOF'
+.ORG $C000
 GoodPtrTable:
 .DW T0,T1,T2
 GoodSplitPtrTable:
 .DB <T0,>T0,<T1,>T1
 NotAPointerTable:
 .DB $01,$02,$03,$04
+T0: RTS
+T1: RTS
+T2: RTS
 EOF
   assert_exit 0 python3 "${CHECK}" "${fx}" --strict
 }

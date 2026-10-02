@@ -44,7 +44,7 @@ class BranchLiterals(unittest.TestCase):
         context = {"profile": profile, "source": str(self.source), "source_argument": str(self.source),
                    "policies": [analysis.fingerprint(self.policy)], "config": None, "project": None,
                    "rom_range": None, "cpu_base": None}
-        if profile != "instructions-v1":
+        if profile not in analysis.SOURCE_PROFILES:
             context.update(config=str(self.policy), project="synthetic", rom_range="$C000-$FFFF", cpu_base="$C000")
         analysis.write_json(self.directory / "context.json", context)
         self.assertEqual(analysis.produce(self.directory, self.source, self.root / "out.bin"), 0)
@@ -124,7 +124,7 @@ Start: bne ($ + $02) : BEQ $+%10
                 shared = self.produce(profile)
                 self.assertEqual("--Werror=unused-equ" in shared.data["argv"],
                                  profile in analysis.STRICT_PROFILES)
-                if profile == analysis.PROFILE:
+                if "instructions" not in analysis.PROFILES[profile]:
                     with self.assertRaisesRegex(analysis.BundleError, "lacks required artifact"):
                         branch.rows(shared)
                 else:
