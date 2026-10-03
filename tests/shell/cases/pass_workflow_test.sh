@@ -5088,6 +5088,54 @@ test_closeout_deferrals_reject_kind_as_condition_without_ledger_changes() {
   done
 }
 
+test_closeout_rejects_invalid_deferrals_before_any_writes_or_gates() {
+  local slug; slug="$(unique_slug deferral_preflight)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_deferral_closeout_project "${slug}"
+  _write_pass_zero_scorecard "${slug}"
+  local root="projects/${slug}" inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  cat > "${inventory}/pass/current_pass_plan.json" <<JSON
+{"project":"${slug}","intended_pass_id":1,"corridor_objective":{"selected_corridor":"Saved audio corridor"}}
+JSON
+  cat > "${root}/closeout_stubs/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+touch "${VERIFY_PROBE}"
+SH
+  python3 - "${root}" "${NESREV_TEST_TMPDIR}/before.json" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+Path(sys.argv[2]).write_text(json.dumps({str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                       for p in root.rglob('*') if p.is_file()}))
+PY
+  local invalid rc
+  for invalid in 'missing condition :: static' 'missing condition :: RUNTIME' 'bad kind :: inspect the caller :: runtyme'; do
+    rc=0
+    FOCUS='' VERIFY_PROBE="${NESREV_TEST_TMPDIR}/verify-ran" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+      make project-pass-closeout PROJECT="${slug}" REWORK_ITEMS=0 \
+        "DEFERRALS=valid cue gap :: compare callers; ${invalid}" \
+        >"${NESREV_TEST_TMPDIR}/out" 2>&1 || rc=$?
+    assert_eq "${rc}" 2 "invalid deferral must refuse closeout"
+    assert_match 'deferral_capture:' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+    [[ ! -e "${NESREV_TEST_TMPDIR}/verify-ran" ]] || fail "verification ran before invalid DEFERRALS rejection"
+    python3 - "${root}" "${NESREV_TEST_TMPDIR}/before.json" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+actual = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+          for p in root.rglob('*') if p.is_file()}
+assert actual == json.loads(Path(sys.argv[2]).read_text()), 'invalid DEFERRALS changed project files'
+PY
+  done
+
+  FOCUS='' VERIFY_PROBE="${NESREV_TEST_TMPDIR}/verify-ran" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" REWORK_ITEMS=0 \
+      'DEFERRALS=valid cue gap :: compare callers :: static' >/dev/null
+  [[ -e "${NESREV_TEST_TMPDIR}/verify-ran" ]] || fail "corrected closeout did not reach verification"
+  assert_match 'Saved audio corridor' "$(cat "${inventory}/deferrals.csv")"
+}
+
 test_raw_ram_reconciliation_uses_fresh_bundle_without_writing() {
   local slug; slug="$(unique_slug reconcile)"
   trap "cleanup_project ${slug}" EXIT

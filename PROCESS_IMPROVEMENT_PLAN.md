@@ -3,7 +3,7 @@
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
 delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merged
 in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is implemented
-and validated, awaiting review, and PI-8 remains planned.
+and validated, with review approval at `252487518`; PI-8 remains planned.
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -65,7 +65,7 @@ migration and each newly exposed failure before landing.
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 | `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
-| `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Implemented and validated; review pending |
+| `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Approved `252487518`; early input-validation follow-up before landing |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -145,13 +145,18 @@ verification results, not strict maturity evidence.
 <a id="pi-7-deferral-capture"></a>
 ## PI-7 — Preserve meaningful deferral conditions and corridor context
 
-Status: implemented and validated; review pending. Baseline wrapper regressions
-reproduce a bare `static` or `runtime` accepted as the revisit condition, a saved
+Status: approved at `252487518`, with early input validation added from review.
+Baseline wrapper regressions reproduce a bare `static` or `runtime` accepted as
+the revisit condition, a saved
 corridor omitted from new deferrals, and missing context left undiagnosed.
 
 The parser now rejects a bare kind in the second field, case-insensitively,
-before writing any rows from the batch. Two-field conditions such as `compare
-the callers` and explicit third-field kinds retain their meanings. Subject-only
+before writing any rows from the batch. Closeout also calls the same parser in
+its initial Python process, before scorecard writes, assembly, or other stages.
+Malformed second-field conditions and unknown third-field kinds therefore leave
+project files unchanged; correcting the entry permits a plain rerun without
+`PASS=<id>`. Later capture retains its own validation. Two-field conditions such
+as `compare the callers` and explicit third-field kinds retain their meanings. Subject-only
 and tagged-NOTES capture still leave the evidence condition for the operator;
 the check does not infer whether arbitrary prose is meaningful.
 
@@ -195,12 +200,19 @@ Three historical kind-only conditions and seven blank corridors remain authored
 debt for separate review; this implementation does not migrate them. The check
 does not claim 23 full project-verification runs.
 
-One representative largest-source closeout was measured with identical inputs,
-one warmup and three alternating pairs, including a new deferral on every run.
+The reviewed revision's representative largest-source closeout was measured
+with identical inputs, one warmup and three alternating pairs, including a new
+deferral on every run.
 Median wall time changed by +0.31%; all measured runs completed with relaxed
 verification. The new corridor was recorded and existing rows were preserved.
 No assembly or subprocess invocation was added, and packet preparation is
 unchanged. No all-project timing campaign was run.
+
+The preflight follow-up adds no process or assembly invocation. Its regression
+rejects both bare kinds and an invalid third-field kind before verification,
+compares every project-file hash, then completes a corrected ordinary closeout.
+Focused correctness checks cover the follow-up; the reviewed timing and corpus
+results were not rerun.
 
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
