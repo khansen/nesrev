@@ -71,9 +71,12 @@ def trigger_paths(root, project, doc_root, base, head, manifests):
     return sorted(path for path in changed if path in inputs or path in dependencies or path.startswith(prefixes))
 
 
-def export_commit(root, head, destination, archive_path):
+def export_commit(root, head, project, destination, archive_path):
+    roots = [os.fsdecode(name) for name in git(root, "ls-tree", "--name-only", "-z", head).split(b"\0")
+             if name and name != b"projects"]
+    roots.append(f"projects/{project}")
     with archive_path.open("wb") as output:
-        subprocess.run(["git", "-C", str(root), "archive", "--format=tar", head],
+        subprocess.run(["git", "--literal-pathspecs", "-C", str(root), "archive", "--format=tar", head, "--", *roots],
                        stdout=output, stderr=subprocess.PIPE, check=True)
     with tarfile.open(archive_path) as archive:
         for member in archive:
@@ -154,7 +157,7 @@ def evaluate(root, project, doc_root, base, head):
             scratch = Path(directory).resolve()
             exported = scratch / "repo"
             exported.mkdir()
-            export_commit(root, head, exported, scratch / "head.tar")
+            export_commit(root, head, project, exported, scratch / "head.tar")
             env = {name: os.environ[name] for name in ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ")
                    if name in os.environ}
             env.update(PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1")

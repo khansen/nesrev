@@ -177,9 +177,11 @@ changes still count. Other changes explicitly report `no_affected_inputs`;
 projects with no active questions report that fact without exporting or running
 tests. An analyzer without an active runtime question is outside this contract.
 
-Execute from a fresh export of the exact reviewed commit. Only committed files
-enter the export; ignored captures, local reference ROMs and Git metadata do
-not. Exported symlinks must remain inside that tree. Each declared case gets
+Execute from a fresh export of the exact reviewed commit: the reviewed project's
+tree and all root entries except `projects/`. Other projects and the shared
+documents directly under `projects/` are outside the dependency contract.
+Only committed files enter the export; ignored captures, local reference ROMs
+and Git metadata do not. Exported symlinks must remain inside that tree. Each declared case gets
 its own temporary working directory and output path and retains the existing
 30-second timeout. Use the documented Python/Bash/sh or directly executable
 analyzer dependency; do not run capture runners or install dependencies here.

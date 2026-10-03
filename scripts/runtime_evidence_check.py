@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import subprocess
 import sys
@@ -96,7 +97,7 @@ def read_runtime_families(doc_root):
         return result
 
 
-def tracked_file(root, project, value, field):
+def tracked_file(root, project, tracked, value, field):
     raw = text(value, field)
     name, _, fragment = raw.partition("#")
     if not name or Path(name).is_absolute():
@@ -104,11 +105,7 @@ def tracked_file(root, project, value, field):
     path = (project / name).resolve()
     if not path.is_relative_to(project) or not path.is_file():
         raise EvidenceError(f"{field} is missing or escapes the project: {raw}")
-    tracked = subprocess.run(
-        ["git", "--literal-pathspecs", "-C", str(root), "ls-files", "--error-unmatch", "--", str(path.relative_to(root))],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    if tracked.returncode:
+    if str(path.relative_to(root)) not in tracked:
         raise EvidenceError(f"{field} must be tracked: {raw}")
     if fragment:
         if path.suffix.lower() != ".md" or fragment not in markdown_anchors(path.read_text(encoding="utf-8")):
@@ -207,7 +204,13 @@ def validate_runtime_evidence(doc_root, rows, mode="process", *, cases_out=None)
         if not questions and not subjects and not runtime_rows and not families:
             return []
         root, project = repository_and_project(doc_root)
-        tracked_file(root, project, str(manifest.relative_to(project)), "runtime manifest")
+        try:
+            tracked = {os.fsdecode(path) for path in subprocess.check_output(
+                ["git", "--literal-pathspecs", "-C", str(root), "ls-files", "-z", "--", str(project.relative_to(root))],
+                stderr=subprocess.PIPE).split(b"\0") if path}
+        except subprocess.CalledProcessError as exc:
+            raise EvidenceError("cannot read tracked runtime artifacts") from exc
+        tracked_file(root, project, tracked, str(manifest.relative_to(project)), "runtime manifest")
         seen, covered, covered_families = set(), set(), set()
         cases = []
         for question in questions:
@@ -220,11 +223,11 @@ def validate_runtime_evidence(doc_root, rows, mode="process", *, cases_out=None)
             question_text = text(question.get("question"), f"{subject}: question")
             if subject not in subjects:
                 raise EvidenceError(f"{subject}: no matching open runtime deferral")
-            plan, plan_fragment = tracked_file(root, project, question.get("trace_plan"), f"{subject}: trace_plan")
+            plan, plan_fragment = tracked_file(root, project, tracked, question.get("trace_plan"), f"{subject}: trace_plan")
             if " ".join(question_text.split()) not in " ".join(plan.read_text(encoding="utf-8").split()):
                 raise EvidenceError(f"{subject}: trace_plan does not state the manifest's question")
-            tracked_file(root, project, question.get("runner"), f"{subject}: runner")
-            analyzer, _ = tracked_file(root, project, question.get("analyzer"), f"{subject}: analyzer")
+            tracked_file(root, project, tracked, question.get("runner"), f"{subject}: runner")
+            analyzer, _ = tracked_file(root, project, tracked, question.get("analyzer"), f"{subject}: analyzer")
             signals = set(strings(question.get("required_signals"), f"{subject}: required_signals"))
             blobs = strings(question.get("blobs"), f"{subject}: blobs", empty=True)
             for label in blobs:
@@ -273,7 +276,7 @@ def validate_runtime_evidence(doc_root, rows, mode="process", *, cases_out=None)
                 if len(missing) == 1:
                     refused_signals.update(missing)
                 strings(check.get("diagnostics"), f"{subject}/{name}: diagnostics")
-                paths = [tracked_file(root, project, value, f"{subject}/{name}: fixture")[0]
+                paths = [tracked_file(root, project, tracked, value, f"{subject}/{name}: fixture")[0]
                          for value in strings(check.get("fixtures"), f"{subject}/{name}: fixtures")]
                 cases.append((subject, check, analyzer, paths, command))
             if kinds != {"accept", "refuse"} or refused_signals != signals:

@@ -128,6 +128,23 @@ class PortabilityTests(unittest.TestCase):
         self.assertEqual(result["status"], "pass", result)
         self.assertEqual(result["trigger_paths"], ["scripts/shared_runtime.py"])
 
+    def test_export_keeps_shared_helpers_but_excludes_other_projects(self):
+        (self.root / "scripts").mkdir()
+        (self.root / "scripts/shared_runtime.py").write_text("VALUE = 7\n")
+        other = self.root / "projects/other/scripts"
+        other.mkdir(parents=True)
+        (other / "helper.py").write_text("VALUE = 9\n")
+        self.analyzer.write_text(
+            'import sys\nfrom pathlib import Path\n'
+            'root = Path(__file__).resolve().parents[3]\n'
+            'sys.path.insert(0, str(root / "scripts"))\n'
+            'from shared_runtime import VALUE\n'
+            'assert VALUE == 7\n'
+            'assert not (root / "projects/other").exists()\n' + self.analyzer.read_text())
+        self.commit()
+        result = self.evaluate()
+        self.assertEqual(result["status"], "pass", result)
+
     def test_reverted_analyzer_change_is_still_in_review_range(self):
         self.base = self.head
         original = self.analyzer.read_text()
