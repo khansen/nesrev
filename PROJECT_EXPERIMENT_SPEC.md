@@ -768,6 +768,22 @@ within each block. Freeze host concurrency and resource allocation; overloaded
 parallel runs must not be compared to uncontended runs as model differences.
 Record service outages, backend drift, dates, and environment deviations.
 
+The production [observation period](PROCESS_IMPROVEMENT_PLAN.md#observation-period)
+is operational follow-up, not a controlled study under this specification.
+Successive passes can expose recurrence and rework, but are not independent
+replications or evidence that a model or tooling change caused improvement.
+Different corridor difficulty, review scope and exercised paths must remain
+visible; no recurrence on an unexercised path is not evidence of effectiveness.
+
+If friction is a study endpoint, freeze its classification and collection rules
+in the evaluation protocol. Reuse the plan's separate cause and recurrence
+vocabulary and consistent `cause:` / `recurrence:` rationale prefixes. Capture
+raw review and implementation observations as well as receipts; deduplication
+can hide repeats from the current queue. Report missing capture explicitly.
+Review-round counts come from canonical run metadata, not Markdown heading
+counts. These are process measurements; fewer reports or rounds do not replace
+independent semantic correctness and coverage assessment.
+
 Select repetition counts and primary contrasts before execution. One run per
 cell is a harness pilot, not evidence of a stable treatment effect. Report
 per-run and per-ROM differences, variability, and appropriately qualified
@@ -818,6 +834,12 @@ but must not patch, rebase, or restart experimental runs automatically.
 Necessary changes require an amendment or new revision, reviewed software,
 renewed approval for changed scope, and an explicit affected-run policy.
 Previously completed outcomes remain attributable to their original version.
+
+Production observation-period exceptions do not authorize changes to a frozen
+study. Collect any declared friction measures from its preserved artifacts
+under the frozen protocol; new monitor hooks, classifications or gates require
+the same amendment and affected-run policy as other study changes. The proposed
+inventory-coverage guard remains a candidate, not an experiment prerequisite.
 
 Evaluate a process improvement itself as a declared treatment in a subsequent
 comparison. Do not tune the process against hidden evaluation findings and
