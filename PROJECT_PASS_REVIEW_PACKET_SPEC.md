@@ -154,6 +154,48 @@ checks. Missing fixtures are not labelled parity or semantic failures. Provision
 private fixtures only from authorized local inputs; never download or commit
 them, and do not run captures during packet generation.
 
+<a id="runtime-analyzer-portability"></a>
+### Runtime Analyzer Portability
+
+Run `python3 scripts/runtime_evidence_portability.py --project <slug>
+--doc-root <docs> --base <base-sha> --head <head-sha>` independently of the
+private-reference prerequisites. A missing ROM must not suppress this check.
+It reuses `inventory/runtime_evidence.json` and the runtime checker's declared
+commands, acceptance cases, isolated missing-signal refusals and diagnostics.
+There is no additional test registry. The current runtime membership and
+artifact contract must validate even when executable tests are outside scope.
+
+The affected scope is the reviewed project's active questions. Execute all of
+their cases when any commit in the range changes the manifest, its deferral,
+blob or family inventories, `project.conf`, or a declared analyzer, runner,
+trace plan or fixture from either endpoint. Also include changes under the
+project's `scripts/`, `tools/`, and `tests/`, shared directories with those
+names, `agent_playbook/templates/trace/`, and root `Makefile`, `pyproject.toml`,
+`requirements.txt`, or `requirements-dev.txt`. This covers conventional shared
+helper changes without maintaining a second dependency registry. Reverted
+changes still count. Other changes explicitly report `no_affected_inputs`;
+projects with no active questions report that fact without exporting or running
+tests. An analyzer without an active runtime question is outside this contract.
+
+Execute from a fresh export of the exact reviewed commit. Only committed files
+enter the export; ignored captures, local reference ROMs and Git metadata do
+not. Exported symlinks must remain inside that tree. Each declared case gets
+its own temporary working directory and output path and retains the existing
+30-second timeout. Use the documented Python/Bash/sh or directly executable
+analyzer dependency; do not run capture runners or install dependencies here.
+Clear checkout-specific environment variables and Python search-path/user-site
+overrides. This runs trusted project code, not an OS sandbox: independent review
+must still reject hard-coded external input paths, undeclared helper locations,
+network access or emulator invocations. Such dependencies are not portable.
+
+Record the trigger paths, subject and case identities, declared and expanded
+commands, expected and actual exits, and diagnostic matches in the section's
+JSON output. A required case that fails, cannot run, times out, or produces the
+wrong refusal diagnostic fails this evidence. No reference ROM, live capture,
+or local Python import path may substitute for committed synthetic inputs.
+An unaffected scope exits 0 with an explicit `not-required` reason and no
+claimed case results. Fixture success leaves live-capture questions unresolved.
+
 ### Cache Preparation
 
 Run `project-pass-prep` explicitly before dependent evidence and gates, using
@@ -228,10 +270,10 @@ a tool cannot be parsed as packet metadata.
 ### Required Gate Summary
 
 End with one `## Required Gate Summary` section containing a fenced JSON object
-using schema version 2. It records the project and exact review-head SHA,
+using schema version 3. It records the project and exact review-head SHA,
 prerequisite/environment evidence, final state-integrity result, three required
-gate records and four supporting-evidence records (cache preparation, next-pass,
-proof-debt and crosswalk currency). Each record includes name, SHA, exact command
+gate records and five supporting-evidence records (cache preparation, next-pass,
+proof-debt, crosswalk currency and runtime portability). Each record includes name, SHA, exact command
 and actual numeric `exit_status`, or JSON `null` for an explicitly unrun command.
 The human-readable command block uses `Exit status: not-run` for that case.
 
@@ -249,7 +291,11 @@ run their canonical targets against the recorded documentation context.
 Every prerequisite, required gate and
 supporting evidence command must succeed before handoff. The parser also requires
 the read-only reconciliation flags and disabled next-pass auto-preparation in
-the recorded commands. Version 1 and missing legacy summaries require packet
+the recorded commands. Runtime portability must match the packet's base/head
+and project; its captured output must include every declared case result,
+successful expected exits and diagnostic matches, or an explicit unaffected
+scope. Missing, failed and unrun portability commands prevent handoff even when
+the other gates pass. Versions 1/2 and missing legacy summaries require packet
 regeneration; archived review judgements are not rewritten.
 
 ### Reviewer Instructions

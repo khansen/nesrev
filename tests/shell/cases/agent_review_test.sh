@@ -1273,7 +1273,7 @@ test_agent_review_ready_rejects_failed_process_and_docs_even_with_green_verify()
 
 test_agent_review_ready_and_reused_packet_refuse_incomplete_command_evidence() {
   local variant repo base head output rc
-  for variant in no-op missing-output assembler wrong-subject write-prep unchecked-prep failed-prep unrun-prep; do
+  for variant in no-op missing-output assembler wrong-subject write-prep unchecked-prep failed-prep unrun-prep failed-runtime unrun-runtime; do
     repo="${NESREV_TEST_TMPDIR}/evidence_${variant}"
     _init_agent_review_repo "${repo}"
     base="$(git -C "${repo}" rev-parse HEAD~1)"
@@ -1308,6 +1308,10 @@ elif variant in ('failed-prep', 'unrun-prep'):
     sys.path.insert(0, 'tests')
     from review_packet_fixture import packet
     value = packet(head, statuses={'cache-preparation': 2 if variant == 'failed-prep' else None})
+elif variant in ('failed-runtime', 'unrun-runtime'):
+    sys.path.insert(0, 'tests')
+    from review_packet_fixture import packet
+    value = packet(head, statuses={'runtime-portability': 1 if variant == 'failed-runtime' else None})
 else:
     value = value.replace('PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0', 'PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=1')
 path.write_text(value)
@@ -1327,6 +1331,9 @@ PY
     assert_eq "${rc}" 2 "${variant} must refuse handoff"
     if [[ "${variant}" == failed-prep || "${variant}" == unrun-prep ]]; then
       assert_match 'Cache Preparation' "${output}" "handoff must identify preparation refusal"
+    fi
+    if [[ "${variant}" == failed-runtime || "${variant}" == unrun-runtime ]]; then
+      assert_match 'Runtime Analyzer Portability' "${output}" "handoff must identify runtime test refusal"
     fi
     assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
   done

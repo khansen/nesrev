@@ -183,6 +183,11 @@ The blob-disposition checker reconciles this manifest automatically:
 - Maturity mode performs the same checks and executes every fixture; output
   reports each actual exit. Failure blocks maturity, not just an advisory KPI.
 
+Review packets also execute affected active contracts from a clean committed
+export and record each case's command, exit and diagnostic result. Scope and
+handoff refusal rules live in the
+[packet contract](../PROJECT_PASS_REVIEW_PACKET_SPEC.md#runtime-analyzer-portability).
+
 For a focused executable check:
 
 ```sh

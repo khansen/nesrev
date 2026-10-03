@@ -138,7 +138,7 @@ def markdown_anchors(source):
     return anchors
 
 
-def run_case(question, case, analyzer, fixtures, command):
+def run_case(question, case, analyzer, fixtures, command, *, env=None, record=None):
     with tempfile.TemporaryDirectory(prefix="runtime-evidence-check-") as directory:
         scratch = Path(directory)
         args = []
@@ -147,17 +147,23 @@ def run_case(question, case, analyzer, fixtures, command):
                 args.extend(str(path) for path in fixtures)
             else:
                 args.append(token.replace("{analyzer}", str(analyzer)).replace("{output}", str(scratch / "summary.out")))
+        if record is not None:
+            record.update(command=args, exit_status=None, matched_diagnostics=[])
         try:
-            result = subprocess.run(args, cwd=scratch, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(args, cwd=scratch, capture_output=True, text=True, timeout=30, env=env)
         except (OSError, UnicodeError, subprocess.TimeoutExpired) as exc:
             raise EvidenceError(f"{question}/{case['name']}: analyzer could not complete: {exc}") from exc
         expected = case["expected_exit"]
+        if record is not None:
+            record["exit_status"] = result.returncode
         if result.returncode != expected:
             raise EvidenceError(f"{question}/{case['name']}: expected exit {expected}, got {result.returncode}; {result.stderr.strip()[:300]}")
         output = result.stdout + "\n" + result.stderr
         summary = scratch / "summary.out"
         if summary.is_file():
             output += "\n" + summary.read_text(encoding="utf-8")
+        if record is not None:
+            record["matched_diagnostics"] = [item for item in case["diagnostics"] if item in output]
         for expected_text in case["diagnostics"]:
             if expected_text not in output:
                 raise EvidenceError(f"{question}/{case['name']}: missing diagnostic {expected_text!r}")
@@ -176,7 +182,7 @@ def links_plan(row, doc_root, plan, plan_fragment):
     return False
 
 
-def validate_runtime_evidence(doc_root, rows, mode="process"):
+def validate_runtime_evidence(doc_root, rows, mode="process", *, cases_out=None):
     doc_root = Path(doc_root).resolve()
     manifest = doc_root / "inventory/runtime_evidence.json"
     try:
@@ -278,6 +284,8 @@ def validate_runtime_evidence(doc_root, rows, mode="process"):
             raise EvidenceError(f"runtime_gated blobs missing questions: {', '.join(sorted(set(runtime_rows) - covered))}")
         if covered_families != set(families):
             raise EvidenceError(f"runtime_gated families missing questions: {', '.join(sorted(set(families) - covered_families))}")
+        if cases_out is not None:
+            cases_out.extend(cases)
         if mode == "maturity":
             for arguments in cases:
                 print("runtime_evidence_check:", run_case(*arguments))

@@ -23,6 +23,7 @@ SUPPORTING = {
     "next-pass": "Generated Next-Pass Evidence",
     "proof-debt": "Proof Debt Signals",
     "crosswalk": "Crosswalk Currency",
+    "runtime-portability": "Runtime Analyzer Portability",
 }
 COMMANDS = {**GATES, **SUPPORTING}
 TOOLS = {"make", "assembler", "python3", "bash", "git", "rg"}
@@ -140,7 +141,7 @@ def validate_environment(record):
                     raise PacketError(f"prerequisite evidence requires nonempty input size: {name}")
 
 
-def validate_command(record, environment, project):
+def validate_command(record, environment, project, base):
     name, command = record["name"], record["command"]
     try:
         argv = shlex.split(command)
@@ -179,6 +180,14 @@ def validate_command(record, environment, project):
             raise PacketError(f"{title} command does not match recorded assembler")
         if set(assignments) - allowed:
             raise PacketError(f"unexpected {title} command environment")
+    elif name == "runtime-portability":
+        expected = ["scripts/runtime_evidence_portability.py", "--project", project,
+                    "--doc-root", environment["context"]["doc_root"],
+                    "--base", base, "--head", record["review_head"]]
+        python = environment["tools"]["python3"]
+        if (assignments or not argv or argv[0] not in (python["requested"], python.get("path"))
+                or argv[1:] != expected):
+            raise PacketError(f"{title} does not run its canonical command")
     else:
         python = environment["tools"]["python3"]
         context = environment["context"]
@@ -189,6 +198,56 @@ def validate_command(record, environment, project):
             raise PacketError(f"{title} does not run its canonical command")
 
 
+def validate_portability(record, project, base, head):
+    if (not isinstance(record, dict) or type(record.get("schema_version")) is not int
+            or record["schema_version"] != 1 or record.get("project") != project
+            or record.get("base") != base or record.get("review_head") != head
+            or record.get("captures") != "unresolved" or record.get("errors") != []):
+        raise PacketError("Runtime Analyzer Portability requires matching successful scope evidence")
+    for name in ("trigger_paths", "subjects", "case_ids"):
+        items = record.get(name)
+        if (not isinstance(items, list) or any(not isinstance(item, str) or not item for item in items)
+                or (name != "case_ids" and len(set(items)) != len(items))):
+            raise PacketError(f"Runtime Analyzer Portability requires explicit {name}")
+    cases = record.get("cases")
+    if not isinstance(cases, list):
+        raise PacketError("Runtime Analyzer Portability requires case results")
+    if record.get("status") == "not-required":
+        if (record.get("reason") not in {"no_active_manifest", "no_active_questions", "no_affected_inputs"}
+                or cases or record["subjects"] or record["case_ids"]):
+            raise PacketError("Runtime Analyzer Portability has inconsistent unaffected scope")
+        return
+    if (record.get("status") != "pass" or record.get("reason") != "affected_runtime_inputs"
+            or not record["trigger_paths"] or not record["subjects"] or not cases):
+        raise PacketError("Runtime Analyzer Portability has no executed affected cases")
+    identities, pairs = [], []
+    for case in cases:
+        if not isinstance(case, dict) or not isinstance(case.get("id"), str):
+            raise PacketError("Runtime Analyzer Portability has invalid case identity")
+        identities.append(case["id"])
+        if (any(not isinstance(case.get(key), str) or not case[key] for key in ("subject", "name"))
+                or case["id"] != f"{case['subject']}/{case['name']}"):
+            raise PacketError("Runtime Analyzer Portability has inconsistent case identity")
+        pairs.append((case["subject"], case["name"]))
+        expected = case.get("expected_exit")
+        if (case.get("status") != "pass" or type(expected) is not int
+                or type(case.get("exit_status")) is not int or case["exit_status"] != expected
+                or case.get("expect") not in {"accept", "refuse"}
+                or (case["expect"] == "accept" and expected != 0)
+                or (case["expect"] == "refuse" and not 1 <= expected <= 125)):
+            raise PacketError(f"Runtime Analyzer Portability case {case['id']} failed or was not run")
+        for name in ("declared_command", "command", "diagnostics"):
+            items = case.get(name)
+            if not isinstance(items, list) or not items or any(not isinstance(item, str) or not item for item in items):
+                raise PacketError(f"Runtime Analyzer Portability case {case['id']} lacks {name}")
+        if case.get("matched_diagnostics") != case["diagnostics"]:
+            raise PacketError(f"Runtime Analyzer Portability case {case['id']} lacks expected diagnostics")
+    if identities != record["case_ids"] or len(set(pairs)) != len(pairs):
+        raise PacketError("Runtime Analyzer Portability omitted or duplicated required cases")
+    if sorted({subject for subject, _ in pairs}) != sorted(record["subjects"]):
+        raise PacketError("Runtime Analyzer Portability case subjects disagree with scope")
+
+
 def validate_packet(document, expected_head, expected_project=None):
     if packet_head(document) != expected_head.lower():
         raise PacketError("packet review head does not match state")
@@ -196,7 +255,7 @@ def validate_packet(document, expected_head, expected_project=None):
         summary = evidence_json(code_block(section(document, "Required Gate Summary", 2), "json"))
     except json.JSONDecodeError as exc:
         raise PacketError(f"invalid terminal gate summary: {exc}") from exc
-    if not isinstance(summary, dict) or type(summary.get("schema_version")) is not int or summary["schema_version"] != 2:
+    if not isinstance(summary, dict) or type(summary.get("schema_version")) is not int or summary["schema_version"] != 3:
         raise PacketError("invalid terminal gate summary schema")
     if summary.get("review_head") != expected_head.lower():
         raise PacketError("terminal gate summary does not match review head")
@@ -206,6 +265,8 @@ def validate_packet(document, expected_head, expected_project=None):
     declared = one_field(section(document, "Reviewed State", 2), r"^- Project:\s*`([a-z0-9_-]+)`\s*$", "Project")
     if project != declared or (expected_project is not None and project != expected_project):
         raise PacketError("packet project does not match reviewed state")
+    base = one_field(section(document, "Reviewed State", 2),
+                     r"^- Base SHA:\s*`([0-9a-f]{40})`\s*$", "Base SHA")
     gates, supporting = summary.get("gates"), summary.get("supporting_evidence")
     if not isinstance(gates, list) or len(gates) != len(GATES):
         raise PacketError("terminal gate summary must include every required gate")
@@ -246,7 +307,14 @@ def validate_packet(document, expected_head, expected_project=None):
         raise PacketError("prerequisite status disagrees with observed failures")
     validate_environment(environment_record)
     for record in records:
-        validate_command(record, environment_record, project)
+        validate_command(record, environment_record, project, base)
+        if record["name"] == "runtime-portability" and record["exit_status"] == 0:
+            body, _ = gate_evidence(document, record["name"])
+            try:
+                portability = evidence_json(code_block(body, "text"))
+            except json.JSONDecodeError as exc:
+                raise PacketError(f"invalid Runtime Analyzer Portability evidence: {exc}") from exc
+            validate_portability(portability, project, base, expected_head.lower())
     state_integrity = summary.get("state_integrity")
     if not isinstance(state_integrity, str) or state_integrity not in {"pass", "fail"}:
         raise PacketError("terminal summary requires state integrity result")
@@ -332,7 +400,7 @@ def main():
                 "command": getattr(args, name.replace("-", "_") + "_command"),
                 "exit_status": exits(getattr(args, name.replace("-", "_") + "_exit"))} for name in COMMANDS]
     failures = failure_summary(prerequisite, records, args.state_integrity)
-    print(json.dumps({"schema_version": 2, "review_head": args.head, "project": args.project,
+    print(json.dumps({"schema_version": 3, "review_head": args.head, "project": args.project,
                       "environment": prerequisite, "state_integrity": args.state_integrity,
                       "gates": records[:len(GATES)], "supporting_evidence": records[len(GATES):],
                       "failures": failures, "status": "fail" if failures else "pass"}, indent=2))

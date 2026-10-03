@@ -18,6 +18,9 @@ _init_packet_repo() {
   cp "${REPO_ROOT}/scripts/project_policy_config_check.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/proof_debt.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/review_packet_evidence.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/runtime_evidence_portability.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/runtime_evidence_check.py" "${repo}/scripts/"
+  cp "${REPO_ROOT}/scripts/data_format_targets_check.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/reference_review.py" "${repo}/scripts/"
   cp "${REPO_ROOT}/scripts/process_friction.py" "${repo}/scripts/"
   printf 'projects/*/reference/\nprojects/*/build/\n' > "${repo}/.gitignore"
@@ -133,6 +136,115 @@ case "$*" in
 esac
 EOF
   chmod +x "${path}"
+}
+
+_add_packet_runtime_contract() {
+  python3 - "${REPO_ROOT}" "$1" <<'PY'
+import shutil, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / 'tests'))
+from runtime_evidence_test import RuntimeTests
+fixture = RuntimeTests()
+fixture.setUp()
+try:
+    project = Path(sys.argv[2]) / 'projects/demo'
+    for name in ('scripts', 'tools', 'docs'):
+        shutil.copytree(fixture.project / name, project / name, dirs_exist_ok=True)
+    (project / 'docs/reverse_engineering/inventory/data_blob_dispositions.csv').write_text(
+        'label,disposition,artifact\nDemoBlob,runtime_gated,TRACE_PLAN.md\n')
+finally:
+    fixture.doCleanups()
+PY
+  git -C "$1" add .
+  git -C "$1" commit -qm 'Declare synthetic runtime contract'
+}
+
+test_packet_runs_committed_runtime_contract_and_accepts_portable_results() {
+  local repo="${NESREV_TEST_TMPDIR}/portable_repo"
+  _init_packet_repo "${repo}" demo
+  local base; base="$(git -C "${repo}" rev-parse HEAD)"
+  _add_packet_runtime_contract "${repo}"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  (cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo "${base}" HEAD) \
+    > "${NESREV_TEST_TMPDIR}/packet.md"
+  python3 - "${REPO_ROOT}" "${NESREV_TEST_TMPDIR}/packet.md" "$(git -C "${repo}" rev-parse HEAD)" <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / 'scripts'))
+import review_packet_evidence as evidence
+packet = Path(sys.argv[2]).read_text()
+evidence.validate_packet(packet, sys.argv[3], 'demo')
+body, record = evidence.gate_evidence(packet, 'runtime-portability')
+result = json.loads(evidence.code_block(body, 'text'))
+assert record['exit_status'] == 0
+assert result['status'] == 'pass' and result['captures'] == 'unresolved'
+assert [case['exit_status'] for case in result['cases']] == [0, 1, 1]
+assert all(case['matched_diagnostics'] == case['diagnostics'] for case in result['cases'])
+PY
+  python3 "${REPO_ROOT}/scripts/agent_review.py" --repo "${repo}" init \
+    --project demo --base "${base}" --head HEAD --run-id portable >/dev/null
+  cp "${NESREV_TEST_TMPDIR}/packet.md" "${repo}/.agents/runs/portable/packet.md"
+  printf 'Portable analyzer evidence.\n' > "${repo}/.agents/runs/portable/implementation.md"
+  local ready
+  ready="$(python3 "${REPO_ROOT}/scripts/agent_review.py" --repo "${repo}" ready \
+    --note .agents/runs/portable/implementation.md --packet .agents/runs/portable/packet.md)"
+  assert_match 'READY_FOR_REVIEW' "${ready}"
+}
+
+test_packet_refuses_runtime_dependency_on_ignored_capture() {
+  local repo="${NESREV_TEST_TMPDIR}/capture_dependency_repo"
+  _init_packet_repo "${repo}" demo
+  local base; base="$(git -C "${repo}" rev-parse HEAD)"
+  _add_packet_runtime_contract "${repo}"
+  python3 - "${repo}" <<'PY'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+analyzer = root / 'projects/demo/scripts/analyze_trace.py'
+analyzer.write_text('from pathlib import Path\nPath(__file__).resolve().parents[1].joinpath("reference/private.json").read_text()\n' + analyzer.read_text())
+(root / 'projects/demo/reference/private.json').write_text('{}')
+PY
+  git -C "${repo}" add .
+  git -C "${repo}" commit -qm 'Introduce private capture dependency'
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  (cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo "${base}" HEAD) \
+    > "${NESREV_TEST_TMPDIR}/packet.md"
+  python3 - "${REPO_ROOT}" "${NESREV_TEST_TMPDIR}/packet.md" "$(git -C "${repo}" rev-parse HEAD)" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / 'scripts'))
+import review_packet_evidence as evidence
+packet = Path(sys.argv[2]).read_text()
+try:
+    evidence.validate_packet(packet, sys.argv[3], 'demo')
+except evidence.PacketError as exc:
+    assert 'Runtime Analyzer Portability exit status is nonzero: 1' in str(exc), str(exc)
+else:
+    raise AssertionError('private capture dependency was accepted at handoff')
+assert 'private.json' in packet
+PY
+}
+
+test_packet_runs_portable_tests_even_when_private_reference_is_missing() {
+  local repo="${NESREV_TEST_TMPDIR}/missing_reference_portability_repo"
+  _init_packet_repo "${repo}" demo
+  local base; base="$(git -C "${repo}" rev-parse HEAD)"
+  _add_packet_runtime_contract "${repo}"
+  rm "${repo}/projects/demo/reference/demo.nes"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  (cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo "${base}" HEAD) \
+    > "${NESREV_TEST_TMPDIR}/packet.md"
+  python3 - "${REPO_ROOT}" "${NESREV_TEST_TMPDIR}/packet.md" <<'PY'
+import json, sys
+from pathlib import Path
+sys.path.insert(0, str(Path(sys.argv[1]) / 'scripts'))
+import review_packet_evidence as evidence
+packet = Path(sys.argv[2]).read_text()
+body, record = evidence.gate_evidence(packet, 'runtime-portability')
+assert record['exit_status'] == 0
+assert json.loads(evidence.code_block(body, 'text'))['status'] == 'pass'
+assert evidence.gate_evidence(packet, 'project-verify')[1]['exit_status'] is None
+PY
 }
 
 test_pass_review_packet_includes_added_and_removed_inventory_deltas() {

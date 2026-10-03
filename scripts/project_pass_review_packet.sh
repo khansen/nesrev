@@ -368,6 +368,7 @@ NEXT_PASS_CMD="PROJECT_NEXT_PASS_AUTO_PREP=0 ${XASM_ENV} $(printf '%s project-ne
 PREP_CMD="PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 ${XASM_ENV} $(printf '%s project-pass-prep PROJECT=%s' "$(shell_quote "${MAKE_BIN}")" "$(shell_quote "${SLUG}")")"
 PROOF_CMD="python3 scripts/proof_debt.py $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
 CROSSWALK_CMD="python3 scripts/proof_debt.py --crosswalk-only $(shell_quote "${DOC_ROOT}") $(shell_quote "${CROSSWALK_FILE}")"
+PORTABILITY_CMD="$(join_quoted python3 scripts/runtime_evidence_portability.py --project "${SLUG}" --doc-root "${DOC_ROOT}" --base "${BASE_SHA}" --head "${HEAD_SHA}")"
 PREREQUISITE_ARGS=(python3 scripts/review_packet_evidence.py environment
   --source "${ASM_FILE}" --reference "${REF_NES}" --make "${MAKE_BIN}"
   --doc-root "${DOC_ROOT}" --crosswalk "${CROSSWALK_FILE}"
@@ -447,6 +448,9 @@ No configured review ledgers were present in either endpoint of the range.
 EOF
 fi
 
+emit_command_block "Runtime Analyzer Portability" "review_head ${HEAD_SHA}" "${PORTABILITY_CMD}"
+PORTABILITY_STATUS="${LAST_EXIT_STATUS}"
+
 emit_command_block "Build and Fixture Prerequisites" "review_head ${HEAD_SHA}" "$(join_quoted "${PREREQUISITE_ARGS[@]}")"
 SKIP_REASON=""
 if [[ "${LAST_EXIT_STATUS}" != 0 ]]; then
@@ -513,5 +517,6 @@ python3 scripts/review_packet_evidence.py summary \
   --cache-preparation-command "${PREP_CMD}" --cache-preparation-exit "${PREP_STATUS}" \
   --next-pass-command "${NEXT_PASS_CMD}" --next-pass-exit "${NEXT_PASS_STATUS}" \
   --proof-debt-command "${PROOF_CMD}" --proof-debt-exit "${PROOF_STATUS}" \
-  --crosswalk-command "${CROSSWALK_CMD}" --crosswalk-exit "${CROSSWALK_STATUS}"
+  --crosswalk-command "${CROSSWALK_CMD}" --crosswalk-exit "${CROSSWALK_STATUS}" \
+  --runtime-portability-command "${PORTABILITY_CMD}" --runtime-portability-exit "${PORTABILITY_STATUS}"
 printf '```\n\nPacket generation: complete. Required evidence status is reported separately above.\n'
