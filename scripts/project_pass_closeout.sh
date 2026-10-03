@@ -54,6 +54,16 @@ scripts_dir_arg = sys.argv[4]
 focus_env = os.environ.get("FOCUS", "").strip()
 notes_env = os.environ.get("NOTES", "").strip()
 
+if os.environ.get("DEFERRALS"):
+    sys.path.insert(0, scripts_dir_arg)
+    from deferral_capture import explicit_entries
+
+    try:
+        explicit_entries(os.environ["DEFERRALS"])
+    except ValueError as exc:
+        print(f"deferral_capture: {exc}", file=sys.stderr)
+        raise SystemExit(2)
+
 
 def validate_policy_baseline_marker(notes_text):
     # A malformed policy-baseline-audit marker is invisible to every check
@@ -535,6 +545,8 @@ python3 "${DEFERRAL_CAPTURE_SCRIPT}" \
   "${DOC_ROOT}/inventory/deferrals.csv" \
   --pass-id "${PASS_ID}" \
   --corridor "${FOCUS:-}" \
+  --project "${SLUG}" \
+  --plan "${DOC_ROOT}/inventory/pass/current_pass_plan.json" \
   --explicit "${DEFERRALS:-}" \
   --notes "${NOTES:-}"
 

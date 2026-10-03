@@ -21,13 +21,14 @@ under a maturity line budget, and appending every deferral would turn them into
 the pass log the documentation rules forbid. A CSV ledger also makes repeat
 deferrals queryable, which is what the repeated-deferral escape rule needs.
 
-Exit status is 0 unless the ledger cannot be written.
+Invalid explicit entries exit 2 before changing the ledger.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import sys
 from pathlib import Path
@@ -159,6 +160,12 @@ def explicit_entries(spec: str) -> list[dict[str, str]]:
         subject = parts[0]
         if not subject:
             continue
+        if len(parts) > 1 and parts[1].lower() in ("static", "runtime"):
+            raise ValueError(
+                f"{parts[1]!r} is a kind, not a revisit condition in {entry!r}; "
+                "use 'subject :: revisit condition :: kind' with the evidence "
+                "needed to close the gap in the second field"
+            )
         kind = parts[2].lower() if len(parts) > 2 and parts[2] else "static"
         if kind not in ("static", "runtime"):
             # Downgrading a typo to static would silently suppress the
@@ -183,11 +190,47 @@ def existing_rows(path: Path) -> list[dict[str, str]]:
         return [dict(r) for r in csv.DictReader(fh)]
 
 
+def capture_corridor(explicit: str, plan_path: Path | None, project: str, pass_id: str) -> str:
+    if explicit.strip():
+        return explicit.strip()
+    reason = "no pass plan supplied"
+    if plan_path is not None:
+        try:
+            plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, ValueError) as exc:
+            reason = f"cannot read pass plan {plan_path}: {exc}"
+        else:
+            if not isinstance(plan, dict):
+                reason = "pass plan must be an object"
+            elif plan.get("project") != project:
+                reason = "pass plan project does not match"
+            else:
+                intended = plan.get("intended_pass_id")
+                valid_id = (type(intended) is int or
+                            isinstance(intended, str) and re.fullmatch(r"[0-9]+", intended))
+                if not valid_id or not re.fullmatch(r"[0-9]+", pass_id) or int(intended) != int(pass_id):
+                    reason = "pass plan intended_pass_id does not match"
+                else:
+                    objective = plan.get("corridor_objective")
+                    selected = objective.get("selected_corridor") if isinstance(objective, dict) else None
+                    if isinstance(selected, str) and selected.strip():
+                        return selected.strip()
+                    reason = "pass plan has no selected corridor"
+    print(
+        f"deferral_capture: corridor unavailable ({reason}); recording new "
+        "deferrals with an empty corridor. Set FOCUS=<corridor> "
+        "(or --corridor) to supply it.", file=sys.stderr,
+    )
+    return ""
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("ledger")
     ap.add_argument("--pass-id", required=True)
     ap.add_argument("--corridor", default="")
+    ap.add_argument("--plan", type=Path, help="saved pass plan; used only when --corridor is empty")
+    ap.add_argument("--project", default="", help="project identity required when using --plan")
     ap.add_argument("--notes", default="")
     ap.add_argument(
         "--explicit",
@@ -204,6 +247,8 @@ def main(argv: list[str]) -> int:
         "obliges a trace plan and must be chosen deliberately",
     )
     args = ap.parse_args(argv)
+    if args.plan is not None and not args.project:
+        ap.error("--plan requires --project")
 
     if args.explicit:
         try:
@@ -240,15 +285,18 @@ def main(argv: list[str]) -> int:
             already.add((row_pass_id, subject_key(deferral)))
 
     added = 0
+    corridor = None
     for entry in entries:
         subject = subject_key(entry["deferral"])
         key = (str(args.pass_id), subject)
         if key in already:
             continue
+        if corridor is None:
+            corridor = capture_corridor(args.corridor, args.plan, args.project, args.pass_id)
         rows.append(
             {
                 "pass_id": str(args.pass_id),
-                "corridor": args.corridor,
+                "corridor": corridor,
                 "subject": subject,
                 "kind": entry["kind"],
                 "deferral": entry["deferral"],
