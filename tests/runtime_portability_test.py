@@ -168,6 +168,17 @@ class PortabilityTests(unittest.TestCase):
         self.assertEqual(result["status"], "not-required", result)
         self.assertEqual(result["reason"], "no_active_questions")
 
+    def test_review_can_repair_a_malformed_historical_manifest(self):
+        for malformed in ('not JSON', '{"questions":[{"checks":null}]}'):
+            with self.subTest(malformed=malformed):
+                self.manifest.write_text(malformed)
+                self.commit()
+                self.base = self.head
+                self.save()
+                self.commit()
+                result = self.evaluate()
+                self.assertEqual(result["status"], "pass", result)
+
     def test_removing_required_manifest_cannot_hide_tests(self):
         self.base = self.head
         self.manifest.unlink()

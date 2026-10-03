@@ -26,13 +26,20 @@ def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], stderr=subprocess.PIPE)
 
 
-def committed_manifest(root, revision, path):
+def committed_manifest(root, revision, path, *, historical=False):
     exists = subprocess.run(["git", "-C", str(root), "cat-file", "-e", f"{revision}:{path}"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if exists.returncode:
         return None
-    data = json.loads(git(root, "show", f"{revision}:{path}"))
+    try:
+        data = json.loads(git(root, "show", f"{revision}:{path}"))
+    except (UnicodeError, ValueError):
+        if historical:
+            return {"questions": []}
+        raise
     if not isinstance(data, dict) or not isinstance(data.get("questions"), list):
+        if historical:
+            return {"questions": []}
         raise PortabilityError(f"{revision}:{path}: invalid runtime manifest")
     return data
 
@@ -45,15 +52,16 @@ def trigger_paths(root, project, doc_root, base, head, manifests):
     for manifest in manifests:
         for question in (manifest or {}).get("questions", []):
             if not isinstance(question, dict):
-                raise PortabilityError("runtime question must be an object")
+                continue
             paths = [question.get(key) for key in ("analyzer", "runner", "trace_plan")]
-            for case in question.get("checks", []):
+            checks = question.get("checks")
+            for case in checks if isinstance(checks, list) else []:
                 if not isinstance(case, dict) or not isinstance(case.get("fixtures"), list):
-                    raise PortabilityError("runtime check requires fixtures")
+                    continue
                 paths.extend(case["fixtures"])
             for path in paths:
                 if not isinstance(path, str):
-                    raise PortabilityError("runtime artifact must be a path")
+                    continue
                 inputs.add(posixpath.normpath(f"{project_path}/{path.partition('#')[0]}"))
     prefixes = ("scripts/", "tests/", "tools/", "agent_playbook/templates/trace/",
                 *(f"{project_path}/{name}/" for name in ("scripts", "tools", "tests")))
@@ -110,7 +118,7 @@ def evaluate(root, project, doc_root, base, head):
         relative_docs = docs.relative_to(root).as_posix()
         manifest_path = f"{relative_docs}/inventory/runtime_evidence.json"
         current = committed_manifest(root, head, manifest_path)
-        previous = committed_manifest(root, base, manifest_path)
+        previous = committed_manifest(root, base, manifest_path, historical=True)
         from runtime_evidence_check import EvidenceError, run_case, validate_runtime_evidence
         rows = []
         blobs = docs / "inventory/data_blob_dispositions.csv"
