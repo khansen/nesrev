@@ -123,14 +123,10 @@ inconveniences and project-specific semantics do not automatically justify
 shared tooling changes.
 
 Separate cause from recurrence in triage proposals and the rationale of new
-receipts, following the [observation plan](PROCESS_IMPROVEMENT_PLAN.md#observation-period).
-Use consistent prefixes, for example
-`cause: integration gap; recurrence: repeated after fix (<evidence link>)`.
-Use cause values `latent tooling gap`, `integration gap`, `implementer miss`,
-`uncertain` or `mixed`; recurrence values are `first observed`,
-`repeated before fix` or `repeated after fix`. Link the earlier occurrence and actual local fix
-integration when applicable. These are explanatory fields in existing text,
-not new receipt dispositions or a schema migration. Preserve old receipts.
+receipts, using the fixed format, value lists and local-integration boundary
+defined in the [observation plan](PROCESS_IMPROVEMENT_PLAN.md#observation-period).
+These are explanatory fields in existing text, not new receipt dispositions
+or a schema migration. Preserve old receipts.
 A repeat warrants investigation; it does not by itself prove rule placement
 or establish that a new gate is the right remedy.
 
@@ -197,7 +193,9 @@ or separately budgeted triage-only modes. Ordinary candidates remain deferred
 or routed; their arrival does not authorize a tooling job. Blockers and
 consequential silent failures may request a correctness hold and an exceptional
 fix under the existing approval and allowance contracts. They cannot replenish
-the allowance or bypass approval automatically.
+the allowance or bypass approval automatically. Surface each such Hold to the
+operator as `NEEDS INPUT`, with its evidence, affected admissions and requested
+action; a model's assessment must not silently pause production work.
 
 Assess repeated causes, canonical review-round counts and recorded operator
 rework using existing artifacts. Report which repaired paths were exercised,
@@ -205,7 +203,9 @@ unexercised or uncertain. A quiet queue is not proof that a fix worked: until
 the section 8 recurrence ingestion is available, inspect raw archived reviews
 and implementation notes as well as queues and receipts, because existing
 receipt filtering can suppress an identical later observation. Preserve a
-confirmed recurrence through the supervised linked-observation path.
+confirmed recurrence using the plan's manual procedure: keep the original text
+and indented provenance together in one new candidate chunk, validate it with
+the canonical parser, and leave the old receipt unchanged.
 
 The observation period can run manually before this monitor exists; it is not
 a reason to implement or install the monitor. The proposed
