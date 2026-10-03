@@ -311,6 +311,9 @@ unfinished earlier rows must not acquire an exemption through a loose text
 match. Source line numbers must survive filtering for useful diagnostics.
 Identical repeated headers continue the same pass log. Legacy nonnumeric
 annotations remain ordinary checked text and receive no historical exemption.
+Because lifecycle validation shares this parser, process-check also refuses a
+second `pass_id` table with a conflicting header. This is an intentional
+validation tightening beyond the two symbol checks, not a historical exemption.
 
 Apply the same boundary in closeout's residue sweep and docs-check's backticked
 symbol validation. Recognize receipts by their canonical project path and the
@@ -321,6 +324,10 @@ arbitrary caller-selected files, or every file named like a receipt. Existing
 raw-operand closure, current owner reconciliation and current-pass ledger
 validation remain in force. No assembler-fact parser or new xasm output is
 needed for this authored-text boundary.
+Receipt IDs hash normalized candidate content only; rationale, sources and
+destinations are schema-validated but not covered by that content hash.
+Preservation of those fields, earlier rename reasons and review archives is
+policy, with byte-identity regression tests, not a tamper-detection guarantee.
 
 Land the corresponding playbook changes with the tooling: replace the
 historical-paraphrasing instruction in PASS_WORKFLOW and align DOCUMENTATION's
@@ -344,6 +351,10 @@ Acceptance for phase A:
 3. Missing receipts work; malformed receipts refuse with their diagnostic.
    Invalid scorecard structure/lifecycle refuses rather than hiding references.
    Test standalone docs-check's latest-pass selection as well as closeout.
+   Both symbol lists and their comparison must use consistent collation;
+   exercise valid and missing symbols under a UTF-8 locale that sorts them
+   differently from C. A residue check with no renames does not decode unrelated
+   docs; unreadable documents needed for a rename scan refuse clearly with 65.
 4. A two-pass rename chain keeps the first row's five fields unchanged and
    appends the second rename. Later discoveries remain attributed to the later
    pass. Current raw-RAM owner reconciliation still updates active fields.
@@ -357,8 +368,8 @@ This changes existing checks, with no new assembly invocation or per-pass
 command. Do not add all-project performance testing. If measurement is needed,
 use one representative affected path under the existing performance policy.
 
-Implementation validation: 13 focused Python tests, all 676 shell cases and
-1,206 Java tests pass. Nine scratch mutations fail on their intended assertions,
+Initial validation at `f177e68e6`: 13 focused Python tests, all 676 shell cases
+and 1,206 Java tests passed. Nine scratch mutations failed on their intended assertions,
 including restored historical scans, blanket exemptions, skipped receipt
 validation, missing pass-context forwarding and changed failure order. The full suite required an
 unrestricted rerun for its existing process-cleanup tests' `ps` access.
@@ -373,6 +384,20 @@ affected wrappers within budget: standalone docs-check +3.50%, complete closeout
 recheck -0.56%. An initial +6.86% docs-check result led to reusing an existing
 Python scan, with refusal order preserved and tested. No all-project timing
 campaign was run.
+
+External review found inconsistent sort/comparison collation that the initial
+fixtures missed. Both symbol lists and their comparison now use C collation.
+The follow-up passes 31 affected shell cases (including the 13 Python contracts)
+under `en_NZ.UTF-8`, and docs-check passes on all 23 pinned projects under that
+locale. The new collation fixture selects an installed UTF-8 locale with a
+demonstrably different order; this run exercised `ca_AD.UTF-8`, with both valid
+and genuinely missing symbols. Hosts without such a locale explicitly skip
+that fixture. Three scratch mutations reject the sort mismatch, eager no-rename
+document reads, and unhandled decode errors. The supported `make -C` invocation
+from outside the repository also passes; direct helper invocation outside the
+repository root is not newly supported. Full shell/Java suites and timing were
+not rerun for this follow-up. The old timing receipts did not record locale
+and do not establish performance across locales.
 
 <a id="pi-9-provenance-restoration"></a>
 ### Phase B — Audit and restore existing project provenance

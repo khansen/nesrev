@@ -802,7 +802,14 @@ for path in doc_root.rglob("*"):
         continue
     doc_files.append(path)
 
-doc_lines = {path: history.lines(path) for path in doc_files}
+doc_lines = {}
+if old_symbols:
+    for path in doc_files:
+        try:
+            doc_lines[path] = history.lines(path)
+        except (OSError, UnicodeError) as exc:
+            print(f"rename residue: cannot read {path} as UTF-8: {exc}", file=sys.stderr)
+            sys.exit(65)
 residue = []
 for symbol in old_symbols:
     pattern = re.compile(rf"`{re.escape(symbol)}`|\b{re.escape(symbol)}\b")

@@ -2740,6 +2740,63 @@ test_history_docs_check_rejects_current_and_selected_older_rows() {
   assert_match 'OldEntry' "${out}"
 }
 
+test_history_docs_symbols_use_consistent_collation() {
+  local symbols="${NESREV_TEST_TMPDIR}/locale-symbols" c_order utf_order utf_locale="" candidate
+  printf '%s\n' ALPHA_ENTRY AlphaEntry ZeroPage ZP_Alpha ZetaEntry ZP_Zeta > "${symbols}"
+  c_order="$(LC_ALL=C sort -u "${symbols}")"
+  while IFS= read -r candidate; do
+    case "${candidate}" in *.[uU][tT][fF]-8|*.[uU][tT][fF]8) ;; *) continue ;; esac
+    utf_order="$(LC_ALL="${candidate}" sort -u "${symbols}")"
+    if [[ "${utf_order}" != "${c_order}" ]]; then
+      utf_locale="${candidate}"
+      break
+    fi
+  done < <(locale -a)
+  if [[ -z "${utf_locale}" ]]; then
+    echo "SKIP: no installed UTF-8 locale with non-C collation"
+    return 0
+  fi
+  echo "Testing docs symbol collation under ${utf_locale}"
+
+  local slug; slug="$(unique_slug history_locale)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  local root="projects/${slug}" docs="projects/${slug}/docs/reverse_engineering" symbol out rc
+  while IFS= read -r symbol; do
+    printf '%s: RTS\n' "${symbol}" >> "${root}/asm/${slug}.asm"
+    printf 'Entry `%s`.\n' "${symbol}" >> "${docs}/ONBOARDING.md"
+  done < "${symbols}"
+  rc=0
+  out="$(LC_ALL="${utf_locale}" LANG="${utf_locale}" make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 0 "valid mixed-case/underscore symbols must resolve under ${utf_locale}: ${out}"
+  printf 'Missing `GAMMA_MISSING`.\n' >> "${docs}/ONBOARDING.md"
+  rc=0
+  out="$(LC_ALL="${utf_locale}" LANG="${utf_locale}" make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 2 "a genuinely missing symbol must still fail under ${utf_locale}"
+  assert_match 'docs reference unknown symbols' "${out}"
+  assert_match 'GAMMA_MISSING' "${out}"
+  while IFS= read -r symbol; do
+    assert_not_match "${symbol}" "${out}" "valid symbol must not be reported missing"
+  done < "${symbols}"
+}
+
+test_history_residue_reads_docs_only_for_renames_and_reports_decode_errors() {
+  local slug; slug="$(unique_slug history_encoding)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  local docs="projects/${slug}/docs/reverse_engineering" out rc=0
+  printf 'old_name,new_name,reason,confidence,pass_id\n' > "${docs}/inventory/renames.csv"
+  printf '\377' > "${docs}/legacy-encoding.txt"
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)" || rc=$?
+  assert_eq "${rc}" 0 "a no-rename pass must not decode unrelated docs: ${out}"
+  printf 'OldEntry,NewEntry,entry role established,high,1\n' >> "${docs}/inventory/renames.csv"
+  rc=0
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)" || rc=$?
+  assert_eq "${rc}" 65 "unreadable rename evidence must refuse cleanly"
+  assert_match 'rename residue: cannot read .*legacy-encoding.txt as UTF-8' "${out}"
+  assert_not_match 'Traceback' "${out}"
+}
+
 test_history_malformed_receipt_refuses_canonical_wrappers() {
   local slug; slug="$(unique_slug history_bad_receipt)"
   trap "cleanup_project ${slug}" EXIT

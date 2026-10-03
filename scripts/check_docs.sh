@@ -322,6 +322,7 @@ except (OSError, UnicodeError, ValueError) as exc:
     (output / "history_error.txt").write_text(f"historical references: {exc}\n")
 PY
 
+export LC_ALL=C
 echo "[7/9] Building asm symbol index (labels + .EQU + local @@labels)"
 {
   rg -o "^[A-Za-z_][A-Za-z0-9_]*:" "${ASM_FILE}" | sed 's/:$//' || true
