@@ -2,8 +2,9 @@
 
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
 delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merged
-in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is implemented
-and validated, with review approval at `252487518`; PI-8 remains planned.
+in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
+[PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is independently approved;
+publication is pending.
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -16,10 +17,10 @@ remain on the local-only corpus branch.
 
 1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is merged
    in [PR #141](https://github.com/khansen/nesrev/pull/141).
-2. [PI-7: Deferral capture](#pi-7-deferral-capture). Reject misplaced kind
-   keywords and carry the persisted corridor into new deferrals.
+2. [PI-7: Deferral capture](#pi-7-deferral-capture) is merged in
+   [PR #142](https://github.com/khansen/nesrev/pull/142).
 3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
-   Make the existing synthetic-fixture requirement demonstrable at handoff.
+   Approved at `a1a586b10`; publish and land the reviewed implementation.
 4. Run the [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
    That plan owns its scope and acceptance criteria. End with a migration or
    deferral recommendation; production implementation is a separate decision.
@@ -65,7 +66,8 @@ migration and each newly exposed failure before landing.
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 | `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
-| `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Approved `252487518`; early input-validation follow-up before landing |
+| `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
+| `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Independently approved `a1a586b10`; publication pending |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -145,7 +147,8 @@ verification results, not strict maturity evidence.
 <a id="pi-7-deferral-capture"></a>
 ## PI-7 — Preserve meaningful deferral conditions and corridor context
 
-Status: approved at `252487518`, with early input validation added from review.
+Status: merged in [PR #142](https://github.com/khansen/nesrev/pull/142) after
+approval of `252487518`, with early input validation added from review.
 Baseline wrapper regressions reproduce a bare `static` or `runtime` accepted as
 the revisit condition, a saved
 corridor omitted from new deferrals, and missing context left undiagnosed.
@@ -217,9 +220,22 @@ results were not rerun.
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
 
-Status: planned. Repeated reviews requested proof that new analyzer acceptance
-and refusal tests run from committed synthetic inputs without private captures.
-The existing playbook requirement needs an observable handoff result.
+Status: independently approved at `a1a586b10`, including the temporary-directory
+isolation follow-up. Publication and landing are pending. Review of `05c8fa6cd`
+accepted the existing contracts; the follow-up review verified the refusal and
+Git-discovery regressions and their bad-direction behavior.
+The baseline maturity
+checker accepts an analyzer that reads an ignored local capture through its
+source path; its temporary working directory does not isolate the analyzer.
+Review packets run only structural runtime checks, so neither behavior proves
+that fixtures work from committed inputs alone.
+
+The implementation reuses the manifest and existing acceptance/refusal runner
+in a clean export of the reviewed commit. The affected input scope, dependency
+boundary, per-case evidence and packet schema-3 refusal contract are defined
+in [the packet specification](PROJECT_PASS_REVIEW_PACKET_SPEC.md#runtime-analyzer-portability).
+The new step is independent of assembly prerequisites and does not add work to
+pass preparation, next-pass generation or ordinary process checks.
 
 - Audit the current [runtime-evidence fixture contract](agent_playbook/RUNTIME_EVIDENCE.md)
   and packet checks first. Define the affected analyzer/manifest/fixture scope,
@@ -237,6 +253,39 @@ on an ignored local capture are refused with useful diagnostics; malformed
 synthetic evidence fails its analyzer's refusal case. Existing supported
 analyzers and changes outside the affected scope retain explicit, tested
 behavior. Passing fixtures do not close pending live-capture questions.
+
+Validation: 20 portability tests, 39 existing runtime-contract tests, 39 packet
+parser tests, and 15 packet shell cases pass. The packet tests exercise the real
+handoff CLI, including successful acceptance and refusal of failed or unrun
+runtime evidence. Nine deliberate regressions fail their intended assertions.
+All 23 projects retain their runtime classifications: 19 active fixture cases
+across two projects pass from clean exports; the remaining projects explicitly
+require no execution. This is a runtime-contract sweep, not full-corpus CI.
+
+The earlier full suite at `c8ed5b319` passed 670 of 671 shell cases; the remaining
+case hit the sandbox's process-inspection restriction, then its 17 tests passed
+on an unrestricted retry. All 1,206 Java tests passed separately. The final
+export and membership-lookup changes were checked with the affected runtime
+and packet tests and the corpus sweep; the full suite was not repeated.
+
+The larger project with active runtime contracts supplies the packet timing
+sample. One warmup per variant followed by three alternating measured pairs
+gives +3.27% median wall time, within the 5% budget. All measured packets validate;
+verification uses `ALLOW_UNRESOLVED_LXXXX=1`. This is one affected-path sample,
+not corpus-wide timing. Export only the reviewed project and shared root entries,
+and batch Git membership lookup, to keep the added execution within budget.
+No new fixture execution is added to pass preparation, next-pass or process checks.
+
+The review follow-up refuses a resolved temporary root or scratch directory
+inside the reviewed repository, including symlink aliases, before executing any
+fixture. Every case uses the validated external scratch parent, with child
+`TMPDIR` and `GIT_CEILING_DIRECTORIES` set there. The regression reproduces an
+analyzer finding ignored inputs through Git under a repository-local `TMPDIR`;
+the external-parent test also verifies that neither the case directory nor the
+export discovers an unrelated enclosing repository. Affected tests and both
+active corpus contracts were rerun. The prior timing receipt is reused: this
+bounded path validation adds no subprocess, export, or fixture execution; no
+new performance run or full-suite run was needed.
 
 ## PI-1 — Make checker coverage explicit
 

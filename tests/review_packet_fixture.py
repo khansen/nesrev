@@ -20,14 +20,19 @@ def environment_fixture():
 
 
 def packet(head, project="demo", statuses=None, verify_output="Verification complete",
-           verify_command=None, title="Packet", environment=None, state_integrity="pass"):
+           verify_command=None, title="Packet", environment=None, state_integrity="pass", portability=None):
     statuses = statuses or {}
     environment = environment if environment is not None else environment_fixture()
     commands = {name: f"make {name} PROJECT={project}" for name in GATES}
     commands.update({"cache-preparation": f"make project-pass-prep PROJECT={project}",
                      "next-pass": f"make project-next-pass PROJECT={project}",
                      "proof-debt": "python3 scripts/proof_debt.py docs crosswalk",
-                     "crosswalk": "python3 scripts/proof_debt.py --crosswalk-only docs crosswalk"})
+                     "crosswalk": "python3 scripts/proof_debt.py --crosswalk-only docs crosswalk",
+                     "runtime-portability": f"python3 scripts/runtime_evidence_portability.py --project {project} --doc-root docs --base {'b' * 40} --head {head}"})
+    if portability is None:
+        portability = {"schema_version": 1, "project": project, "base": "b" * 40, "review_head": head,
+                       "status": "not-required", "reason": "no_active_manifest", "trigger_paths": [],
+                       "subjects": [], "case_ids": [], "cases": [], "errors": [], "captures": "unresolved"}
     if verify_command is not None:
         commands["project-verify"] = verify_command
     for name in (*GATES, "cache-preparation", "next-pass"):
@@ -39,11 +44,11 @@ def packet(head, project="demo", statuses=None, verify_output="Verification comp
     records = [{"name": name, "review_head": head, "command": commands[name],
                 "exit_status": statuses.get(name, 0)} for name in COMMANDS]
     failures = failure_summary(environment, records, state_integrity)
-    summary = {"schema_version": 2, "review_head": head, "project": project,
+    summary = {"schema_version": 3, "review_head": head, "project": project,
                "environment": environment, "state_integrity": state_integrity,
                "gates": records[:len(GATES)], "supporting_evidence": records[len(GATES):],
                "failures": failures, "status": "fail" if failures else "pass"}
-    sections = [f"# {title}\n\n## Reviewed State\n\n- Project: `{project}`\n- Review head SHA: `{head}`\n"]
+    sections = [f"# {title}\n\n## Reviewed State\n\n- Project: `{project}`\n- Base SHA: `{'b' * 40}`\n- Review head SHA: `{head}`\n"]
     def block(label, command, status, output):
         fence = "`" * max(3, max((len(value) for value in re.findall(r"`+", output)), default=0) + 1)
         sections.append(f"\n### {label}\n\nState: `review_head {head}`\n\nCommand:\n\n```sh\n{command}\n```\n\nExit status: `{status if status is not None else 'not-run'}`\n\nOutput:\n\n{fence}text\n{output}\n{fence}\n")
@@ -51,6 +56,8 @@ def packet(head, project="demo", statuses=None, verify_output="Verification comp
           int(environment["status"] != "pass"), json.dumps(environment))
     for record in records:
         output = verify_output if record["name"] == "project-verify" else "Synthetic evidence"
+        if record["name"] == "runtime-portability":
+            output = json.dumps(portability)
         block(COMMANDS[record["name"]], record["command"], record["exit_status"], output)
     sections.append("\n## Required Gate Summary\n\n```json\n" + json.dumps(summary, indent=2) + "\n```\n")
     return "".join(sections)

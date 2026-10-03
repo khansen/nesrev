@@ -1,5 +1,6 @@
 import json
 import argparse
+import copy
 import re
 import sys
 import tempfile
@@ -17,6 +18,60 @@ HEAD = "a" * 40
 class PacketTests(unittest.TestCase):
     def test_complete_packet_passes(self):
         evidence.validate_packet(packet(HEAD), HEAD, "demo")
+
+    def active_portability(self):
+        cases = [{"id": "DemoGap/" + name, "subject": "DemoGap", "name": name, "expect": kind, "expected_exit": rc,
+                  "exit_status": rc, "declared_command": ["python3", "{analyzer}", "{output}", "{fixtures}"],
+                  "command": ["python3", "/clean/analyzer.py", "/scratch/output", "/clean/fixture.json"],
+                  "diagnostics": [diagnostic], "matched_diagnostics": [diagnostic], "status": "pass"}
+                 for name, kind, rc, diagnostic in (("complete", "accept", 0, "accepted"),
+                                                    ("missing", "refuse", 1, "missing event"))]
+        return {"schema_version": 1, "project": "demo", "base": "b" * 40, "review_head": HEAD,
+                "status": "pass", "reason": "affected_runtime_inputs", "trigger_paths": ["projects/demo/scripts/analyzer.py"],
+                "subjects": ["DemoGap"], "case_ids": [case["id"] for case in cases], "cases": cases,
+                "errors": [], "captures": "unresolved"}
+
+    def test_portability_acceptance_and_refusal_results_are_accepted(self):
+        evidence.validate_packet(packet(HEAD, portability=self.active_portability()), HEAD)
+
+    def test_portability_cannot_omit_or_hide_failed_and_unrun_cases(self):
+        base = self.active_portability()
+        mutations = []
+        for key, value in (("exit_status", None), ("exit_status", 7), ("exit_status", True),
+                           ("status", "not-run"), ("matched_diagnostics", []), ("command", [])):
+            changed = copy.deepcopy(base)
+            changed["cases"][0][key] = value
+            mutations.append(changed)
+        changed = copy.deepcopy(base)
+        changed["cases"].pop()
+        mutations.append(changed)
+        for value in mutations:
+            with self.subTest(value=value), self.assertRaisesRegex(evidence.PacketError, "Runtime Analyzer Portability"):
+                evidence.validate_packet(packet(HEAD, portability=value), HEAD)
+
+    def test_portability_must_match_range_and_cannot_resolve_live_captures(self):
+        for key, value in (("review_head", "c" * 40), ("base", "c" * 40), ("project", "another_demo"),
+                           ("captures", "resolved"), ("status", "not-required")):
+            changed = self.active_portability()
+            changed[key] = value
+            with self.subTest(key=key), self.assertRaisesRegex(evidence.PacketError, "Runtime Analyzer Portability"):
+                evidence.validate_packet(packet(HEAD, portability=changed), HEAD)
+
+    def test_portability_missing_unrun_or_failed_outer_command_blocks_handoff(self):
+        for status in (None, 1):
+            with self.subTest(status=status), self.assertRaisesRegex(agent_review.UserError, "Runtime Analyzer Portability"):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    (root / "packet.md").write_text(packet(HEAD, statuses={"runtime-portability": status}))
+                    agent_review.validate_packet(root, "packet.md", HEAD, "demo")
+        value = packet(HEAD).replace("### Runtime Analyzer Portability", "### Missing Portability")
+        with self.assertRaisesRegex(evidence.PacketError, "Runtime Analyzer Portability"):
+            evidence.validate_packet(value, HEAD)
+
+    def test_portability_command_cannot_substitute_different_range(self):
+        value = packet(HEAD).replace("--base " + "b" * 40, "--base " + "c" * 40)
+        with self.assertRaisesRegex(evidence.PacketError, "Runtime Analyzer Portability.*canonical command"):
+            evidence.validate_packet(value, HEAD)
 
     def test_reused_state_packet_is_revalidated(self):
         with tempfile.TemporaryDirectory(prefix="packet-reuse-") as scratch:
@@ -59,7 +114,8 @@ class PacketTests(unittest.TestCase):
             evidence.validate_packet(value, HEAD)
 
     def test_summary_sha_must_match(self):
-        value = packet(HEAD).replace('"review_head": "' + HEAD, '"review_head": "' + "b" * 40, 1)
+        prefix, summary = packet(HEAD).split("## Required Gate Summary")
+        value = prefix + "## Required Gate Summary" + summary.replace('"review_head": "' + HEAD, '"review_head": "' + "b" * 40, 1)
         with self.assertRaisesRegex(evidence.PacketError, "does not match review head"):
             evidence.validate_packet(value, HEAD)
 
@@ -177,10 +233,11 @@ class PacketTests(unittest.TestCase):
         with self.assertRaisesRegex(evidence.PacketError, "prepared cache"):
             evidence.validate_packet(value, HEAD)
 
-    def test_version_one_packets_require_regeneration(self):
-        value = packet(HEAD).replace('"schema_version": 2', '"schema_version": 1')
-        with self.assertRaisesRegex(evidence.PacketError, "summary schema"):
-            evidence.validate_packet(value, HEAD)
+    def test_older_packets_require_regeneration(self):
+        for version in (1, 2):
+            value = packet(HEAD).replace('"schema_version": 3', f'"schema_version": {version}')
+            with self.subTest(version=version), self.assertRaisesRegex(evidence.PacketError, "summary schema"):
+                evidence.validate_packet(value, HEAD)
 
     def test_supporting_document_inputs_must_match_context(self):
         value = packet(HEAD).replace("scripts/proof_debt.py docs crosswalk", "scripts/proof_debt.py wrong crosswalk")
