@@ -181,8 +181,8 @@ Execute from a fresh export of the exact reviewed commit: the reviewed project's
 tree and all root entries except `projects/`. Other projects and the shared
 documents directly under `projects/` are outside the dependency contract.
 Only committed files enter the export; ignored captures, local reference ROMs
-and Git metadata do not. Exported symlinks must remain inside that tree. Each declared case gets
-its own temporary working directory and output path and retains the existing
+and Git metadata do not. Exported symlinks must remain inside that tree. Each
+declared case gets its own temporary working directory and output path and retains the existing
 30-second timeout. Use the documented Python/Bash/sh or directly executable
 analyzer dependency; do not run capture runners or install dependencies here.
 Clear checkout-specific environment variables and Python search-path/user-site
