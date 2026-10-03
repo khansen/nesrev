@@ -266,8 +266,8 @@ start their implementation, publish a PR, or rebase an active project checkout.
 <a id="pi-9-historical-provenance"></a>
 ## PI-9 — Preserve historical provenance during symbol renames
 
-Status: phase A implemented locally on `fix/pi-9-historical-provenance`, pending
-independent review and landing. Phase B remains a separate audit/restoration
+Status: phase A independently approved at `02f8c2fb6` on
+`fix/pi-9-historical-provenance`. Phase B remains a separate audit/restoration
 batch after local integration. This section specifies both; no separate spec is
 required. The live corpus and agent session have not been changed.
 
@@ -391,8 +391,10 @@ The follow-up passes 31 affected shell cases (including the 13 Python contracts)
 under `en_NZ.UTF-8`, and docs-check passes on all 23 pinned projects under that
 locale. The new collation fixture selects an installed UTF-8 locale with a
 demonstrably different order; this run exercised `ca_AD.UTF-8`, with both valid
-and genuinely missing symbols. Hosts without such a locale explicitly skip
-that fixture. Three scratch mutations reject the sort mismatch, eager no-rename
+and genuinely missing symbols. Local hosts without such a locale explicitly skip
+that fixture. CI generates `en_US.UTF-8` on Linux and requires a differing
+collation on both platforms, failing rather than skipping if one is unavailable;
+the toolchain log also records the environment's locale. Three scratch mutations reject the sort mismatch, eager no-rename
 document reads, and unhandled decode errors. The supported `make -C` invocation
 from outside the repository also passes; direct helper invocation outside the
 repository root is not newly supported. Full shell/Java suites and timing were

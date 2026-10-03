@@ -2753,6 +2753,9 @@ test_history_docs_symbols_use_consistent_collation() {
     fi
   done < <(locale -a)
   if [[ -z "${utf_locale}" ]]; then
+    if [[ "${CI:-}" == "true" ]]; then
+      fail "CI requires an installed UTF-8 locale with non-C collation"
+    fi
     echo "SKIP: no installed UTF-8 locale with non-C collation"
     return 0
   fi
