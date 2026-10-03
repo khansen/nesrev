@@ -72,7 +72,7 @@ queue. Candidates require process/tooling review before promotion into rules.
 Learning-candidate production is evidence-triggered, not a per-pass quota. As
 recurring defects are fixed, the candidate rate should normally decline;
 `_None._` is a healthy expected result. Do not manufacture increasingly minor
-process work merely to keep the learning loop active.
+process work merely to keep the [learning loop](../PROCESS_IMPROVEMENT_PLAN.md#observation-period) active.
 
 If non-empty candidates persist on nearly every pass after known recurring
 defects have been closed, pause before opening another process branch and

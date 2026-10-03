@@ -3,8 +3,8 @@
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
 delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merged
 in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
-[PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is independently approved;
-publication is pending.
+[PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is merged in
+[PR #143](https://github.com/khansen/nesrev/pull/143).
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -20,8 +20,12 @@ remain on the local-only corpus branch.
 2. [PI-7: Deferral capture](#pi-7-deferral-capture) is merged in
    [PR #142](https://github.com/khansen/nesrev/pull/142).
 3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
-   Approved at `a1a586b10`; publish and land the reviewed implementation.
-4. Run the [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
+   Merged in [PR #143](https://github.com/khansen/nesrev/pull/143).
+4. Observe the next 5–10 separately authorized semantic passes under the
+   [observation period](#observation-period) before expanding the process.
+5. After that assessment, revisit the
+   [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit)
+   as the next queued tooling investigation.
    That plan owns its scope and acceptance criteria. End with a migration or
    deferral recommendation; production implementation is a separate decision.
 
@@ -38,6 +42,80 @@ controls, and representative cross-project checks. Follow the existing
 including mutation tests in a disposable worktree and explicit checked,
 skipped, and failed results. Do not convert uncertain heuristics into hard
 gates merely to increase coverage.
+
+<a id="observation-period"></a>
+## Observation period
+
+Status: planned after PI-6 through PI-8; post-landing effectiveness is not yet
+established. Keep the workflow stable for the next 5–10 separately authorized
+semantic passes. Assess after five completed passes; extend to ten if the work
+has not exercised the repaired paths sufficiently. Report unexercised paths
+explicitly rather than treating an absence of findings as proof of effectiveness.
+
+Use existing review archives, friction queues and receipts. In the rationale
+of each new triage receipt, use the fixed format
+`cause: <value>; recurrence: <value>; evidence: <links>`:
+
+- Cause values: `latent tooling gap`, `integration gap`, `implementer miss`,
+  `uncertain`, or `mixed`. Explain uncertainty or contributing causes in the
+  remaining rationale.
+- Recurrence values: `first observed`, `repeated before fix`, or
+  `repeated after fix`. Link the earlier observation when one exists.
+
+`repeated after fix` requires a pass started after the fix was integrated into
+that project's checkout, with the fix present at the admitted revision. Link
+the local integration commit and pass-start revision. An upstream merge or a
+receipt marked fixed is insufficient; re-archiving a pre-fix pass does not make
+it a post-fix occurrence. Missing integration provenance is an evidence gap,
+not evidence against the fix.
+
+To record a recurrence manually, create a new candidate containing the original
+observation text plus an indented continuation line linking the prior candidate
+ID, any applicable local integration commit and new pass/review evidence. Keep all of it in one
+candidate chunk; a separate top-level link bullet can leave only the link after
+receipt filtering. Before triage, run
+`python3 scripts/process_friction.py list --project <slug>` and verify that the
+original text and context appear together under one new candidate ID. Preserve
+the old receipt unchanged.
+
+Compare repeated causes, review rounds and recorded operator rework at the
+assessment. A repeat triggers investigation of rule visibility, ambiguity,
+conflicts, self-review and tooling; it does not establish which caused the miss.
+Correct isolated misses of existing rules through review. Prioritize tooling
+for a demonstrated repeat or a single consequential silent failure, using the
+existing [triage criteria](agent_playbook/REVIEW_AUDITS.md#process-learning-triage).
+Blockers and silent correctness defects can interrupt the observation period.
+Use existing evidence for this assessment; no new per-pass benchmark or
+all-project performance campaign is required.
+
+<a id="rename-coverage-candidate"></a>
+### Candidate: inventory coverage across semantic renames
+
+Status: observation candidate, not approved implementation. The reproduced
+selector-name regression showed that a byte-preserving rename can make an
+inventory silently omit entries. Consider a general comparison only after
+observing which other consumers exhibit the same failure.
+
+The proposed comparison would flag unexplained losses of represented pointer
+targets, split pairs or table bodies across a rename-only edit. Binary parity
+is necessary but does not establish that an edit is rename-only: symbolization,
+directive changes and corrected classifications can also preserve every byte.
+Review the source change and use fresh evidence from the same producer, reader
+and options for both revisions.
+
+Compare represented bodies and entries by stable locations and rename mappings,
+not just row counts or symbol spellings. Counts can stay constant while one body
+disappears and another appears; aliases can legitimately change row counts.
+Advisory findings are a separate case: fixing a raw pointer body can correctly
+remove its finding while preserving the binary. A disappearing finding needs
+an explanation, not an automatic coverage-failure verdict.
+
+Before proposing a gate, demonstrate another affected consumer or a remaining
+consequential omission, and distinguish those losses from legitimate changes.
+Prefer reusing existing validated artifacts; the cost of a general comparison
+is unmeasured. A future implementation spec must settle identity matching,
+eligibility, evidence freshness, exceptions, diagnostics and cost. This candidate
+adds no wrapper invocation or gate during the observation period.
 
 ## Delivery and tracking
 
@@ -67,7 +145,7 @@ migration and each newly exposed failure before landing.
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 | `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
 | `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
-| `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Independently approved `a1a586b10`; publication pending |
+| `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Merged [PR #143](https://github.com/khansen/nesrev/pull/143); approved `a1a586b10` |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -220,8 +298,8 @@ results were not rerun.
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
 
-Status: independently approved at `a1a586b10`, including the temporary-directory
-isolation follow-up. Publication and landing are pending. Review of `05c8fa6cd`
+Status: merged in [PR #143](https://github.com/khansen/nesrev/pull/143) after
+approval of `a1a586b10`, including the temporary-directory isolation follow-up. Review of `05c8fa6cd`
 accepted the existing contracts; the follow-up review verified the refusal and
 Git-discovery regressions and their bad-direction behavior.
 The baseline maturity
