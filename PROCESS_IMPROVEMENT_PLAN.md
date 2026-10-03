@@ -6,8 +6,8 @@ in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
 [PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is merged in
 [PR #143](https://github.com/khansen/nesrev/pull/143).
 The first observation window has preliminary findings; its final review still
-needs follow-up. [PI-9](#pi-9-historical-provenance) is the next proposed
-tooling and policy repair, followed by a separate provenance-restoration batch.
+needs follow-up. [PI-9](#pi-9-historical-provenance) is implemented locally for
+review, followed by a separate provenance-restoration batch after integration.
 The observation assessment and other investigations below are
 not implementation or additional-pass authorization.
 Updated 2026-10-03.
@@ -25,8 +25,8 @@ remain on the local-only corpus branch.
    made during a usage-limit grace period does not establish that the remaining
    review work was completed. Preserve the existing archive and document the
    follow-up outcome; do not start another pass automatically.
-2. Prepare [PI-9: Historical provenance](#pi-9-historical-provenance)
-   as the next bounded tooling and playbook change. It responds to blocked
+2. Review and land [PI-9: Historical provenance](#pi-9-historical-provenance),
+   the bounded tooling and playbook change. It responds to blocked
    semantic renames and loss of historical attribution. Land that contract
    before the separately reviewed project-history repairs; integrate and repair
    at project pass boundaries.
@@ -266,9 +266,10 @@ start their implementation, publish a PR, or rebase an active project checkout.
 <a id="pi-9-historical-provenance"></a>
 ## PI-9 — Preserve historical provenance during symbol renames
 
-Status: proposed tooling and policy contract, with a subsequent project repair
-phase. This section specifies both; no separate spec is required. Planning does
-not activate the policy or authorize changes to a running project pass.
+Status: phase A implemented locally on `fix/pi-9-historical-provenance`, pending
+independent review and landing. Phase B remains a separate audit/restoration
+batch after local integration. This section specifies both; no separate spec is
+required. The live corpus and agent session have not been changed.
 
 Closeout's [residue sweep](scripts/project_pass_residue_check.sh) treats old
 symbols in canonical friction receipts and earlier scorecard rows as current
@@ -308,6 +309,8 @@ does not exempt later rows. Reuse the scorecard parsers and lifecycle rules:
 missing or ambiguous context, malformed cells, duplicate/out-of-order IDs and
 unfinished earlier rows must not acquire an exemption through a loose text
 match. Source line numbers must survive filtering for useful diagnostics.
+Identical repeated headers continue the same pass log. Legacy nonnumeric
+annotations remain ordinary checked text and receive no historical exemption.
 
 Apply the same boundary in closeout's residue sweep and docs-check's backticked
 symbol validation. Recognize receipts by their canonical project path and the
@@ -354,6 +357,23 @@ This changes existing checks, with no new assembly invocation or per-pass
 command. Do not add all-project performance testing. If measurement is needed,
 use one representative affected path under the existing performance policy.
 
+Implementation validation: 13 focused Python tests, all 676 shell cases and
+1,206 Java tests pass. Nine scratch mutations fail on their intended assertions,
+including restored historical scans, blanket exemptions, skipped receipt
+validation, missing pass-context forwarding and changed failure order. The full suite required an
+unrestricted rerun for its existing process-cleanup tests' `ps` access.
+Read-only validation accepts 3,744 historical rows and the receipt ledgers across
+23 projects; this is not a full corpus verification or a completed history audit.
+The two withdrawn renames pass residue/docs checks and canonical parity
+verification in an isolated copy, with unchanged receipt bytes. The old residue
+checker rejects the same replay. Exact pins, logs and timing remain in the
+private evidence companion.
+Three alternating measured pairs after warmup on one large project keep both
+affected wrappers within budget: standalone docs-check +3.50%, complete closeout
+recheck -0.56%. An initial +6.86% docs-check result led to reusing an existing
+Python scan, with refusal order preserved and tested. No all-project timing
+campaign was run.
+
 <a id="pi-9-provenance-restoration"></a>
 ### Phase B — Audit and restore existing project provenance
 
@@ -399,8 +419,8 @@ Phase B's acceptance is an attributable, reviewed repair for every confirmed
 case in the declared audit scope, with unresolved evidence gaps explicit. It
 does not promise to recover uncommitted text that was never preserved. The
 read-only history audit needs no ROM builds or performance campaign; validation
-is limited to the checks affected by each resulting change. This planning update
-itself restores no project records and changes no active playbook or gate.
+is limited to the checks affected by each resulting change. Phase A's tooling
+branch restores no project records; phase B needs separately reviewed repairs.
 
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff

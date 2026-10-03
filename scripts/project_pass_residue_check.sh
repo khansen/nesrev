@@ -18,7 +18,7 @@ PASS_ID="${2:-}"
 
 bash "${SCRIPT_DIR}/project_scorecard_sync.sh" "$1" "${PASS_ID}"
 
-python3 - "${DOC_ROOT}" "${PASS_ID}" "${PROGRESS_SCORECARD_FILE}" "${RENAMES_FILE}" "${ASM_FILE}" "${SCRIPT_DIR}" <<'PY'
+python3 - "${DOC_ROOT}" "${PASS_ID}" "${PROGRESS_SCORECARD_FILE}" "${RENAMES_FILE}" "${ASM_FILE}" "${SCRIPT_DIR}" "$1" <<'PY'
 import csv
 import json
 import re
@@ -35,6 +35,7 @@ script_dir = Path(sys.argv[6])
 sys.path.insert(0, str(script_dir))
 
 from rename_ledger_rules import valid_old_name_shape
+from authored_history import AuthoredHistory
 
 expected = ["old_name", "new_name", "reason", "confidence", "pass_id"]
 SCOPED_OVERLAY_CONFIDENCE = {"scoped-overlay"}
@@ -61,22 +62,6 @@ RAW_LOWADDR_OPERAND_RE = re.compile(
     r")$",
     re.IGNORECASE,
 )
-
-
-def parse_last_pass_id(path: Path):
-    last = None
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not (line.startswith("|") and line.endswith("|")):
-            continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
-        if not cells or cells[0] in {"pass_id", "---"}:
-            continue
-        if cells[0].isdigit():
-            pass_id = int(cells[0])
-            if last is None or pass_id > last:
-                last = pass_id
-    return last
 
 
 def parse_scorecard_rows(path: Path):
@@ -453,15 +438,13 @@ def update_raw_ram_review_on_closeout(
     }
 
 
-pass_id = int(pass_id_arg) if pass_id_arg else parse_last_pass_id(scorecard_file)
-if pass_id is None:
-    print(json.dumps({
-        "pass_id": None,
-        "old_symbols": [],
-        "residue": [],
-        "summary": "No pass rows found in scorecard.",
-    }, indent=2))
-    sys.exit(0)
+try:
+    history = AuthoredHistory(scorecard_file, int(pass_id_arg) if pass_id_arg else None,
+                              root=Path.cwd(), project=sys.argv[7])
+except (OSError, UnicodeError, ValueError) as exc:
+    print(f"historical references: {exc}", file=sys.stderr)
+    sys.exit(65)
+pass_id = history.pass_id
 
 # Persisted corridor objective from pass-start (see
 # agent_playbook/PASS_WORKFLOW.md#corridor-objective). Surfaced so closeout can
@@ -819,11 +802,12 @@ for path in doc_root.rglob("*"):
         continue
     doc_files.append(path)
 
+doc_lines = {path: history.lines(path) for path in doc_files}
 residue = []
 for symbol in old_symbols:
     pattern = re.compile(rf"`{re.escape(symbol)}`|\b{re.escape(symbol)}\b")
-    for path in doc_files:
-        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for path, lines in doc_lines.items():
+        for lineno, line in lines:
             if pattern.search(line):
                 residue.append({
                     "symbol": symbol,

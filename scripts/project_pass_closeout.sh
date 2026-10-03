@@ -439,6 +439,7 @@ PY
 fi
 
 TMPDIR_PASS_CLOSEOUT="$(mktemp -d)"
+export PROJECT_DOCS_PASS_ID="${PASS_ID}"
 trap 'rm -rf "${TMPDIR_PASS_CLOSEOUT}"' EXIT
 export NESREV_XREF_FILE="${TMPDIR_PASS_CLOSEOUT}/xref_with_data.json"
 prepare_project_analysis_bundle "${SLUG}" "${TMPDIR_PASS_CLOSEOUT}" ci-instructions-v1

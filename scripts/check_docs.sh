@@ -258,7 +258,11 @@ print("OK: no scaffold placeholder support docs detected")
 PY
 
 echo "[6/9] Checking local .md references resolve"
-python3 - "${DOC_ROOT}" <<'PY'
+python3 - "${DOC_ROOT}" "${SCRIPT_DIR}" "${TMPDIR_CHECK_DOCS}" \
+  "${PROGRESS_SCORECARD_FILE:-${DOC_ROOT}/PROGRESS_SCORECARD.md}" \
+  "${PROJECT_DOCS_PASS_ID:-}" \
+  "${PROJECT_DOCS_SLUG:-$(basename "$(dirname "$(dirname "${DOC_ROOT}")")")}" \
+  "${DOC_FILES[@]}" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -302,6 +306,20 @@ if missing:
     sys.exit(2)
 
 print("OK: local .md references resolve")
+
+# Prepare the later symbol check in this existing interpreter. Keep refusals at
+# step 9 so Used by validation and earlier diagnostics retain their order.
+sys.path.insert(0, sys.argv[2])
+from authored_history import AuthoredHistory, document_symbols
+
+output = Path(sys.argv[3])
+try:
+    history = AuthoredHistory(Path(sys.argv[4]), int(sys.argv[5]) if sys.argv[5] else None,
+                              root=Path.cwd(), project=sys.argv[6])
+    symbols = document_symbols(history, [Path(arg) for arg in sys.argv[7:]])
+    (output / "doc_symbols_unsorted.txt").write_text("".join(symbol + "\n" for symbol in symbols))
+except (OSError, UnicodeError, ValueError) as exc:
+    (output / "history_error.txt").write_text(f"historical references: {exc}\n")
 PY
 
 echo "[7/9] Building asm symbol index (labels + .EQU + local @@labels)"
@@ -321,16 +339,11 @@ fi
 python3 "${SCRIPT_DIR}/used_by_xref_check.py" "${used_by_args[@]}"
 
 echo "[9/9] Validating backticked symbol references in docs"
-{ rg --no-filename -o '`@@?[A-Za-z_][A-Za-z0-9_]*`|`[A-Za-z_][A-Za-z0-9_]*`' "${DOC_FILES[@]}" || true; } \
-  | tr -d '`' \
-  | awk '
-    /^AudioMacroDescNN$/ { next }
-    /^UNK_$/ { next }
-    /^@@/ { print; next }
-    /_/ && /[A-Z]/ { print; next }
-    /^[A-Z]/ && length($0) >= 5 { print; next }
-  ' \
-  | sort -u >"${TMPDIR_CHECK_DOCS}/doc_symbols.txt"
+if [[ -s "${TMPDIR_CHECK_DOCS}/history_error.txt" ]]; then
+  cat "${TMPDIR_CHECK_DOCS}/history_error.txt" >&2
+  exit 65
+fi
+LC_ALL=C sort -u "${TMPDIR_CHECK_DOCS}/doc_symbols_unsorted.txt" >"${TMPDIR_CHECK_DOCS}/doc_symbols.txt"
 
 comm -23 "${TMPDIR_CHECK_DOCS}/doc_symbols.txt" "${TMPDIR_CHECK_DOCS}/asm_symbols.txt" >"${TMPDIR_CHECK_DOCS}/missing_symbols.txt"
 

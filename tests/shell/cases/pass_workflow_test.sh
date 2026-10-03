@@ -1891,6 +1891,7 @@ SH
   cat > "${stubdir}/project_docs_check.sh" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ "${PROJECT_DOCS_PASS_ID:-}" == "1" ]] || { echo "docs missing resolved closeout pass" >&2; exit 98; }
 printf 'docs %s\n' "$1" >> "${STUB_LOG}"
 SH
   cat > "${stubdir}/project_process_check.sh" <<'SH'
@@ -2629,6 +2630,140 @@ test_pass_residue_check_warns_on_unparseable_plan_but_does_not_fail() {
     "closeout must warn when the plan cache is malformed"
   assert_match '"corridor_objective_status": "invalid_plan"' "${out}" \
     "closeout summary must report the invalid_plan objective status"
+}
+
+test_authored_history_python_contracts() {
+  python3 "${REPO_ROOT}/tests/authored_history_test.py"
+}
+
+_make_history_project() {
+  local slug="$1"
+  _make_deferral_closeout_project "${slug}"
+  local root="projects/${slug}" docs="projects/${slug}/docs/reverse_engineering"
+  printf '.ORG $C000\nNewEntry: RTS\n' > "${root}/asm/${slug}.asm"
+  printf 'Runtime entry is `NewEntry`.\n' > "${docs}/${slug}_DX_Systems.md"
+  python3 - "${docs}" "${slug}" "${REPO_ROOT}/scripts" <<'PY'
+import json, sys
+from pathlib import Path
+docs, slug, scripts = sys.argv[1:]
+sys.path.insert(0, scripts)
+from process_friction import candidate_id
+docs = Path(docs)
+scorecard = docs / 'PROGRESS_SCORECARD.md'
+scorecard.write_text(scorecard.read_text().replace('Intake baseline captured.', 'Named OldEntry and `OldEntry`.'))
+(docs / 'inventory/renames.csv').write_text(
+    'old_name,new_name,reason,confidence,pass_id\n'
+    'OriginalEntry,OldEntry,original evidence only,medium,0\n'
+    'OldEntry,NewEntry,entry role established,high,1\n')
+content = 'OldEntry and `OldEntry` occur in historical evidence.'
+receipt = {'id': candidate_id(content), 'content': content, 'sources': ['reviews/pass-0.md'],
+           'disposition': 'discarded', 'destinations': [], 'rationale': 'Historical observation.'}
+(docs / 'inventory/process_friction_receipts.json').write_text(json.dumps(
+    {'schema_version': 1, 'project': slug, 'receipts': [receipt]}, indent=4) + '\n')
+(docs / 'reviews').mkdir()
+(docs / 'reviews/pass-0.md').write_text('Historical `OldEntry` review.\n')
+PY
+  for stage in project_pass_residue_check project_docs_check; do
+    printf '#!/usr/bin/env bash\nset -euo pipefail\nexec bash "${REPO_ROOT}/scripts/%s.sh" "$@"\n' "${stage}" \
+      > "${root}/closeout_stubs/${stage}.sh"
+  done
+  cat > "${root}/closeout_stubs/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce \
+  "${NESREV_ANALYSIS_BUILD_DIR}" "projects/$1/asm/$1.asm" "${NESREV_ANALYSIS_BUILD_DIR}/out.bin"
+SH
+}
+
+test_history_survives_canonical_closeout_and_docs_check() {
+  local slug; slug="$(unique_slug history_closeout)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  local root="projects/${slug}" docs="projects/${slug}/docs/reverse_engineering" file
+  for file in inventory/renames.csv inventory/process_friction_receipts.json reviews/pass-0.md; do
+    cp "${docs}/${file}" "${NESREV_TEST_TMPDIR}/$(basename "${file}")"
+  done
+  rg '^\| 0 ' "${docs}/PROGRESS_SCORECARD.md" > "${NESREV_TEST_TMPDIR}/old-row"
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1
+  PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1
+  make project-docs-check PROJECT="${slug}"
+  for file in inventory/renames.csv inventory/process_friction_receipts.json reviews/pass-0.md; do
+    cmp "${docs}/${file}" "${NESREV_TEST_TMPDIR}/$(basename "${file}")" \
+      || fail "closeout rewrote history: ${file}"
+  done
+  rg '^\| 0 ' "${docs}/PROGRESS_SCORECARD.md" > "${NESREV_TEST_TMPDIR}/old-row-after"
+  cmp "${NESREV_TEST_TMPDIR}/old-row" "${NESREV_TEST_TMPDIR}/old-row-after" \
+    || fail "closeout rewrote the historical scorecard row"
+}
+
+test_history_filter_keeps_current_residue_in_all_authored_roles() {
+  local slug; slug="$(unique_slug history_current)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  local docs="projects/${slug}/docs/reverse_engineering" file out rc
+  for file in ONBOARDING.md inventory/active.json process_friction_receipts.json; do
+    printf 'Stale OldEntry.\n' > "${docs}/${file}"
+    rc=0
+    out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)" || rc=$?
+    assert_eq "${rc}" 4 "current ${file} must still fail"
+    assert_match "${file}" "${out}"
+    assert_match 'OldEntry' "${out}"
+    : > "${docs}/${file}"
+  done
+  printf '\nCurrent OldEntry guidance.\n' >> "${docs}/PROGRESS_SCORECARD.md"
+  rc=0
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)" || rc=$?
+  assert_eq "${rc}" 4 "scorecard prose remains current"
+  assert_match 'Current OldEntry guidance' "${out}"
+}
+
+test_history_docs_check_rejects_current_and_selected_older_rows() {
+  local slug; slug="$(unique_slug history_docs_current)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  local docs="projects/${slug}/docs/reverse_engineering" out rc
+  printf 'Current `OldEntry`.\n' > "${docs}/ONBOARDING.md"
+  rc=0
+  out="$(make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 2 "unknown current symbol must fail"
+  assert_match 'docs reference unknown symbols' "${out}"
+  assert_match 'OldEntry' "${out}"
+  : > "${docs}/ONBOARDING.md"
+  # Standalone picks pass 1; an explicit recheck of pass 0 must inspect its names.
+  make project-docs-check PROJECT="${slug}" >/dev/null
+  rc=0
+  out="$(PROJECT_DOCS_PASS_ID=0 make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 2 "explicit older pass must not be hidden by latest-pass inference"
+  assert_match 'docs reference unknown symbols' "${out}"
+  assert_match 'OldEntry' "${out}"
+}
+
+test_history_malformed_receipt_refuses_canonical_wrappers() {
+  local slug; slug="$(unique_slug history_bad_receipt)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_history_project "${slug}"
+  printf '{"schema_version":99}\n' > "projects/${slug}/docs/reverse_engineering/inventory/process_friction_receipts.json"
+  local out rc=0
+  out="$(bash "${PASS_RESIDUE}" "${slug}" 1 2>&1)" || rc=$?
+  assert_eq "${rc}" 65
+  assert_match 'receipt schema/project mismatch' "${out}"
+  rc=0
+  out="$(make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 2
+  assert_match 'receipt schema/project mismatch' "${out}"
+  cat >> "projects/${slug}/asm/${slug}.asm" <<'ASM'
+; Format: one byte.
+; Used by: FakeMissingConsumer.
+DataTable:
+  .DB 1
+ASM
+  rc=0
+  out="$(make project-docs-check PROJECT="${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 2
+  assert_match 'FakeMissingConsumer' "${out}" "Used by validation must still precede history refusal"
+  assert_not_match 'receipt schema/project mismatch' "${out}"
 }
 
 test_pass_residue_check_ignores_archived_review_history() {
