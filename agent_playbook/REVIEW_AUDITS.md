@@ -69,10 +69,10 @@ Agent-review handoffs copy `## Learning Candidates` into the project's
 already-fixed friction; prune fixed entries entirely, leaving no history in the
 queue. Candidates require process/tooling review before promotion into rules.
 
-Learning-candidate production is evidence-triggered, not a per-pass quota. As
-recurring defects are fixed, the candidate rate should normally decline;
-`_None._` is a healthy expected result. Do not manufacture increasingly minor
-process work merely to keep the learning loop active.
+Learning candidates are evidence-triggered, not a per-pass quota. Their rate
+should decline as recurring defects are fixed; `_None._` is healthy. Do not
+manufacture process work to keep the loop active. Use the
+[observation plan](../PROCESS_IMPROVEMENT_PLAN.md#observation-period) to assess cause and recurrence.
 
 If non-empty candidates persist on nearly every pass after known recurring
 defects have been closed, pause before opening another process branch and
