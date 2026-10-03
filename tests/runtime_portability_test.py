@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -42,6 +43,16 @@ class PortabilityTests(unittest.TestCase):
     def evaluate(self):
         return portability.evaluate(self.root, "demo", str(self.docs.relative_to(self.root)), self.base, self.head)
 
+    def evaluate_with_tmpdir(self, directory):
+        command = [sys.executable, "-B", portability.__file__, "--project", "demo",
+                   "--doc-root", str(self.docs.relative_to(self.root)),
+                   "--base", self.base, "--head", self.head]
+        run = subprocess.run(command, cwd=self.root, capture_output=True, text=True,
+                             env={**os.environ, "TMPDIR": str(directory)})
+        result = json.loads(run.stdout)
+        self.assertEqual(run.returncode, int(result["status"] == "fail"), run.stderr)
+        return result
+
     def test_positive_and_isolated_missing_signals_use_committed_export(self):
         result = self.evaluate()
         self.assertEqual(result["status"], "pass", result)
@@ -66,6 +77,48 @@ class PortabilityTests(unittest.TestCase):
         self.assertEqual(result["status"], "fail")
         self.assertIn("private-capture.json", " ".join(result["errors"]))
         self.assertEqual(capture.read_text(), "{}")
+
+    def test_repository_local_tmpdir_cannot_recover_ignored_capture_via_git(self):
+        capture = self.project / "tmp/private-capture.json"
+        capture.parent.mkdir()
+        capture.write_text("{}")
+        (self.root / ".gitignore").write_text("projects/*/tmp/\n/tmp/\n")
+        local_tmp = self.root / "tmp"
+        local_tmp.mkdir()
+        self.analyzer.write_text(
+            'import subprocess\nfrom pathlib import Path\n'
+            'root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()\n'
+            'Path(root, "projects/demo/tmp/private-capture.json").read_text()\n' + self.analyzer.read_text())
+        self.commit()
+        with tempfile.TemporaryDirectory(prefix="portability-outside-") as outside:
+            self.assertEqual(self.evaluate_with_tmpdir(outside)["status"], "fail")
+            alias = Path(outside) / "inside-link"
+            alias.symlink_to(local_tmp)
+            for directory in (self.root, local_tmp, alias):
+                with self.subTest(directory=directory):
+                    result = self.evaluate_with_tmpdir(directory)
+                    self.assertEqual(result["status"], "fail", result)
+                    self.assertIn("temporary directory must be outside", " ".join(result["errors"]))
+                    self.assertIn("TMPDIR", " ".join(result["errors"]))
+                    self.assertTrue(all(case["status"] == "not-run" for case in result["cases"]))
+        self.assertEqual(capture.read_text(), "{}")
+        self.assertEqual(self.git("status", "--porcelain", "--untracked-files=no"), "")
+
+    def test_cases_and_export_cannot_discover_git_above_external_scratch(self):
+        self.analyzer.write_text(
+            'import subprocess\nfrom pathlib import Path\n'
+            'for directory in (Path.cwd(), Path(__file__).resolve().parent):\n'
+            '    found = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=directory, capture_output=True)\n'
+            '    if found.returncode == 0:\n'
+            '        raise SystemExit("unexpected enclosing repository")\n' + self.analyzer.read_text())
+        self.commit()
+        with tempfile.TemporaryDirectory(prefix="portability-enclosing-repo-") as outer:
+            subprocess.run(["git", "init", "-q", outer], check=True)
+            directory = Path(outer) / "scratch"
+            directory.mkdir()
+            result = self.evaluate_with_tmpdir(directory)
+        self.assertEqual(result["status"], "pass", result)
+        self.assertEqual([case["exit_status"] for case in result["cases"]], [0, 1, 1])
 
     def test_failing_case_records_actual_exit_and_does_not_hide_other_cases(self):
         self.analyzer.write_text("raise SystemExit(7)\n")

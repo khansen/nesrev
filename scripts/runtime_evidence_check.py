@@ -135,8 +135,8 @@ def markdown_anchors(source):
     return anchors
 
 
-def run_case(question, case, analyzer, fixtures, command, *, env=None, record=None):
-    with tempfile.TemporaryDirectory(prefix="runtime-evidence-check-") as directory:
+def run_case(question, case, analyzer, fixtures, command, *, env=None, record=None, temp_root=None):
+    with tempfile.TemporaryDirectory(prefix="runtime-evidence-check-", dir=temp_root) as directory:
         scratch = Path(directory)
         args = []
         for token in command:

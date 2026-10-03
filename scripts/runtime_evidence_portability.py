@@ -99,6 +99,14 @@ def export_commit(root, head, project, destination, archive_path):
                 raise PortabilityError(f"unsupported export entry: {member.name}")
 
 
+def external_temp_path(path, root):
+    path = Path(path).resolve()
+    if path.is_relative_to(root):
+        raise PortabilityError(f"runtime portability temporary directory must be outside the reviewed repository: {path}; "
+                               "set TMPDIR to an external directory and regenerate the packet")
+    return path
+
+
 def evaluate(root, project, doc_root, base, head):
     root = Path(root).resolve()
     result = {"schema_version": 1, "project": project, "base": base, "review_head": head,
@@ -153,20 +161,22 @@ def evaluate(root, project, doc_root, base, head):
                                     "declared_command": command, "command": [],
                                     "diagnostics": case["diagnostics"], "matched_diagnostics": [],
                                     "status": "not-run"})
-        with tempfile.TemporaryDirectory(prefix="runtime-portability-") as directory:
-            scratch = Path(directory).resolve()
+        temp_root = external_temp_path(tempfile.gettempdir(), root)
+        with tempfile.TemporaryDirectory(prefix="runtime-portability-", dir=temp_root) as directory:
+            scratch = external_temp_path(directory, root)
             exported = scratch / "repo"
             exported.mkdir()
             export_commit(root, head, project, exported, scratch / "head.tar")
             env = {name: os.environ[name] for name in ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ")
                    if name in os.environ}
-            env.update(PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1")
+            env.update(PYTHONNOUSERSITE="1", PYTHONDONTWRITEBYTECODE="1",
+                       TMPDIR=str(scratch), GIT_CEILING_DIRECTORIES=str(scratch))
             for arguments, record in zip(cases, result["cases"]):
                 subject, case, analyzer, fixtures, command = arguments
                 try:
                     run_case(subject, case, exported / analyzer.relative_to(root),
                              [exported / path.relative_to(root) for path in fixtures], command,
-                             env=env, record=record)
+                             env=env, record=record, temp_root=scratch)
                     record["status"] = "pass"
                 except (EvidenceError, OSError, UnicodeError) as exc:
                     record.update(status="fail", error=str(exc))
