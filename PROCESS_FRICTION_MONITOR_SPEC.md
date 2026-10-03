@@ -122,6 +122,18 @@ mechanically testable fix over another prose rule when practical. One-off
 inconveniences and project-specific semantics do not automatically justify
 shared tooling changes.
 
+Separate cause from recurrence in triage proposals and the rationale of new
+receipts, following the [observation plan](PROCESS_IMPROVEMENT_PLAN.md#observation-period).
+Use consistent prefixes, for example
+`cause: integration gap; recurrence: repeated after fix (<evidence link>)`.
+Use cause values `latent tooling gap`, `integration gap`, `implementer miss`,
+`uncertain` or `mixed`; recurrence values are `first observed`,
+`repeated before fix` or `repeated after fix`. Link the earlier occurrence and actual local fix
+integration when applicable. These are explanatory fields in existing text,
+not new receipt dispositions or a schema migration. Preserve old receipts.
+A repeat warrants investigation; it does not by itself prove rule placement
+or establish that a new gate is the right remedy.
+
 Triage produces one of these scheduling outcomes:
 
 - **Prepare:** a bounded, authorized tooling job is worth its expected cost.
@@ -176,6 +188,29 @@ work and reports the unfinished stage; it never becomes implicit approval.
 V1 records provider-reported token/quota usage observationally and marks missing
 measurements unavailable. Hard token/spend caps are deferred; a user-supplied
 weekly percentage is not an enforceable token count.
+
+### Production observation periods
+
+During an active [observation period](PROCESS_IMPROVEMENT_PLAN.md#observation-period),
+set the implementation allowance to zero and use the existing detection-only
+or separately budgeted triage-only modes. Ordinary candidates remain deferred
+or routed; their arrival does not authorize a tooling job. Blockers and
+consequential silent failures may request a correctness hold and an exceptional
+fix under the existing approval and allowance contracts. They cannot replenish
+the allowance or bypass approval automatically.
+
+Assess repeated causes, canonical review-round counts and recorded operator
+rework using existing artifacts. Report which repaired paths were exercised,
+unexercised or uncertain. A quiet queue is not proof that a fix worked: until
+the section 8 recurrence ingestion is available, inspect raw archived reviews
+and implementation notes as well as queues and receipts, because existing
+receipt filtering can suppress an identical later observation. Preserve a
+confirmed recurrence through the supervised linked-observation path.
+
+The observation period can run manually before this monitor exists; it is not
+a reason to implement or install the monitor. The proposed
+[rename-coverage comparison](PROCESS_IMPROVEMENT_PLAN.md#rename-coverage-candidate)
+remains an observation candidate, not a new v1 gate or rollout prerequisite.
 
 ### Enforced allowance and exhaustion
 
@@ -824,6 +859,10 @@ implementation acceptance requirements, not claims of existing test coverage:
   validate destinations, persist receipts before pruning, and commit the batch.
   Crash between receipt persistence and pruning, then retry without losing text.
   Deferred work waits for its trigger; detection-only mode writes no queue.
+- An observation period with zero implementation allowance starts no tooling
+  job. A blocker can request a hold or exceptional approval without granting
+  itself work allowance. Reports distinguish cause from recurrence and an
+  unexercised path from an exercised path with no reported recurrence.
 - Two coordinators in linked worktrees share the common-directory registry and
   have one job/ownership winner. Runtime state appears in neither worktree's
   untracked listing. Stale owners cannot mutate after takeover; test each
