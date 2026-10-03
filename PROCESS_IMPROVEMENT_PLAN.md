@@ -3,7 +3,8 @@
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
 delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merged
 in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
-[PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is ready for independent review.
+[PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is independently approved;
+publication is pending.
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -19,7 +20,7 @@ remain on the local-only corpus branch.
 2. [PI-7: Deferral capture](#pi-7-deferral-capture) is merged in
    [PR #142](https://github.com/khansen/nesrev/pull/142).
 3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
-   Make the existing synthetic-fixture requirement demonstrable at handoff.
+   Approved at `a1a586b10`; publish and land the reviewed implementation.
 4. Run the [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
    That plan owns its scope and acceptance criteria. End with a migration or
    deferral recommendation; production implementation is a separate decision.
@@ -66,7 +67,7 @@ migration and each newly exposed failure before landing.
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
 | `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
 | `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
-| `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Temporary-directory isolation follow-up ready for review |
+| `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Independently approved `a1a586b10`; publication pending |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -219,8 +220,10 @@ results were not rerun.
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
 
-Status: independent review of `05c8fa6cd` accepted the existing contracts and
-requested the temporary-directory isolation fix below; follow-up review is pending.
+Status: independently approved at `a1a586b10`, including the temporary-directory
+isolation follow-up. Publication and landing are pending. Review of `05c8fa6cd`
+accepted the existing contracts; the follow-up review verified the refusal and
+Git-discovery regressions and their bad-direction behavior.
 The baseline maturity
 checker accepts an analyzer that reads an ignored local capture through its
 source path; its temporary working directory does not isolate the analyzer.
