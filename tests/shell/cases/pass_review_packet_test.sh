@@ -120,10 +120,13 @@ fi
 case "$*" in
   project-pass-prep*)
     [[ "${PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW:-}" == 0 ]] || { echo 'prep would rewrite authored queue'; exit 28; }
+    [[ "${PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW:-}" == 1 ]] || { echo 'prep omitted closeout reconciliation'; exit 29; }
     if [[ -n "${PACKET_TEST_DIRTY_PATH:-}" ]]; then printf '\nchanged\n' >> "${PACKET_TEST_DIRTY_PATH}"; fi
     if [[ -n "${PACKET_TEST_CACHE_PATH:-}" ]]; then touch "${PACKET_TEST_CACHE_PATH}"; fi
     exit "${PACKET_TEST_PREP_EXIT:-0}" ;;
-  project-next-pass*) echo "Top generated evidence bucket: identity_pass" ;;
+  project-next-pass*)
+    [[ "${PROJECT_NEXT_PASS_AUTO_PREP:-}" == 0 ]] || { echo 'next-pass may run unchecked prep'; exit 30; }
+    echo "Top generated evidence bucket: identity_pass" ;;
   project-verify*) echo "Verification complete"; exit "${PACKET_TEST_VERIFY_EXIT:-0}" ;;
   project-process-check*) echo "Process evidence"; exit "${PACKET_TEST_PROCESS_EXIT:-0}" ;;
   project-docs-check*) echo "Doc consistency checks passed"; exit "${PACKET_TEST_DOCS_EXIT:-0}" ;;

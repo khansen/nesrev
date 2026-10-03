@@ -129,10 +129,10 @@ ignored path or pass `OUT=<packet.md>`. The packet contract lives in
 The packet includes reference scope (explicitly unversioned planning context),
 review-head source inventory/crosswalk paths, range-level rename and unresolved-label deltas, the
 complete `BASE..HEAD` commit list, project diff, authored-ledger deltas,
-proof-debt and crosswalk output, `project-next-pass`, and the
-verify/process/docs gates, with each command labelled by the exact SHA it
-describes. Use `ALLOW_UNRESOLVED_LXXXX=1` when the reviewed pass used the
-relaxed semantic-pass verification mode.
+proof-debt/crosswalk output, `project-next-pass`, and verify/process/docs gates
+labelled by SHA. Preparation checks raw-RAM reconciliation without ledger writes;
+stale facts block handoff. Review and commit closeout's repair, then regenerate
+the packet. Use `ALLOW_UNRESOLVED_LXXXX=1` for relaxed semantic-pass verification.
 
 <a id="agent-review-handoff"></a>
 

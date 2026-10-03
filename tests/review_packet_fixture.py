@@ -34,10 +34,12 @@ def packet(head, project="demo", statuses=None, verify_output="Verification comp
         if "XASM_BIN=" not in commands[name]:
             commands[name] = "XASM_BIN=xasm " + commands[name]
     commands["cache-preparation"] = "PROJECT_PASS_PREP_WRITE_RAW_RAM_REVIEW=0 " + commands["cache-preparation"]
+    commands["cache-preparation"] = "PROJECT_PASS_PREP_CHECK_RAW_RAM_REVIEW=1 " + commands["cache-preparation"]
+    commands["next-pass"] = "PROJECT_NEXT_PASS_AUTO_PREP=0 " + commands["next-pass"]
     records = [{"name": name, "review_head": head, "command": commands[name],
                 "exit_status": statuses.get(name, 0)} for name in COMMANDS]
     failures = failure_summary(environment, records, state_integrity)
-    summary = {"schema_version": 1, "review_head": head, "project": project,
+    summary = {"schema_version": 2, "review_head": head, "project": project,
                "environment": environment, "state_integrity": state_integrity,
                "gates": records[:len(GATES)], "supporting_evidence": records[len(GATES):],
                "failures": failures, "status": "fail" if failures else "pass"}

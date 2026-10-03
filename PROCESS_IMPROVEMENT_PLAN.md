@@ -1,28 +1,35 @@
 # Process Improvement Plan
 
-Status: PI-1, PI-2 policy evidence, PI-3 through PI-5, and queue receipts merged.
-PI-2 runtime delivery is tracked in [PR #105](https://github.com/khansen/nesrev/pull/105),
-with activation approved under the explicit failing-evidence-debt boundary.
-Updated 2026-09-06.
+Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
+delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is
+implemented and externally reviewed; PI-7 and PI-8 remain planned.
+Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
 contracts and acceptance criteria; corpus-specific evidence and progress
 remain on the local-only corpus branch.
 
+<a id="recommended-order"></a>
 ## Recommended order
 
-Start with PI-1, then PI-2: both address checks that can pass without
-examining the evidence their output appears to cover. Follow with PI-3
-through PI-5. Triage decisions and routing can accompany these changes,
-but queue pruning must wait for the receipt migration, receipt-aware
-ingestion, and acceptance tests described below. Once that prerequisite is
-complete, accepted items leave the queue when routed, without waiting for
-their implementation.
+1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is implemented.
+   Land its reviewed check before another unattended pass run relies on the
+   packet's green gates.
+2. [PI-7: Deferral capture](#pi-7-deferral-capture). Reject misplaced kind
+   keywords and carry the persisted corridor into new deferrals.
+3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
+   Make the existing synthetic-fixture requirement demonstrable at handoff.
+4. Run the [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
+   That plan owns its scope and acceptance criteria. End with a migration or
+   deferral recommendation; production implementation is a separate decision.
 
-To support incremental pruning, implement queue receipts after the PI-2
-policy-evidence lane and before continuing with runtime evidence and PI-3
-through PI-5. Do not prune during that prerequisite's implementation.
+This is the next-work priority order. PI-1 through PI-5 and the queue-receipt
+prerequisite are delivered; their implementation and activation records remain
+below. Start each follow-up with a current reproducer and a bounded contract.
+If existing tooling already resolves the observation, record that evidence and
+retriage it instead of adding another gate. Keep other undecided friction
+candidates in their project queues.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -52,11 +59,12 @@ migration and each newly exposed failure before landing.
 |---|---|---|
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
-| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
+| `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
 | `feat/pi-3-consumer-audits` | Reusable audit machinery | Merged [PR #102](https://github.com/khansen/nesrev/pull/102); reviewed `90fda2af3` with the local adapter migration |
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
+| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Reviewed `72cad08f6` and normalization fix `e15e9fe5e`; preparation timing exception approved |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -68,6 +76,117 @@ updated `master`. Rerun affected CI after each merge; report pre-existing
 unfinished-input failures separately and never relabel relaxed checks as
 strict-CI success. Prune eligible queue entries incrementally once receipts
 and their migration tests are in place.
+
+<a id="pi-6-review-handoff-freshness"></a>
+## PI-6 — Check closeout reconciliation at review handoff
+
+Status: review accepted `72cad08f6` and normalization fix `e15e9fe5e`;
+the preparation timing exception was approved on 2026-10-03.
+A committed stale
+raw-RAM count reproduced an accepted packet with green verification, process and
+documentation gates. Synthetic coverage also reproduces stale owners after a
+rename. The packet now checks the seven derived raw-RAM fields and missing
+candidate rows with fresh assembly evidence, using closeout's existing refresh
+calculation. The comparison also requires byte-identical CSV serialization using
+the writer shared with closeout, including its blank-status default. Check and
+refresh both preserve an absent ledger when there are no candidates; refresh
+retains existing empty ledgers and creates a queue when candidates appear. The precise
+scope, retained historical-row behavior, and refusal
+contract are in [the packet specification](PROJECT_PASS_REVIEW_PACKET_SPEC.md#cache-preparation).
+
+- Reproduce stale closeout output against current wrappers using a synthetic
+  pass whose final edits change ledger ownership. Identify which closeout
+  outputs need checking and document that boundary in the packet contract.
+- Add the smallest read-only validation that detects outstanding reconciliation
+  against the exact reviewed inputs and tooling. A timestamp or recorded
+  invocation alone must not certify freshness. Packet creation must preserve
+  tracked ledgers, authored decisions, scorecards and pass history.
+- Report stale, failed and unrun validation explicitly, and make handoff refuse
+  each state. Keep packet generation, handoff validation and their spec aligned;
+  diagnostics must identify the stale output and the required operator action.
+
+Done when: a stale-owner fixture with otherwise green gates is refused for the
+intended reason; a reconciled head succeeds; relevant edits after reconciliation
+make it stale again; cold-cache and repeated checks leave tracked files unchanged.
+Confirm the refusal through the handoff path as well as packet generation.
+
+Validation on xasm 1.8.1 before the final absent-ledger guard: 661 shell tests
+and 1,206 Java tests pass. Fresh
+comparisons and byte-identical writer output pass on all 23 local project ledgers.
+The real stale-count packet passes the old gates and parser, then fails the new
+handoff; reconciled, cold-cache and repeated packets succeed without tracked
+writes. The original review covered five deliberate regressions; two additional
+mutations catch a field-only verdict and a diverging CSV writer. CLI handoff and
+packet reuse refuse disabled, failed and unrun reconciliation. The check skips
+unneeded briefing work and remains independent of corrupt briefing caches.
+The absent-ledger follow-up passes three focused wrapper cases, seven CSV unit
+tests and 34 packet-parser tests. Removing the guard fails its regression for
+creating an empty ledger; existing empty ledgers and new candidates are positive
+controls. The approved timing and 23-project comparison were not repeated for
+this guard, which does not alter their populated-ledger path.
+
+Final timing uses three alternating pairs after warmup on the largest source
+project. Median wall changes are +5.20% for read-only preparation with
+reconciliation, +0.13% for cached next-pass, and +2.15% for the complete packet.
+Approved: +5.20% median on read-only packet preparation, largest project,
+11.54 → 12.14 s. Cause: the reconciliation runs the closeout raw-RAM refresh
+the packet previously skipped. Default pass-prep is unchanged; the full packet
+is +2.15%. This path now has no headroom left: the next addition must offset
+its cost. This is a bounded exception under
+[the performance plan](PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement),
+not a change to the general 5% limit.
+The earlier +4.82% preparation measurement described the reviewed revision,
+not this final result. Original assembly counts were two, zero and five
+respectively in that warm-cache setup; the follow-up adds no assembly calls.
+Packet runs use the explicit unresolved-label allowance; these are semantic-pass
+verification results, not strict maturity evidence.
+
+<a id="pi-7-deferral-capture"></a>
+## PI-7 — Preserve meaningful deferral conditions and corridor context
+
+Status: planned. The current explicit-entry parser accepts a bare `static` or
+`runtime` as the revisit condition, and closeout supplies only `FOCUS` as the
+corridor even when a persisted pass objective exists.
+
+- Reject kind keywords misplaced in the condition field before writing the
+  ledger, with the supported `subject :: revisit condition :: kind` syntax in
+  the diagnostic. Preserve valid two-field entries and meaningful conditions;
+  this check does not claim to judge the quality of arbitrary prose.
+- Prefer an explicit nonempty `FOCUS`; otherwise use the corridor saved for
+  the matching project and pass. Specify missing/legacy-plan behavior and
+  diagnose missing context without borrowing another pass's objective.
+- Preserve existing authored rows and repeated-closeout idempotence. Do not
+  silently rewrite old conditions or classify incomplete entries as runtime
+  evidence. Review any required ledger migration separately.
+
+Done when: both misplaced keywords fail without ledger changes; valid static
+and runtime entries retain their meanings; explicit focus wins, a matching
+saved corridor fills an omitted focus, and a mismatched plan cannot supply it.
+Exercise both the parser and the canonical closeout wrapper.
+
+<a id="pi-8-analyzer-portability"></a>
+## PI-8 — Demonstrate runtime-analyzer test portability at handoff
+
+Status: planned. Repeated reviews requested proof that new analyzer acceptance
+and refusal tests run from committed synthetic inputs without private captures.
+The existing playbook requirement needs an observable handoff result.
+
+- Audit the current [runtime-evidence fixture contract](agent_playbook/RUNTIME_EVIDENCE.md)
+  and packet checks first. Define the affected analyzer/manifest/fixture scope,
+  then reuse declared test commands rather than inventing another test registry.
+- Run the affected synthetic tests in a clean export with only committed test
+  inputs and documented tool dependencies. They must need no reference ROM,
+  emulator, ignored capture or live recording. Keep this check separate from
+  ROM-dependent parity gates and pending live runtime evidence.
+- Include command, checked scope and actual exit status in the handoff evidence.
+  Missing, failed or unrun required tests must be visible and prevent acceptance;
+  finding a test filename is insufficient.
+
+Done when: a portable positive fixture passes; a failing test and a test relying
+on an ignored local capture are refused with useful diagnostics; malformed
+synthetic evidence fails its analyzer's refusal case. Existing supported
+analyzers and changes outside the affected scope retain explicit, tested
+behavior. Passing fixtures do not close pending live-capture questions.
 
 ## PI-1 — Make checker coverage explicit
 

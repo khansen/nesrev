@@ -13,6 +13,17 @@ source "${SCRIPT_DIR}/project_common.sh"
 load_project_conf "$1"
 FORMAT="${2:-text}"
 
+if [[ "${PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW:-0}" == "1" ]]; then
+  if [[ "${PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY:-0}" != "1" || "${PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW:-0}" != "0" ]]; then
+    echo "error: raw-RAM reconciliation requires refresh-only mode with ledger writes disabled" >&2
+    exit 64
+  fi
+  if [[ -z "${NESREV_ANALYSIS_BUNDLE:-}" || "${PROJECT_NEXT_PASS_AUTO_PREP:-1}" != "0" ]]; then
+    echo "error: raw-RAM reconciliation requires a fresh supplied bundle and auto-prep disabled" >&2
+    exit 65
+  fi
+fi
+
 if [[ "${FORMAT}" != "text" && "${FORMAT}" != "json" ]]; then
   echo "error: format must be text or json" >&2
   exit 2
@@ -107,6 +118,7 @@ from pathlib import Path
 sys.path.insert(0, script_dir)
 import analysis_bundle
 import proof_debt
+import raw_ram_reconciliation
 from ram_accesses import access_facts, group_sites, instruction_ram_sites
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
@@ -767,13 +779,11 @@ def merge_raw_ram_review(candidates, review_rows, symbolized_candidates=None):
 
 def write_raw_ram_review(path, rows):
     p = Path(path)
+    if not rows and not p.exists():
+        return
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    with p.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=RAW_RAM_REVIEW_FIELDS, lineterminator='\n')
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({field: row.get(field, "") for field in RAW_RAM_REVIEW_FIELDS})
+    p.write_bytes(raw_ram_reconciliation.render_review(rows, RAW_RAM_REVIEW_FIELDS))
 
 def build_raw_ram_candidates(raw_accesses, review_rows, limit=None):
     candidates = []
@@ -1551,9 +1561,11 @@ def make_follow_up(recommended_type, cluster_candidates):
         return "Once baseline parity is green again, rerun pass prep before picking the next semantic target."
     return "After closure, rerun pass prep and refresh the next corridor plan."
 
-baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
-all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
-generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
+check_raw_ram_review = os.environ.get("PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW") == "1"
+if not check_raw_ram_review:
+    baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
+    all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
+    generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
 try:
     fresh_bundle = analysis_bundle.supplied(asm_file)
     if fresh_bundle is not None:
@@ -1564,21 +1576,29 @@ try:
 except (ValueError, KeyError) as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc
-ref_map = build_ref_map(xref)
-mapping_keys = build_rom_mapping_keys(xref)
-refresh_summary_evidence(all_summary, ref_map, mapping_keys)
-refresh_summary_evidence(generic_summary, ref_map, mapping_keys)
-if generic_summary is None:
-    generic_summary = fallback_generic_targets(all_summary)
+if not check_raw_ram_review:
+    ref_map = build_ref_map(xref)
+    mapping_keys = build_rom_mapping_keys(xref)
+    refresh_summary_evidence(all_summary, ref_map, mapping_keys)
+    refresh_summary_evidence(generic_summary, ref_map, mapping_keys)
+    if generic_summary is None:
+        generic_summary = fallback_generic_targets(all_summary)
 
-all_label_map = label_map(all_summary) if all_summary else label_map(generic_summary)
-consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.json"))
-symbol_defs = build_symbol_def_map(xref)
-file_symbol_index = build_file_symbol_index(xref)
-owner_ref_map = build_owner_ref_map(xref)
-owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
-globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
-raw_ram_review = load_raw_ram_review(raw_ram_review_path)
+    all_label_map = label_map(all_summary) if all_summary else label_map(generic_summary)
+    consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.json"))
+    symbol_defs = build_symbol_def_map(xref)
+    file_symbol_index = build_file_symbol_index(xref)
+    owner_ref_map = build_owner_ref_map(xref)
+    owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
+    globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
+try:
+    if check_raw_ram_review:
+        raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)
+    else:
+        raw_ram_review = load_raw_ram_review(raw_ram_review_path)
+except (OSError, ValueError, csv.Error) as exc:
+    print(f"error: {exc}", file=sys.stderr)
+    raise SystemExit(65) from exc
 try:
     lowaddr_ram_symbols = build_lowaddr_ram_equ_symbols(xref)
     raw_accesses, symbolized_accesses = instruction_ram_sites(
@@ -1601,6 +1621,25 @@ merged_raw_ram_review_rows = merge_raw_ram_review(
     raw_ram_review,
     symbolized_raw_ram_candidates,
 )
+if check_raw_ram_review:
+    try:
+        result = raw_ram_reconciliation.compare(
+            raw_ram_review_path, raw_ram_review, merged_raw_ram_review_rows, RAW_RAM_REVIEW_FIELDS)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(65) from exc
+    print(json.dumps(result, indent=2))
+    if result["status"] == "stale":
+        normalization = "CSV normalization required; " if result["serialization_changed"] else ""
+        print(
+            f"closeout reconciliation stale: {raw_ram_review_path}: {result['changed_rows']} row(s); "
+            f"{normalization}"
+            f"rerun make project-pass-closeout PROJECT={slug} for the reviewed pass, "
+            "review and commit the ledger changes, then regenerate the packet",
+            file=sys.stderr,
+        )
+        raise SystemExit(68)
+    raise SystemExit(0)
 raw_ram_review = {
     (row.get("addr_hex") or "").strip().lower(): row
     for row in merged_raw_ram_review_rows
