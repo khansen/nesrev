@@ -776,10 +776,20 @@ Different corridor difficulty, review scope and exercised paths must remain
 visible; no recurrence on an unexercised path is not evidence of effectiveness.
 
 If friction is a study endpoint, freeze its classification and collection rules
-in the evaluation protocol. Reuse the plan's separate cause and recurrence
-vocabulary and consistent `cause:` / `recurrence:` rationale prefixes. Capture
-raw review and implementation observations as well as receipts; deduplication
-can hide repeats from the current queue. Report missing capture explicitly.
+in the evaluation protocol. Reuse the [plan's definitions](PROCESS_IMPROVEMENT_PLAN.md#observation-period)
+for rationale prefixes, cause and recurrence values, and the local-integration
+boundary for a post-fix occurrence. Capture raw review and implementation
+observations as well as receipts; deduplication can hide repeats from the
+current queue. Report missing capture explicitly.
+
+After quality judgments are locked, an independent evaluator derives friction
+outcomes from the preserved raw artifacts under those frozen rules, in the
+process/compliance phase defined in sections 2 and 8. In-run receipts and their
+prefixes are self-reported data, not ground truth. Report independently found
+issues that the run never reported alongside the self-reported counts; fewer
+logged candidates alone must not earn a better friction outcome. Keep these
+process judgments separate from the locked quality ratings.
+
 Review-round counts come from canonical run metadata, not Markdown heading
 counts. These are process measurements; fewer reports or rounds do not replace
 independent semantic correctness and coverage assessment.
