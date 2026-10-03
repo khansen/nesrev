@@ -779,6 +779,8 @@ def merge_raw_ram_review(candidates, review_rows, symbolized_candidates=None):
 
 def write_raw_ram_review(path, rows):
     p = Path(path)
+    if not rows and not p.exists():
+        return
     p.parent.mkdir(parents=True, exist_ok=True)
 
     p.write_bytes(raw_ram_reconciliation.render_review(rows, RAW_RAM_REVIEW_FIELDS))

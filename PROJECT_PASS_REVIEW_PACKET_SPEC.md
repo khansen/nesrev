@@ -180,8 +180,10 @@ access evidence retain their facts. Nonblank authored status, proposed symbols,
 notes, and last-reviewed pass are preserved. Closeout's blank-status default
 (`unreviewed`), canonical header order, line endings and quoting must already be
 reconciled; formatting-only drift is stale even when every parsed field matches.
-An absent ledger with no candidates passes
-without creating a file. This checks raw-RAM reconciliation only; it does not
+An absent ledger with no candidates passes without creating a file; closeout's
+refresh also preserves that absence. Existing empty ledgers remain present,
+and refresh creates a ledger when candidates appear. This checks raw-RAM
+reconciliation only; it does not
 certify authored decisions, deferral capture, or scorecard/history synchronization.
 
 Preparation prints a `raw_ram_reconciliation` JSON result with changed addresses

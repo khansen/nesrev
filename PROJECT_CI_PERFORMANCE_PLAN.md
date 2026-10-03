@@ -5,7 +5,7 @@ CI-P2's producers, separate instruction output, and validated data bundle are
 implemented, and branch-literal consumers now use the instruction stream.
 The raw-address KPI consumer is implemented; CI-P3 is conditional and CI-P4's
 text indexes are deferred.
-Updated 2026-10-01.
+Updated 2026-10-03.
 
 ## Purpose and ownership
 
@@ -39,6 +39,15 @@ The median wall time may grow by at most 5%. A larger regression needs explicit
 approval, recorded with its reason and measurements. Artifact sizes may grow for
 new content, not for repetition. Game-specific numbers go in the local evidence
 file; shared changes state the percentages.
+
+Time one representative large project for the affected path, not every project
+in the corpus. Broader corpus checks establish correctness, not a timing matrix.
+Reuse completed measurements for small follow-ups that leave the measured path
+unchanged; do not repeat performance runs for those edits.
+
+PI-6 has an [approved packet-preparation exception](PROCESS_IMPROVEMENT_PLAN.md#pi-6-review-handoff-freshness):
++5.20% for read-only reconciliation. That path has no headroom left; its next
+addition must offset its cost. The general 5% limit remains unchanged.
 
 <a id="raw-ram-pass-selection-measurements"></a>
 ### Raw-RAM pass-selection measurements

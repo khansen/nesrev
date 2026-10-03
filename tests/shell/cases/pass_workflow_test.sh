@@ -5101,6 +5101,62 @@ PY
   cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
 }
 
+test_raw_ram_refresh_preserves_optional_absent_empty_ledger() {
+  local slug; slug="$(unique_slug empty_review)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" none
+  _write_pass_one_scorecard "${slug}" "Optional ledger fixture."
+  local root="projects/${slug}" inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  cat > "${root}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+FrameEntry:
+  RTS
+ASM
+  source "${REPO_ROOT}/scripts/project_common.sh"
+  load_project_analysis_conf "${slug}"
+  local bundle="${NESREV_TEST_TMPDIR}/empty-bundle"
+  mkdir -p "${bundle}"
+  prepare_project_analysis_bundle "${slug}" "${bundle}" inventory-instructions-v1
+  python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce "${bundle}" "${ASM_FILE}" "${bundle}/out.bin" >/dev/null
+  export NESREV_ANALYSIS_BUNDLE="${bundle}/bundle.json"
+  export PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1
+  export PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=0
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  [[ ! -e "${inventory}/raw_ram_review.csv" ]] || fail "check must preserve absent empty ledger"
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  [[ ! -e "${inventory}/raw_ram_review.csv" ]] || fail "refresh must preserve absent empty ledger"
+
+  cat > "${inventory}/raw_ram_review.csv" <<'CSV'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+CSV
+  cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/empty.csv"
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/empty.csv"
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+
+  rm "${inventory}/raw_ram_review.csv"
+  cat > "${ASM_FILE}" <<'ASM'
+.ORG $C000
+FrameEntry:
+  LDA $10
+  RTS
+ASM
+  unset NESREV_ANALYSIS_BUNDLE
+  bundle="${NESREV_TEST_TMPDIR}/candidate-bundle"
+  mkdir -p "${bundle}"
+  prepare_project_analysis_bundle "${slug}" "${bundle}" inventory-instructions-v1
+  python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce "${bundle}" "${ASM_FILE}" "${bundle}/out.bin" >/dev/null
+  export NESREV_ANALYSIS_BUNDLE="${bundle}/bundle.json"
+  local rc=0
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json \
+    >"${NESREV_TEST_TMPDIR}/check.json" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq "${rc}" 68 "missing ledger with a candidate must be stale"
+  [[ ! -e "${inventory}/raw_ram_review.csv" ]] || fail "stale check must not create ledger"
+  PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  assert_match '0x0010,unreviewed' "$(cat "${inventory}/raw_ram_review.csv")"
+  PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+}
+
 test_packet_prep_reconciliation_refuses_stale_counts_without_ledger_writes() {
   local slug; slug="$(unique_slug reconcile_prep)"
   trap "cleanup_project ${slug}" EXIT

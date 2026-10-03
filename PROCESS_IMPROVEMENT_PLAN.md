@@ -64,7 +64,7 @@ migration and each newly exposed failure before landing.
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
-| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Reviewed `72cad08f6`; CSV normalization follow-up validated; preparation timing exception pending |
+| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Reviewed `72cad08f6` and normalization fix `e15e9fe5e`; preparation timing exception approved |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -80,15 +80,17 @@ and their migration tests are in place.
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff
 
-Status: review accepted `72cad08f6`; normalization follow-up validated. Landing
-awaits approval of a +5.20% preparation timing regression against the 5% limit.
+Status: review accepted `72cad08f6` and normalization fix `e15e9fe5e`;
+the preparation timing exception was approved on 2026-10-03.
 A committed stale
 raw-RAM count reproduced an accepted packet with green verification, process and
 documentation gates. Synthetic coverage also reproduces stale owners after a
 rename. The packet now checks the seven derived raw-RAM fields and missing
 candidate rows with fresh assembly evidence, using closeout's existing refresh
 calculation. The comparison also requires byte-identical CSV serialization using
-the writer shared with closeout, including its blank-status default. The precise
+the writer shared with closeout, including its blank-status default. Check and
+refresh both preserve an absent ledger when there are no candidates; refresh
+retains existing empty ledgers and creates a queue when candidates appear. The precise
 scope, retained historical-row behavior, and refusal
 contract are in [the packet specification](PROJECT_PASS_REVIEW_PACKET_SPEC.md#cache-preparation).
 
@@ -108,7 +110,8 @@ intended reason; a reconciled head succeeds; relevant edits after reconciliation
 make it stale again; cold-cache and repeated checks leave tracked files unchanged.
 Confirm the refusal through the handoff path as well as packet generation.
 
-Validation on xasm 1.8.1: 661 shell tests and 1,206 Java tests pass. Fresh
+Validation on xasm 1.8.1 before the final absent-ledger guard: 661 shell tests
+and 1,206 Java tests pass. Fresh
 comparisons and byte-identical writer output pass on all 23 local project ledgers.
 The real stale-count packet passes the old gates and parser, then fails the new
 handoff; reconciled, cold-cache and repeated packets succeed without tracked
@@ -116,12 +119,22 @@ writes. The original review covered five deliberate regressions; two additional
 mutations catch a field-only verdict and a diverging CSV writer. CLI handoff and
 packet reuse refuse disabled, failed and unrun reconciliation. The check skips
 unneeded briefing work and remains independent of corrupt briefing caches.
+The absent-ledger follow-up passes three focused wrapper cases, seven CSV unit
+tests and 34 packet-parser tests. Removing the guard fails its regression for
+creating an empty ledger; existing empty ledgers and new candidates are positive
+controls. The approved timing and 23-project comparison were not repeated for
+this guard, which does not alter their populated-ledger path.
 
 Final timing uses three alternating pairs after warmup on the largest source
 project. Median wall changes are +5.20% for read-only preparation with
 reconciliation, +0.13% for cached next-pass, and +2.15% for the complete packet.
-Preparation exceeds the 5% budget; landing requires the explicit exception
-specified in [the performance plan](PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement).
+Approved: +5.20% median on read-only packet preparation, largest project,
+11.54 → 12.14 s. Cause: the reconciliation runs the closeout raw-RAM refresh
+the packet previously skipped. Default pass-prep is unchanged; the full packet
+is +2.15%. This path now has no headroom left: the next addition must offset
+its cost. This is a bounded exception under
+[the performance plan](PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement),
+not a change to the general 5% limit.
 The earlier +4.82% preparation measurement described the reviewed revision,
 not this final result. Original assembly counts were two, zero and five
 respectively in that warm-cache setup; the follow-up adds no assembly calls.
