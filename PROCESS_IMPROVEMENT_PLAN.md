@@ -1,9 +1,9 @@
 # Process Improvement Plan
 
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
-delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 through
-PI-8 below are planned; accepting the work does not claim those defects are
-fixed or freshly reproduced. Updated 2026-10-02.
+delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is
+implemented and externally reviewed; PI-7 and PI-8 remain planned.
+Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -13,9 +13,9 @@ remain on the local-only corpus branch.
 <a id="recommended-order"></a>
 ## Recommended order
 
-1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness). Establish
-   that a reviewed head's ledgers are reconciled before another unattended
-   pass run relies on the packet's green gates.
+1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is implemented.
+   Land its reviewed check before another unattended pass run relies on the
+   packet's green gates.
 2. [PI-7: Deferral capture](#pi-7-deferral-capture). Reject misplaced kind
    keywords and carry the persisted corridor into new deferrals.
 3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
@@ -64,6 +64,7 @@ migration and each newly exposed failure before landing.
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
+| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Reviewed `72cad08f6`; CSV normalization follow-up in final validation |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -79,12 +80,14 @@ and their migration tests are in place.
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff
 
-Status: implemented; awaiting external review. A committed stale
+Status: externally reviewed; final normalization checks in progress. A committed stale
 raw-RAM count reproduced an accepted packet with green verification, process and
 documentation gates. Synthetic coverage also reproduces stale owners after a
 rename. The packet now checks the seven derived raw-RAM fields and missing
 candidate rows with fresh assembly evidence, using closeout's existing refresh
-calculation. The precise scope, retained historical-row behavior, and refusal
+calculation. The comparison also requires byte-identical CSV serialization using
+the writer shared with closeout, including its blank-status default. The precise
+scope, retained historical-row behavior, and refusal
 contract are in [the packet specification](PROJECT_PASS_REVIEW_PACKET_SPEC.md#cache-preparation).
 
 - Reproduce stale closeout output against current wrappers using a synthetic

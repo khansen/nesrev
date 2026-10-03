@@ -170,17 +170,24 @@ bundle. HEAD, timestamps, or an earlier closeout invocation cannot substitute
 for this comparison. The subsequent next-pass command uses
 `PROJECT_NEXT_PASS_AUTO_PREP=0` to consume the explicitly prepared cache.
 
-The comparison covers missing candidate rows and seven derived columns:
+The comparison renders the merged rows in memory with closeout's shared CSV
+writer and requires identical bytes. Field diagnostics cover missing candidate
+rows and the seven derived columns:
 `active`, `operand_count`, `distinct_owner_count`, `read_count`, `write_count`,
 `top_readers`, and `top_writers`. Existing refresh policy still applies: supporting
 pointer reads do not create candidates, and historical rows without current
-access evidence retain their facts. Authored status, proposed symbols, notes,
-and last-reviewed pass are preserved. An absent ledger with no candidates passes
+access evidence retain their facts. Nonblank authored status, proposed symbols,
+notes, and last-reviewed pass are preserved. Closeout's blank-status default
+(`unreviewed`), canonical header order, line endings and quoting must already be
+reconciled; formatting-only drift is stale even when every parsed field matches.
+An absent ledger with no candidates passes
 without creating a file. This checks raw-RAM reconciliation only; it does not
 certify authored decisions, deferral capture, or scorecard/history synchronization.
 
 Preparation prints a `raw_ram_reconciliation` JSON result with changed addresses
-and actual/expected fields. Stale facts return 68 from the preparation script;
+and actual/expected fields, including status normalization. `bytes_changed` and
+`serialization_changed` distinguish byte drift and noncanonical CSV formatting;
+formatting-only changes can have zero changed rows. Stale output returns 68 from the preparation script;
 malformed ledgers or invalid analysis evidence return 65. Make may report these
 as exit 2. Both block dependent packet commands and handoff; an unrun preparation
 is also a refusal. The operator reruns closeout for the reviewed pass, reviews

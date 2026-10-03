@@ -5029,6 +5029,40 @@ CSV
   assert_match '"status": "pass"' "$(cat "${NESREV_TEST_TMPDIR}/check.json")"
   assert_match 'deferred,ZP_Proposed,keep authored decision,7' "$(cat "${inventory}/raw_ram_review.csv")"
 
+  local variation
+  for variation in blank_status reordered_header crlf quoted; do
+    python3 - "${NESREV_TEST_TMPDIR}/reconciled.csv" "${inventory}/raw_ram_review.csv" "${variation}" <<'PY'
+import csv, io, sys
+from pathlib import Path
+source, target, variation = sys.argv[1:]
+with open(source, newline='') as handle:
+    reader = csv.DictReader(handle)
+    fields, rows = reader.fieldnames, list(reader)
+if variation == 'blank_status': rows[0]['status'] = ''
+if variation == 'reordered_header': fields.reverse()
+output = io.StringIO(newline='')
+writer = csv.DictWriter(output, fieldnames=fields,
+                        lineterminator='\r\n' if variation == 'crlf' else '\n',
+                        quoting=csv.QUOTE_ALL if variation == 'quoted' else csv.QUOTE_MINIMAL)
+writer.writeheader(); writer.writerows(rows)
+Path(target).write_bytes(output.getvalue().encode())
+PY
+    cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/variant.csv"
+    rc=0
+    PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json \
+      >"${NESREV_TEST_TMPDIR}/check.json" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+    assert_eq "${rc}" 68 "${variation} must refuse closeout byte drift"
+    cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/variant.csv"
+    PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+    PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null
+    if [[ "${variation}" == blank_status ]]; then
+      assert_match 'unreviewed,ZP_Proposed,keep authored decision,7' "$(cat "${inventory}/raw_ram_review.csv")"
+    else
+      assert_match 'CSV normalization required' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+      cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/reconciled.csv"
+    fi
+  done
+
   # Backdating an edit cannot make the old bundle valid again.
   python3 - "${ASM_FILE}" <<'PY'
 import os, sys

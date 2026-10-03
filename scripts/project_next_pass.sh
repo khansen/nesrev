@@ -118,6 +118,7 @@ from pathlib import Path
 sys.path.insert(0, script_dir)
 import analysis_bundle
 import proof_debt
+import raw_ram_reconciliation
 from ram_accesses import access_facts, group_sites, instruction_ram_sites
 from data_directive_xref import ContractError, load_xref as load_structured_xref
 GENERIC_RE = re.compile(r"^L[0-9A-F]{4,5}$")
@@ -780,11 +781,7 @@ def write_raw_ram_review(path, rows):
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
 
-    with p.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=RAW_RAM_REVIEW_FIELDS, lineterminator='\n')
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({field: row.get(field, "") for field in RAW_RAM_REVIEW_FIELDS})
+    p.write_bytes(raw_ram_reconciliation.render_review(rows, RAW_RAM_REVIEW_FIELDS))
 
 def build_raw_ram_candidates(raw_accesses, review_rows, limit=None):
     candidates = []
@@ -1592,7 +1589,6 @@ globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
 check_raw_ram_review = os.environ.get("PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW") == "1"
 try:
     if check_raw_ram_review:
-        import raw_ram_reconciliation
         raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)
     else:
         raw_ram_review = load_raw_ram_review(raw_ram_review_path)
@@ -1622,11 +1618,18 @@ merged_raw_ram_review_rows = merge_raw_ram_review(
     symbolized_raw_ram_candidates,
 )
 if check_raw_ram_review:
-    result = raw_ram_reconciliation.compare(raw_ram_review_path, raw_ram_review, merged_raw_ram_review_rows)
+    try:
+        result = raw_ram_reconciliation.compare(
+            raw_ram_review_path, raw_ram_review, merged_raw_ram_review_rows, RAW_RAM_REVIEW_FIELDS)
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(65) from exc
     print(json.dumps(result, indent=2))
     if result["status"] == "stale":
+        normalization = "CSV normalization required; " if result["serialization_changed"] else ""
         print(
             f"closeout reconciliation stale: {raw_ram_review_path}: {result['changed_rows']} row(s); "
+            f"{normalization}"
             f"rerun make project-pass-closeout PROJECT={slug} for the reviewed pass, "
             "review and commit the ledger changes, then regenerate the packet",
             file=sys.stderr,
