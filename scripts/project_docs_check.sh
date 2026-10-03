@@ -13,6 +13,7 @@ source "${SCRIPT_DIR}/project_common.sh"
 load_project_conf "$1"
 validate_project_analysis_bundle "$1"
 
+PROJECT_DOCS_SLUG="$1" PROGRESS_SCORECARD_FILE="${PROGRESS_SCORECARD_FILE}" \
 bash "${SCRIPT_DIR}/check_docs.sh" \
   "${ASM_FILE}" \
   "${DOC_ROOT}" \

@@ -45,7 +45,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential autoconf automake ripgrep zsh
+          sudo apt-get install --yes build-essential autoconf automake ripgrep zsh locales
+          sudo locale-gen en_US.UTF-8
       - name: Install macOS build and test dependencies
         if: runner.os == 'macOS'
         run: brew install autoconf automake ripgrep
@@ -74,6 +75,7 @@ jobs:
             bash --version
             zsh --version
             xasm --version
+            locale
             printf 'xorcyst revision: %s\n' "$XORCYST_REVISION"
             make project-doctor
             if command -v codex >/dev/null 2>&1; then

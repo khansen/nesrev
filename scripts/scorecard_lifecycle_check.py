@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from process_friction import structural_lines
+
 
 REQUIRED_COLUMNS = {"pass_id", "verify", "docs_check", "rework_items"}
 
@@ -28,38 +30,44 @@ def is_separator_row(cells: list[str]) -> bool:
     return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell or "") for cell in cells)
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: scorecard_lifecycle_check.py <progress_scorecard.md>", file=sys.stderr)
-        return 64
-
-    path = Path(sys.argv[1])
-    if not path.is_file():
-        print(f"error: scorecard not found: {path}", file=sys.stderr)
-        return 65
-
+def read_scorecard(path: Path) -> tuple[list[str], list[tuple[int, int, list[str]]]]:
+    """Return validated rows with their original line numbers, or refuse."""
     header: list[str] | None = None
     header_index: dict[str, int] = {}
     rows: list[tuple[int, int, list[str]]] = []
     errors: list[str] = []
 
-    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    in_table = False
+    for index, raw in structural_lines(path.read_text(encoding="utf-8")):
+        lineno = index + 1
         cells = markdown_cells(raw)
         if cells is None:
+            in_table = False
             continue
-        if REQUIRED_COLUMNS.issubset(set(cells)):
+        if "pass_id" in cells:
+            if header is not None and header != cells:
+                errors.append(f"{path}:{lineno}: conflicting scorecard header")
+            if not REQUIRED_COLUMNS.issubset(set(cells)) or len(cells) != len(set(cells)):
+                errors.append(f"{path}:{lineno}: invalid scorecard header")
+                continue
             header = cells
             header_index = {name: idx for idx, name in enumerate(header)}
+            in_table = True
             continue
-        if header is None:
+        if header is None or not in_table:
             continue
         if is_separator_row(cells):
             continue
         if len(cells) != len(header):
-            # scorecard_cell_check.py owns the clearer raw-pipe diagnostic.
+            errors.append(
+                f"{path}:{lineno}: scorecard row has {len(cells)} cells, expected "
+                f"{len(header)}; a raw '|' is not allowed in scorecard cells"
+            )
             continue
         pass_cell = cells[header_index["pass_id"]]
         if not pass_cell.isdigit():
+            # Legacy annotations (e.g. retro-0) are not numbered pass records.
+            # They remain ordinary checked text, never historical exemptions.
             continue
         rows.append((lineno, int(pass_cell), cells))
 
@@ -119,8 +127,23 @@ def main() -> int:
                     )
 
     if errors:
-        for error in errors:
-            print(error, file=sys.stderr)
+        raise ValueError("\n".join(errors))
+    assert header is not None
+    return header, rows
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("usage: scorecard_lifecycle_check.py <progress_scorecard.md>", file=sys.stderr)
+        return 64
+    path = Path(sys.argv[1])
+    if not path.is_file():
+        print(f"error: scorecard not found: {path}", file=sys.stderr)
+        return 65
+    try:
+        read_scorecard(path)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(exc, file=sys.stderr)
         return 1
 
     print("OK: scorecard pass lifecycle is consistent")

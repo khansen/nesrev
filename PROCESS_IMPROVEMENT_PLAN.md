@@ -5,6 +5,11 @@ delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merge
 in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
 [PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is merged in
 [PR #143](https://github.com/khansen/nesrev/pull/143).
+The first observation window has preliminary findings; its final review still
+needs follow-up. [PI-9](#pi-9-historical-provenance) is implemented locally for
+review, followed by a separate provenance-restoration batch after integration.
+The observation assessment and other investigations below are
+not implementation or additional-pass authorization.
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -15,21 +20,33 @@ remain on the local-only corpus branch.
 <a id="recommended-order"></a>
 ## Recommended order
 
-1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is merged
-   in [PR #141](https://github.com/khansen/nesrev/pull/141).
-2. [PI-7: Deferral capture](#pi-7-deferral-capture) is merged in
-   [PR #142](https://github.com/khansen/nesrev/pull/142).
-3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
-   Merged in [PR #143](https://github.com/khansen/nesrev/pull/143).
-4. Observe the next 5–10 separately authorized semantic passes under the
-   [observation period](#observation-period) before expanding the process.
-5. After that assessment, revisit the
+1. Complete the final review follow-up and close the first
+   [observation assessment](#observation-initial-assessment). A recorded approval
+   made during a usage-limit grace period does not establish that the remaining
+   review work was completed. Preserve the existing archive and document the
+   follow-up outcome; do not start another pass automatically.
+2. Review and land [PI-9: Historical provenance](#pi-9-historical-provenance),
+   the bounded tooling and playbook change. It responds to blocked
+   semantic renames and loss of historical attribution. Land that contract
+   before the separately reviewed project-history repairs; integrate and repair
+   at project pass boundaries.
+3. Assess [interrupted-review completion](#interrupted-review-candidate) using
+   the observed handoff, then decide whether a small prompt/harness change is
+   needed. Distinguish an incomplete review from a completed review that relies
+   on valid packet evidence; do not require duplicate builds merely to add work.
+4. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
+   with a small reproducer. The observed source repair is complete; an automatic
+   detector's scope and confidence still need design.
+5. Finish independent review of the separately authorized
    [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit)
-   as the next queued tooling investigation.
-   That plan owns its scope and acceptance criteria. End with a migration or
-   deferral recommendation; production implementation is a separate decision.
+   before deciding on migration. Its synthetic results were reproduced, but
+   fixture classifications and coverage claims needed correction; corpus joins,
+   producer/consumer feasibility and acceptance criteria remain under review.
+   That plan owns its scope. Production implementation remains a separate
+   decision, with no demonstrated corpus-coverage gain or xasm extension need.
 
-This is the next-work priority order. PI-1 through PI-5 and the queue-receipt
+These are next-work priorities; review already underway can finish independently.
+PI-1 through PI-5 and the queue-receipt
 prerequisite are delivered; their implementation and activation records remain
 below. Start each follow-up with a current reproducer and a bounded contract.
 If existing tooling already resolves the observation, record that evidence and
@@ -46,11 +63,14 @@ gates merely to increase coverage.
 <a id="observation-period"></a>
 ## Observation period
 
-Status: planned after PI-6 through PI-8; post-landing effectiveness is not yet
-established. Keep the workflow stable for the next 5–10 separately authorized
-semantic passes. Assess after five completed passes; extend to ten if the work
-has not exercised the repaired paths sufficiently. Report unexercised paths
-explicitly rather than treating an absence of findings as proof of effectiveness.
+Status: the first five-pass window has a preliminary assessment below; the final
+pass's review requires follow-up before closing the window. PI-6 through PI-8
+were integrated before the window began. Keep the workflow stable during each
+separately authorized observation window. Assess after five completed passes;
+an extension toward ten requires separate authorization and a reason to expect
+the selected work to exercise missing paths. Insufficient coverage alone does
+not authorize more passes or benchmarks. Report unexercised paths explicitly
+rather than treating an absence of findings as proof of effectiveness.
 
 Use existing review archives, friction queues and receipts. In the rationale
 of each new triage receipt, use the fixed format
@@ -87,6 +107,88 @@ existing [triage criteria](agent_playbook/REVIEW_AUDITS.md#process-learning-tria
 Blockers and silent correctness defects can interrupt the observation period.
 Use existing evidence for this assessment; no new per-pass benchmark or
 all-project performance campaign is required.
+
+<a id="observation-initial-assessment"></a>
+### Preliminary assessment and follow-up decisions
+
+The work produced substantive semantic closure, including corrected ownership,
+data/dispatch boundaries and reference identities. Review also found omissions
+after green mechanical gates. This is evidence for retaining independent review,
+not proof that every omission needs a new gate. Exact pass IDs, reviewed heads,
+round counts, self-reported rework and failure logs remain in the local corpus
+evidence companion and original archives.
+
+| Finding or repaired path | Observed result and interpretation | Follow-up |
+|---|---|---|
+| Historical receipt text treated as live symbol residue | Repeated before any fix for that path; two different valid renames were withdrawn | Prioritize PI-9; preserve original receipts |
+| Earlier scorecard wording and rename rationale changed to later vocabulary | A bounded follow-up found recoverable originals in three projects; not every edit was gate-driven | Extend PI-9 to historical fields and policy, then audit and restore proven provenance loss separately |
+| Inline dispatch tail left classified as data | A consequential latent gap survived gates; review proved and repaired the source boundary | Bounded detection investigation, with no new hard gate yet |
+| Naming-family and reference-coverage misses | Existing rules were missed, sometimes repeatedly; review corrected them | Investigate self-review and rule use; no new checklist or gate justified yet |
+| Approval issued during usage-limit grace period | Formal approval and archive exist, but the reviewer disclosed a skipped check only in chat | Finish review follow-up and assess interruption handling; do not infer review completeness from state alone |
+| PI-6 reconciliation | Normal closeout and read-only handoff paths exercised with accepted final packets; no after-fix recurrence established | Refusal paths remain unexercised in this window |
+| PI-7 deferrals | Valid capture and saved-corridor fallback exercised; a malformed explicit entry was rejected by preflight | Other refusal/context paths remain unexercised |
+| PI-8 portability | All affected-scope decisions were `not-required`; no analyzer/fixture work triggered execution | No claim of production effectiveness from this window |
+
+The receipt blocker is not an after-fix recurrence of PI-6, PI-7 or PI-8:
+those repairs address different paths. Count review rounds from canonical
+metadata, but leave the last pass's final round total and assessment open until
+follow-up ends. Recorded rework mixes self-review corrections and rejected
+commands; it is not a count of human interventions or measured elapsed cost.
+Changes in round counts across different corridors do not establish a causal
+productivity gain from the repairs.
+
+Do not activate the monitor or experiment specs, add per-pass measurements, or
+implement the rename-coverage candidate on the strength of this assessment.
+Use existing logs for the pending follow-ups. This plan update changes priorities
+and proposed contracts only; it changes no running session, gate or review state.
+
+<a id="interrupted-review-candidate"></a>
+### Candidate: preserve incomplete review at a usage limit
+
+Status: first observed in this window; assess the completed follow-up before
+choosing a prompt/harness implementation. A limit warning was followed by a
+formal approval during the grace allowance; the implementer then archived it.
+The reviewer disclosed the skipped independent build in chat; the durable review
+did not retain that limitation. This demonstrates a reporting/completion risk,
+not that the semantic
+verdict was necessarily wrong or that packet-based parity evidence was invalid.
+
+The bounded contract to evaluate is:
+
+- If required review work remains, preserve pending review and save checked,
+  unchecked and remaining work at the exact reviewed head. Do not issue an
+  approval merely to end a turn, or request changes solely to encode a pause.
+- If review is complete using valid supplied evidence, approval may stand;
+  state clearly what was rerun, inspected or not checked. A duplicate scratch
+  build is not universally required by this candidate.
+- Automatic client continuation must not be treated as proof that a recorded
+  approval will be reopened. Follow-up after approval is explicit and preserves
+  the original verdict and archive, with a linked supplementary outcome.
+- Before proposing a new state or provider-specific integration, test whether
+  existing pending-state behavior and generated prompts can preserve this
+  boundary. Any implementation needs an interrupted-review negative control and
+  an honestly completed-review positive control; unrelated admissions and the
+  authorized pass limit must remain unchanged.
+
+<a id="dispatch-boundary-candidate"></a>
+### Candidate: surface incomplete inline-dispatch boundaries
+
+Status: bounded investigation proposed after a silent, consequential source
+classification miss. A dispatch table's known entries ended before its actual
+tail; warning-baselined raw bytes contained additional handler pointers. The
+warning explanation asserted a symbolization limitation that a scratch parity
+probe disproved. The source correction does not establish a general detector.
+
+Start with synthetic complete, truncated and deliberately mixed code/data
+tails. Use existing listing, instruction, xref and recovery-control facts to
+ask whether an explicit dispatch can consume words beyond its declared extent.
+Require evidence for selector bounds, target instruction boundaries and bank
+selection. Numeric resemblance to executable addresses is insufficient, and
+missing bank/extent proof must remain an explicit uncertainty. Include valid
+non-pointer trailing data so the investigation cannot simply flag every tail.
+Record whether the defect is covered by an existing check before designing an
+advisory. Do not silently extend table extents, rewrite sources, add an xasm
+schema, or promote an uncertain result to a hard gate.
 
 <a id="rename-coverage-candidate"></a>
 ### Candidate: inventory coverage across semantic renames
@@ -151,12 +253,201 @@ Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
 machine for these branches. Remote publication and corpus rebases are separate
 landing actions, not implicit consequences of creating a local commit.
-The remaining execution is authorized: obtain review approval before each
+For the previously authorized delivery items, obtain review approval before each
 PR, merge only after verification, then fetch and rebase the local corpus onto
 updated `master`. Rerun affected CI after each merge; report pre-existing
 unfinished-input failures separately and never relabel relaxed checks as
 strict-CI success. Prune eligible queue entries incrementally once receipts
 and their migration tests are in place.
+New observation follow-ups below are planning items; updating this plan does not
+start their implementation, publish a PR, or rebase an active project checkout.
+
+<a id="pi-9-historical-receipt-residue"></a>
+<a id="pi-9-historical-provenance"></a>
+## PI-9 — Preserve historical provenance during symbol renames
+
+Status: phase A independently approved at `02f8c2fb6` on
+`fix/pi-9-historical-provenance`. Phase B remains a separate audit/restoration
+batch after local integration. This section specifies both; no separate spec is
+required. The live corpus and agent session have not been changed.
+
+Closeout's [residue sweep](scripts/project_pass_residue_check.sh) treats old
+symbols in canonical friction receipts and earlier scorecard rows as current
+references. The [preflight rule](agent_playbook/PASS_WORKFLOW.md#completion-checklist)
+explicitly tells agents to paraphrase historical mentions to satisfy that sweep.
+The [docs symbol check](scripts/check_docs.sh) and
+[reference rules](agent_playbook/DOCUMENTATION.md#reference-document-use) also
+require scorecard symbols to resolve against current assembly. Fixing only
+receipt input selection would leave these other pressures to erase attribution.
+
+A bounded follow-up found original wording still recoverable from Git in three
+projects: earlier scorecard symbol citations were paraphrased, and earlier
+rename reasons were rewritten using later knowledge. The latter was not forced
+by the checker. These examples establish feasibility, not corpus-wide damage
+counts. Some historical edits are valid corrections; others were already
+repaired during review. The private evidence companion records the exact cases.
+
+<a id="pi-9-history-contract"></a>
+### Phase A — Historical and current-reference contract
+
+Historical names describe the revision in which they were recorded; they do not
+claim that a current symbol still exists. Use this explicit boundary:
+
+| Artifact or field | Treatment |
+|---|---|
+| Canonical friction receipts and archived reviews | Historical evidence. Preserve existing content, IDs, source references and dispositions; keep archive exclusions explicit. A rename must not rewrite them. |
+| Earlier completed scorecard rows | Historical pass outcomes, including topic, notes, symbol spellings, measurements and recorded results. Exclude their symbol references from current-name checks, retaining structural and lifecycle validation. |
+| Current scorecard row and prose outside historical rows | Current authored content. Continue checking current symbol references; exempting the whole scorecard is incorrect. |
+| Earlier-pass `renames.csv` entries | Preserve all five fields, including original rationale, confidence and pass attribution. A later rename appends a new old-to-new link; later understanding must not be backdated into an earlier reason. Keep existing ledger schema checks. |
+| Current assembly, systems/format docs, memory map, crosswalk, working notes and active inventory fields | Current state. Continue checking and updating live references and factual owners under their existing contracts. An old pass number or date alone does not make an active decision or owner historical. |
+
+For scorecards, closeout forwards its resolved pass ID to docs-check; standalone
+docs-check uses the latest pass ID in the validated scorecard. Only completed
+rows with a lower ID are historical for these checks. The selected/latest row remains current
+even after its result cells are filled. An explicit recheck of an older pass
+does not exempt later rows. Reuse the scorecard parsers and lifecycle rules:
+missing or ambiguous context, malformed cells, duplicate/out-of-order IDs and
+unfinished earlier rows must not acquire an exemption through a loose text
+match. Source line numbers must survive filtering for useful diagnostics.
+Identical repeated headers continue the same pass log. Legacy nonnumeric
+annotations remain ordinary checked text and receive no historical exemption.
+Because lifecycle validation shares this parser, process-check also refuses a
+second `pass_id` table with a conflicting header. This is an intentional
+validation tightening beyond the two symbol checks, not a historical exemption.
+
+Apply the same boundary in closeout's residue sweep and docs-check's backticked
+symbol validation. Recognize receipts by their canonical project path and the
+existing receipt reader/validator; malformed schema, wrong project identity or
+invalid candidate-content hashes produce a clear evidence error. A missing
+receipt ledger remains supported. Do not exempt all JSON, all inventories,
+arbitrary caller-selected files, or every file named like a receipt. Existing
+raw-operand closure, current owner reconciliation and current-pass ledger
+validation remain in force. No assembler-fact parser or new xasm output is
+needed for this authored-text boundary.
+Receipt IDs hash normalized candidate content only; rationale, sources and
+destinations are schema-validated but not covered by that content hash.
+Preservation of those fields, earlier rename reasons and review archives is
+policy, with byte-identity regression tests, not a tamper-detection guarantee.
+
+Land the corresponding playbook changes with the tooling: replace the
+historical-paraphrasing instruction in PASS_WORKFLOW and align DOCUMENTATION's
+reference-stability and rename-ledger rules. Explain the distinction above and
+retain current-state cleanup. Neither deleting old names nor stripping their
+backticks is a historical repair. This is a policy correction as well as a
+checker fix; agents following the old instruction were not necessarily
+disregarding the playbook.
+
+Acceptance for phase A:
+
+1. A synthetic rename with its old spelling only in a valid receipt or an
+   earlier completed scorecard row completes canonical closeout and docs-check.
+   Cover bare and backticked historical names. Earlier rows, rename records,
+   receipts and archives remain byte-identical, including repeated closeout.
+2. Put the same old spelling in the current scorecard row, scorecard prose
+   outside the historical rows, a current document and an active inventory
+   owner. Each fails the applicable existing check. An ordinary JSON file with
+   stale active text remains covered. Later rows in an older-pass recheck are
+   not silently treated as historical.
+3. Missing receipts work; malformed receipts refuse with their diagnostic.
+   Invalid scorecard structure/lifecycle refuses rather than hiding references.
+   Test standalone docs-check's latest-pass selection as well as closeout.
+   Both symbol lists and their comparison must use consistent collation;
+   exercise valid and missing symbols under a UTF-8 locale that sorts them
+   differently from C. A residue check with no renames does not decode unrelated
+   docs; unreadable documents needed for a rename scan refuse clearly with 65.
+4. A two-pass rename chain keeps the first row's five fields unchanged and
+   appends the second rename. Later discoveries remain attributed to the later
+   pass. Current raw-RAM owner reconciliation still updates active fields.
+5. In scratch mutations, restoring either check's old historical input selection
+   breaks its positive case; blanket scorecard/inventory exclusions break the
+   current-reference negative cases. Exercise canonical wrappers, not only a
+   helper. Recheck the two withdrawn renames in isolated project copies and
+   sample projects with and without receipts, preserving parity.
+
+This changes existing checks, with no new assembly invocation or per-pass
+command. Do not add all-project performance testing. If measurement is needed,
+use one representative affected path under the existing performance policy.
+
+Initial validation at `f177e68e6`: 13 focused Python tests, all 676 shell cases
+and 1,206 Java tests passed. Nine scratch mutations failed on their intended assertions,
+including restored historical scans, blanket exemptions, skipped receipt
+validation, missing pass-context forwarding and changed failure order. The full suite required an
+unrestricted rerun for its existing process-cleanup tests' `ps` access.
+Read-only validation accepts 3,744 historical rows and the receipt ledgers across
+23 projects; this is not a full corpus verification or a completed history audit.
+The two withdrawn renames pass residue/docs checks and canonical parity
+verification in an isolated copy, with unchanged receipt bytes. The old residue
+checker rejects the same replay. Exact pins, logs and timing remain in the
+private evidence companion.
+Three alternating measured pairs after warmup on one large project keep both
+affected wrappers within budget: standalone docs-check +3.50%, complete closeout
+recheck -0.56%. An initial +6.86% docs-check result led to reusing an existing
+Python scan, with refusal order preserved and tested. No all-project timing
+campaign was run.
+
+External review found inconsistent sort/comparison collation that the initial
+fixtures missed. Both symbol lists and their comparison now use C collation.
+The follow-up passes 31 affected shell cases (including the 13 Python contracts)
+under `en_NZ.UTF-8`, and docs-check passes on all 23 pinned projects under that
+locale. The new collation fixture selects an installed UTF-8 locale with a
+demonstrably different order; this run exercised `ca_AD.UTF-8`, with both valid
+and genuinely missing symbols. Local hosts without such a locale explicitly skip
+that fixture. CI generates `en_US.UTF-8` on Linux and requires a differing
+collation on both platforms, failing rather than skipping if one is unavailable;
+the toolchain log also records the environment's locale. Three scratch mutations reject the sort mismatch, eager no-rename
+document reads, and unhandled decode errors. The supported `make -C` invocation
+from outside the repository also passes; direct helper invocation outside the
+repository root is not newly supported. Full shell/Java suites and timing were
+not rerun for this follow-up. The old timing receipts did not record locale
+and do not establish performance across locales.
+
+<a id="pi-9-provenance-restoration"></a>
+### Phase B — Audit and restore existing project provenance
+
+Keep shared tooling/playbooks and corpus repairs in separate reviewable commits.
+The audit may run read-only before phase A lands; restoration must wait until
+the reviewed contract is integrated into each affected checkout at a pass
+boundary. Reconcile against then-current HEAD instead of applying stale patches
+or rewriting an active pass's files.
+
+1. Pin the corpus revision and inspect historical record changes across the
+   existing projects. Use Git versions and preserved review artifacts, keyed by
+   project, artifact and pass/record identity. Classify each proposed repair as
+   lost attribution, legitimate correction, already repaired, or unresolved.
+   Distinguish gate-driven changes from independent editorial changes. Record
+   the projects and history ranges inspected; do not equate no match with proof
+   of intact history when earlier revisions are unavailable.
+2. For each confirmed loss, record the source revision/path and exact original
+   text, the later edit, and the proposed restoration in the existing private
+   evidence companion. Restore only the affected historical fields. Preserve
+   unrelated later rows and current source, names, ownership and inventories.
+   Never synthesize a missing name, reason, confidence, pass ID or rename chain.
+   If Git and saved artifacts cannot establish the original, record the gap.
+3. Keep genuine later discoveries and factual corrections as dated amendments
+   in existing review/evidence artifacts, identifying the original pass/record
+   and supporting revision. Do not reinstate a disproved claim without its
+   correction, erase a review verdict, invent a semantic pass, or add a rename
+   row for a rename that never happened. Existing receipt/archived content stays
+   unchanged; suspected damage to either requires a separately reviewed recovery
+   using the original identity/content evidence.
+4. Verify restored fields against the cited originals, preserve record order and
+   unrelated content, and review each before/after diff. Rerun affected docs and
+   process checks after the final edit; report existing failures distinctly.
+   Run canonical project verification for any accompanying semantic/source edit,
+   keeping deferred rename work separate from the historical restoration. Record
+   repaired, already-correct and unresolved cases. A repeat audit of repaired
+   records should propose no further restoration.
+5. Commit restorations normally, with source revisions and any amendments linked
+   from the evidence companion. Do not rewrite Git history. Only after landing
+   and local integration should the existing friction workflow reconcile the
+   observations; no receipt pruning is implicit in the repair.
+
+Phase B's acceptance is an attributable, reviewed repair for every confirmed
+case in the declared audit scope, with unresolved evidence gaps explicit. It
+does not promise to recover uncommitted text that was never preserved. The
+read-only history audit needs no ROM builds or performance campaign; validation
+is limited to the checks affected by each resulting change. Phase A's tooling
+branch restores no project records; phase B needs separately reviewed repairs.
 
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff

@@ -411,6 +411,10 @@ For `renames.csv`, markdown bullets, and scorecard rows:
 
 `renames.csv` rule:
 
+- Preserve all five fields of earlier-pass rows, including the original
+  rationale and confidence. Append a new old-to-new link for a later rename;
+  attribute later discoveries or corrections separately under the
+  [historical-record contract](#historical-records).
 - Keep every ledger row to exactly 5 CSV fields:
   `old_name,new_name,reason,confidence,pass_id`
 - If `reason` text contains commas, rewrite the prose or quote it correctly so the CSV shape stays valid.
@@ -724,26 +728,35 @@ maintaining it if it no longer adds distinct value.
 - Resolve ambiguous labels by cross-checking both code behavior and reference docs.
 ### Reference stability
 
-1. Prefer label-based references over line numbers in markdown docs.
-   - Good: `RunAudioFrameMacros`
-   - Avoid: `RunAudioFrameMacros` at line 8464
-2. If a warning/quirk is tracked, include the symbol name and rationale, not only a line offset.
-3. If line numbers are temporarily used during review, remove or refresh them before finalizing docs.
-4. Avoid backticked stale/legacy symbol names after renames.
-   - `project-docs-check` validates backticked symbols against current asm labels.
-   - For historical notes, use plain text like `legacy LC94B` (not `` `LC94B` ``) unless the symbol still exists.
-   - For an intentionally deleted NESrev label that regeneration will recreate,
-     use the [removed generator-label notation](#removed-generator-label-notation).
-5. Avoid symbol-shaped placeholders in docs, even when not backticked.
-   - Tokens like `LFCxx`, `LF??`, or `LCxxx` can be interpreted as unresolved symbol references by tooling/reviewers.
-   - Prefer plain-language phrasing such as `legacy LFC-series flow labels`.
-6. Backtick only concrete symbol names that exist in asm.
-   - Do not backtick wildcard/suffix shorthand like `` `ZP_FOO_*` `` or `` `BASE_X/Y` ``.
-   - If shorthand is needed, keep it plain text; reserve backticks for fully-resolvable symbol names.
-7. Do not backtick config keys/tool variables in symbol-checked docs.
-   - Examples: `MAX_UNDOCUMENTED_PROCEDURES`, `BRANCH_SITES_FILE`, `POINTER_TARGETS_FILE`.
-   - Keep these as plain text unless they intentionally refer to asm symbols.
-8. Scorecard/changelog entries follow the same symbol-check rules.
-   - `PROGRESS_SCORECARD.md` and related pass-log docs are symbol-checked inputs.
-   - Backtick only symbols that currently exist in asm.
-   - Keep wildcard/pattern examples and legacy/removed names as plain text.
+1. Prefer labels such as `RunAudioFrameMacros` over line numbers. Remove or
+   refresh temporary line references before finalizing docs.
+2. A tracked warning/quirk needs its symbol and rationale, not just an offset.
+3. In current docs, backtick only concrete symbols that exist in asm.
+   `project-docs-check` validates them; closeout also checks bare old names.
+   Do not backtick wildcard shorthand (`ZP_FOO_*`, `BASE_X/Y`) or config keys
+   such as MAX_UNDOCUMENTED_PROCEDURES and BRANCH_SITES_FILE.
+4. Avoid symbol-shaped placeholders such as LFCxx or LF??; use plain prose
+   such as "legacy LFC-series flow labels". Preserve exact historical names
+   under the contract below. For an intentionally deleted generator label,
+   use the [removed-label notation](#removed-generator-label-notation).
+5. The current scorecard row and surrounding prose follow current-symbol rules.
+   Earlier completed rows retain their original names and formatting. A date
+   or pass number in another document does not grant an exemption.
+
+<a id="historical-records"></a>
+### Historical records and later corrections
+
+Preserve earlier scorecard rows, archived reviews, friction receipts and all
+five fields of earlier-pass rename entries. Later renames append links;
+corrections are dated amendments in existing review/evidence artifacts, citing
+the original record and supporting revision. Historical names need not resolve
+in current assembly. Do not alter receipt identities or archived verdicts.
+
+Both checks treat completed rows below the selected pass as historical;
+standalone docs-check selects the latest pass. Later rows, nonnumeric legacy
+annotations and active inventory fields remain checked. Invalid evidence refuses.
+Do not move stale current text into historical records to evade validation.
+
+Restore provenance only from preserved originals, through reviewed commits with
+source citations and explicit evidence gaps. Never invent history or rewrite
+Git history. Follow the [PI-9 repair plan](../PROCESS_IMPROVEMENT_PLAN.md#pi-9-provenance-restoration).

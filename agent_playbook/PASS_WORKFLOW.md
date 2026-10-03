@@ -831,7 +831,7 @@ for the broader deep-confidence-pass framing.
 
 ### Pre-closeout requirements
 
-Both items must be satisfied **before** running
+The following items must be satisfied **before** running
 `project-pass-closeout`, because the closeout helper reads
 `renames.csv` to derive the set of old symbol names, then scans the
 current on-disk authored docs for any remaining reference to them.
@@ -845,14 +845,14 @@ current on-disk authored docs for any remaining reference to them.
    symbol or an approved scoped overlay. If mixed ownership blocks a complete
    sweep, leave the queue row unresolved with its evidence gap; do not record
    the rename as complete. Closeout enforces both; use `old_name=raw_$NNNN`.
-3. **Docs stale-symbol preflight.** Grep authored docs for every
-   old name listed in this pass's `renames.csv` rows and remove or
-   rewrite each occurrence. The closeout sweep matches both
-   backticked tokens (`` `OldName` ``) and bare-word occurrences
-   (whole-word match), so historical mentions in plain text are
-   flagged too — paraphrase the prose to avoid naming the old
-   symbol, or restate the change in terms of the new name plus a
-   pointer to the scorecard row.
+3. **Docs stale-symbol preflight.** Update current authored references to
+   every old name listed in this pass's `renames.csv` rows. Closeout matches
+   backticked and bare-word occurrences. Preserve earlier completed scorecard
+   rows, archived reviews, friction receipts and earlier rename records under
+   the [historical-record contract](DOCUMENTATION.md#historical-records).
+   Do not paraphrase their original names or backdate later knowledge to make
+   a gate pass. The current scorecard row, prose outside historical rows and
+   active inventory fields still need current references.
 ### Post-closeout selection rule
 
 After closeout succeeds, use this to pick the shape of the next pass:
