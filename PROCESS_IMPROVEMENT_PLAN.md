@@ -1,8 +1,9 @@
 # Process Improvement Plan
 
 Status: PI-1 through PI-5 and queue receipts are merged, including PI-2 runtime
-delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is
-implemented and externally reviewed; PI-7 and PI-8 remain planned.
+delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merged
+in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is implemented
+and validated, awaiting review, and PI-8 remains planned.
 Updated 2026-10-03.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -13,9 +14,8 @@ remain on the local-only corpus branch.
 <a id="recommended-order"></a>
 ## Recommended order
 
-1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is implemented.
-   Land its reviewed check before another unattended pass run relies on the
-   packet's green gates.
+1. [PI-6: Review-handoff freshness](#pi-6-review-handoff-freshness) is merged
+   in [PR #141](https://github.com/khansen/nesrev/pull/141).
 2. [PI-7: Deferral capture](#pi-7-deferral-capture). Reject misplaced kind
    keywords and carry the persisted corridor into new deferrals.
 3. [PI-8: Runtime-analyzer test portability](#pi-8-analyzer-portability).
@@ -64,7 +64,8 @@ migration and each newly exposed failure before landing.
 | `feat/pi-4-review-bundles` | Complete evidence and gate reporting | Merged [PR #103](https://github.com/khansen/nesrev/pull/103); reviewed `eff6b00ab` |
 | `fix/pi-5-intake-baselines` | Historical measurement protection | Merged [PR #104](https://github.com/khansen/nesrev/pull/104); reviewed `b9aab397d` with the receipt-only local migration |
 | `feat/process-queue-lifecycle` | Receipt migration and pruning-safe ingestion | Merged [PR #101](https://github.com/khansen/nesrev/pull/101); reviewed `8bafbf7f4`; local pruning active |
-| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Reviewed `72cad08f6` and normalization fix `e15e9fe5e`; preparation timing exception approved |
+| `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
+| `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Implemented and validated; review pending |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
@@ -144,9 +145,26 @@ verification results, not strict maturity evidence.
 <a id="pi-7-deferral-capture"></a>
 ## PI-7 — Preserve meaningful deferral conditions and corridor context
 
-Status: planned. The current explicit-entry parser accepts a bare `static` or
-`runtime` as the revisit condition, and closeout supplies only `FOCUS` as the
-corridor even when a persisted pass objective exists.
+Status: implemented and validated; review pending. Baseline wrapper regressions
+reproduce a bare `static` or `runtime` accepted as the revisit condition, a saved
+corridor omitted from new deferrals, and missing context left undiagnosed.
+
+The parser now rejects a bare kind in the second field, case-insensitively,
+before writing any rows from the batch. Two-field conditions such as `compare
+the callers` and explicit third-field kinds retain their meanings. Subject-only
+and tagged-NOTES capture still leave the evidence condition for the operator;
+the check does not infer whether arbitrary prose is meaningful.
+
+For new rows, explicit nonempty `FOCUS` wins. Otherwise the capture uses only
+`corridor_objective.selected_corridor` from `current_pass_plan.json` when both
+`project` and `intended_pass_id` match. Integer and digit-string pass IDs match
+numerically; booleans and other types do not. Missing, unreadable, malformed,
+legacy, or mismatched plans warn and leave the corridor blank. Legacy generated
+clusters and anchors are not treated as selected corridors. Missing context
+does not discard the operator's deferral or fail an intentional legacy recheck.
+An empty or duplicate-only capture needs no context and emits no new warning.
+Existing authored rows, including historical blank corridors or conditions,
+are not repaired automatically; repeat capture remains byte-idempotent.
 
 - Reject kind keywords misplaced in the condition field before writing the
   ledger, with the supported `subject :: revisit condition :: kind` syntax in
@@ -163,6 +181,26 @@ Done when: both misplaced keywords fail without ledger changes; valid static
 and runtime entries retain their meanings; explicit focus wins, a matching
 saved corridor fills an omitted focus, and a mismatched plan cannot supply it.
 Exercise both the parser and the canonical closeout wrapper.
+
+Validation: eight focused Python tests, 53 closeout/proof-debt shell cases, and
+five deliberate regressions pass their expected assertions. The repository run
+passed 665 of 666 shell cases; the emulator-runner case was blocked by the
+sandbox's refusal of `ps`, then passed all 17 of its tests in an unrestricted
+retry. The 1,206 Java tests passed separately because the initial shell failure
+stopped `make test` before Java. Strict playbook, hygiene and diff checks pass.
+
+Copied-ledger checks preserve all 113 authored rows in 23 projects, append only
+the requested new row, and leave bytes unchanged on repeated or rejected capture.
+Three historical kind-only conditions and seven blank corridors remain authored
+debt for separate review; this implementation does not migrate them. The check
+does not claim 23 full project-verification runs.
+
+One representative largest-source closeout was measured with identical inputs,
+one warmup and three alternating pairs, including a new deferral on every run.
+Median wall time changed by +0.31%; all measured runs completed with relaxed
+verification. The new corridor was recorded and existing rows were preserved.
+No assembly or subprocess invocation was added, and packet preparation is
+unchanged. No all-project timing campaign was run.
 
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff

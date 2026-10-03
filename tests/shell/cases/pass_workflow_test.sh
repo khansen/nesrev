@@ -4983,6 +4983,111 @@ test_next_pass_supplied_bundle_requires_refresh_only_before_prep() {
   [[ ! -e "projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv" ]] || fail "refusal must precede ledger writes"
 }
 
+_make_deferral_closeout_project() {
+  local slug="$1" stage
+  _make_workflow_project "${slug}" none
+  _write_pass_one_scorecard "${slug}" "Deferral capture fixture."
+  mkdir -p "projects/${slug}/closeout_stubs"
+  for stage in project_pass_residue_check refresh_inventory project_next_pass project_docs_check project_process_check project_verify; do
+    printf '#!/usr/bin/env bash\nset -euo pipefail\n' > "projects/${slug}/closeout_stubs/${stage}.sh"
+  done
+}
+
+test_closeout_deferrals_use_matching_corridor_and_preserve_authored_rows() {
+  local slug; slug="$(unique_slug deferral_corridor)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_deferral_closeout_project "${slug}"
+  local inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  cat > "${inventory}/pass/current_pass_plan.json" <<JSON
+{"project":"${slug}","intended_pass_id":1,"corridor_objective":{"selected_corridor":"Saved audio corridor"}}
+JSON
+  local spec='cue identities :: compare callers; tempo transitions :: capture the request :: runtime'
+  FOCUS='' PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="projects/${slug}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1 REWORK_ITEMS=0 "DEFERRALS=${spec}" >/dev/null
+  python3 - "${inventory}/deferrals.csv" <<'PY'
+import csv, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+with path.open(newline='') as handle:
+    reader = csv.DictReader(handle)
+    fields, rows = reader.fieldnames, list(reader)
+assert len(rows) == 2, rows
+assert [row['corridor'] for row in rows] == ['Saved audio corridor'] * 2, 'saved corridor missing from deferrals'
+assert [row['kind'] for row in rows] == ['static', 'runtime'], rows
+rows[0].update(subject='curated-cue-key', corridor='Authored corridor', revisit_condition='Read both callers', status='resolved')
+with path.open('w', newline='') as handle:
+    writer = csv.DictWriter(handle, fieldnames=fields, lineterminator='\n')
+    writer.writeheader(); writer.writerows(rows)
+PY
+  cp "${inventory}/deferrals.csv" "${NESREV_TEST_TMPDIR}/authored.csv"
+  FOCUS='New focus must not rewrite history' PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="projects/${slug}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1 REWORK_ITEMS=0 "DEFERRALS=${spec}" >/dev/null
+  cmp "${inventory}/deferrals.csv" "${NESREV_TEST_TMPDIR}/authored.csv"
+
+  FOCUS='  Explicit audio focus  ' PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="projects/${slug}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" PASS=1 REWORK_ITEMS=0 \
+      'DEFERRALS=sample ownership :: inspect the writer' >/dev/null
+  python3 - "${inventory}/deferrals.csv" "${NESREV_TEST_TMPDIR}/authored.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='') as handle: rows = list(csv.DictReader(handle))
+with open(sys.argv[2], newline='') as handle: before = list(csv.DictReader(handle))
+assert rows[:2] == before, 'existing authored rows changed'
+assert len(rows) == 3 and rows[2]['corridor'] == 'Explicit audio focus', rows
+PY
+}
+
+test_closeout_deferrals_do_not_borrow_missing_or_mismatched_context() {
+  local slug; slug="$(unique_slug deferral_context)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_deferral_closeout_project "${slug}"
+  local inventory="projects/${slug}/docs/reverse_engineering/inventory" variant
+  cp "${inventory}/deferrals.csv" "${NESREV_TEST_TMPDIR}/empty.csv"
+  for variant in other_project other_pass missing legacy; do
+    cp "${NESREV_TEST_TMPDIR}/empty.csv" "${inventory}/deferrals.csv"
+    python3 - "${inventory}/pass/current_pass_plan.json" "${slug}" "${variant}" <<'PY'
+import json, sys
+from pathlib import Path
+path, project, variant = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+plan = {'project':project, 'intended_pass_id':1, 'corridor_objective':{'selected_corridor':'Unrelated corridor'}}
+if variant == 'other_project': plan['project'] = 'another_project'
+if variant == 'other_pass': plan['intended_pass_id'] = 2
+if variant == 'legacy':
+    plan.pop('corridor_objective')
+    plan.update(selected_cluster='Generated cluster', anchor_target='GeneratedAnchor')
+if variant == 'missing': path.unlink(missing_ok=True)
+else: path.write_text(json.dumps(plan))
+PY
+    FOCUS='' PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="projects/${slug}/closeout_stubs" \
+      make project-pass-closeout PROJECT="${slug}" PASS=1 REWORK_ITEMS=0 \
+        'DEFERRALS=cue ownership :: compare the callers' >"${NESREV_TEST_TMPDIR}/out" 2>&1
+    assert_match 'deferral_capture: corridor unavailable' "$(cat "${NESREV_TEST_TMPDIR}/out")" \
+      "${variant} must diagnose missing deferral context"
+    python3 - "${inventory}/deferrals.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='') as handle: rows = list(csv.DictReader(handle))
+assert len(rows) == 1 and rows[0]['corridor'] == '', 'borrowed another corridor'
+PY
+  done
+}
+
+test_closeout_deferrals_reject_kind_as_condition_without_ledger_changes() {
+  local slug; slug="$(unique_slug deferral_kind)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_deferral_closeout_project "${slug}"
+  local ledger="projects/${slug}/docs/reverse_engineering/inventory/deferrals.csv" kind rc
+  cp "${ledger}" "${NESREV_TEST_TMPDIR}/before.csv"
+  for kind in static runtime; do
+    rc=0
+    FOCUS='Audio corridor' PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="projects/${slug}/closeout_stubs" \
+      make project-pass-closeout PROJECT="${slug}" PASS=1 REWORK_ITEMS=0 \
+        "DEFERRALS=valid cue gap :: compare callers; missing condition :: ${kind}" \
+        >"${NESREV_TEST_TMPDIR}/out" 2>&1 || rc=$?
+    assert_eq "${rc}" 2 "kind keyword must not be accepted as a revisit condition"
+    assert_match 'subject :: revisit condition :: kind' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+    cmp "${ledger}" "${NESREV_TEST_TMPDIR}/before.csv"
+  done
+}
+
 test_raw_ram_reconciliation_uses_fresh_bundle_without_writing() {
   local slug; slug="$(unique_slug reconcile)"
   trap "cleanup_project ${slug}" EXIT

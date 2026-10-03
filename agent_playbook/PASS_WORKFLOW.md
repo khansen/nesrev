@@ -191,13 +191,13 @@ the acknowledgement. Unrelated passes do not; check revisit conditions at select
 Unscoped identity rows cannot suppress new work. Other signals
 retain reasoned permanent dispositions. Acknowledgements never establish gold.
 
-**Capture deferrals at closeout.** Use
-`DEFERRALS="subject :: what would close it [:: static|runtime]"`, separated by
-newlines or semicolons. Closeout writes
-`inventory/deferrals.csv` (`pass_id,corridor,subject,kind,deferral,revisit_condition,status`).
-Keep subjects stable; reruns also match deferral text to preserve curated keys.
-Without `DEFERRALS`, only a sentence opening with `Deferred: <subject>[, <subject>]`
-is captured. General retrospective prose must not create guessed gaps.
+**Capture deferrals at closeout.** `DEFERRALS="subject :: condition [:: static|runtime]"`
+accepts newline/semicolon-separated entries; bare kinds are invalid conditions.
+`inventory/deferrals.csv` columns: `pass_id,corridor,subject,kind,deferral,revisit_condition,status`.
+New rows use `FOCUS`, then the selected corridor from a project/pass-matching plan;
+unavailable context warns and stays blank ([details](../PROCESS_IMPROVEMENT_PLAN.md#pi-7-deferral-capture)).
+Reruns preserve authored rows and curated keys. Without `DEFERRALS`, only sentence-opening
+`Deferred: <subject>[, <subject>]` tags are captured; ordinary prose creates no gaps.
 
 **Three strikes.** On the third deferral of one `subject` (`deferral_repeat`),
 stop: open an [identity pass](#identity-pass) using evidence later passes have

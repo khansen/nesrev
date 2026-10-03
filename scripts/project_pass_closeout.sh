@@ -535,6 +535,8 @@ python3 "${DEFERRAL_CAPTURE_SCRIPT}" \
   "${DOC_ROOT}/inventory/deferrals.csv" \
   --pass-id "${PASS_ID}" \
   --corridor "${FOCUS:-}" \
+  --project "${SLUG}" \
+  --plan "${DOC_ROOT}/inventory/pass/current_pass_plan.json" \
   --explicit "${DEFERRALS:-}" \
   --notes "${NOTES:-}"
 
