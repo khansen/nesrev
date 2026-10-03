@@ -5002,6 +5002,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 CSV
   cp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
   printf 'invalid stale cache\n' > "${inventory}/pass/xref_with_data.json"
+  printf 'unrelated briefing cache\n' > "${inventory}/pass/baseline_status.json"
   source "${REPO_ROOT}/scripts/project_common.sh"
   load_project_analysis_conf "${slug}"
   local bundle="${NESREV_TEST_TMPDIR}/bundle"
@@ -5019,6 +5020,7 @@ CSV
   assert_match 'FrameEntry:1' "$(cat "${NESREV_TEST_TMPDIR}/check.json")"
   cmp "${inventory}/raw_ram_review.csv" "${NESREV_TEST_TMPDIR}/before.csv"
   [[ ! -e "${inventory}/pass/next_pass.json" ]] || fail "check must not replace briefing cache"
+  rm "${inventory}/pass/baseline_status.json"
 
   # Use closeout's existing refresh, then require two read-only passes.
   PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 bash "${NEXT_PASS}" "${slug}" json >/dev/null

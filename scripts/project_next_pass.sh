@@ -1559,9 +1559,11 @@ def make_follow_up(recommended_type, cluster_candidates):
         return "Once baseline parity is green again, rerun pass prep before picking the next semantic target."
     return "After closure, rerun pass prep and refresh the next corridor plan."
 
-baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
-all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
-generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
+check_raw_ram_review = os.environ.get("PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW") == "1"
+if not check_raw_ram_review:
+    baseline = load_json(os.path.join(pass_dir, "baseline_status.json"))
+    all_summary = load_json(os.path.join(pass_dir, "xref_summary_all.json"))
+    generic_summary = load_json(os.path.join(pass_dir, "xref_summary_generic.json"))
 try:
     fresh_bundle = analysis_bundle.supplied(asm_file)
     if fresh_bundle is not None:
@@ -1572,21 +1574,21 @@ try:
 except (ValueError, KeyError) as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc
-ref_map = build_ref_map(xref)
-mapping_keys = build_rom_mapping_keys(xref)
-refresh_summary_evidence(all_summary, ref_map, mapping_keys)
-refresh_summary_evidence(generic_summary, ref_map, mapping_keys)
-if generic_summary is None:
-    generic_summary = fallback_generic_targets(all_summary)
+if not check_raw_ram_review:
+    ref_map = build_ref_map(xref)
+    mapping_keys = build_rom_mapping_keys(xref)
+    refresh_summary_evidence(all_summary, ref_map, mapping_keys)
+    refresh_summary_evidence(generic_summary, ref_map, mapping_keys)
+    if generic_summary is None:
+        generic_summary = fallback_generic_targets(all_summary)
 
-all_label_map = label_map(all_summary) if all_summary else label_map(generic_summary)
-consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.json"))
-symbol_defs = build_symbol_def_map(xref)
-file_symbol_index = build_file_symbol_index(xref)
-owner_ref_map = build_owner_ref_map(xref)
-owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
-globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
-check_raw_ram_review = os.environ.get("PROJECT_NEXT_PASS_CHECK_RAW_RAM_REVIEW") == "1"
+    all_label_map = label_map(all_summary) if all_summary else label_map(generic_summary)
+    consumers_by_label = load_data_consumers(os.path.join(pass_dir, "data_consumers.json"))
+    symbol_defs = build_symbol_def_map(xref)
+    file_symbol_index = build_file_symbol_index(xref)
+    owner_ref_map = build_owner_ref_map(xref)
+    owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
+    globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
 try:
     if check_raw_ram_review:
         raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)

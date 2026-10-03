@@ -41,7 +41,7 @@ def compare(path, actual, expected, fieldnames):
     expected_bytes = render_review(expected, fieldnames)
     # An absent queue with no candidates remains optional.
     bytes_changed = before_bytes != expected_bytes if before_bytes is not None else bool(expected)
-    serialization_changed = (before_bytes is not None
+    serialization_changed = (bytes_changed and before_bytes is not None
                              and before_bytes != render_review(actual.values(), fieldnames))
     changes = []
     for row in expected:
