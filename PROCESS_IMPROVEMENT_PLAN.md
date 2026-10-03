@@ -53,13 +53,30 @@ has not exercised the repaired paths sufficiently. Report unexercised paths
 explicitly rather than treating an absence of findings as proof of effectiveness.
 
 Use existing review archives, friction queues and receipts. In the rationale
-of each new triage receipt, record cause and recurrence separately:
+of each new triage receipt, use the fixed format
+`cause: <value>; recurrence: <value>; evidence: <links>`:
 
-- Cause: latent tooling gap, integration gap, or implementer miss; retain
-  uncertainty or multiple contributing causes when the evidence warrants it.
-- Recurrence: first observed, repeated before a fix, or repeated after a fix.
-  Link earlier evidence and the applicable tooling revision. Preserve historical
-  receipts; record later occurrences as linked observations.
+- Cause values: `latent tooling gap`, `integration gap`, `implementer miss`,
+  `uncertain`, or `mixed`. Explain uncertainty or contributing causes in the
+  remaining rationale.
+- Recurrence values: `first observed`, `repeated before fix`, or
+  `repeated after fix`. Link the earlier observation when one exists.
+
+`repeated after fix` requires a pass started after the fix was integrated into
+that project's checkout, with the fix present at the admitted revision. Link
+the local integration commit and pass-start revision. An upstream merge or a
+receipt marked fixed is insufficient; re-archiving a pre-fix pass does not make
+it a post-fix occurrence. Missing integration provenance is an evidence gap,
+not evidence against the fix.
+
+To record a recurrence manually, create a new candidate containing the original
+observation text plus an indented continuation line linking the prior candidate
+ID, any applicable local integration commit and new pass/review evidence. Keep all of it in one
+candidate chunk; a separate top-level link bullet can leave only the link after
+receipt filtering. Before triage, run
+`python3 scripts/process_friction.py list --project <slug>` and verify that the
+original text and context appear together under one new candidate ID. Preserve
+the old receipt unchanged.
 
 Compare repeated causes, review rounds and recorded operator rework at the
 assessment. A repeat triggers investigation of rule visibility, ambiguity,
