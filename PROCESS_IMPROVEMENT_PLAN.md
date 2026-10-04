@@ -5,12 +5,14 @@ delivery in [PR #105](https://github.com/khansen/nesrev/pull/105). PI-6 is merge
 in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
 [PR #142](https://github.com/khansen/nesrev/pull/142). PI-8 is merged in
 [PR #143](https://github.com/khansen/nesrev/pull/143).
-The first observation window has preliminary findings; its final review still
-needs follow-up. [PI-9](#pi-9-historical-provenance) is implemented locally for
-review, followed by a separate provenance-restoration batch after integration.
+The first observation window is closed: the reviewer resumed and completed the
+disclosed outstanding check. [PI-9](#pi-9-historical-provenance) phase A is merged
+in [PR #147](https://github.com/khansen/nesrev/pull/147) and locally integrated
+at the completed pass boundary. Phase B is a separate provenance-restoration
+batch under preparation for independent review.
 The observation assessment and other investigations below are
 not implementation or additional-pass authorization.
-Updated 2026-10-03.
+Updated 2026-10-04.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -20,30 +22,25 @@ remain on the local-only corpus branch.
 <a id="recommended-order"></a>
 ## Recommended order
 
-1. Complete the final review follow-up and close the first
-   [observation assessment](#observation-initial-assessment). A recorded approval
-   made during a usage-limit grace period does not establish that the remaining
-   review work was completed. Preserve the existing archive and document the
-   follow-up outcome; do not start another pass automatically.
-2. Review and land [PI-9: Historical provenance](#pi-9-historical-provenance),
-   the bounded tooling and playbook change. It responds to blocked
-   semantic renames and loss of historical attribution. Land that contract
-   before the separately reviewed project-history repairs; integrate and repair
-   at project pass boundaries.
-3. Assess [interrupted-review completion](#interrupted-review-candidate) using
+1. Prepare [PI-9 phase B](#pi-9-provenance-restoration): audit and restore
+   demonstrated loss of historical attribution after the phase-A integration.
+   Keep project repairs isolated for independent review, with exact source
+   revisions and dated amendments for legitimate later knowledge.
+2. Assess [interrupted-review completion](#interrupted-review-candidate) using
    the observed handoff, then decide whether a small prompt/harness change is
    needed. Distinguish an incomplete review from a completed review that relies
    on valid packet evidence; do not require duplicate builds merely to add work.
-4. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
+3. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
    with a small reproducer. The observed source repair is complete; an automatic
    detector's scope and confidence still need design.
-5. Finish independent review of the separately authorized
-   [bounded embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit)
-   before deciding on migration. Its synthetic results were reproduced, but
-   fixture classifications and coverage claims needed correction; corpus joins,
-   producer/consumer feasibility and acceptance criteria remain under review.
-   That plan owns its scope. Production implementation remains a separate
-   decision, with no demonstrated corpus-coverage gain or xasm extension need.
+4. Decide the production response to the separately authorized
+   [embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
+   Independent review is complete and does not recommend the proposed bounded
+   proof repair: no corpus-coverage gain was demonstrated and conditional
+   pointer use needs a different confirmation contract. Weigh making legacy
+   confirmations advisory before funding a replacement proof engine. The linked
+   plan owns that scope; no production change or xasm extension is authorized
+   by this status update.
 
 These are next-work priorities; review already underway can finish independently.
 PI-1 through PI-5 and the queue-receipt
@@ -63,8 +60,9 @@ gates merely to increase coverage.
 <a id="observation-period"></a>
 ## Observation period
 
-Status: the first five-pass window has a preliminary assessment below; the final
-pass's review requires follow-up before closing the window. PI-6 through PI-8
+Status: the first five-pass window is closed, with the resumed reviewer
+follow-up recorded separately from the preserved original archive. No additional
+pass was started. PI-6 through PI-8
 were integrated before the window began. Keep the workflow stable during each
 separately authorized observation window. Assess after five completed passes;
 an extension toward ten requires separate authorization and a reason to expect
@@ -109,7 +107,7 @@ Use existing evidence for this assessment; no new per-pass benchmark or
 all-project performance campaign is required.
 
 <a id="observation-initial-assessment"></a>
-### Preliminary assessment and follow-up decisions
+### Assessment and follow-up decisions
 
 The work produced substantive semantic closure, including corrected ownership,
 data/dispatch boundaries and reference identities. Review also found omissions
@@ -124,29 +122,33 @@ evidence companion and original archives.
 | Earlier scorecard wording and rename rationale changed to later vocabulary | A bounded follow-up found recoverable originals in three projects; not every edit was gate-driven | Extend PI-9 to historical fields and policy, then audit and restore proven provenance loss separately |
 | Inline dispatch tail left classified as data | A consequential latent gap survived gates; review proved and repaired the source boundary | Bounded detection investigation, with no new hard gate yet |
 | Naming-family and reference-coverage misses | Existing rules were missed, sometimes repeatedly; review corrected them | Investigate self-review and rule use; no new checklist or gate justified yet |
-| Approval issued during usage-limit grace period | Formal approval and archive exist, but the reviewer disclosed a skipped check only in chat | Finish review follow-up and assess interruption handling; do not infer review completeness from state alone |
+| Approval issued during usage-limit grace period | Reviewer resumed, completed the disclosed scratch parity check and confirmed the verdict; the original archive lacked the caveat | Follow-up closed through a linked supplement; assess interruption reporting without inferring review completeness from state alone |
 | PI-6 reconciliation | Normal closeout and read-only handoff paths exercised with accepted final packets; no after-fix recurrence established | Refusal paths remain unexercised in this window |
 | PI-7 deferrals | Valid capture and saved-corridor fallback exercised; a malformed explicit entry was rejected by preflight | Other refusal/context paths remain unexercised |
 | PI-8 portability | All affected-scope decisions were `not-required`; no analyzer/fixture work triggered execution | No claim of production effectiveness from this window |
 
 The receipt blocker is not an after-fix recurrence of PI-6, PI-7 or PI-8:
 those repairs address different paths. Count review rounds from canonical
-metadata, but leave the last pass's final round total and assessment open until
-follow-up ends. Recorded rework mixes self-review corrections and rejected
+metadata. The resumed follow-up confirms the final verdict without adding a
+new formal review round. Recorded rework mixes self-review corrections and rejected
 commands; it is not a count of human interventions or measured elapsed cost.
 Changes in round counts across different corridors do not establish a causal
 productivity gain from the repairs.
 
 Do not activate the monitor or experiment specs, add per-pass measurements, or
 implement the rename-coverage candidate on the strength of this assessment.
-Use existing logs for the pending follow-ups. This plan update changes priorities
-and proposed contracts only; it changes no running session, gate or review state.
+Use existing logs for the remaining investigations. The closed window and
+phase-A integration do not authorize another semantic pass. Exact revisions,
+follow-up timestamps, evidence limitations and preservation checks remain in the
+private corpus evidence companion.
 
 <a id="interrupted-review-candidate"></a>
 ### Candidate: preserve incomplete review at a usage limit
 
-Status: first observed in this window; assess the completed follow-up before
-choosing a prompt/harness implementation. A limit warning was followed by a
+Status: first observed in the closed window. The reviewer resumed and completed
+the disclosed independent build with parity; the completion disclosure still
+needed a supplement because it was absent from the archived verdict. No new
+prompt, harness state or gate has been selected. A limit warning was followed by a
 formal approval during the grace allowance; the implementer then archived it.
 The reviewer disclosed the skipped independent build in chat; the durable review
 did not retain that limitation. This demonstrates a reporting/completion risk,
@@ -266,10 +268,12 @@ start their implementation, publish a PR, or rebase an active project checkout.
 <a id="pi-9-historical-provenance"></a>
 ## PI-9 — Preserve historical provenance during symbol renames
 
-Status: phase A independently approved at `02f8c2fb6` on
-`fix/pi-9-historical-provenance`. Phase B remains a separate audit/restoration
-batch after local integration. This section specifies both; no separate spec is
-required. The live corpus and agent session have not been changed.
+Status: phase A merged in [PR #147](https://github.com/khansen/nesrev/pull/147)
+as `32747f299`, including the independent-review fixes and mandatory CI locale
+coverage. Local integration at a completed pass boundary preserves the complete
+project tree. Phase B is being prepared in an isolated private worktree for
+independent review. This section specifies both; no separate spec is required.
+No semantic pass or history restoration has been landed by that integration.
 
 Closeout's [residue sweep](scripts/project_pass_residue_check.sh) treats old
 symbols in canonical friction receipts and earlier scorecard rows as current
@@ -401,6 +405,10 @@ repository root is not newly supported. Full shell/Java suites and timing were
 not rerun for this follow-up. The old timing receipts did not record locale
 and do not establish performance across locales.
 
+The final landing head `e25193bd1` subsequently passed all 678 shell cases and
+1,206 Java tests locally and in Linux/macOS CI before PR #147 merged. The local
+integration preserves every project file; no performance measurement was repeated.
+
 <a id="pi-9-provenance-restoration"></a>
 ### Phase B — Audit and restore existing project provenance
 
@@ -423,6 +431,25 @@ or rewriting an active pass's files.
    unrelated later rows and current source, names, ownership and inventories.
    Never synthesize a missing name, reason, confidence, pass ID or rename chain.
    If Git and saved artifacts cannot establish the original, record the gap.
+   Restoring an earlier target must also preserve its documented trail to later
+   names. Append missing old-to-new linkage amendments without rewriting the
+   restored rows, citing the revision that establishes each correspondence.
+   Distinguish an observed source rename from a later ledger correction whose
+   source-rename timing is unavailable; the latter must say so in its reason.
+   Reuse recorded confidence rather than claiming new semantic proof. Attribute
+   a pass-associated change to its recorded pass. For an off-pass sweep, use
+   the first subsequent recorded project pass as an explicit filing convention,
+   citing both revisions; this does not claim the rename happened in that pass.
+   If no such pass or supported correspondence exists, retain an explicit gap.
+   Preserve existing links, account for scoped names and expression components,
+   and check that restoration loses no previously working trail. Do not create
+   fictional intermediate names from a mechanical rewrite of historical text.
+   Project history may already have been squashed and may be squashed again.
+   Commit the exact before/after records and the source excerpts, definition
+   facts and pass-attribution evidence needed to review each repair. Retain
+   revision IDs as provenance references, not as the only surviving evidence;
+   temporary packets and local preservation refs are insufficient. Mark missing
+   pre-squash source evidence explicitly rather than reconstructing it by guess.
 3. Keep genuine later discoveries and factual corrections as dated amendments
    in existing review/evidence artifacts, identifying the original pass/record
    and supporting revision. Do not reinstate a disproved claim without its
