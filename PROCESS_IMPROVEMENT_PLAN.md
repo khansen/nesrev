@@ -431,6 +431,25 @@ or rewriting an active pass's files.
    unrelated later rows and current source, names, ownership and inventories.
    Never synthesize a missing name, reason, confidence, pass ID or rename chain.
    If Git and saved artifacts cannot establish the original, record the gap.
+   Restoring an earlier target must also preserve its documented trail to later
+   names. Append missing old-to-new linkage amendments without rewriting the
+   restored rows, citing the revision that establishes each correspondence.
+   Distinguish an observed source rename from a later ledger correction whose
+   source-rename timing is unavailable; the latter must say so in its reason.
+   Reuse recorded confidence rather than claiming new semantic proof. Attribute
+   a pass-associated change to its recorded pass. For an off-pass sweep, use
+   the first subsequent recorded project pass as an explicit filing convention,
+   citing both revisions; this does not claim the rename happened in that pass.
+   If no such pass or supported correspondence exists, retain an explicit gap.
+   Preserve existing links, account for scoped names and expression components,
+   and check that restoration loses no previously working trail. Do not create
+   fictional intermediate names from a mechanical rewrite of historical text.
+   Project history may already have been squashed and may be squashed again.
+   Commit the exact before/after records and the source excerpts, definition
+   facts and pass-attribution evidence needed to review each repair. Retain
+   revision IDs as provenance references, not as the only surviving evidence;
+   temporary packets and local preservation refs are insufficient. Mark missing
+   pre-squash source evidence explicitly rather than reconstructing it by guess.
 3. Keep genuine later discoveries and factual corrections as dated amendments
    in existing review/evidence artifacts, identifying the original pass/record
    and supporting revision. Do not reinstate a disproved claim without its
