@@ -8,8 +8,9 @@ in [PR #141](https://github.com/khansen/nesrev/pull/141); PI-7 is merged in
 The first observation window is closed: the reviewer resumed and completed the
 disclosed outstanding check. [PI-9](#pi-9-historical-provenance) phase A is merged
 in [PR #147](https://github.com/khansen/nesrev/pull/147) and locally integrated
-at the completed pass boundary. Phase B is a separate provenance-restoration
-batch under preparation for independent review.
+at the completed pass boundary. Phase B's separately reviewed provenance
+restorations, later rename links and archive recovery are integrated on the
+local-only corpus branch. Unresolved source-history gaps remain explicit.
 The observation assessment and other investigations below are
 not implementation or additional-pass authorization.
 Updated 2026-10-04.
@@ -22,18 +23,18 @@ remain on the local-only corpus branch.
 <a id="recommended-order"></a>
 ## Recommended order
 
-1. Prepare [PI-9 phase B](#pi-9-provenance-restoration): audit and restore
-   demonstrated loss of historical attribution after the phase-A integration.
-   Keep project repairs isolated for independent review, with exact source
-   revisions and dated amendments for legitimate later knowledge.
-2. Assess [interrupted-review completion](#interrupted-review-candidate) using
+[PI-9 phase B](#pi-9-provenance-restoration) is complete within its reviewed
+audit scope. Its committed evidence preserves original records, later rename
+links and dated amendments without depending on retained Git history.
+
+1. Assess [interrupted-review completion](#interrupted-review-candidate) using
    the observed handoff, then decide whether a small prompt/harness change is
    needed. Distinguish an incomplete review from a completed review that relies
    on valid packet evidence; do not require duplicate builds merely to add work.
-3. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
+2. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
    with a small reproducer. The observed source repair is complete; an automatic
    detector's scope and confidence still need design.
-4. Decide the production response to the separately authorized
+3. Decide the production response to the separately authorized
    [embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
    Independent review is complete and does not recommend the proposed bounded
    proof repair: no corpus-coverage gain was demonstrated and conditional
@@ -270,19 +271,22 @@ start their implementation, publish a PR, or rebase an active project checkout.
 
 Status: phase A merged in [PR #147](https://github.com/khansen/nesrev/pull/147)
 as `32747f299`, including the independent-review fixes and mandatory CI locale
-coverage. Local integration at a completed pass boundary preserves the complete
-project tree. Phase B is being prepared in an isolated private worktree for
-independent review. This section specifies both; no separate spec is required.
-No semantic pass or history restoration has been landed by that integration.
+coverage. Phase A was integrated at a completed pass boundary without changing
+project files. Phase B's restorations, rename-link amendments and separately
+reviewed archive recovery are now integrated on the local-only corpus branch.
+The committed evidence records the reviewed scope and unresolved gaps. This
+section specifies both phases; no separate spec is required. These repairs
+neither started nor authorize an additional semantic pass.
 
-Closeout's [residue sweep](scripts/project_pass_residue_check.sh) treats old
+Before phase A, closeout's [residue sweep](scripts/project_pass_residue_check.sh) treated old
 symbols in canonical friction receipts and earlier scorecard rows as current
 references. The [preflight rule](agent_playbook/PASS_WORKFLOW.md#completion-checklist)
-explicitly tells agents to paraphrase historical mentions to satisfy that sweep.
+explicitly told agents to paraphrase historical mentions to satisfy that sweep.
 The [docs symbol check](scripts/check_docs.sh) and
 [reference rules](agent_playbook/DOCUMENTATION.md#reference-document-use) also
-require scorecard symbols to resolve against current assembly. Fixing only
-receipt input selection would leave these other pressures to erase attribution.
+required scorecard symbols to resolve against current assembly. Phase A addressed
+these pressures together so that excluding receipts alone would not leave
+other checks forcing the loss of attribution.
 
 A bounded follow-up found original wording still recoverable from Git in three
 projects: earlier scorecard symbol citations were paraphrased, and earlier
@@ -412,6 +416,13 @@ integration preserves every project file; no performance measurement was repeate
 <a id="pi-9-provenance-restoration"></a>
 ### Phase B — Audit and restore existing project provenance
 
+Status: complete within the independently reviewed audit scope and integrated
+on the local-only corpus branch. The evidence companion links the committed
+restoration and rename-link packets, unresolved gaps and separate archive
+recovery. Previously working rename trails are preserved after restoration;
+unavailable earlier source history is not reconstructed by inference. The
+following contract also governs any later repair batch.
+
 Keep shared tooling/playbooks and corpus repairs in separate reviewable commits.
 The audit may run read-only before phase A lands; restoration must wait until
 the reviewed contract is integrated into each affected checkout at a pass
@@ -473,8 +484,8 @@ Phase B's acceptance is an attributable, reviewed repair for every confirmed
 case in the declared audit scope, with unresolved evidence gaps explicit. It
 does not promise to recover uncommitted text that was never preserved. The
 read-only history audit needs no ROM builds or performance campaign; validation
-is limited to the checks affected by each resulting change. Phase A's tooling
-branch restores no project records; phase B needs separately reviewed repairs.
+is limited to the checks affected by each resulting change. Phase A changed
+the checks; the separately reviewed phase-B repairs are now integrated.
 
 <a id="pi-6-review-handoff-freshness"></a>
 ## PI-6 — Check closeout reconciliation at review handoff
