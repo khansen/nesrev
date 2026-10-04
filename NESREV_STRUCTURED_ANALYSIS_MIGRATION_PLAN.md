@@ -14,8 +14,10 @@ complete. The [named pointer-table audit](#named-pointer-table-bodies) found
 real omissions that existing structured output can expose. Its structured
 consumer landed in [PR #140](https://github.com/khansen/nesrev/pull/140), and
 the coordinated baseline correction is complete using XORcyst 1.8.1. The broader
-[embedded-pointer feasibility audit](#embedded-pointer-audit) follows the
-[process follow-up priorities](PROCESS_IMPROVEMENT_PLAN.md#recommended-order).
+[embedded-pointer feasibility audit](#embedded-pointer-audit) and its independent
+review are complete. The bounded proof repair is deferred; making legacy
+heuristic matches explicitly advisory is the recommended separate follow-up.
+Production behavior is unchanged, and instruction-record v4 remains deferred.
 Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
@@ -819,19 +821,52 @@ migration. Besides listing/index-pattern inputs, `struct_copy_deref_proof()`
 and `pointer_store_proof()` scan instruction text; `routine_block()` and
 `build_equ_aliases()` reconstruct scope and aliases from source.
 
-#### Next step: bounded feasibility and corpus audit
+#### Completed audit and decision
 
-Scheduling follows [PI-6 through PI-8](PROCESS_IMPROVEMENT_PLAN.md#recommended-order);
-this section remains the authority for the audit scope and acceptance criteria.
+The bounded feasibility audit and independent review are complete. Fresh
+canonical verification on the pinned 23-project corpus found zero legacy
+confirmations, with `ALLOW_UNRESOLVED_LXXXX=1` and the embedded-pointer check
+enabled. Synthetic controls reproduced false confirmations and missed
+relationships. No measured production-coverage gain was established for the
+proposed replacement. Detailed candidate decisions, fixtures, corrections,
+source fingerprints and evidence limits remain on the local corpus branch.
 
-Establish whether this migration would correct actual evidence before committing
-to implementation or another xasm extension. The baseline observed on
-2026-10-01 is **zero confirmed findings across 23 projects**, read from the
-retained final raw-RAM rollout `project-verify` logs. Those runs used
-`ALLOW_UNRESOLVED_LXXXX=1`; the embedded-pointer check remained enabled. This
-is an existing-consumer result, not a fresh embedded-pointer audit or proof that
-its confirmation heuristics are sound. Confirmed findings fail verification,
-so the audit must examine false confirmations as well as missed findings.
+**Defer the bounded v3 proof repair.** Requiring proof that a particular entry
+executes excludes ordinary data-dependent selectors. Even a conditional
+read-site contract would cover only part of the observed load-to-dereference
+shapes and would not establish copied-image lifetime. The review's approximate
+load-site coverage is not measured distinct-table recall. No recall target,
+general dataflow engine or producer extension is approved by this audit.
+
+The recommended next change is to retain discovery and heuristic matches as
+explicitly unproven advisories while removing their authority to fail
+verification. Update the output terminology, counters, callers, documentation
+and tests together; do not retain a misleading confirmation claim. Valid
+analysis with candidates would be report-only; assembly failures and stale or
+malformed evidence must still fail. Independent pointer inventories, split-table
+validation and named-body checks retain their own contracts.
+
+That proposed change needs genuine and contradicted matches as advisory
+controls, evidence-failure refusals, standalone/bundle output parity and checks
+that independent pointer gates retain their behavior. It requires no new xasm
+output and does not complete the structured migration. The pinned baseline
+loses no observed positive gate result; it does not establish that the heuristic
+never fired historically or that no future protection is lost. Production
+implementation and rollout remain separate decisions under the
+[process follow-up priorities](PROCESS_IMPROVEMENT_PLAN.md#recommended-order).
+
+Before reconsidering a proof checker, agree on a conditional read-site
+contract, separate discovered bounds from reviewed extents and executed-entry
+coverage, and establish a useful per-project positive set and expected recall.
+Explicitly scope register effects, clobbers, bank identity and supported control
+flow; include instruction production on the standalone path. Compare the
+expected benefit against the advisory alternative. Instruction-record v4's
+label-content field does not resolve these flow and lifetime gaps.
+
+#### Completed audit scope
+
+The following scope governed the investigation; it remains the boundary for
+interpreting its evidence, rather than a new work order.
 
 1. Pin all 23 projects' sources, configuration, producer and consumer identities.
    Reproduce the legacy baseline through canonical wrappers and obtain fresh,
@@ -859,9 +894,10 @@ so the audit must examine false confirmations as well as missed findings.
    would justify the missing producer work. Synthetic improvements and Rule One
    cleanup may be useful, but must not be presented as measured corpus gains.
 
-The audit ends with that decision and a concrete scope, not a production
-implementation. Keep instruction-record v4 deferred unless this or another
-consumer establishes a need for its specific label-content facts.
+The audit ended with the deferral and proposed advisory change above. Keep
+instruction-record v4 deferred unless a consumer establishes a need for its
+specific label-content facts. The retained audit probes are historical evidence,
+not acceptance-test oracles for a future implementation.
 
 #### Migration requirements, if justified
 
@@ -1011,8 +1047,9 @@ removed:
       output and prepare the newly visible baseline correction for review.
 - [x] Land the reviewed listing-storage producer fix, consumer migration and
       current-source baseline reconciliation with recorded validation (PR #140).
-- [ ] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
-      separately before deciding whether its dataflow migration is justified.
+- [x] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
+      and independent review; defer the bounded proof repair with no measured
+      corpus gain. Propose advisory legacy matches as a separate follow-up.
 - [x] Run the bounded negative-offset feasibility check and identify its
       missing bound-label data/code classification.
 - [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
@@ -1022,8 +1059,9 @@ removed:
 - [ ] Migrate negative offsets, suspicious immediates, and
       raw-immediate/store analysis.
 - [ ] Add structured equate dependencies and migrate semantic-evidence checks.
-- [ ] Migrate the embedded-pointer audit's proof heuristics after its
-      instruction, scope, alias, and required dataflow evidence is available.
+- [ ] Deferred: migrate the embedded-pointer audit's proof heuristics after
+      agreeing on a useful confirmation contract and coverage, with the required
+      instruction, scope, alias and flow evidence available on both entry paths.
 - [ ] Re-profile migrated paths; select remaining duplication/performance work
       from measurements rather than optimizing the superseded text parsers.
 - [ ] Introduce a shared cross-project constant cache, then migrate hardware
