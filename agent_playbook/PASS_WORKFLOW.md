@@ -539,6 +539,13 @@ refreshed facts in memory and leaves the tracked queue file unchanged,
 including when it auto-preps stale candidate evidence. [Count semantics](../NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#raw-ram-evidence) distinguish operands from supporting pointer-byte reads.
 **Status values:** `candidate`, `unreviewed`, `deferred`, `revisit`,
 `not_semantic_yet`, `symbolized`.
+**Address domain.** Accept internal RAM/mirrors (`$0000–$1FFF`) and cartridge
+RAM (`$6000–$7FFF`), including overlays and inactive history. Cartridge mapping
+and symbol meaning still require local proof. Preserve written mirror addresses;
+never fold their evidence together. Automatic collection/refresh covers
+`$0000–$0FFF`; other rows retain authored facts. Malformed, duplicate, or
+out-of-domain addresses block updates, refresh, residue reconciliation and docs
+checks without dropping rows. Repair rejected rows explicitly from evidence.
 **Immediate flush.** As soon as you inspect a byte and reach a
 judgment, flush via
 `make project-raw-ram-review PROJECT=<slug> ADDR=<addr> STATUS=<...>`

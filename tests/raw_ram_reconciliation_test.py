@@ -108,6 +108,23 @@ class ReconciliationTests(unittest.TestCase):
                     with self.assertRaises((ValueError, csv.Error)):
                         reconciliation.read_review(path, FIELDS)
 
+    def test_address_domain_applies_to_active_and_inactive_reconciliation_rows(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "queue.csv"
+            for active in ("yes", "no"):
+                for address in ("0x0000", "0x07ff", "0x0ca0", "0x1fff", "0x6000", "0x7fff"):
+                    row = {**CURRENT, "addr_hex": address, "active": active}
+                    path.write_bytes(reconciliation.render_review([row], FIELDS))
+                    self.assertEqual(reconciliation.read_review(path, FIELDS), {address: row})
+                for address in ("0x2000", "0x4016", "0x5fff", "0x8000", "0xffff"):
+                    with self.subTest(address=address, active=active):
+                        before = reconciliation.render_review(
+                            [{**CURRENT, "addr_hex": address, "active": active}], FIELDS)
+                        path.write_bytes(before)
+                        with self.assertRaisesRegex(ValueError, "outside supported RAM windows"):
+                            reconciliation.read_review(path, FIELDS)
+                        self.assertEqual(path.read_bytes(), before)
+
 
 if __name__ == "__main__":
     unittest.main()

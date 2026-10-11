@@ -3,27 +3,8 @@
 import csv
 import io
 from pathlib import Path
-import re
 
-
-def read_review(path, fields):
-    path = Path(path)
-    if not path.exists():
-        return {}
-    with path.open(encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle, strict=True)
-        if (reader.fieldnames is None or len(reader.fieldnames) != len(fields)
-                or set(reader.fieldnames) != set(fields)):
-            raise ValueError(f"{path}: invalid raw-RAM ledger columns")
-        rows = {}
-        for number, row in enumerate(reader, 2):
-            if None in row or any(value is None for value in row.values()):
-                raise ValueError(f"{path}:{number}: invalid raw-RAM row width")
-            address = row["addr_hex"].strip().lower()
-            if not re.fullmatch(r"0x[0-9a-f]{4}", address) or address in rows:
-                raise ValueError(f"{path}:{number}: invalid or duplicate address {address!r}")
-            rows[address] = row
-        return rows
+from raw_ram_review import read_review
 
 
 def render_review(rows, fieldnames):

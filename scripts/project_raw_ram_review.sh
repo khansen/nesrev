@@ -18,11 +18,13 @@ PROPOSED_SYMBOL="${4:-}"
 NOTES="${5:-}"
 PASS_ID="${6:-}"
 
-python3 - "${DOC_ROOT}/inventory/raw_ram_review.csv" "${ADDR_HEX}" "${STATUS}" "${PROPOSED_SYMBOL}" "${NOTES}" "${PASS_ID}" <<'PY'
+python3 - "${DOC_ROOT}/inventory/raw_ram_review.csv" "${ADDR_HEX}" "${STATUS}" "${PROPOSED_SYMBOL}" "${NOTES}" "${PASS_ID}" "${SCRIPT_DIR}" <<'PY'
 import csv
-import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, sys.argv[7])
+from raw_ram_review import FIELDS as fields, parse_address, read_review
 
 review_path = Path(sys.argv[1])
 addr_in = sys.argv[2].strip().lower()
@@ -42,49 +44,25 @@ allowed = {
 if status not in allowed:
     raise SystemExit(f"error: invalid status {status!r}; expected one of {sorted(allowed)}")
 
-m = re.fullmatch(r"(?:0x|\$)?([0-9a-f]{1,4})", addr_in)
-if not m:
-    raise SystemExit(f"error: invalid raw RAM address {addr_in!r}")
-addr_hex = f"0x{int(m.group(1), 16):04x}"
-
-fields = [
-    "addr_hex",
-    "status",
-    "proposed_symbol",
-    "notes",
-    "last_pass_reviewed",
-    "active",
-    "operand_count",
-    "distinct_owner_count",
-    "read_count",
-    "write_count",
-    "top_readers",
-    "top_writers",
-]
-
-if not review_path.exists():
-    review_path.parent.mkdir(parents=True, exist_ok=True)
-    with review_path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields, lineterminator='\n')
-        writer.writeheader()
+try:
+    addr_hex = parse_address(addr_in)
+    existing = read_review(review_path, require_field_order=True)
+except (OSError, ValueError, csv.Error) as exc:
+    raise SystemExit(f"error: {exc}") from exc
 
 rows = []
 updated = False
-with review_path.open("r", encoding="utf-8", newline="") as f:
-    reader = csv.DictReader(f)
-    if reader.fieldnames != fields:
-        raise SystemExit("error: raw_ram_review.csv header mismatch")
-    for row in reader:
-        if (row.get("addr_hex") or "").strip().lower() == addr_hex:
-            row["status"] = status
-            if proposed_symbol:
-                row["proposed_symbol"] = proposed_symbol
-            if notes:
-                row["notes"] = notes
-            if pass_id:
-                row["last_pass_reviewed"] = pass_id
-            updated = True
-        rows.append({field: row.get(field, "") for field in fields})
+for address, row in existing.items():
+    if address == addr_hex:
+        row["status"] = status
+        if proposed_symbol:
+            row["proposed_symbol"] = proposed_symbol
+        if notes:
+            row["notes"] = notes
+        if pass_id:
+            row["last_pass_reviewed"] = pass_id
+        updated = True
+    rows.append(row)
 
 if not updated:
     row = {field: "" for field in fields}
@@ -96,6 +74,7 @@ if not updated:
     row["active"] = "yes"
     rows.append(row)
 
+review_path.parent.mkdir(parents=True, exist_ok=True)
 with review_path.open("w", encoding="utf-8", newline="") as f:
     writer = csv.DictWriter(f, fieldnames=fields, lineterminator='\n')
     writer.writeheader()

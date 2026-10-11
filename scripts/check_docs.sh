@@ -112,57 +112,40 @@ PY
 
 echo "[2/9] Checking raw_ram_review.csv structure (if present)"
 if [[ -f "${RAW_RAM_REVIEW_FILE}" ]]; then
-  python3 - "${RAW_RAM_REVIEW_FILE}" <<'PY'
+  python3 - "${RAW_RAM_REVIEW_FILE}" "${SCRIPT_DIR}" <<'PY'
 import csv
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-expected = [
-    "addr_hex",
-    "status",
-    "proposed_symbol",
-    "notes",
-    "last_pass_reviewed",
-    "active",
-    "operand_count",
-    "distinct_owner_count",
-    "read_count",
-    "write_count",
-    "top_readers",
-    "top_writers",
-]
+sys.path.insert(0, sys.argv[2])
+from raw_ram_review import read_review
+
 allowed_status = {"candidate", "unreviewed", "deferred", "revisit", "not_semantic_yet", "symbolized"}
 allowed_active = {"yes", "no", ""}
 
-with path.open("r", encoding="utf-8", newline="") as f:
-    reader = csv.DictReader(f)
-    if reader.fieldnames != expected:
-        print("FAIL: raw_ram_review.csv header mismatch", file=sys.stderr)
-        print(f"expected: {expected}", file=sys.stderr)
-        print(f"actual:   {reader.fieldnames}", file=sys.stderr)
+try:
+    rows = read_review(path, require_field_order=True)
+except (OSError, ValueError, csv.Error) as exc:
+    print(f"FAIL: {exc}", file=sys.stderr)
+    sys.exit(2)
+for idx, row in enumerate(rows.values(), start=2):
+    if (row.get("status") or "").strip() not in allowed_status:
+        print(f"FAIL: raw_ram_review.csv row {idx} has invalid status: {row.get('status')!r}", file=sys.stderr)
+        print(row, file=sys.stderr)
         sys.exit(2)
-    for idx, row in enumerate(reader, start=2):
-        if None in row:
-            print(f"FAIL: raw_ram_review.csv row {idx} has too many columns", file=sys.stderr)
+    if (row.get("active") or "").strip() not in allowed_active:
+        print(f"FAIL: raw_ram_review.csv row {idx} has invalid active value: {row.get('active')!r}", file=sys.stderr)
+        print(row, file=sys.stderr)
+        sys.exit(2)
+    pass_value = (row.get("last_pass_reviewed") or "").strip()
+    if pass_value:
+        try:
+            int(pass_value)
+        except ValueError:
+            print(f"FAIL: raw_ram_review.csv row {idx} has non-integer last_pass_reviewed: {pass_value!r}", file=sys.stderr)
             print(row, file=sys.stderr)
             sys.exit(2)
-        if (row.get("status") or "").strip() not in allowed_status:
-            print(f"FAIL: raw_ram_review.csv row {idx} has invalid status: {row.get('status')!r}", file=sys.stderr)
-            print(row, file=sys.stderr)
-            sys.exit(2)
-        if (row.get("active") or "").strip() not in allowed_active:
-            print(f"FAIL: raw_ram_review.csv row {idx} has invalid active value: {row.get('active')!r}", file=sys.stderr)
-            print(row, file=sys.stderr)
-            sys.exit(2)
-        pass_value = (row.get("last_pass_reviewed") or "").strip()
-        if pass_value:
-            try:
-                int(pass_value)
-            except ValueError:
-                print(f"FAIL: raw_ram_review.csv row {idx} has non-integer last_pass_reviewed: {pass_value!r}", file=sys.stderr)
-                print(row, file=sys.stderr)
-                sys.exit(2)
 print("OK: raw_ram_review.csv structure is valid")
 PY
 else

@@ -339,11 +339,15 @@ ROOT_WORD_CEILING = 6000
 # Tooling changes must not noticeably slow the wrappers they touch; TOOLING.md
 # points at the CI performance plan's non-regression requirement. TOOLING
 # routes grow by exactly that paragraph and keep their prior measured headroom.
+# Raw-RAM address admission and literal-argument guidance add to PASS_WORKFLOW
+# and TOOLING without shortening existing queue rules. After removing TOOLING's
+# duplicate artifact catalog, each route ceiling grows by its net line/word
+# additions and preserves the headroom from before raw-RAM input validation.
 ROUTE_BUDGETS = {
-    "default": (3595, 26328),
-    "data-recovery": (3243, 24374),
-    "new-project": (4264, 31471),
-    "project-pass-review": (4645, 33209),
+    "default": (3605, 26444),
+    "data-recovery": (3246, 24426),
+    "new-project": (4271, 31535),
+    "project-pass-review": (4655, 33325),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
