@@ -343,11 +343,17 @@ ROOT_WORD_CEILING = 6000
 # and TOOLING without shortening existing queue rules. After removing TOOLING's
 # duplicate artifact catalog, each route ceiling grows by its net line/word
 # additions and preserves the headroom from before raw-RAM input validation.
+# Corrected-claim propagation adds current-artifact guidance to DOCUMENTATION
+# and review pointers to QUALITY_REVIEW without compressing existing rules.
+# Review clarifies the same maturity boundary in PASS_WORKFLOW and links its
+# deferral contract to the session-stop rule. Affected ceilings grow by their
+# measured bundle additions; every budget key retains its previous
+# maximum-route headroom.
 ROUTE_BUDGETS = {
-    "default": (3605, 26444),
+    "default": (3608, 26458),
     "data-recovery": (3246, 24426),
-    "new-project": (4271, 31535),
-    "project-pass-review": (4655, 33325),
+    "new-project": (4309, 31832),
+    "project-pass-review": (4666, 33383),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
