@@ -13,7 +13,12 @@ restorations, later rename links and archive recovery are integrated on the
 local-only corpus branch. Unresolved source-history gaps remain explicit.
 The observation assessment and other investigations below are
 not implementation or additional-pass authorization.
-Updated 2026-10-04.
+Queue triage on 2026-10-07 added bounded follow-ups below without starting
+implementation or another observation run.
+Raw-RAM input validation is merged in [PR #151](https://github.com/khansen/nesrev/pull/151)
+and integrated locally. The documentation-reference classifier follow-up is
+deferred pending evidence of recurring disruption.
+Updated 2026-10-11.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -222,6 +227,205 @@ is unmeasured. A future implementation spec must settle identity matching,
 eligibility, evidence freshness, exceptions, diagnostics and cost. This candidate
 adds no wrapper invocation or gate during the observation period.
 
+<a id="friction-triage-followups"></a>
+## Follow-ups from queue triage — 2026-10-07
+
+The corpus queue review routes reports here without implementing a fix or
+changing the order above. Receipt decisions preserve the original observations;
+repeated review rounds are not independent demonstrations of a defect. The
+local evidence companion records fixtures, current-code inspections, limitations
+and project-specific examples. These items need bounded implementation proposals,
+not new universal gates inferred from old review suggestions.
+
+<a id="triage-input-guards"></a>
+### Validate input domains and documentation references
+
+**Raw-RAM validation — complete.** Merged in
+[PR #151](https://github.com/khansen/nesrev/pull/151) as `87ecb6cff` and integrated
+on the local corpus branch. Updates validate supplied addresses and existing
+rows before ledger mutation, preserving distinct mirror addresses, supported
+overlays and inactive history. The supported domain and refresh boundaries live
+in the [raw-RAM queue contract](agent_playbook/PASS_WORKFLOW.md#raw-ram-queue).
+
+**Documentation reference classification — deferred (2026-10-11).** The token
+classifier can treat external identifiers such as `TRACE_OUT` as asm references.
+The benefit of a fix is modest: fewer false docs-check failures and fewer
+formatting workarounds. A false positive is reproduced, but frequent disruption
+to passes has not been established. Adjacency to raw-RAM validation does not
+justify making this the next implementation priority.
+
+Estimated effort is **2–4 hours, plus review and CI**, assuming one narrow,
+explicit convention for external identifiers. This includes implementation,
+regression tests, corpus docs checks and documentation. The classifier is small;
+most effort is in proving that an exception cannot hide genuine broken
+references. Plain text or a complete command example is the cheaper workaround.
+
+Revisit if false positives repeatedly interrupt passes or those workarounds
+materially impair the docs. Any implementation must retain rejection of genuine
+unknown asm symbols and current-scorecard mistakes. Do not exempt arbitrary
+backticked text or scan historical reviews as live docs.
+
+<a id="triage-closeout-prose"></a>
+### Make closeout's authored-input behavior explicit
+
+The existing-row admission path ignores supplied focus and notes while the
+new-row path uses them. Decide whether conflicting explicit inputs should refuse
+or produce a clear warning and editing instruction. Preserve historical rows
+and the existing separation between authored cells and generated KPI refresh.
+Cover explicit rechecks, new rows, malformed notes and deferral capture; a
+blanket overwrite of prior pass history is not an acceptable fix.
+
+<a id="triage-runtime-session"></a>
+### Isolate and reproduce emulator session state
+
+Evaluate a capture profile that isolates persistent cheats and saved session
+state while permitting explicitly requested Game Genie scenarios. Preserve the
+current bounded runner, fresh completion evidence, exit-status handling and
+process-group cleanup. First reproduce configuration/cheat persistence and
+startup movie behavior in disposable profiles; do not experiment on the user's
+emulator configuration. Specify how Lua wrappers report initialization failure
+and resolve task-specific paths before adding automatic recovery. Audio recording
+and cross-capture savestates require platform/version evidence; a report about
+one launch method does not establish that the emulator lacks a capability.
+
+<a id="triage-diagnostics"></a>
+### Improve diagnostic summaries without changing admission policy
+
+Assess a terminal maturity-failure roll-up that preserves each original error
+and exit status. A final summary helps tail readers but cannot make arbitrary
+head truncation safe. Separately reproduce the tiny-candidate warning with a
+broadened objective. Missing objective/reference fields currently warn by design;
+any proposal to refuse them must explicitly decide compatibility and the
+admission contract rather than treating the warning as a regression.
+
+<a id="triage-owner-attribution"></a>
+### Recheck alias and consumer ownership reports
+
+Use fresh listing/xref/data-consumer artifacts to reproduce same-address extent
+alias selection, split-pointer consumer ownership, and address-domain naming
+collisions. Include legitimate shared scratch, CPU/PPU equal-valued constants,
+hardware vector fetches and indirect consumers as controls. Existing direct and
+pointer-table `Used by` checks already cover part of the historical reports.
+Do not turn an unsupported or indirect attribution into a hard mismatch or
+extend assembly-source parsing to recover assembler facts.
+
+<a id="triage-reference-maintenance"></a>
+### Make current project debt discoverable
+
+Evaluate one owning-project destination for analogue corrections, indexed from
+the architecture comparison. Distinguish shared machinery from shared names,
+and retire the current debt entry when its evidence condition is closed.
+Reconcile dated corpus dashboards from canonical inventories before considering
+automation; a semantic debt cannot be declared closed just because its old
+symbol disappeared. Recheck dedicated-format/overview links and trace-command
+discoverability as documentation maintenance, without requiring a new gate for
+every prose assertion.
+
+For cross-project quantitative comparisons, evaluate recording both inputs'
+hashes, units and enumerated ranges alongside the claim, so unavailable private
+inputs remain explicit limits rather than silently assumed verification. Recheck
+shared-name claims after either project's vocabulary changes. A source symbol's
+existence or hash does not prove a measured cross-project claim.
+
+<a id="triage-review-accounting"></a>
+### Clarify review accounting and localization wording
+
+Keep rename-range diagnostics advisory while distinguishing newly claimed
+renames, edits to historical ledger rows, and sanctioned generator-label
+deletions. Existing observations demonstrate false positives in the proposed
+hard gate. Also resolve the localization guidance's unqualified `JSR`/`JMP`
+exception versus its outside-scope exception with assembled positive and
+negative examples. Rework counts remain authored judgments; a mandatory prose
+clause needs a demonstrated reporting benefit, not an assumption that a regex
+can verify the count.
+
+<a id="triage-claim-propagation"></a>
+### Carry corrected claims through current artifacts
+
+Draft a bounded addition to DOCUMENTATION's current-artifact rules. When a pass
+corrects a claim, format boundary, reachability decision or vocabulary family,
+search for the rejected claim and indirect restatements in the owning routine,
+consumers, canonical docs, semantic claims, working notes and active inventory
+fields. Visit the matches and record unresolved contradictions; a reviewer’s
+citation list is not the complete search boundary. Check linked overview
+sentences after removing detail from their target document. Keep prior scorecard
+rows, rename reasons, reviews and receipts historical under PI-9. This is a
+wording proposal, not an arbitrary-prose correctness gate or a requirement to
+create more documentation. Also specify that temporary session stop instructions
+belong in handoff/pass state rather than durable evidence or revisit conditions.
+
+<a id="triage-evidence-methods"></a>
+### Clarify the limits of modeled and captured evidence
+
+Prepare focused wording for RUNTIME_EVIDENCE and bounded consumer-audit review:
+controls must distinguish the competing explanations, and zero-hit results need
+evidence that the triggering scenario occurred. Record intervention points and
+whether out-of-bounds bytes came from current writes, stale state or emulator
+initialization; any fill-pattern claim needs version/configuration evidence.
+Before classifying a small deterministic state space as runtime-only, assess
+whether complete enumeration is practical, bind its model to the relevant entry
+paths and retain its output and limits. An agreeing model is not emulator
+evidence; a disagreement requires checking the model as well as the document.
+Do not require enumeration or additional captures for every question.
+
+<a id="triage-boundary-review"></a>
+### Clarify family closure and boundary evidence
+
+Propose wording that keeps a containing family open while its unresolved source
+or boundary evidence remains unaudited, even if a useful subset is documented.
+For multi-stage queue producers, review publication/rollback at the caller's
+stored commit boundaries as well as the byte helper. Define an advisory view
+of outstanding negative-offset findings before runtime deferral, zero/disabled
+descriptor aliases in blob matches, and consistent positive-offset consumers.
+Use current structured artifacts and include legitimate prefixes, shared tails,
+biased selectors and disabled entries as controls. Establish supported cases
+before implementation; no automatic reachability proof, universal audio model,
+source parser or new admission gate is accepted by this item.
+
+<a id="triage-constant-evidence"></a>
+### Investigate constant meaning with bounded evidence
+
+Repeated reports justify evaluating an advisory for value-coincidence mistakes:
+show the store sites and basic-block value provenance for selector/request bytes,
+and compare equal-valued constants with their consumers. Include legitimate
+overlays, unrelated equal constants, composite masks and cross-subsystem reuse
+as controls. Name prefixes and equal values are candidate signals, never proof
+that names conflict. Separately assess compare-to-ADC/SBC carry dependencies:
+distinguish the encoded operand from the effective quantity, and cover incoming
+branches, flag-changing instructions and intentional carry use. Consume structured
+assembler facts; measure noise before deciding whether either advisory is useful.
+
+<a id="triage-review-facts"></a>
+### Evaluate a structured view of policy-review evidence
+
+The requested definition/body/reference/owning-scope view is not supplied by the
+active-policy membership checker. Evaluate one bounded read-only view from
+current structured artifacts, including fall-through predecessors and same-address
+aliases. Preserve mechanical counts separately from authored semantic claims;
+the view cannot prove branch polarity or the truth of evidence prose. Clarify
+whether fall-through belongs in the global-label contract, and specify which
+body/reference/localization facts can be reproduced. Row order has no independent
+semantic value and should not become an admission gate.
+
+<a id="triage-shared-staging"></a>
+### Document staging for shared project indexes
+
+Document the sanctioned explicit Git staging/commit route for shared
+`projects/*.md` files that `agent_review.py stage-project` deliberately refuses.
+Keep project staging scoped, include the shared change in the reviewed commit
+range, and preserve unrelated work. Do not widen stage-project to stage an
+arbitrary shared directory automatically.
+
+<a id="triage-portable-examples"></a>
+### Evaluate a personal-path advisory
+
+Assess a lexical advisory for personal absolute paths in active tracked command
+examples, with controls for repository-relative commands, deliberate external
+input paths and historical evidence. No blanket no-personal-path rule currently
+exists; decide the documentation convention and supported scope before adding
+a check. The report supports a small portability investigation, not a semantic
+detector or a repository-wide refusal.
+
 ## Delivery and tracking
 
 Implement shared changes on feature branches from current `master`, using
@@ -251,6 +455,7 @@ migration and each newly exposed failure before landing.
 | `fix/pi-6-review-handoff-freshness` | Read-only closeout reconciliation at handoff | Merged [PR #141](https://github.com/khansen/nesrev/pull/141); reviewed `72cad08f6` and `e15e9fe5e`; preparation timing exception approved |
 | `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
 | `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Merged [PR #143](https://github.com/khansen/nesrev/pull/143); approved `a1a586b10` |
+| `fix/raw-ram-input-validation` | Address-domain and ledger validation before raw-RAM updates | Merged [PR #151](https://github.com/khansen/nesrev/pull/151); squashed `87ecb6cff` has the approved `b54e601a8` tree; integrated locally |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
