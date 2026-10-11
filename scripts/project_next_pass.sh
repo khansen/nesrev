@@ -637,20 +637,6 @@ def raw_ram_status_rank(status):
 def is_actionable_raw_ram_status(status):
     return status in RAW_RAM_ACTIONABLE_STATUSES
 
-def load_raw_ram_review(path):
-    p = Path(path)
-    if not p.exists():
-        return {}
-    with p.open("r", encoding="utf-8", newline="") as f:
-        reader = csv.DictReader(f)
-        rows = {}
-        for row in reader:
-            addr_hex = (row.get("addr_hex") or "").strip().lower()
-            if not addr_hex:
-                continue
-            rows[addr_hex] = row
-        return rows
-
 def summarize_raw_owner_counts(rows, kind):
     out = {}
     for row in rows:
@@ -1592,10 +1578,7 @@ if not check_raw_ram_review:
     owner_reads, owner_writes, symbol_reads, symbol_writes = build_data_access_maps(xref)
     globals_by_file = {asm_file: build_global_symbol_list(asm_file)}
 try:
-    if check_raw_ram_review:
-        raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)
-    else:
-        raw_ram_review = load_raw_ram_review(raw_ram_review_path)
+    raw_ram_review = raw_ram_reconciliation.read_review(raw_ram_review_path, RAW_RAM_REVIEW_FIELDS)
 except (OSError, ValueError, csv.Error) as exc:
     print(f"error: {exc}", file=sys.stderr)
     raise SystemExit(65) from exc

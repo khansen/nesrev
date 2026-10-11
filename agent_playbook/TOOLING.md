@@ -765,17 +765,20 @@ make project-inventory PROJECT=<slug>
 scripts/refresh_inventory.sh <slug>
 ```
 
-For *when* to refresh the inventory during a pass, see
-[PASS_WORKFLOW.md#pass-closeout](PASS_WORKFLOW.md#pass-closeout). The
-canonical authored-artifact catalog (`renames.csv`,
-`pointer_targets.csv`, `embedded_pointer_targets.csv`,
-`split_pointer_targets.csv`, `branch_literal_sites.csv`,
-`constants_catalog.csv`, `data_extent_assertions.csv`,
-`data_format_targets.csv`, `data_blob_dispositions.csv`, `unknowns.md`, etc.) lives at
-[AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts);
-the generated cache under
-`docs/reverse_engineering/inventory/pass/` is documented at
+See [closeout](PASS_WORKFLOW.md#pass-closeout) for refresh timing,
+[AGENTS.md#intermediate-artifacts](../AGENTS.md#intermediate-artifacts) for the
+authored-artifact catalog, and the generated pass-cache contract at
 [PASS_WORKFLOW.md#generated-vs-authored-artifacts](PASS_WORKFLOW.md#generated-vs-authored-artifacts).
+
+Record a manual RAM judgment with `make project-raw-ram-review PROJECT=<slug>
+ADDR=0x0010 STATUS=revisit` (optional `SYMBOL`, `NOTES`, `PASS`). `ADDR` accepts
+one to four hex digits with optional `0x` or `$`; shell-quote dollar-prefixed
+Make arguments (`'ADDR=$0010'`). Stored keys use `0xNNNN`. Validation and
+mirror policy live in the
+[raw-RAM queue contract](PASS_WORKFLOW.md#raw-ram-queue).
+Make 3.81 cannot pass notes containing newlines or an unclosed `$(`; use
+`bash scripts/project_raw_ram_review.sh <slug> <addr> <status> [symbol] [notes] [pass]`
+directly for those notes, with shell-quoted arguments.
 
 `pointer_targets.csv` consumes xasm v2 `data_directive_references` for `.DW`
 tables, preserving lexical owner, width-relative index, expression, and target

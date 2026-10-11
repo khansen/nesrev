@@ -153,8 +153,8 @@ project-pass-review-start:
 	python3 scripts/agent_review.py start-pass "$$@"
 
 project-raw-ram-review:
-	@if [ -z "$(PROJECT)" ] || [ -z "$(ADDR)" ] || [ -z "$(STATUS)" ]; then echo "usage: make project-raw-ram-review PROJECT=<slug> ADDR=<0x00bf|\\$$00BF> STATUS=<candidate|unreviewed|deferred|revisit|not_semantic_yet|symbolized> [SYMBOL=<name>] [NOTES=<text>] [PASS=<id>]"; exit 2; fi
-	@bash scripts/project_raw_ram_review.sh "$(PROJECT)" "$(ADDR)" "$(STATUS)" "$(SYMBOL)" "$(NOTES)" "$(PASS)"
+	@if [ -z $(call shell_quote_raw,$(value PROJECT)) ] || [ -z $(call shell_quote_raw,$(value ADDR)) ] || [ -z $(call shell_quote_raw,$(value STATUS)) ]; then echo 'usage: make project-raw-ram-review PROJECT=<slug> ADDR=0x00bf STATUS=<candidate|unreviewed|deferred|revisit|not_semantic_yet|symbolized> [SYMBOL=<name>] [NOTES=<text>] [PASS=<id>]'; exit 2; fi
+	@bash scripts/project_raw_ram_review.sh $(call shell_quote_raw,$(value PROJECT)) $(call shell_quote_raw,$(value ADDR)) $(call shell_quote_raw,$(value STATUS)) $(call shell_quote_raw,$(value SYMBOL)) $(call shell_quote_raw,$(value NOTES)) $(call shell_quote_raw,$(value PASS))
 
 project-inventory:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make project-inventory PROJECT=<slug>"; exit 2; fi

@@ -4404,6 +4404,7 @@ ZP_UndefinedEqu .EQU $12
 OTHER_Equ .EQU $13
 ZP_Canonical .EQU $14
 RAM_OutsideLowRange .EQU $1000
+ZP_NegativeEqu .EQU $15
 
 NewOwner:
   LDA ZP_LabelPretender
@@ -4412,6 +4413,7 @@ NewOwner:
   LDA OTHER_Equ
   LDA ZP_Canonical
   LDA RAM_OutsideLowRange
+  LDA ZP_NegativeEqu
   RTS
 ASM
   _assemble_pass_cache "${slug}" records-only
@@ -4441,7 +4443,7 @@ addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,di
 0x1000,symbolized,RAM_OutsideLowRange,,5,no,1,1,1,0,OldOwner:1,
 0x0013,symbolized,OTHER_Equ,,5,no,1,1,1,0,OldOwner:1,
 0x0014,symbolized,ZP_Canonical,,5,no,1,1,1,0,OldOwner:1,
-0x-001,symbolized,ZP_NegativeEqu,,5,no,1,1,1,0,OldOwner:1,
+0x0015,symbolized,ZP_NegativeEqu,,5,no,1,1,1,0,OldOwner:1,
 EOF
 
   PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW=1 \
@@ -5161,6 +5163,110 @@ EOF
     "manual raw-RAM review updates must preserve existing row order and append new addresses"
 }
 
+
+test_next_pass_raw_ram_domain_preserves_distinct_mirrors_and_manual_overlays() {
+  local slug; slug="$(unique_slug raw_domain_controls)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "RAM address domain controls."
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+Reset:
+  LDA $04A0
+  STA $0CA0
+  LDA $1001
+  LDA $6001
+  RTS
+ASM
+  local queue="projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv"
+  cat > "${queue}" <<'CSV'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0ca0,symbolized,,mirror history,1,no,9,9,9,9,,
+0x1000,deferred,,manual mirror,1,no,3,1,3,0,Reset:3,
+0x6b20,revisit,RAM_SceneOverlay,scoped overlay,1,yes,5,1,5,0,Reset:5,
+CSV
+  _assemble_pass_cache "${slug}"
+  PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY=1 \
+    bash "${NEXT_PASS}" "${slug}" json >/dev/null
+  python3 - "${queue}" <<'PY'
+import csv
+import sys
+with open(sys.argv[1], newline="") as handle:
+    rows = {row["addr_hex"]: row for row in csv.DictReader(handle)}
+assert list(rows) == ["0x0ca0", "0x1000", "0x6b20", "0x04a0"], rows
+assert rows["0x0ca0"]["status"] == "symbolized"
+assert rows["0x0ca0"]["notes"] == "mirror history"
+assert rows["0x0ca0"]["write_count"] == "1"
+assert rows["0x0ca0"]["read_count"] == "0"
+assert rows["0x04a0"]["write_count"] == "0"
+assert rows["0x04a0"]["read_count"] == "1"
+assert rows["0x1000"]["active"] == "no"
+assert rows["0x1000"]["operand_count"] == "3"
+assert rows["0x6b20"]["proposed_symbol"] == "RAM_SceneOverlay"
+assert rows["0x6b20"]["operand_count"] == "5"
+PY
+}
+
+test_next_pass_raw_ram_domain_refuses_bad_rows_before_refresh() {
+  local slug; slug="$(unique_slug raw_domain_refusal)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Invalid RAM input fixture."
+  _assemble_pass_cache "${slug}"
+  local queue="projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv"
+  local mode address active
+  for address in 0x8000 0x2000 garbage 0X0010; do
+    for active in yes no; do
+      cat > "${queue}" <<CSV
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,revisit,,keep,1,yes,1,1,1,0,Reset:1,
+${address},deferred,,keep invalid row for repair,1,${active},1,1,1,0,Reset:1,
+CSV
+      cp "${queue}" "${NESREV_TEST_TMPDIR}/before.csv"
+      for mode in read write refresh; do
+        local write=0 refresh=0 rc=0
+        [[ "${mode}" != write ]] || write=1
+        [[ "${mode}" != refresh ]] || refresh=1
+        PROJECT_NEXT_PASS_AUTO_PREP=0 PROJECT_NEXT_PASS_WRITE_RAW_RAM_REVIEW="${write}" \
+          PROJECT_NEXT_PASS_RAW_RAM_REFRESH_ONLY="${refresh}" \
+          bash "${NEXT_PASS}" "${slug}" json >"${NESREV_TEST_TMPDIR}/out" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+        assert_eq "${rc}" 65
+        assert_match 'raw_ram_review.csv:3:.*raw-RAM address' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+        cmp "${queue}" "${NESREV_TEST_TMPDIR}/before.csv"
+      done
+    done
+  done
+}
+
+test_pass_residue_raw_ram_domain_refuses_before_owner_or_status_rewrites() {
+  local slug; slug="$(unique_slug raw_domain_residue)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" "none"
+  _write_pass_one_scorecard "${slug}" "Invalid RAM closeout fixture."
+  cat > "projects/${slug}/asm/${slug}.asm" <<'ASM'
+.ORG $C000
+ZP_Field .EQU $10
+NewOwner:
+  LDA ZP_Field
+  RTS
+ASM
+  cat >> "projects/${slug}/docs/reverse_engineering/inventory/renames.csv" <<'CSV'
+raw_$0010,ZP_Field,proven role,high,1
+OldOwner,NewOwner,proven role,high,1
+CSV
+  local queue="projects/${slug}/docs/reverse_engineering/inventory/raw_ram_review.csv"
+  cat > "${queue}" <<'CSV'
+addr_hex,status,proposed_symbol,notes,last_pass_reviewed,active,operand_count,distinct_owner_count,read_count,write_count,top_readers,top_writers
+0x0010,revisit,ZP_Field,keep,1,yes,1,1,1,0,OldOwner:1,
+0x8000,deferred,,invalid inactive history,1,no,1,1,1,0,OldOwner:1,
+CSV
+  cp "${queue}" "${NESREV_TEST_TMPDIR}/before.csv"
+  local rc=0
+  bash "${PASS_RESIDUE}" "${slug}" 1 >"${NESREV_TEST_TMPDIR}/out" 2>"${NESREV_TEST_TMPDIR}/err" || rc=$?
+  assert_eq "${rc}" 1
+  assert_match 'raw_ram_review.csv:3:.*outside supported RAM windows' "$(cat "${NESREV_TEST_TMPDIR}/err")"
+  cmp "${queue}" "${NESREV_TEST_TMPDIR}/before.csv"
+}
 
 test_next_pass_supplied_bundle_requires_refresh_only_before_prep() {
   local slug; slug="$(unique_slug raw_bundle_mode)"

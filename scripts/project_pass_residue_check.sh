@@ -36,6 +36,12 @@ sys.path.insert(0, str(script_dir))
 
 from rename_ledger_rules import valid_old_name_shape
 from authored_history import AuthoredHistory
+from raw_ram_review import read_review
+
+try:
+    read_review(doc_root / "inventory" / "raw_ram_review.csv", require_field_order=True)
+except (OSError, ValueError, csv.Error) as exc:
+    raise SystemExit(f"error: {exc}") from exc
 
 expected = ["old_name", "new_name", "reason", "confidence", "pass_id"]
 SCOPED_OVERLAY_CONFIDENCE = {"scoped-overlay"}
