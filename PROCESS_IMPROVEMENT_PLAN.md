@@ -18,9 +18,12 @@ implementation or another observation run.
 Raw-RAM input validation is merged in [PR #151](https://github.com/khansen/nesrev/pull/151)
 and integrated locally. The documentation-reference classifier follow-up is
 deferred pending evidence of recurring disruption.
-The corrected-claim propagation wording was independently approved at
-`89efdb5d7`; it adds no runtime gate or project pass. Integration into the active
-corpus checkout remains deferred while parallel work continues.
+The corrected-claim propagation wording is merged in
+[PR #153](https://github.com/khansen/nesrev/pull/153) and integrated locally;
+it adds no runtime gate or project pass. The interrupted-review assessment is
+complete: pending states preserve unfinished notes, and archival preserves
+limitations recorded in submitted reviews. A small prompt clarification is
+recommended below; no new state or completion gate is justified by the incident.
 Updated 2026-10-11.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -37,13 +40,13 @@ links and dated amendments without depending on retained Git history.
 
 The [corrected-claim propagation wording](#triage-claim-propagation) was selected
 ahead of the investigations below because independent passes repeatedly left
-contradictory current artifacts. That bounded wording change is independently
-approved; its effect on recurrence has not yet been measured.
+contradictory current artifacts. That bounded wording change is merged and
+integrated; its effect on recurrence has not yet been measured.
 
-1. Assess [interrupted-review completion](#interrupted-review-candidate) using
-   the observed handoff, then decide whether a small prompt/harness change is
-   needed. Distinguish an incomplete review from a completed review that relies
-   on valid packet evidence; do not require duplicate builds merely to add work.
+1. Consider the bounded [interrupted-review prompt clarification](#interrupted-review-candidate)
+   identified by the completed assessment. Existing state and archive behavior
+   need no change; explain how to preserve an unfinished review and put evidence
+   limitations in the submitted artifact. No implementation has started.
 2. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
    with a small reproducer. The observed source repair is complete; an automatic
    detector's scope and confidence still need design.
@@ -157,34 +160,104 @@ follow-up timestamps, evidence limitations and preservation checks remain in the
 private corpus evidence companion.
 
 <a id="interrupted-review-candidate"></a>
-### Candidate: preserve incomplete review at a usage limit
+### Assessment: preserve incomplete review at a usage limit
 
-Status: first observed in the closed window. The reviewer resumed and completed
-the disclosed independent build with parity; the completion disclosure still
-needed a supplement because it was absent from the archived verdict. No new
-prompt, harness state or gate has been selected. A limit warning was followed by a
-formal approval during the grace allowance; the implementer then archived it.
-The reviewer disclosed the skipped independent build in chat; the durable review
-did not retain that limitation. This demonstrates a reporting/completion risk,
-not that the semantic
-verdict was necessarily wrong or that packet-based parity evidence was invalid.
+Status: bounded assessment completed on 2026-10-11 against `3c4e26b34` and
+independently approved at `cf229bc9d`. The precision notes below incorporate
+the review's optional follow-ups.
+Recommend a small generated-prompt clarification; retain the existing states,
+archive format and admission checks. No implementation has started. Estimated
+follow-up effort is 1–3 hours plus independent review and CI. The value is
+modest: one observed disclosure gap, with no established recurrence or incorrect
+semantic verdict. Provider-specific limit detection and a new completion gate
+are not justified by this evidence.
 
-The bounded contract to evaluate is:
+The preserved transcript confirms that the reviewer disclosed its skipped
+independent build only in chat after approval. The submitted review itself
+omitted the caveat, and the archive retained the submitted content. The reviewer
+later completed that build and confirmed approval; a dated supplement preserves
+the disclosure and outcome. This is an authoring/handoff gap, not demonstrated
+archive data loss. Valid supplied packet evidence can support a completed review;
+this incident does not establish a universal requirement for a duplicate build.
 
-- If required review work remains, preserve pending review and save checked,
-  unchecked and remaining work at the exact reviewed head. Do not issue an
-  approval merely to end a turn, or request changes solely to encode a pause.
-- If review is complete using valid supplied evidence, approval may stand;
-  state clearly what was rerun, inspected or not checked. A duplicate scratch
-  build is not universally required by this candidate.
-- Automatic client continuation must not be treated as proof that a recorded
-  approval will be reopened. Follow-up after approval is explicit and preserves
-  the original verdict and archive, with a linked supplementary outcome.
-- Before proposing a new state or provider-specific integration, test whether
-  existing pending-state behavior and generated prompts can preserve this
-  boundary. Any implementation needs an interrupted-review negative control and
-  an honestly completed-review positive control; unrelated admissions and the
-  authorized pass limit must remain unchanged.
+Source inspection and synthetic CLI probes establish the current boundaries:
+
+- `import-artifact --kind review` accepts unfinished notes without a verdict
+  and leaves state byte-identical. Both `READY_FOR_REVIEW` and
+  `READY_FOR_REREVIEW` retain their head, round and reviewer ownership.
+  Approval without the required verdict, archival while pending, and replacing
+  an unfinished run are refused. Authored checkpoint text survives unchanged;
+  no command enforces a pass count. `max_rounds` caps review rounds, not passes.
+- A new watch worker delivers the pending turn once; the same worker does not
+  repeat it. Saving notes leaves the implementer without a turn while review is
+  pending. Existing launcher tests cover pending restart and preservation of
+  operator instructions already in the saved prompt. After approval, honoring a
+  pass limit depends on those instructions. Archival includes reviews and
+  responses, not the implementation note; a fresh launch writes `task.md` from
+  that launch's `--task` argument. These paths do not automatically carry a limit
+  from every place it may have been recorded.
+- A completed synthetic review can explicitly rely on its admitted packet and
+  disclose the scratch build it did not rerun. Approval and archival preserve
+  that disclosure. A caveat kept only outside the submitted artifact is absent
+  from the archive, reproducing the observed information boundary.
+- After approval, the next actor is the implementer. A fresh reviewer worker
+  does not reopen the review, and artifact import refuses to replace it.
+  Follow-up needs an explicit supplementary outcome under the historical-record
+  contract; client continuation alone does not provide one.
+- Ordinary approval checks the verdict marker, not semantic completeness. A
+  deliberately premature `APPROVED` artifact with outstanding work is accepted.
+  The pending controls therefore demonstrate a supported safe path, not an
+  automated detector of unfinished review. Gold retains its separate checks.
+
+The generated reviewer prompt in the [handoff worker](scripts/agent_review.py)
+asks for one of two verdicts and gives their commands, but does not describe the
+unfinished-review path or ask reviewers to carry chat-only limitations into the
+artifact. The
+protocol's [review-output contract](AGENT_REVIEW_PROTOCOL_SPEC.md#6-review-unit)
+already asks for verification gaps, and its
+[reviewer instructions](AGENT_REVIEW_PROTOCOL_SPEC.md#9-agent-instructions)
+require findings in the artifact rather than only in chat. The follow-up should
+make those instructions concrete at handoff:
+
+- Read any existing checkpoint before resuming. If required work remains, save
+  the exact reviewed head, inspected/rerun/supplied evidence, unchecked work and
+  next steps in the existing draft and import it without a verdict. Keep review
+  pending; neither approval nor requested changes is a pause signal.
+- Before issuing a verdict, put evidence relied upon and checks skipped with
+  their reasons in the submitted review. A completed review may use valid packet
+  evidence without repeating every build. When implementing, reconcile this
+  with the [read-only review wording](AGENT_REVIEW_PROTOCOL_SPEC.md#3-scope-and-rejected-ranges)
+  about rerunning gates; explain which supplied evidence can be reused and which
+  checks the reviewer must run. Do not silently relax an existing requirement.
+  A limit warning alone decides neither completion nor rejection.
+- Carry the authorized pass limit explicitly into the applicable handoff
+  instructions; preserving this text is not mechanical enforcement. Keep
+  post-approval discoveries in a linked dated supplement; do not rewrite the
+  original verdict or archive.
+
+Restart re-delivers the prompt saved at `ready`/`reready`. New generated wording
+will reach handoffs prepared after the change; it will not update existing
+pending prompts. Implementation controls must cover both new and frozen prompts,
+including preservation of saved operator instructions.
+
+Validation: the original ten synthetic control assertions passed across first
+review, re-review, completed review, chat-only disclosure and premature approval.
+Their pass-limit assertions establish only retention of text explicitly put in
+the review drafts by the probe, not enforcement or automatic propagation.
+A clarified probe passes twelve assertions, including controls showing that a
+limit in the implementation note is not automatically archived and does not
+prevent a new run after approval.
+On disposable copies, removing verdict admission or dropping archived review
+text each made the corresponding control fail.
+Existing [artifact-publication tests](tests/agent_review_artifact_test.py) passed
+(7), as did three targeted [launcher tests](tests/agent_review_tmux_test.py)
+covering pending restart, fresh-worker delivery and preserved operator
+instructions. These exercise local CLI behavior with synthetic packet evidence
+and a stubbed launcher, not model compliance under a live usage limit. No agent
+was launched, no game pass or project verification gate was run, and no
+performance or full-corpus claim is made. Any prompt implementation needs
+controls for both unfinished and completed reviews; it must preserve unrelated admissions and
+existing guidance, raising affected playbook budgets instead of shortening it.
 
 <a id="dispatch-boundary-candidate"></a>
 ### Candidate: surface incomplete inline-dispatch boundaries
@@ -350,7 +423,8 @@ can verify the count.
 <a id="triage-claim-propagation"></a>
 ### Carry corrected claims through current artifacts
 
-Status: wording implemented and independently approved at `89efdb5d7`. The canonical
+Status: merged in [PR #153](https://github.com/khansen/nesrev/pull/153) and
+integrated locally after independent approval at `89efdb5d7`. The canonical
 [current-artifact rule](agent_playbook/DOCUMENTATION.md#corrected-claim-propagation)
 covers corrected claims, format boundaries, reachability decisions and
 vocabulary families, including indirect restatements and linked overviews.
@@ -360,9 +434,9 @@ restriction for adding claims. Historical records remain protected under PI-9;
 temporary session stop instructions belong in handoff/pass state, with a pointer
 from the deferral contract.
 Existing guidance is retained and affected route budgets preserve their prior
-headroom. No runtime checker, new document requirement, project pass, or active
-corpus rebase is part of this delivery. Effectiveness remains unmeasured until
-later authorized passes exercise the rule.
+headroom. No runtime checker, new document requirement or project pass was added.
+The subsequent local rebase preserved all article and project contents.
+Effectiveness remains unmeasured until later authorized passes exercise the rule.
 
 <a id="triage-evidence-methods"></a>
 ### Clarify the limits of modeled and captured evidence
@@ -466,7 +540,8 @@ migration and each newly exposed failure before landing.
 | `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
 | `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Merged [PR #143](https://github.com/khansen/nesrev/pull/143); approved `a1a586b10` |
 | `fix/raw-ram-input-validation` | Address-domain and ledger validation before raw-RAM updates | Merged [PR #151](https://github.com/khansen/nesrev/pull/151); squashed `87ecb6cff` has the approved `b54e601a8` tree; integrated locally |
-| `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Independently approved `89efdb5d7`; no runtime changes; active corpus integration deferred |
+| `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Merged [PR #153](https://github.com/khansen/nesrev/pull/153); independently approved `89efdb5d7`; integrated locally |
+| `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Independently approved `cf229bc9d`; optional precision notes incorporated; prompt clarification proposed; no runtime changes |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
