@@ -268,6 +268,37 @@ Useful only when they add current workflow value:
   moved to the canonical state-machine, memory-map, scorecard, or semantic-claims
   home.
 
+<a id="corrected-claim-propagation"></a>
+### Carry corrected claims through current artifacts
+
+When a pass corrects a semantic claim, format boundary, reachability decision,
+or vocabulary family, carry the correction through the affected current
+artifacts in the same edit batch, even if no symbol is renamed. Search for the
+rejected wording, retired names and indirect restatements across the owning code
+(including declarations) and its consumers; current project docs, including
+dedicated format/state-machine docs; existing `SEMANTIC_CLAIMS.md` entries;
+`WORKING_NOTES.md`; and active inventory fields. Scope the sweep to the corrected
+subject and statements that rely on it; matching words alone do not justify
+changes elsewhere. A reviewer's cited locations are starting points, not the
+complete search boundary.
+
+Read each relevant match in context and check its evidence before updating or
+removing it. Literal search or replacement alone cannot find a paraphrase that
+still asserts the rejected meaning. After deleting or narrowing detail in a
+format or evidence doc, also revisit linked overview sentences that relied on it.
+Resolve contradictions supported by the evidence; record any remaining gap
+and the evidence needed to close it in the existing owning artifact. Do not
+leave an unresolved assertion presented as settled fact.
+
+Keep current-state maintenance separate from the
+[historical-record contract](#historical-records): preserve earlier completed
+scorecard rows, earlier-pass rename entries, archived reviews and friction
+receipts. When a historical record needs correction, attribute it through a
+dated amendment under that contract instead of rewriting the original evidence.
+This sweep maintains existing content; it does not require new documents,
+premature systems-overview promotion, or a gate that claims to validate
+arbitrary prose.
+
 <a id="dx-systems-scope"></a>
 ## DX_Systems Abstraction Scope
 
@@ -626,6 +657,10 @@ intended role.
 
 Do not update it for routine micro-steps, pass-by-pass churn, or facts
 that are already captured adequately in canonical docs or inventories.
+
+<a id="session-stop-instructions"></a>
+Temporary session stop instructions belong in handoff or pass state. Do not
+store them as durable project evidence or as a semantic gap's revisit condition.
 
 <a id="removed-generator-label-notation"></a>
 ### Removed generator-label notation

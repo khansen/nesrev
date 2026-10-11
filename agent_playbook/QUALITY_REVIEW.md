@@ -36,6 +36,10 @@ playbooks, specs, or tooling, apply the bad-direction proof and cross-project
 blast-radius procedure at
 [REVIEW_AUDITS.md](REVIEW_AUDITS.md#process-change-review-sanity-checks).
 
+For semantic corrections, review the
+[current-artifact sweep](DOCUMENTATION.md#corrected-claim-propagation), including
+related claims beyond the locations cited in the original finding.
+
 Completion semantics are strict. Green process gates mean the
 project is mechanically mature; they do not mean the project is
 done. Do not describe a project as "done" unless the gold-standard
@@ -298,11 +302,15 @@ clean-room projects can both pass KPI gates yet make different semantic claims
 (wrong RAM owner, misread state value, wrong producer/consumer), and this ledger
 makes that difference auditable by meaning rather than symbol spelling.
 
-It is a gold-closeout artifact, not per-pass ceremony — a pass updates claims
+It is a gold-closeout artifact, not per-pass ceremony — a pass adds new claims
 only when it matures a subsystem; most passes touch nothing here. It does not
 replace [DOCUMENTATION.md#memory-map](DOCUMENTATION.md#memory-map), data-format
 docs, `raw_ram_review.csv`, `renames.csv`, or `*_DX_Systems.md`; those stay
 canonical for navigation, layout, queue status, and overview.
+
+Correcting an existing claim's meaning, vocabulary, evidence or confidence,
+or removing a rejected claim, is current-state maintenance. Apply the
+[propagation rule](DOCUMENTATION.md#corrected-claim-propagation) at any maturity stage.
 
 **Claim shape.** Each claim is a stable review unit headed `## Claim: <slug>`
 (a semantic slug, not a symbol name, so renames do not break comparison) with

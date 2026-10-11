@@ -18,6 +18,9 @@ implementation or another observation run.
 Raw-RAM input validation is merged in [PR #151](https://github.com/khansen/nesrev/pull/151)
 and integrated locally. The documentation-reference classifier follow-up is
 deferred pending evidence of recurring disruption.
+The corrected-claim propagation wording was independently approved at
+`89efdb5d7`; it adds no runtime gate or project pass. Integration into the active
+corpus checkout remains deferred while parallel work continues.
 Updated 2026-10-11.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -31,6 +34,11 @@ remain on the local-only corpus branch.
 [PI-9 phase B](#pi-9-provenance-restoration) is complete within its reviewed
 audit scope. Its committed evidence preserves original records, later rename
 links and dated amendments without depending on retained Git history.
+
+The [corrected-claim propagation wording](#triage-claim-propagation) was selected
+ahead of the investigations below because independent passes repeatedly left
+contradictory current artifacts. That bounded wording change is independently
+approved; its effect on recurrence has not yet been measured.
 
 1. Assess [interrupted-review completion](#interrupted-review-candidate) using
    the observed handoff, then decide whether a small prompt/harness change is
@@ -342,17 +350,19 @@ can verify the count.
 <a id="triage-claim-propagation"></a>
 ### Carry corrected claims through current artifacts
 
-Draft a bounded addition to DOCUMENTATION's current-artifact rules. When a pass
-corrects a claim, format boundary, reachability decision or vocabulary family,
-search for the rejected claim and indirect restatements in the owning routine,
-consumers, canonical docs, semantic claims, working notes and active inventory
-fields. Visit the matches and record unresolved contradictions; a reviewer’s
-citation list is not the complete search boundary. Check linked overview
-sentences after removing detail from their target document. Keep prior scorecard
-rows, rename reasons, reviews and receipts historical under PI-9. This is a
-wording proposal, not an arbitrary-prose correctness gate or a requirement to
-create more documentation. Also specify that temporary session stop instructions
-belong in handoff/pass state rather than durable evidence or revisit conditions.
+Status: wording implemented and independently approved at `89efdb5d7`. The canonical
+[current-artifact rule](agent_playbook/DOCUMENTATION.md#corrected-claim-propagation)
+covers corrected claims, format boundaries, reachability decisions and
+vocabulary families, including indirect restatements and linked overviews.
+QUALITY_REVIEW links the sweep and clarifies that corrections to existing
+semantic claims apply before gold closeout; PASS_WORKFLOW reserves the maturity
+restriction for adding claims. Historical records remain protected under PI-9;
+temporary session stop instructions belong in handoff/pass state, with a pointer
+from the deferral contract.
+Existing guidance is retained and affected route budgets preserve their prior
+headroom. No runtime checker, new document requirement, project pass, or active
+corpus rebase is part of this delivery. Effectiveness remains unmeasured until
+later authorized passes exercise the rule.
 
 <a id="triage-evidence-methods"></a>
 ### Clarify the limits of modeled and captured evidence
@@ -456,6 +466,7 @@ migration and each newly exposed failure before landing.
 | `fix/pi-7-deferral-capture` | Deferral condition validation and saved corridor context | Merged [PR #142](https://github.com/khansen/nesrev/pull/142); approved `252487518` with early-validation follow-up `760235ad2` |
 | `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Merged [PR #143](https://github.com/khansen/nesrev/pull/143); approved `a1a586b10` |
 | `fix/raw-ram-input-validation` | Address-domain and ledger validation before raw-RAM updates | Merged [PR #151](https://github.com/khansen/nesrev/pull/151); squashed `87ecb6cff` has the approved `b54e601a8` tree; integrated locally |
+| `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Independently approved `89efdb5d7`; no runtime changes; active corpus integration deferred |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state

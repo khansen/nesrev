@@ -199,6 +199,9 @@ unavailable context warns and stays blank ([details](../PROCESS_IMPROVEMENT_PLAN
 Reruns preserve authored rows and curated keys. Without `DEFERRALS`, only sentence-opening
 `Deferred: <subject>[, <subject>]` tags are captured; ordinary prose creates no gaps.
 
+Keep temporary session stops in handoff/pass state, not deferral conditions;
+see [session stop instructions](DOCUMENTATION.md#session-stop-instructions).
+
 **Three strikes.** On the third deferral of one `subject` (`deferral_repeat`),
 stop: open an [identity pass](#identity-pass) using evidence later passes have
 produced, or declare the gap runtime-gated and write its trace plan.
@@ -776,7 +779,7 @@ touches; project-wide assessment runs against all four at maturity.
 Semantic-claims maturity (`SEMANTIC_CLAIMS.md`) is a gold-closeout artifact, not
 per-pass work: `project-docs-check` validates existing ledgers structurally at
 closeout, while `project-maturity-check` requires at least one claim only for
-opted-in projects. Update claims only when a pass matures a subsystem — model
+opted-in projects. Add claims only when a pass matures a subsystem — model
 and checker at
 [QUALITY_REVIEW.md#semantic-claims](QUALITY_REVIEW.md#semantic-claims).
 
