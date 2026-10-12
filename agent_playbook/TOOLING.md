@@ -197,6 +197,24 @@ mode for later rounds. If parity evidence is missing or red, fix the local
 project inputs or regenerate from a worktree with the required untracked
 reference files before notifying the reviewer.
 
+For unfinished reviews, read the existing draft and imported checkpoint before
+resuming. Save the reviewed head, completed work and evidence, unchecked work,
+next steps and any operator-defined pass limit without a verdict or gold
+approval marker. Run the generated `import-artifact --kind review` command and
+leave review pending; neither verdict command is a pause signal. Put evidence
+relied upon and skipped checks with reasons in the submitted review. The
+[protocol](../AGENT_REVIEW_PROTOCOL_SPEC.md#review-evidence) defines
+when packet evidence can be reused and which checks must be rerun.
+
+Carry any operator-defined pass limit explicitly in handoff instructions,
+reviews and responses. Both launcher roles read `task.md` for scope and limits.
+No command enforces a pass count; `max_rounds` caps review rounds.
+Honor the limit after approval. A fresh launch takes its objective from
+`--task`; include the applicable limit again. Restart delivers the saved prompt,
+so new wording applies only to newly prepared handoffs. Post-approval discoveries
+use dated amendments in existing review/evidence artifacts under the
+[historical-record contract](DOCUMENTATION.md#historical-records).
+
 After approval, `archive --pass-id <id>` writes the durable judgement record to
 `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`. It archives
 only review verdict/findings and implementer responses. The archive records

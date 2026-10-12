@@ -4,6 +4,8 @@
 import json
 import os
 from pathlib import Path
+import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -126,6 +128,53 @@ Path(values["OUT"]).write_text(packet(values["HEAD"],
                 self.assertIn(diagnostic, self.approve(text, expected=2))
                 self.assertEqual(self.state()["status"], "READY_FOR_REVIEW")
         self.assertEqual(len(self.calls()), 1)
+
+    def test_gold_checkpoints_keep_both_review_states_pending(self):
+        self.start()
+        for round_number, status in ((1, "READY_FOR_REVIEW"), (2, "READY_FOR_REREVIEW")):
+            with self.subTest(status=status):
+                state = self.state()
+                self.assertTrue(state["gold"])
+                self.assertEqual(state["status"], status)
+                prompt = (self.root / state["prompts"]["reviewer"]).read_text()
+                gold = prompt.split("## Final Gold-Standard Review\n", 1)[1]
+                self.assertIn("If the assessment is unfinished, use the unfinished-review path above.", gold)
+                unfinished = prompt.split("## Unfinished review\n", 1)[1].split("## Completed review\n", 1)[0]
+                self.assertNotIn("Verdict:", unfinished)
+                self.assertNotIn("Gold assessment: APPROVED", unfinished)
+                self.assertIn(f"Leave `{status}` pending with reviewer ownership", unfinished)
+                self.assertIn("A usage-limit warning alone decides neither verdict.", unfinished)
+                self.assertIn("Packet admission does not establish semantic correctness or review completeness.", prompt)
+                blocks = re.findall(r"```sh\n(.*?)\n```", unfinished, re.DOTALL)
+                self.assertEqual(len(blocks), 1)
+                argv = shlex.split(blocks[0])
+                self.assertEqual(argv[:2], [sys.executable, str(SCRIPT)])
+                self.assertEqual(argv[2:-1], ["--repo", str(self.root.resolve()),
+                                            "import-artifact", "--kind", "review", "--source"])
+                draft = self.root / argv[-1]
+                draft.parent.mkdir(parents=True, exist_ok=True)
+                draft.write_text(f"Checkpoint at {state['review_head']}.\n"
+                                 "Inspected: packet evidence. Unchecked: whole-project ownership.\n"
+                                 "Next: finish the gold checklist. Stop after pass 1.\n")
+                state_path = self.root / ".agents/current.json"
+                before = state_path.read_bytes()
+                self.command(*argv[2:])
+                saved = self.run_path / f"review-{round_number:02d}.md"
+                self.assertEqual(saved.read_bytes(), draft.read_bytes())
+                self.assertEqual(state_path.read_bytes(), before)
+                result = self.command("approve", "--review", str(saved), expected=2)
+                self.assertIn("review file must contain 'Verdict: APPROVED'", result)
+                self.assertEqual(state_path.read_bytes(), before)
+                self.assertEqual(len(self.calls()), round_number)
+                if round_number == 1:
+                    draft.write_text("Verdict: CHANGES_REQUESTED\n\nF1: correct the boundary.\n")
+                    self.command(*argv[2:])
+                    self.command("request-changes", "--review", str(saved))
+                    self.source.write_text("RunGame:\n  NOP\n  RTS\n")
+                    self.commit()
+                    response = self.run_path / "response-01.md"
+                    response.write_text("F1 fixed. Stop after pass 1.\n")
+                    self.command("reready", "--response", str(response), "--head", "HEAD", "--generate-packet")
 
     def test_gold_requires_reference_assessment_before_ci(self):
         self.start()

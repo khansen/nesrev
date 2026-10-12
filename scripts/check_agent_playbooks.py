@@ -349,11 +349,15 @@ ROOT_WORD_CEILING = 6000
 # deferral contract to the session-stop rule. Affected ceilings grow by their
 # measured bundle additions; every budget key retains its previous
 # maximum-route headroom.
+# Interrupted-review checkpoint, evidence disclosure and pass-limit guidance
+# add readable prose to TOOLING without shortening existing instructions.
+# TOOLING routes grow by exactly 18 lines and 158 words; all budget keys keep
+# their previous maximum-route headroom.
 ROUTE_BUDGETS = {
-    "default": (3608, 26458),
-    "data-recovery": (3246, 24426),
+    "default": (3626, 26616),
+    "data-recovery": (3264, 24584),
     "new-project": (4309, 31832),
-    "project-pass-review": (4666, 33383),
+    "project-pass-review": (4684, 33541),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
