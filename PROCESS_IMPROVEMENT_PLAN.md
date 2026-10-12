@@ -23,8 +23,10 @@ The corrected-claim propagation wording is merged in
 it adds no runtime gate or project pass. The interrupted-review assessment is
 complete: pending states preserve unfinished notes, and archival preserves
 limitations recorded in submitted reviews. A small prompt clarification is
-recommended below; no new state or completion gate is justified by the incident.
-Updated 2026-10-11.
+implemented on `feat/interrupted-review-checkpoints`, independently approved
+with review refinements incorporated; publication is pending. No new state or
+completion gate is introduced.
+Updated 2026-10-12.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -43,10 +45,10 @@ ahead of the investigations below because independent passes repeatedly left
 contradictory current artifacts. That bounded wording change is merged and
 integrated; its effect on recurrence has not yet been measured.
 
-1. Consider the bounded [interrupted-review prompt clarification](#interrupted-review-candidate)
-   identified by the completed assessment. Existing state and archive behavior
-   need no change; explain how to preserve an unfinished review and put evidence
-   limitations in the submitted artifact. No implementation has started.
+1. Review and integrate the bounded [interrupted-review prompt clarification](#interrupted-review-candidate).
+   The implementation explains how to preserve an unfinished review and put
+   evidence limitations in the submitted artifact. Existing state, archive and
+   admission behavior are unchanged; independent review is pending.
 2. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
    with a small reproducer. The observed source repair is complete; an automatic
    detector's scope and confidence still need design.
@@ -164,10 +166,13 @@ private corpus evidence companion.
 
 Status: bounded assessment completed on 2026-10-11 against `3c4e26b34` and
 independently approved at `cf229bc9d`. The precision notes below incorporate
-the review's optional follow-ups.
-Recommend a small generated-prompt clarification; retain the existing states,
-archive format and admission checks. No implementation has started. Estimated
-follow-up effort is 1–3 hours plus independent review and CI. The value is
+the review's optional follow-ups. Assessment merged in
+[PR #154](https://github.com/khansen/nesrev/pull/154) and integrated locally.
+The recommended generated-prompt clarification is implemented on
+`feat/interrupted-review-checkpoints`, independently approved at `aa4bd9b45`
+with optional wording and test refinements incorporated; publication is pending.
+Existing states, archive format and admission checks are retained. The assessment
+estimated 1–3 hours plus independent review and CI for this follow-up. The value is
 modest: one observed disclosure gap, with no established recurrence or incorrect
 semantic verdict. Provider-specific limit detection and a new completion gate
 are not justified by this evidence.
@@ -217,7 +222,7 @@ protocol's [review-output contract](AGENT_REVIEW_PROTOCOL_SPEC.md#6-review-unit)
 already asks for verification gaps, and its
 [reviewer instructions](AGENT_REVIEW_PROTOCOL_SPEC.md#9-agent-instructions)
 require findings in the artifact rather than only in chat. The follow-up should
-make those instructions concrete at handoff:
+make those instructions concrete at handoff, as implemented below:
 
 - Read any existing checkpoint before resuming. If required work remains, save
   the exact reviewed head, inspected/rerun/supplied evidence, unchecked work and
@@ -232,8 +237,9 @@ make those instructions concrete at handoff:
   A limit warning alone decides neither completion nor rejection.
 - Carry the authorized pass limit explicitly into the applicable handoff
   instructions; preserving this text is not mechanical enforcement. Keep
-  post-approval discoveries in a linked dated supplement; do not rewrite the
-  original verdict or archive.
+  post-approval discoveries as dated amendments in existing review/evidence
+  artifacts under the historical-record contract; preserve the original review
+  and archived verdict.
 
 Restart re-delivers the prompt saved at `ready`/`reready`. New generated wording
 will reach handoffs prepared after the change; it will not update existing
@@ -258,6 +264,30 @@ was launched, no game pass or project verification gate was run, and no
 performance or full-corpus claim is made. Any prompt implementation needs
 controls for both unfinished and completed reviews; it must preserve unrelated admissions and
 existing guidance, raising affected playbook budgets instead of shortening it.
+
+Implementation — 2026-10-12: generated reviewer prompts now separate importing
+an unfinished checkpoint from issuing a completed verdict. They name the draft
+and imported checkpoint to read on resume and require evidence disclosures in
+the submitted artifact. The protocol specifies when exact-head packet gates may
+be reused and when checks must be rerun; gold's strict CI remains mandatory.
+Both launcher roles read the task for scope and pass limits, handoffs ask agents
+to preserve those limits, and approval prompts condition further passes on the
+user's authorization. Gold review explicitly permits an unfinished checkpoint;
+the final authorized pass stops after archiving and committing its review.
+Later discoveries follow the existing dated-amendment contract. No pass counter
+or completeness detector was added.
+
+Regression controls exercise the generated import command in both review-ready
+states, including gold review without a gold approval marker, refusal of
+verdict-less approval and archival, completed-review
+disclosures in archives, and frozen-prompt delivery without replacing saved
+operator instructions. Prompt assertions cover the gold pause option, the
+usage-limit warning's lack of a verdict, and packet admission's lack of proof
+of semantic correctness or review completeness. These test CLI and prompt
+behavior with synthetic projects, not whether a live model under a usage limit
+obeys the guidance.
+Existing playbook prose is retained; affected route ceilings grow by the exact
+addition so their previous headroom is unchanged.
 
 <a id="dispatch-boundary-candidate"></a>
 ### Candidate: surface incomplete inline-dispatch boundaries
@@ -541,7 +571,8 @@ migration and each newly exposed failure before landing.
 | `fix/pi-8-analyzer-portability` | Executable clean-export runtime fixture evidence at handoff | Merged [PR #143](https://github.com/khansen/nesrev/pull/143); approved `a1a586b10` |
 | `fix/raw-ram-input-validation` | Address-domain and ledger validation before raw-RAM updates | Merged [PR #151](https://github.com/khansen/nesrev/pull/151); squashed `87ecb6cff` has the approved `b54e601a8` tree; integrated locally |
 | `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Merged [PR #153](https://github.com/khansen/nesrev/pull/153); independently approved `89efdb5d7`; integrated locally |
-| `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Independently approved `cf229bc9d`; optional precision notes incorporated; prompt clarification proposed; no runtime changes |
+| `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Merged [PR #154](https://github.com/khansen/nesrev/pull/154); independently approved `cf229bc9d` with optional precision notes incorporated; integrated locally |
+| `feat/interrupted-review-checkpoints` | Clarify unfinished checkpoints, evidence disclosure and authored pass limits in review prompts | Independently approved at `aa4bd9b45`; review refinements incorporated; publication pending; state transitions and gates unchanged |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state

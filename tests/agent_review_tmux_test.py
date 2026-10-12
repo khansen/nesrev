@@ -807,6 +807,21 @@ class LauncherTests(unittest.TestCase):
         self.assertTrue(self.config().with_name("ready").exists())
         self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
 
+    def test_both_roles_receive_task_scope_and_pass_limit(self):
+        self.args.task = "Review one pass. Operator instruction: stop after pass 1."
+        self.launch()
+        task = self.config().with_name("task.md")
+        self.assertIn(self.args.task, task.read_text())
+        self.assertIn("Stop after archiving and committing the final authorized pass", task.read_text())
+        self.assertIn("No command enforces a pass count", task.read_text())
+        for role in launcher.ROLES:
+            with self.subTest(role=role):
+                prompt = launcher.bootstrap(role, "demo", self.root, task, "inherit")
+                self.assertIn(f"Read {task}", prompt)
+                if role == "reviewer":
+                    self.assertIn("task scope and any operator-defined pass limit", prompt)
+                    self.assertIn("implementation steps belong to the implementer", prompt)
+
     def test_bypass_restart_overrides_legacy_guidance_on_delivered_handoffs(self):
         self.permission_agents()
         self.args.permissions = "bypass"

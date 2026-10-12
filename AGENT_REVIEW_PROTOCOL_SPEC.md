@@ -128,8 +128,21 @@ Rejected ranges:
   when the process-looking path is demonstrably project-local data, not a
   shared gate, wrapper, playbook, or test.
 - Reviewer mutation testing belongs to process review, not project-pass
-  review. A project-pass reviewer should verify read-only by rerunning gates
-  and inspecting evidence, not by changing project files.
+  review. A project-pass reviewer verifies read-only by inspecting evidence
+  and rerunning the checks needed to support the verdict, without changing
+  project files.
+
+<a id="review-evidence"></a>
+### Supplied evidence and reruns
+
+Inspect the packet's exact head, verification mode, gate results and source
+evidence. Successful packet gates for that head may be reused when they cover
+the claim; record them as supplied evidence rather than independent reruns.
+Rerun checks needed to resolve missing, stale, contradictory or insufficient
+evidence, plus checks specifically required by the review route or user.
+Packet admission proves neither semantic correctness nor review completeness.
+Gold approval still runs strict `project-ci`; this evidence-reuse rule does not
+waive that gate.
 
 ## 4. Implementation Record and Prior-Art Status
 
@@ -448,25 +461,55 @@ The implementation note should include:
   when no separate file is used
 - branch and commit range, matching the packet
 - pass id or task objective
+- any operator-defined pass limit, carried explicitly into later handoffs
 - files intentionally changed
 - known advisory warnings
 - any process friction recorded
 - process, harness, or tooling learning candidates, or `_None._`
 - any explicit non-goals or deferred work
 
-The review output should include:
+The completed review output should include:
 
 - verdict: `APPROVED` or `CHANGES_REQUESTED`
 - findings ordered by severity
 - stable finding IDs and severity for every blocking finding
 - file/line references or commit/range references
 - verification gaps or false-green concerns
+- evidence inspected, checks rerun with results, supplied evidence relied upon,
+  and checks skipped with reasons, even when those limitations were discussed
+  in chat
 - process issues
 - process, harness, or tooling learning candidates, or `_None._`
 - aggregate drift or proof-debt concerns
 - baseline or allowlist delta concerns
 - questions that block approval, if any
 - non-blocking observations separated from findings
+
+### Unfinished reviews and later discoveries
+
+Before resuming, read the existing draft and imported checkpoint for this round
+and confirm which work covers the exact reviewed head. If required review work
+remains, save that head, completed work and its evidence, unchecked work, next
+steps and any operator-defined pass limit in the draft without a verdict or gold
+approval marker. Use `import-artifact --kind review` to publish the checkpoint
+and leave the existing review-ready state pending. Neither `approve` nor
+`request-changes` is a pause signal; a usage-limit warning alone decides neither
+verdict. Importing notes does not advance the round or give the implementer a turn.
+
+Pass limits are preserved as authored instructions, not counted by the CLI;
+`max_rounds` limits review rounds only. Carry limits into reviews and responses:
+the archive contains those artifacts, not the implementation note. A fresh
+launch writes `task.md` from its `--task` argument, so supply the applicable
+limit again when launching. Approval never extends the user's authorized scope.
+
+Restart re-delivers the prompt saved at `ready`/`reready`, preserving any saved
+operator instructions. Updated generated wording reaches new handoffs; it does
+not rewrite pending prompts. After approval, preserve the original review and
+archive and record later discoveries as dated amendments in existing
+review/evidence artifacts, citing the original record and supporting revision
+under the
+[historical-record contract](agent_playbook/DOCUMENTATION.md#historical-records).
+A restarted reviewer does not reopen an approved review.
 
 ## 7. Implemented Commands
 
@@ -601,6 +644,8 @@ Reviewer-agent instructions:
   artifacts, read aggregate signals, and challenge evidence, but project-pass
   review is read-only.
 - Write findings to the review artifact, not only to chat.
+- Include evidence disclosures and use the [unfinished-review path](#unfinished-reviews-and-later-discoveries)
+  while required work remains, including after an interruption.
 - Use `CHANGES_REQUESTED` for actionable defects and `APPROVED` only when no
   blocking issue remains.
 - Keep non-blocking observations separate from findings.
@@ -611,6 +656,8 @@ Shared instructions:
 - `.agents/current.json` controls turn-taking only.
 - Stop at `APPROVED` or `REVIEW_ROUNDS_EXHAUSTED`.
 - A human override must be explicit and recorded.
+- Preserve and honor operator-defined pass limits in handoffs; review approval
+  does not authorize another pass beyond the user's limit.
 
 ## 10. Normal Workflow
 
