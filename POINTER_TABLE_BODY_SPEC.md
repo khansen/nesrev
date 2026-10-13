@@ -58,4 +58,4 @@ exit 65 (interrupt statuses 130/143 pass through). Report mode exits 0;
 
 Implementation: `scripts/pointer_table_body_check.py`. Real-assembler regression
 cases live in `tests/pointer_table_body_test.py`. This contract is separate from
-the embedded-pointer audit's consumer/dataflow proof.
+the embedded-pointer audit's unproven consumer-pattern matches.

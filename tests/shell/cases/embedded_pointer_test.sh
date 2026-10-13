@@ -102,10 +102,10 @@ if "Foo" not in mod.names_for_owner("FooBank1", aliases):
 PY
 }
 
-test_embedded_pointer_audit_confirms_struct_block_end_to_end() {
-  # A non-monotonic pointer struct copied into ZP and dereferenced must fail;
-  # the identical struct without a runtime dereference must not.
+test_embedded_pointer_audit_reports_struct_block_end_to_end() {
+  # Both fixtures are report-only, but only the dereferencing one matches.
   local asm="${NESREV_TEST_TMPDIR}/struct_block.asm"
+  local report="${NESREV_TEST_TMPDIR}/struct_block.report"
   cat > "${asm}" <<'ASM'
 ZP_StructBase .EQU $10
 .ORG $8000
@@ -122,14 +122,16 @@ Reader:
   RTS
 StructBlock: .DB $40,$80,$00,$81,$80,$80,$C0,$80,$40,$81,$00,$80
 ASM
-  assert_exit 68 python3 "${EMBEDDED_AUDIT}" "${asm}"
+  assert_exit 0 python3 "${EMBEDDED_AUDIT}" "${asm}" > "${report}"
+  assert_match "embedded_pointer_heuristic_matches=1" "$(<"${report}")"
 
   local noderef="${NESREV_TEST_TMPDIR}/struct_block_noderef.asm"
   sed 's/  LDA \[ZP_StructBase\],Y/  ; no deref/' "${asm}" > "${noderef}"
-  assert_exit 0 python3 "${EMBEDDED_AUDIT}" "${noderef}"
+  assert_exit 0 python3 "${EMBEDDED_AUDIT}" "${noderef}" > "${report}"
+  assert_match "embedded_pointer_heuristic_matches=0" "$(<"${report}")"
 }
 
-test_embedded_pointer_audit_confirms_nonmonotonic_pointer_struct() {
+test_embedded_pointer_audit_matches_nonmonotonic_pointer_struct() {
   python3 - "${EMBEDDED_AUDIT}" <<'PY'
 import importlib.util
 import sys
@@ -159,8 +161,8 @@ structs = mod.find_pointer_struct_runs([span], label_by_bank_cpu, windows, 0, 6,
 if not any(h["owner"] == "StructBlock" for h in structs):
     raise SystemExit("non-monotonic in-window pointer struct should be a candidate")
 
-# ...and it confirms when the block is copied to a ZP base that is dereferenced,
-# including when the copy reads through an .EQU alias.
+# ...and the heuristic matches indexed copy and dereference text, including
+# when the copy reads through an .EQU alias.
 asm_lines = [
     "CopyBlock:",
     "  LDA StructAlias,X",
@@ -171,9 +173,9 @@ asm_lines = [
     "  RTS",
 ]
 aliases = {"StructAlias": "StructBlock"}
-proof = mod.struct_copy_deref_proof(asm_lines, "StructBlock", 0x8400, aliases)
-if not proof:
-    raise SystemExit("struct copied via alias to a dereferenced ZP base should confirm")
+basis = mod.struct_copy_deref_match(asm_lines, "StructBlock", 0x8400, aliases)
+if not basis:
+    raise SystemExit("struct copied via alias to a dereferenced ZP base should match")
 
 # A one-byte table lookup stored through a different index is not a block copy,
 # even when the scratch destination happens to be dereferenced elsewhere.
@@ -186,8 +188,8 @@ not_a_copy = [
     "  LDA [ZP_StructBase],Y",
     "  RTS",
 ]
-if mod.struct_copy_deref_proof(not_a_copy, "StructBlock", 0x8400, aliases):
-    raise SystemExit("different source/destination indexes must not prove a block copy")
+if mod.struct_copy_deref_match(not_a_copy, "StructBlock", 0x8400, aliases):
+    raise SystemExit("different source/destination indexes must not match the block-copy heuristic")
 PY
 }
 
@@ -267,8 +269,9 @@ test_embedded_pointer_targets_rejects_incompatible_xref() {
   assert_match "xref schema version 2 required" "${output}"
 }
 
-test_embedded_pointer_audit_fails_confirmed_raw_pointer_table() {
+test_embedded_pointer_audit_reports_raw_pointer_table() {
   local asm="${NESREV_TEST_TMPDIR}/raw_pointer_table.asm"
+  local report="${NESREV_TEST_TMPDIR}/raw_pointer_table.report"
 
   cat > "${asm}" <<'ASM'
 ZP_TestPtrLo .EQU $00
@@ -291,7 +294,8 @@ TargetData:
   .DB $AA,$BB,$CC
 ASM
 
-  assert_exit 68 python3 "${EMBEDDED_AUDIT}" "${asm}"
+  assert_exit 0 python3 "${EMBEDDED_AUDIT}" "${asm}" > "${report}"
+  assert_match "embedded_pointer_heuristic_matches=1" "$(<"${report}")"
 }
 
 test_embedded_pointer_audit_ignores_monotonic_data_without_pointer_consumer() {
@@ -311,8 +315,8 @@ ASM
   python3 "${EMBEDDED_AUDIT}" "${asm}" > "${NESREV_TEST_TMPDIR}/audit.out"
   assert_match "embedded_pointer_raw_runs_strong=1" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
     "monotonic data should still be visible as an advisory strong run"
-  assert_match "embedded_pointer_confirmed_unrelocated=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
-    "monotonic data without paired-read pointer proof must not fail"
+  assert_match "embedded_pointer_heuristic_matches=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
+    "monotonic data without a paired-read heuristic match must not fail"
 }
 
 test_embedded_pointer_audit_ignores_comment_only_deref() {
@@ -342,8 +346,8 @@ ASM
   python3 "${EMBEDDED_AUDIT}" "${asm}" >"${NESREV_TEST_TMPDIR}/audit.out"
   assert_match "embedded_pointer_raw_runs_strong=1" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
     "comment-only deref fixture should still surface the strong raw run"
-  assert_match "embedded_pointer_confirmed_unrelocated=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
-    "comment-only deref text must not confirm an embedded pointer table"
+  assert_match "embedded_pointer_heuristic_matches=0" "$(<"${NESREV_TEST_TMPDIR}/audit.out")" \
+    "comment-only deref text must not produce a heuristic match"
 }
 
 test_embedded_pointer_audit_reports_xasm_diagnostics() {
@@ -368,4 +372,8 @@ ASM
   fi
   assert_match "error: xasm analysis failed" "$(cat "${NESREV_TEST_TMPDIR}/audit_bad.err")"
   assert_match "MissingLabel" "$(cat "${NESREV_TEST_TMPDIR}/audit_bad.err")"
+}
+
+test_embedded_pointer_advisory_contract() {
+  python3 "${REPO_ROOT}/tests/embedded_pointer_audit_test.py"
 }

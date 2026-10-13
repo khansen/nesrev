@@ -239,7 +239,7 @@ Treat the asm as if a byte inserted at `$C000` should not require manual address
 - Instead, create a dedicated label at each pointed-to target byte and reference that label directly from the table.
 - If the target currently lies inside a larger blob, split the blob and introduce the new label at the exact byte.
 - Rationale: label-per-entry tables are easier to edit, easier to review, and avoid hiding real target structure behind offset arithmetic.
-- A pointer-table-named label must have a symbolic body; a raw `.DB` lo/hi run under such a name is an un-relocated embedded pointer table. The name already proves the entries are pointers, so relocate it even when no consumer-proof audit flags it (`pointer_table_body_check.py`, [TOOLING.md](TOOLING.md)).
+- A pointer-table-named label must have a symbolic body; a raw `.DB` lo/hi run under such a name is an un-relocated embedded pointer table. The name already proves the entries are pointers, so relocate it even when no embedded-pointer advisory flags it (`pointer_table_body_check.py`, [TOOLING.md](TOOLING.md)).
 
 <a id="literal-base-readability"></a>
 ## Literal Base Readability

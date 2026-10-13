@@ -15,9 +15,10 @@ real omissions that existing structured output can expose. Its structured
 consumer landed in [PR #140](https://github.com/khansen/nesrev/pull/140), and
 the coordinated baseline correction is complete using XORcyst 1.8.1. The broader
 [embedded-pointer feasibility audit](#embedded-pointer-audit) and its independent
-review are complete. The bounded proof repair is deferred; making legacy
-heuristic matches explicitly advisory is the recommended separate follow-up.
-Production behavior is unchanged, and instruction-record v4 remains deferred.
+review are complete. The bounded proof repair is deferred. The selected
+follow-up makes legacy heuristic matches explicitly advisory; it is implemented
+locally, with independent review and publication pending. Evidence failures and
+independent pointer gates are retained. Instruction-record v4 remains deferred.
 Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
@@ -817,8 +818,8 @@ audit below remains separate from this implementation.
 ### Follow-up: Embedded-pointer audit proof heuristics
 
 `scripts/embedded_pointer_audit.py` is a hybrid, not a completed structured
-migration. Besides listing/index-pattern inputs, `struct_copy_deref_proof()`
-and `pointer_store_proof()` scan instruction text; `routine_block()` and
+migration. Besides listing/index-pattern inputs, `struct_copy_deref_match()`
+and `pointer_store_match()` scan instruction text; `routine_block()` and
 `build_equ_aliases()` reconstruct scope and aliases from source.
 
 #### Completed audit and decision
@@ -838,22 +839,54 @@ shapes and would not establish copied-image lifetime. The review's approximate
 load-site coverage is not measured distinct-table recall. No recall target,
 general dataflow engine or producer extension is approved by this audit.
 
-The recommended next change is to retain discovery and heuristic matches as
-explicitly unproven advisories while removing their authority to fail
-verification. Update the output terminology, counters, callers, documentation
-and tests together; do not retain a misleading confirmation claim. Valid
-analysis with candidates would be report-only; assembly failures and stale or
-malformed evidence must still fail. Independent pointer inventories, split-table
-validation and named-body checks retain their own contracts.
+**Advisory implementation — 2026-10-13:** implemented locally on
+`fix/embedded-pointer-advisory`, independently approved at `c05d92f57` after
+review revisions. Publication is pending.
+Discovery and legacy pattern matching are retained without extending their
+source parsers. The former confirmation counter becomes
+`embedded_pointer_heuristic_matches`; details describe matched text and mark
+pointer flow unproven. Valid analysis returns zero with or without candidates.
+Assembly failures and missing, stale or malformed supplied evidence still fail.
+Maturity now surfaces successful advisory output as verification already did.
+Independent pointer inventories, split-table validation and named-body checks
+retain their own contracts. The
+[audit contract](agent_playbook/EMBEDDED_POINTER_AUDIT_SPEC.md) specifies outputs
+and limits; this policy change does not complete the structured migration.
 
-That proposed change needs genuine and contradicted matches as advisory
+This change requires genuine and contradicted matches as advisory
 controls, evidence-failure refusals, standalone/bundle output parity and checks
 that independent pointer gates retain their behavior. It requires no new xasm
-output and does not complete the structured migration. The pinned baseline
-loses no observed positive gate result; it does not establish that the heuristic
-never fired historically or that no future protection is lost. Production
-implementation and rollout remain separate decisions under the
+output and does not complete the structured migration. The pinned current
+baseline loses no observed positive gate result. The earlier
+[universal-gate migration](UNIVERSAL_PROJECT_GATES_MIGRATION_PLAN.md)
+recorded one confirmed structure, subsequently repaired symbolically, and
+three findings disproved as false positives. An equivalent recurrence of that
+recorded real catch would now be advisory: zero matches in the current corpus
+does not remove that trade-off. Rollout follows independent review under the
 [process follow-up priorities](PROCESS_IMPROVEMENT_PLAN.md#recommended-order).
+
+Initial implementation validation: all 23 project audits retain the same
+discovery and match counts, with zero heuristic matches. Three representative
+projects pass verification
+with the semantic-pass unresolved-label allowance; their existing maturity
+failures and diagnostics are unchanged. Synthetic tests cover genuine and
+overwritten pointer matches, standalone/bundle parity, evidence refusals,
+bounded diagnostics and maturity's independent named-body gate. The full suite
+passed 683 shell cases and 1,206 Java tests; seven deliberate regressions were
+caught in a disposable copy, with passing unchanged controls. Three alternating
+warm timing pairs on the largest source show verification −0.8% and maturity
+−0.5%; the latter measures the same existing failure path. No runtime or
+full-corpus CI claim is made. Existing playbook guidance is retained, with
+affected route budgets preserving their previous headroom.
+
+Review revision validation: 237 affected shell cases pass, including the eight
+advisory and 32 analysis-bundle Python tests. Both matchers have no-dereference
+controls, and the struct shell fixture asserts one match with dereference and
+zero without it. Verification and maturity fail when only the audit errors in
+an otherwise passing synthetic project. Twelve deliberate faults are caught
+in a disposable copy, with six passing unchanged controls. The revision changes
+only tests and documentation; the earlier corpus and timing results still
+apply. The full suite, corpus sweep and timings were not rerun for this revision.
 
 Before reconsidering a proof checker, agree on a conditional read-site
 contract, separate discovered bounds from reviewed extents and executed-entry
@@ -894,7 +927,7 @@ interpreting its evidence, rather than a new work order.
    would justify the missing producer work. Synthetic improvements and Rule One
    cleanup may be useful, but must not be presented as measured corpus gains.
 
-The audit ended with the deferral and proposed advisory change above. Keep
+The audit ended with the deferral and advisory recommendation above. Keep
 instruction-record v4 deferred unless a consumer establishes a need for its
 specific label-content facts. The retained audit probes are historical evidence,
 not acceptance-test oracles for a future implementation.
@@ -1049,7 +1082,7 @@ removed:
       current-source baseline reconciliation with recorded validation (PR #140).
 - [x] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
       and independent review; defer the bounded proof repair with no measured
-      corpus gain. Propose advisory legacy matches as a separate follow-up.
+      corpus gain. The separately selected advisory implementation awaits review.
 - [x] Run the bounded negative-offset feasibility check and identify its
       missing bound-label data/code classification.
 - [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)

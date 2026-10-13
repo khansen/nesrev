@@ -384,7 +384,7 @@ Compare counts, detail membership, coverage, diagnostics, and exit statuses.
 
 ## CI-P4 — Deferred: pointer-text indexing
 
-Do not build owner/alias/source-position indexes for current pointer-proof regex
+Do not build owner/alias/source-position indexes for current pointer-pattern regex
 matchers. Their structured replacements and semantic evidence limits belong to
 the [migration plan](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#follow-up-embedded-pointer-audit-proof-heuristics).
 Faster heuristics do not provide stronger proof.
@@ -395,12 +395,12 @@ a standalone optimization project. Preserve candidate identities, bank/address
 distinctions, ordering, confidence, diagnostics, and refusal behavior. Keep
 physical source-line identity and full sequential windows, including unrelated
 instructions, comments, and blank lines; filtered match positions are not valid
-substitutes. Do not conflate successful-proof deduplication with a general
+substitutes. Do not conflate heuristic-match deduplication with a general
 visited-candidate rule or discard candidates by owner-only memoization.
 
 Any such exception requires exact old/new corpus and adversarial-fixture output
 equivalence. Test the last included and first excluded line of every window in
-both `struct_copy_deref_proof()` and `pointer_store_proof()`; for a four-line
+both `struct_copy_deref_match()` and `pointer_store_match()`; for a four-line
 window starting at `i`, test destinations at `i+3` and `i+4` independently with
 other conditions satisfied. Show preprocessing happens once per audit using
 operation counts. New grammar/dataflow or unexplained confidence/candidate

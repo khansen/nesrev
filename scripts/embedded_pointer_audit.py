@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Audit raw .DB spans for unrelocated ROM pointer tables.
+"""Report raw .DB pointer-shaped spans and unproven heuristic matches.
 
-The monotonic byte-run scan is intentionally advisory unless xasm's indexed
-access analysis also proves paired-byte reads at the same table address and the
-consumer stores the pair into a ZP pointer that is later dereferenced.
+Legacy load/store/dereference patterns do not prove pointer flow, reachable
+entries, bank identity or copied-image lifetime. Findings are report-only;
+assembly and supplied-evidence errors still fail.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from pathlib import Path
 
 BANK_SIZE = 0x4000
 DEFAULT_MIN_RUN = 6
-MAX_TABLE_EXTENT = 0x400  # generous per-table extent for anchor-range matching
+MAX_TABLE_EXTENT = 0x400  # legacy anchor search distance, not a proven extent
 LABEL_RE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*):")
 RAW_BYTE_RE = re.compile(r"^(\$[0-9A-Fa-f]{1,2}|%[01]{1,8}|[0-9]{1,3})$")
 BARE_HEX_ADDRESS_RE = re.compile(r"^[0-9A-Fa-f]{4}$")
@@ -330,7 +330,7 @@ def find_pointer_struct_runs(
     A struct of pointers to different tables is not sorted, so the monotonic
     scan skips it. Flag stride-2 raw runs where every pair resolves in-window,
     are not monotonic, and are not already covered by a monotonic run. These are
-    advisory candidates; confirmation happens via struct_copy_deref_proof.
+    advisory candidates; struct_copy_deref_match can add a heuristic lead.
     """
     hits: list[dict] = []
     for span in spans:
@@ -374,15 +374,11 @@ def find_pointer_struct_runs(
     return hits
 
 
-def struct_copy_deref_proof(asm_lines: list[str], owner: str, owner_cpu: int, aliases: dict[str, str]) -> str:
-    """Improvement 3: confirm a struct candidate when the block is block-copied
-    into a ZP region (by label, alias, or CPU address) with the same traversal
-    index and that ZP pointer is later dereferenced `[zp],Y`.
+def struct_copy_deref_match(asm_lines: list[str], owner: str, owner_cpu: int, aliases: dict[str, str]) -> str:
+    """Match indexed load/store text and an indirect read of the destination.
 
-    Requiring one index for both sides distinguishes a real indexed block copy
-    from unrelated table lookup code that stores one coordinate through a
-    different destination index. Scratch bytes are heavily reused, so a later
-    dereference of the same ZP name is not sufficient evidence by itself.
+    Matching indexes filter unrelated lookup shapes, but do not prove a copy
+    loop, register flow, reachability or preservation until the indirect read.
     """
     code = [strip_comment(line) for line in asm_lines]
     name_alt = "|".join(re.escape(n) for n in names_for_owner(owner, aliases))
@@ -399,7 +395,8 @@ def struct_copy_deref_proof(asm_lines: list[str], owner: str, owner_cpu: int, al
                 zp = match.group(1)
                 deref = re.compile(rf"[\[\(]{re.escape(zp)}[\]\)]")
                 if any(deref.search(x) for x in code):
-                    return f"block copied from {owner} into {zp} (indexed) and dereferenced as [{zp}]"
+                    return (f"indexed load/store text from {owner} to {zp}; "
+                            f"indirect-read text names [{zp}]")
     return ""
 
 
@@ -442,7 +439,7 @@ def routine_block(lines: list[str], routine: str) -> tuple[int, int]:
     return start, end
 
 
-def pointer_store_proof(lines: list[str], owner: str, routine: str, aliases: dict[str, str]) -> str:
+def pointer_store_match(lines: list[str], owner: str, routine: str, aliases: dict[str, str]) -> str:
     start, end = routine_block(lines, routine)
     if start < 0:
         return ""
@@ -470,11 +467,12 @@ def pointer_store_proof(lines: list[str], owner: str, routine: str, aliases: dic
                 if re.search(rf"\bSTA\s+{re.escape(hi_symbol)}\b", block[k]):
                     deref_re = re.compile(rf"[\[\(]{re.escape(lo_symbol)}[\]\)]")
                     if any(deref_re.search(src_line) for src_line in code_lines):
-                        return f"{routine}: stores {owner}/+1 into {lo_symbol}/{hi_symbol}; {lo_symbol} is dereferenced"
+                        return (f"{routine}: load/store text names {owner}/+1 and {lo_symbol}/{hi_symbol}; "
+                                f"indirect-read text names {lo_symbol}")
     return ""
 
 
-def confirm_candidates(
+def match_candidates(
     hits: list[dict],
     patterns: list[dict],
     label_cpu: dict[str, int],
@@ -487,7 +485,7 @@ def confirm_candidates(
             continue
         patterns_by_label.setdefault(pattern.get("table_label", ""), []).append(pattern)
 
-    confirmed: list[dict] = []
+    matches: list[dict] = []
     for hit in hits:
         owner = hit.get("owner")
         if not owner or owner not in label_cpu:
@@ -499,17 +497,17 @@ def confirm_candidates(
             displacement = int(pattern.get("displacement", 0))
             anchor = label_cpu[owner] + displacement
             # Improvement 5: composite/shared-heavy tables fragment, so the
-            # detected run can start mid-table. Confirm when the run start falls
-            # within the table extent of the paired-read anchor, not only at it.
+            # detected run can start mid-table. This fixed search window is
+            # a heuristic, not a reviewed extent or evidence of consumption.
             if not (anchor <= hit["cpu"] <= anchor + MAX_TABLE_EXTENT):
                 continue
-            proof = pointer_store_proof(asm_lines, owner, pattern.get("routine", ""), aliases)
-            if proof:
+            basis = pointer_store_match(asm_lines, owner, pattern.get("routine", ""), aliases)
+            if basis:
                 enriched = dict(hit)
-                enriched["consumer_proof"] = proof
-                confirmed.append(enriched)
+                enriched["heuristic_basis"] = basis
+                matches.append(enriched)
                 break
-    return confirmed
+    return matches
 
 
 def main() -> int:
@@ -542,7 +540,7 @@ def main() -> int:
     ]
     asm_lines = asm_path.read_text(encoding="utf-8").splitlines()
     aliases = build_equ_aliases(asm_lines)
-    confirmed = confirm_candidates(strong, patterns, label_cpu, asm_lines, aliases)
+    matches = match_candidates(strong, patterns, label_cpu, asm_lines, aliases)
 
     covered = [(h["start_off"], h["end_off"]) for h in hits]
     struct_candidates = find_pointer_struct_runs(
@@ -556,12 +554,12 @@ def main() -> int:
         key = (owner, hit["cpu"])
         if key in seen_struct:
             continue
-        proof = struct_copy_deref_proof(asm_lines, owner, label_cpu[owner], aliases)
-        if proof:
+        basis = struct_copy_deref_match(asm_lines, owner, label_cpu[owner], aliases)
+        if basis:
             seen_struct.add(key)
             enriched = dict(hit)
-            enriched["consumer_proof"] = proof
-            confirmed.append(enriched)
+            enriched["heuristic_basis"] = basis
+            matches.append(enriched)
 
     if bundle is not None:
         bundle.validate()
@@ -569,22 +567,22 @@ def main() -> int:
     print(f"embedded_pointer_raw_runs_total={len(hits)}")
     print(f"embedded_pointer_raw_runs_strong={len(strong)}")
     print(f"embedded_pointer_struct_candidates={len(struct_candidates)}")
-    print(f"embedded_pointer_confirmed_unrelocated={len(confirmed)}")
+    print(f"embedded_pointer_heuristic_matches={len(matches)}")
 
-    if confirmed:
-        for hit in confirmed[:20]:
+    if matches:
+        for hit in matches[:20]:
             print(
-                "FAIL: raw embedded pointer table candidate "
+                "ADVISORY: raw pointer-shaped bytes "
                 f"{hit['owner']} bank={hit['bank']} cpu=${hit['cpu']:04X} "
-                f"ptrs={hit['count']} targets=${hit['target_min']:04X}-${hit['target_max']:04X}; "
-                f"{hit['consumer_proof']}",
+                f"pairs={hit['count']} values=${hit['target_min']:04X}-${hit['target_max']:04X}; "
+                f"{hit['heuristic_basis']}; pointer flow unproven",
                 file=sys.stderr,
             )
-        if len(confirmed) > 20:
-            print(f"FAIL: {len(confirmed) - 20} additional confirmed candidates omitted", file=sys.stderr)
-        return 68
+        if len(matches) > 20:
+            print(f"ADVISORY: {len(matches) - 20} additional heuristic matches omitted; "
+                  "pointer flow unproven", file=sys.stderr)
 
-    print("OK: embedded pointer raw-run audit passed")
+    print("OK: embedded pointer analysis completed (advisory; pointer flow unproven)")
     return 0
 
 

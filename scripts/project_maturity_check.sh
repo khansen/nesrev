@@ -74,8 +74,10 @@ if ! split_targets_report="$(bash "${SCRIPT_DIR}/split_pointer_targets_check.sh"
 fi
 if ! embedded_audit_report="$(python3 "${SCRIPT_DIR}/embedded_pointer_audit.py" "${ASM_FILE}" 2>&1)"; then
   printf '%s\n' "${embedded_audit_report}" >&2
-  echo "maturity gate failed: embedded pointer audit failed" >&2
+  echo "maturity gate failed: embedded pointer analysis unavailable" >&2
   fail=1
+else
+  printf '%s\n' "${embedded_audit_report}"
 fi
 if ! pointer_table_report="$(python3 "${SCRIPT_DIR}/pointer_table_body_check.py" "${ASM_FILE}" --strict 2>&1)"; then
   printf '%s\n' "${pointer_table_report}" >&2
