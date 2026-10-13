@@ -895,12 +895,18 @@ little-endian runs of CPU addresses (values in the $8000-$FFFF PRG address
 space, not ROM file offsets) in raw byte spans — both monotonic pointer arrays
 and non-monotonic pointer structs — scoped to the per-bank PRG window inferred
 from each bank's `.ORG` (so NROM-128 mirror addresses are rejected). A
-run becomes a hard failure only with a consumer proof: either a xasm
-paired-byte-read plus a ZP `PtrLo`/`PtrHi` store that is later dereferenced
-(pointer arrays, alias-aware), or a block-copy into a ZP base that is
-dereferenced (structs). The run counts alone are advisory because CHR/pixel data
-and scalar tables can look pointer-like. Planned refinements and the validation
-corpus live in
+run can receive a heuristic match from xasm paired-byte reads plus matching
+`PtrLo`/`PtrHi` load/store and indirect-read text, or from indexed block-copy
+and indirect-read text (structs). These patterns do not prove pointer flow,
+reachable entries, bank identity or copied-image lifetime. All findings are
+advisory because CHR/pixel data and scalar tables can look pointer-like, and
+scratch overwrites or unrelated reads can satisfy the text matchers.
+`embedded_pointer_heuristic_matches` counts these unproven matches; it replaces
+the former confirmation counter. Valid analysis exits zero even with matches.
+Assembly failures and missing, stale or malformed supplied evidence still fail.
+Verification and maturity retain the report; independent symbolic-pointer
+inventories, split-table validation and named-body gates keep their contracts.
+The current output contract and synthetic controls live in
 [EMBEDDED_POINTER_AUDIT_SPEC.md](EMBEDDED_POINTER_AUDIT_SPEC.md).
 
 <a id="base-readability-gate"></a>

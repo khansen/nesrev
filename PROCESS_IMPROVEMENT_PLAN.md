@@ -25,13 +25,19 @@ complete: pending states preserve unfinished notes, and archival preserves
 limitations recorded in submitted reviews. The prompt clarification is merged
 in [PR #155](https://github.com/khansen/nesrev/pull/155), independently approved
 at `3e87e449e`, and integrated locally. No new state or completion gate is
-introduced. The inline-dispatch boundary assessment is independently approved
-at `dff78e29d`, with optional precision notes incorporated; publication is
-pending. Existing unused-symbol warnings flagged the affected labels, but
+introduced. The inline-dispatch boundary assessment is merged in
+[PR #156](https://github.com/khansen/nesrev/pull/156) and integrated locally,
+after independent approval at `dff78e29d` and optional precision refinements.
+Existing unused-symbol warnings flagged the affected labels, but
 unsupported baseline explanations obscured their significance.
 A warning/raw-byte join separates additional synthetic cases without proving
 consumption. Production integration is deferred pending measurement of its
 noise and added value over existing warnings.
+The embedded-pointer advisory change is implemented locally on
+`fix/embedded-pointer-advisory`, independently approved at `c05d92f57`;
+publication is pending.
+It retains discovery and evidence refusals while removing heuristic matches'
+authority to fail verification. The structured proof replacement stays deferred.
 Updated 2026-10-13.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -55,21 +61,19 @@ The [interrupted-review prompt clarification](#interrupted-review-candidate)
 is also merged and integrated. Existing state, archive and admission behavior
 are unchanged; its effect on live interruption behavior remains unmeasured.
 
-1. Publish the approved [inline-dispatch boundary assessment](#dispatch-boundary-candidate).
-   A warning/raw-byte join can surface review candidates, including the mixed
-   tail missed by the other scans. It cannot distinguish never-selected,
-   pointer-shaped tails from consumed entries. Measure candidate noise and
-   incremental value before production integration; complete selector proof
-   is not a prerequisite for such an evaluation. No implementation or
-   additional project pass is authorized by this assessment.
-2. Decide the production response to the separately authorized
+1. Publish the independently approved bounded advisory implementation following the
    [embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
-   Independent review is complete and does not recommend the proposed bounded
-   proof repair: no corpus-coverage gain was demonstrated and conditional
-   pointer use needs a different confirmation contract. Weigh making legacy
-   confirmations advisory before funding a replacement proof engine. The linked
-   plan owns that scope; no production change or xasm extension is authorized
-   by this status update.
+   The user selected this follow-up: keep discovery, label heuristic matches as
+   unproven, and preserve operational failures and independent pointer gates.
+   The linked plan owns the contract. No replacement proof engine or xasm
+   extension is part of this change.
+
+The [inline-dispatch assessment](#dispatch-boundary-candidate) is published.
+Its warning/raw-byte join can surface review candidates, including mixed tails,
+but cannot distinguish never-selected, pointer-shaped tails from consumed
+entries. Production integration remains deferred until a separately selected
+evaluation measures noise and incremental value. Complete selector proof is
+not a prerequisite for that evaluation; no additional project pass is authorized.
 
 These are next-work priorities; review already underway can finish independently.
 PI-1 through PI-5 and the queue-receipt
@@ -305,7 +309,9 @@ addition so their previous headroom is unchanged.
 Status: bounded investigation completed locally on 2026-10-13 against
 `4ef25fe4e`, using xasm 1.9.0; revised after review of `f92d5b3ab` to include
 the unused-symbol warning channel. Independently approved at `dff78e29d`,
-with optional precision notes incorporated; publication is pending.
+with optional precision notes incorporated. Merged in
+[PR #156](https://github.com/khansen/nesrev/pull/156) as `828dc958e` and integrated
+locally; the rebase preserved all project and article contents.
 Recommendation: **defer production integration pending a warning-candidate
 noise and value assessment**. A candidate prompt is feasible without proving
 consumption; a confirmed extent detector needs stronger evidence. The observed
@@ -725,7 +731,8 @@ migration and each newly exposed failure before landing.
 | `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Merged [PR #153](https://github.com/khansen/nesrev/pull/153); independently approved `89efdb5d7`; integrated locally |
 | `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Merged [PR #154](https://github.com/khansen/nesrev/pull/154); independently approved `cf229bc9d` with optional precision notes incorporated; integrated locally |
 | `feat/interrupted-review-checkpoints` | Clarify unfinished checkpoints, evidence disclosure and authored pass limits in review prompts | Merged [PR #155](https://github.com/khansen/nesrev/pull/155); independently approved `3e87e449e`; integrated locally; state transitions and gates unchanged |
-| `docs/dispatch-boundary-assessment` | Assess inline-dispatch boundaries, unused warnings and baseline explanations | Independently approved `dff78e29d`; optional precision notes incorporated; publication pending; production noise and added value unmeasured |
+| `docs/dispatch-boundary-assessment` | Assess inline-dispatch boundaries, unused warnings and baseline explanations | Merged [PR #156](https://github.com/khansen/nesrev/pull/156); independently approved `dff78e29d` with optional precision refinements; integrated locally; production noise and added value unmeasured |
+| `fix/embedded-pointer-advisory` | Make legacy embedded-pointer matches explicitly unproven and report-only | Independently approved `c05d92f57`; publication pending; evidence failures and independent pointer gates retained |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state

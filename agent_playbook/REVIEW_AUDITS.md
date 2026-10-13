@@ -521,7 +521,7 @@ pointers. Execute the audit in four stages:
 
 Confirm every pointer-table label (`...PtrTable`, `...Pointers`) a pass opens has
 a symbolic body, not a raw `.DB` lo/hi run — the name proves the entries are
-pointers even where the consumer-proof audit misses them (copied `.DW` block plus
+pointers even where the embedded-pointer advisory misses them (copied `.DW` block plus
 indirect `[ZP],Y`). `pointer_table_body_check.py` lists offenders
 ([TOOLING.md](TOOLING.md#pointer-table-relocation-gate)).
 

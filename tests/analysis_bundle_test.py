@@ -325,6 +325,37 @@ class BundleTests(unittest.TestCase):
         shutil.copyfile(ROOT / "Makefile", self.root / "Makefile")
         return project
 
+    def test_verify_and_maturity_propagate_embedded_audit_failure(self):
+        self.make_ci_fixture()
+        init = subprocess.run(["bash", "scripts/refresh_inventory.sh", "synthetic"],
+                              capture_output=True, text=True)
+        self.assertEqual(init.returncode, 0, init.stdout + init.stderr)
+        audit = self.root / "scripts/embedded_pointer_audit.py"
+        original = audit.read_bytes()
+        diagnostic = "error: injected embedded pointer analysis refusal"
+        for wrapper, expected in (("project_verify.sh", 65),
+                                  ("project_maturity_check.sh", 1)):
+            with self.subTest(wrapper=wrapper):
+                command = ["bash", f"scripts/{wrapper}", "synthetic"]
+                control = subprocess.run(command, capture_output=True, text=True)
+                self.assertEqual(control.returncode, 0, control.stdout + control.stderr)
+                self.assertIn("embedded_pointer_heuristic_matches=0\n", control.stdout)
+                # Only the audit fails; every other gate and the wrapper are real.
+                # The script copy belongs to this test's disposable fixture.
+                audit.write_text(f"import sys\nprint({diagnostic!r}, file=sys.stderr)\n"
+                                 "raise SystemExit(65)\n")
+                try:
+                    result = subprocess.run(command, capture_output=True, text=True)
+                finally:
+                    audit.write_bytes(original)
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn(diagnostic, result.stderr)
+                if wrapper == "project_maturity_check.sh":
+                    failures = [line for line in result.stderr.splitlines()
+                                if line.startswith("maturity gate failed:")]
+                    self.assertEqual(failures, ["maturity gate failed: embedded pointer analysis unavailable"])
+                    self.assertNotIn("OK: maturity hard gates passed", result.stdout)
+
     def test_complete_ci_assembles_once_and_mismatch_twice(self):
         project = self.make_ci_fixture()
         spy = self.root / "xasm"

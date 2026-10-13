@@ -353,11 +353,14 @@ ROOT_WORD_CEILING = 6000
 # add readable prose to TOOLING without shortening existing instructions.
 # TOOLING routes grow by exactly 18 lines and 158 words; all budget keys keep
 # their previous maximum-route headroom.
+# Embedded-pointer advisories replace the unsupported consumer-proof rule with
+# explicit evidence limits and failure semantics. TOOLING grows by 6 lines and
+# 58 words; affected ceilings retain prior maximum-route headroom.
 ROUTE_BUDGETS = {
-    "default": (3626, 26616),
-    "data-recovery": (3264, 24584),
+    "default": (3632, 26674),
+    "data-recovery": (3270, 24642),
     "new-project": (4309, 31832),
-    "project-pass-review": (4684, 33541),
+    "project-pass-review": (4690, 33599),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

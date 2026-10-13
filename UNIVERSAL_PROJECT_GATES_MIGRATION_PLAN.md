@@ -54,7 +54,7 @@ project cannot suppress it in `project.conf` or by deleting an input file.
 
 A deterministic violation exits nonzero. Examples include binary drift,
 malformed or missing canonical ledgers, stale generated inventories, unresolved
-required labels, confirmed embedded pointers, invalid scorecard lifecycle, and
+required labels, named pointer-body violations, invalid scorecard lifecycle, and
 readability forms covered by an exact lexical rule.
 
 ### Mandatory advisory
@@ -64,6 +64,15 @@ defect. These analyses must still run for every project. Their operational
 errors are hard failures. Their findings must eventually be resolved or
 recorded in a validated disposition ledger; a project-wide off switch is not
 an acceptable disposition.
+
+The embedded-pointer audit remains mandatory, but its legacy consumer-pattern
+matches are now unproven advisories under the
+[current contract](agent_playbook/EMBEDDED_POINTER_AUDIT_SPEC.md).
+Its [validated disposition route](agent_playbook/EMBEDDED_POINTER_AUDIT_SPEC.md#advisory-disposition)
+is deferred until the first real-project match under this policy; a successful
+audit exit does not resolve a finding.
+The implementation and corpus results recorded below describe the earlier
+migration; they do not establish the current matchers as pointer-flow proof.
 
 ### Pass-time completeness
 
