@@ -22,11 +22,17 @@ The corrected-claim propagation wording is merged in
 [PR #153](https://github.com/khansen/nesrev/pull/153) and integrated locally;
 it adds no runtime gate or project pass. The interrupted-review assessment is
 complete: pending states preserve unfinished notes, and archival preserves
-limitations recorded in submitted reviews. A small prompt clarification is
-implemented on `feat/interrupted-review-checkpoints`, independently approved
-with review refinements incorporated; publication is pending. No new state or
-completion gate is introduced.
-Updated 2026-10-12.
+limitations recorded in submitted reviews. The prompt clarification is merged
+in [PR #155](https://github.com/khansen/nesrev/pull/155), independently approved
+at `3e87e449e`, and integrated locally. No new state or completion gate is
+introduced. The inline-dispatch boundary assessment is independently approved
+at `dff78e29d`, with optional precision notes incorporated; publication is
+pending. Existing unused-symbol warnings flagged the affected labels, but
+unsupported baseline explanations obscured their significance.
+A warning/raw-byte join separates additional synthetic cases without proving
+consumption. Production integration is deferred pending measurement of its
+noise and added value over existing warnings.
+Updated 2026-10-13.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -45,14 +51,18 @@ ahead of the investigations below because independent passes repeatedly left
 contradictory current artifacts. That bounded wording change is merged and
 integrated; its effect on recurrence has not yet been measured.
 
-1. Review and integrate the bounded [interrupted-review prompt clarification](#interrupted-review-candidate).
-   The implementation explains how to preserve an unfinished review and put
-   evidence limitations in the submitted artifact. Existing state, archive and
-   admission behavior are unchanged; independent review is pending.
-2. Investigate [inline-dispatch boundary coverage](#dispatch-boundary-candidate)
-   with a small reproducer. The observed source repair is complete; an automatic
-   detector's scope and confidence still need design.
-3. Decide the production response to the separately authorized
+The [interrupted-review prompt clarification](#interrupted-review-candidate)
+is also merged and integrated. Existing state, archive and admission behavior
+are unchanged; its effect on live interruption behavior remains unmeasured.
+
+1. Publish the approved [inline-dispatch boundary assessment](#dispatch-boundary-candidate).
+   A warning/raw-byte join can surface review candidates, including the mixed
+   tail missed by the other scans. It cannot distinguish never-selected,
+   pointer-shaped tails from consumed entries. Measure candidate noise and
+   incremental value before production integration; complete selector proof
+   is not a prerequisite for such an evaluation. No implementation or
+   additional project pass is authorized by this assessment.
+2. Decide the production response to the separately authorized
    [embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
    Independent review is complete and does not recommend the proposed bounded
    proof repair: no corpus-coverage gain was demonstrated and conditional
@@ -168,9 +178,9 @@ Status: bounded assessment completed on 2026-10-11 against `3c4e26b34` and
 independently approved at `cf229bc9d`. The precision notes below incorporate
 the review's optional follow-ups. Assessment merged in
 [PR #154](https://github.com/khansen/nesrev/pull/154) and integrated locally.
-The recommended generated-prompt clarification is implemented on
-`feat/interrupted-review-checkpoints`, independently approved at `aa4bd9b45`
-with optional wording and test refinements incorporated; publication is pending.
+The generated-prompt clarification is merged in
+[PR #155](https://github.com/khansen/nesrev/pull/155), independently approved at
+`3e87e449e` after wording and test refinements, and integrated locally.
 Existing states, archive format and admission checks are retained. The assessment
 estimated 1–3 hours plus independent review and CI for this follow-up. The value is
 modest: one observed disclosure gap, with no established recurrence or incorrect
@@ -214,10 +224,10 @@ Source inspection and synthetic CLI probes establish the current boundaries:
   The pending controls therefore demonstrate a supported safe path, not an
   automated detector of unfinished review. Gold retains its separate checks.
 
-The generated reviewer prompt in the [handoff worker](scripts/agent_review.py)
-asks for one of two verdicts and gives their commands, but does not describe the
-unfinished-review path or ask reviewers to carry chat-only limitations into the
-artifact. The
+At the assessed revision, the generated reviewer prompt in the
+[handoff worker](scripts/agent_review.py) asked for one of two verdicts and gave
+their commands, but did not describe the unfinished-review path or ask reviewers
+to carry chat-only limitations into the artifact. The
 protocol's [review-output contract](AGENT_REVIEW_PROTOCOL_SPEC.md#6-review-unit)
 already asks for verification gaps, and its
 [reviewer instructions](AGENT_REVIEW_PROTOCOL_SPEC.md#9-agent-instructions)
@@ -290,24 +300,166 @@ Existing playbook prose is retained; affected route ceilings grow by the exact
 addition so their previous headroom is unchanged.
 
 <a id="dispatch-boundary-candidate"></a>
-### Candidate: surface incomplete inline-dispatch boundaries
+### Assessment: incomplete inline-dispatch boundaries
 
-Status: bounded investigation proposed after a silent, consequential source
-classification miss. A dispatch table's known entries ended before its actual
-tail; warning-baselined raw bytes contained additional handler pointers. The
-warning explanation asserted a symbolization limitation that a scratch parity
-probe disproved. The source correction does not establish a general detector.
+Status: bounded investigation completed locally on 2026-10-13 against
+`4ef25fe4e`, using xasm 1.9.0; revised after review of `f92d5b3ab` to include
+the unused-symbol warning channel. Independently approved at `dff78e29d`,
+with optional precision notes incorporated; publication is pending.
+Recommendation: **defer production integration pending a warning-candidate
+noise and value assessment**. A candidate prompt is feasible without proving
+consumption; a confirmed extent detector needs stronger evidence. The observed
+source repair is complete. This assessment introduces no production script,
+playbook rule, schema, source repair or project pass.
 
-Start with synthetic complete, truncated and deliberately mixed code/data
-tails. Use existing listing, instruction, xref and recovery-control facts to
-ask whether an explicit dispatch can consume words beyond its declared extent.
-Require evidence for selector bounds, target instruction boundaries and bank
-selection. Numeric resemblance to executable addresses is insufficient, and
-missing bank/extent proof must remain an explicit uncertainty. Include valid
-non-pointer trailing data so the investigation cannot simply flag every tail.
-Record whether the defect is covered by an existing check before designing an
-advisory. Do not silently extend table extents, rewrite sources, add an xasm
-schema, or promote an uncertain result to a hard gate.
+The originating review found additional handler words after an already-named
+prefix. Three existing unused-symbol warnings already pointed at the affected
+region: the raw tail label was baselined as a branch/offset table, described as
+not executable code, and two omitted handlers were baselined with a claimed
+inability to reference them symbolically. The tail's blob disposition still
+said queued, with unknown format. Those explanations allowed the warnings to
+remain without closing the boundary. Closing the selector's state transitions
+and identifying the selected bank established consumption; a parity-preserving
+symbolic conversion disproved the claimed symbolization limitation. This is
+one confirmed boundary miss, not evidence of independent recurrence.
+
+The synthetic controls use a return-address dispatcher that doubles its
+selector and reads an inline word. Fresh listing, xref and validated instruction
+records bind the bytes and instruction boundaries. A small fixture-only
+interpreter enumerates all 256 input bytes for explicit caller bounds; it does
+not infer arbitrary state-machine reachability.
+
+| Control | Result |
+|---|---|
+| Nine symbolic words, selector 0–8 | All nine entries consumed; complete representation |
+| Two symbolic words plus seven raw words, selector 0–8 | Seven omitted entries consumed; bytes identical to the complete table |
+| Same raw tail, selector restricted to 0–1 | No omitted entry consumed, although every trailing word points to a real instruction |
+| Four entries followed by non-pointer data, selector 0–3 | Complete with four symbolic words; two omitted entries when only the first two are symbolic; both representations assemble identically |
+| Target inside an instruction or in data | Existing target resolver rejects it as an instruction start |
+| Switched target with known, wrong or unknown bank | Existing resolver returns valid, invalid or unknown respectively; a fixed-bank caller alone does not establish the switched bank |
+
+The NROM mirror control remains valid. An unconstrained RAM selector has no
+supplied reachable-state proof and remains an uncertainty. The bank controls
+supply context explicitly; they do not model MMC1 writes or infer bank state.
+
+Existing signals and checks have different coverage:
+
+- xasm's unused-symbol warnings directly surface the raw tail and labels of
+  unreferenced handlers. The complete nine-word fixture has none; the other
+  fixtures retain warnings even when their trailing data is valid. Warning
+  presence alone does not classify consumption. On the synthetic truncated
+  fixture, `verify.sh` accepts both an unsupported explanation and explicit
+  uncertainty when the warning-symbol set matches the baseline; deleting one
+  row fails. Its baseline check compares symbol membership. The docs check
+  rejects the intake placeholder, but does not prove the replacement prose.
+- The raw pointer-table checker reports neither the anonymous symbolic prefix
+  nor a generically named raw tail. Giving the tail a pointer-table name makes
+  strict mode refuse both the defect and the valid two-entry control. That
+  enforces its naming/relocation policy, not consumer extent.
+- The missing-extent scan reports zero for these fixtures. Existing index and
+  consumer outputs do not join the caller's selector to the helper's
+  return-address-derived reads. Instruction records expose the operations but
+  do not supply this interprocedural proof.
+- The orphan-opcode scanner emits the same two candidates for the defective
+  and valid pointer-shaped tails, and none for the mixed-tail pair. These are
+  opcode candidates, not evidence of omitted dispatch entries.
+- NESrev accepts missing, two-word and nine-word recovery layouts. All three
+  outputs reassemble byte-identically. The missing layout misclassifies the
+  first table byte as `RTS`, leaving the other 17 as `.DB`; the short layout
+  misclassifies seven tail bytes as `ROR`/`ADC`/`JMP`. The complete layout
+  preserves all nine words and recovers their handlers. An explicit code-entry
+  conflict with an inline record is refused. Recovery validates declared
+  layouts and conflicts; it does not prove the count matches the selector domain.
+
+A scratch NROM-only join evaluates a narrower candidate prompt: match an
+unused label at an instruction start against adjacent raw `.DB` bytes that
+encode its address. It uses emitted warnings, structured definitions, listing
+bytes and instruction records; it does not infer a record alignment or a
+consumer. Results on the same fixtures are:
+
+| Fixture | Warning-join candidates |
+|---|---|
+| Complete nine-word table | None |
+| Two-word prefix with nine selectable entries | All seven omitted handler labels |
+| Four selectable entries, only two symbolic | Both omitted handler labels |
+| Four symbolic entries followed by non-pointer data | None, despite unused-handler warnings elsewhere |
+| Never-selected pointer-shaped tail | The same seven candidates as the consumed tail; consumption remains unknown |
+| First raw target inside an instruction or in data | No candidate for that target; six candidates for the remaining, never-selected handler words |
+
+This join distinguishes the mixed pair without selector proof, unlike the
+other scans tested above. A candidate prompt can show the raw-byte location,
+matching warned label and existing baseline rationale, then say **consumption
+unknown; review the owning consumer and evidence**. It must not claim a missing
+entry, extend a table, suppress a warning or invalidate a baseline on this
+match alone. Existing warnings already flagged the affected labels; the
+potential benefit is connecting them to raw bytes and making their explanations
+easier to review, not demonstrating a new class of otherwise invisible defects.
+
+Coverage is limited to labels that exist on decoded or seeded instruction
+starts and still warn. Removing a target label or giving it a symbolic
+reference removes that target from the join while its raw pair remains.
+Unlabeled or already-referenced handlers are missed. Switched-bank matches
+need bank context or must remain unknown; this join evaluates NROM only and
+refuses to treat banked inputs as checked. The separate target-resolver
+controls do not establish a banked join. Real-project noise, coverage and
+incremental review value are unmeasured.
+The originating case is outside this NROM probe: its archived bank context
+suggests a bank-aware join could flag only two of seven omitted targets, with
+two already referenced and three unlabeled. That is an archive-based estimate
+of partial leads; a banked join remains untested.
+
+To claim a consumed extent, consumer behavior, reachable selectors, byte-read
+footprint and target bank still need justification. Those are requirements
+for the stronger conclusion, not prerequisites for surfacing candidates.
+The fixture interpreter demonstrates that distinction; it is not a proposed
+production proof engine.
+
+<a id="dispatch-baseline-explanations"></a>
+**Observation: unsupported warning-baseline explanations.** The incident was
+partly an explanation-review failure: existing warnings and an unresolved blob
+disposition were present, but specific prose obscured the missing proof. This
+observation remains open within this assessment; it is not another recurrence.
+Close it when a bounded evaluation records the sampled baseline explanations'
+evidence status, routes unsupported claims to their owning projects for
+correction or explicit uncertainty, and records whether a shared follow-up is
+accepted, deferred or discarded with reasons. Closure does not require a new gate.
+The existing [baseline bootstrap contract](agent_playbook/NEW_PROJECT.md#warning-baseline-bootstrap)
+already permits provisional shape-based reasons that state the consumer is not
+yet recovered and name the revisit corridor, and forbids asserting stable
+semantics without evidence. Applying that contract to retained explanations
+is relevant here; neither a specific rationale nor a green warning-set
+comparison establishes its truth. No automatic rationale validator or new
+playbook rule is proposed.
+
+The existing [recovery procedure](agent_playbook/DATA_RECOVERY.md#code-pointer-recovery)
+provides a manual search, and
+[bounded consumer audits](agent_playbook/CONSUMER_AUDITS.md) provide byte and
+read-footprint helpers once the owning model is established. The recovery
+procedure's address/flow heuristics do not close selector or bank proof, and
+an apparent next instruction can itself be a misclassified pointer byte.
+The next bounded evaluation, if selected, should compare warning-join prompts
+with the warnings and baseline rows already visible in representative projects:
+count useful connections, duplicates, ambiguous tails and missed labels before
+deciding whether integration earns its review cost. Also classify matched
+baseline explanations as evidence-backed, explicitly uncertain or unsupported,
+and count claims of meaning without proof. Report address matches whose bank
+is unknown as unresolved-bank candidates, listing possible target banks when
+available; count them separately from resolved matches and keep consumption
+unknown in both groups. That evaluation does not require a general selector
+proof engine. A confirmed-extent detector remains a separate, stronger
+proposal. No noise rate or production benefit has yet been demonstrated for
+either approach, and these controls do not justify a new gate.
+
+Validation covers nine entry/tail fixtures, separate unknown-selector and
+bank controls, four recovery configurations, the warning join with two added
+label/reference controls, and three synthetic warning-baseline runs through
+`verify.sh`. The docs-baseline limitation was inspected in source, not tested
+through a full docs wrapper. Deliberately removing the consumer's doubling or
+reducing the caller's bound is caught by the original fixture checks. The local
+evidence retains exact commands, diagnostics, artifacts and traces for review.
+Full project gates, corpus-wide discovery, emulator execution and performance
+measurements were not run. These synthetic results do not establish production
+coverage, real-project noise or runtime reachability in an arbitrary project.
 
 <a id="rename-coverage-candidate"></a>
 ### Candidate: inventory coverage across semantic renames
@@ -572,7 +724,8 @@ migration and each newly exposed failure before landing.
 | `fix/raw-ram-input-validation` | Address-domain and ledger validation before raw-RAM updates | Merged [PR #151](https://github.com/khansen/nesrev/pull/151); squashed `87ecb6cff` has the approved `b54e601a8` tree; integrated locally |
 | `docs/corrected-claim-propagation` | Propagate corrected claims through current artifacts while preserving history | Merged [PR #153](https://github.com/khansen/nesrev/pull/153); independently approved `89efdb5d7`; integrated locally |
 | `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Merged [PR #154](https://github.com/khansen/nesrev/pull/154); independently approved `cf229bc9d` with optional precision notes incorporated; integrated locally |
-| `feat/interrupted-review-checkpoints` | Clarify unfinished checkpoints, evidence disclosure and authored pass limits in review prompts | Independently approved at `aa4bd9b45`; review refinements incorporated; publication pending; state transitions and gates unchanged |
+| `feat/interrupted-review-checkpoints` | Clarify unfinished checkpoints, evidence disclosure and authored pass limits in review prompts | Merged [PR #155](https://github.com/khansen/nesrev/pull/155); independently approved `3e87e449e`; integrated locally; state transitions and gates unchanged |
+| `docs/dispatch-boundary-assessment` | Assess inline-dispatch boundaries, unused warnings and baseline explanations | Independently approved `dff78e29d`; optional precision notes incorporated; publication pending; production noise and added value unmeasured |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
