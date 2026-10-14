@@ -16,9 +16,10 @@ consumer landed in [PR #140](https://github.com/khansen/nesrev/pull/140), and
 the coordinated baseline correction is complete using XORcyst 1.8.1. The broader
 [embedded-pointer feasibility audit](#embedded-pointer-audit) and its independent
 review are complete. The bounded proof repair is deferred. The selected
-follow-up makes legacy heuristic matches explicitly advisory; it is implemented
-locally, with independent review and publication pending. Evidence failures and
-independent pointer gates are retained. Instruction-record v4 remains deferred.
+follow-up makes legacy heuristic matches explicitly advisory; it is merged in
+[PR #157](https://github.com/khansen/nesrev/pull/157), independently approved at
+`c05d92f57`, and integrated locally. Evidence failures and independent pointer
+gates are retained. Instruction-record v4 remains deferred.
 Other Phase 2 consumer migrations and Phase 3 remain planned.
 
 ## Purpose
@@ -839,9 +840,9 @@ shapes and would not establish copied-image lifetime. The review's approximate
 load-site coverage is not measured distinct-table recall. No recall target,
 general dataflow engine or producer extension is approved by this audit.
 
-**Advisory implementation — 2026-10-13:** implemented locally on
-`fix/embedded-pointer-advisory`, independently approved at `c05d92f57` after
-review revisions. Publication is pending.
+**Advisory delivery — 2026-10-14:** merged in
+[PR #157](https://github.com/khansen/nesrev/pull/157) after independent approval
+at `c05d92f57` and review revisions, and integrated locally.
 Discovery and legacy pattern matching are retained without extending their
 source parsers. The former confirmation counter becomes
 `embedded_pointer_heuristic_matches`; details describe matched text and mark
@@ -862,7 +863,7 @@ baseline loses no observed positive gate result. The earlier
 recorded one confirmed structure, subsequently repaired symbolically, and
 three findings disproved as false positives. An equivalent recurrence of that
 recorded real catch would now be advisory: zero matches in the current corpus
-does not remove that trade-off. Rollout follows independent review under the
+does not remove that trade-off. Delivery followed independent review under the
 [process follow-up priorities](PROCESS_IMPROVEMENT_PLAN.md#recommended-order).
 
 Initial implementation validation: all 23 project audits retain the same
@@ -1082,7 +1083,8 @@ removed:
       current-source baseline reconciliation with recorded validation (PR #140).
 - [x] Complete the [bounded embedded-pointer feasibility audit](#embedded-pointer-audit)
       and independent review; defer the bounded proof repair with no measured
-      corpus gain. The separately selected advisory implementation awaits review.
+      corpus gain. The separately selected advisory implementation is merged in
+      [PR #157](https://github.com/khansen/nesrev/pull/157) and integrated locally.
 - [x] Run the bounded negative-offset feasibility check and identify its
       missing bound-label data/code classification.
 - [x] Close review of the revised [producer/consumer contract](XASM_INSTRUCTION_RECORDS_V4_DESIGN.md)
@@ -1103,6 +1105,13 @@ removed:
       production-time validation and byte-bound validation reuse.
 - [ ] Take `data_label_doc_kpi.sh`'s data-label and family identity from
       structured output, keeping its header parsing lexical.
+- [ ] Migrate global-code-label identity and constants-catalog expression/value
+      production. Queue triage reproduced a data label counted as code when an
+      equate precedes its first byte, and a spaced equate expression truncated at
+      its first token. Keep comment admission and source spelling lexical; use
+      structured symbols/listing for code/data identity and resolved values.
+      Define the catalog's expression-versus-value contract before changing its
+      CSV consumers. Do not repair these with another assembly-text parser.
 - [ ] Re-audit mixed scripts and remove any remaining assembler-fact parsers.
 
 ## Existing Spec Disposition

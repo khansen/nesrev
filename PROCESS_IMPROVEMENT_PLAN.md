@@ -33,12 +33,12 @@ unsupported baseline explanations obscured their significance.
 A warning/raw-byte join separates additional synthetic cases without proving
 consumption. Production integration is deferred pending measurement of its
 noise and added value over existing warnings.
-The embedded-pointer advisory change is implemented locally on
-`fix/embedded-pointer-advisory`, independently approved at `c05d92f57`;
-publication is pending.
+The embedded-pointer advisory change is merged in
+[PR #157](https://github.com/khansen/nesrev/pull/157), independently approved
+at `c05d92f57`, and integrated locally.
 It retains discovery and evidence refusals while removing heuristic matches'
 authority to fail verification. The structured proof replacement stays deferred.
-Updated 2026-10-13.
+Updated 2026-10-14.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -61,12 +61,12 @@ The [interrupted-review prompt clarification](#interrupted-review-candidate)
 is also merged and integrated. Existing state, archive and admission behavior
 are unchanged; its effect on live interruption behavior remains unmeasured.
 
-1. Publish the independently approved bounded advisory implementation following the
-   [embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit).
-   The user selected this follow-up: keep discovery, label heuristic matches as
-   unproven, and preserve operational failures and independent pointer gates.
-   The linked plan owns the contract. No replacement proof engine or xasm
-   extension is part of this change.
+The bounded advisory implementation following the
+[embedded-pointer feasibility audit](NESREV_STRUCTURED_ANALYSIS_MIGRATION_PLAN.md#embedded-pointer-audit)
+is merged in [PR #157](https://github.com/khansen/nesrev/pull/157) and integrated.
+It keeps discovery, labels heuristic matches as unproven, and preserves
+operational failures and independent pointer gates. The linked plan owns the
+contract. No replacement proof engine or xasm extension is part of this change.
 
 The [inline-dispatch assessment](#dispatch-boundary-candidate) is published.
 Its warning/raw-byte join can surface review candidates, including mixed tails,
@@ -75,7 +75,8 @@ entries. Production integration remains deferred until a separately selected
 evaluation measures noise and incremental value. Complete selector proof is
 not a prerequisite for that evaluation; no additional project pass is authorized.
 
-These are next-work priorities; review already underway can finish independently.
+No further follow-up has been selected; review already underway can finish
+independently.
 PI-1 through PI-5 and the queue-receipt
 prerequisite are delivered; their implementation and activation records remain
 below. Start each follow-up with a current reproducer and a bounded contract.
@@ -732,7 +733,7 @@ migration and each newly exposed failure before landing.
 | `docs/interrupted-review-assessment` | Assess interruption, evidence disclosure and existing pending-state behavior | Merged [PR #154](https://github.com/khansen/nesrev/pull/154); independently approved `cf229bc9d` with optional precision notes incorporated; integrated locally |
 | `feat/interrupted-review-checkpoints` | Clarify unfinished checkpoints, evidence disclosure and authored pass limits in review prompts | Merged [PR #155](https://github.com/khansen/nesrev/pull/155); independently approved `3e87e449e`; integrated locally; state transitions and gates unchanged |
 | `docs/dispatch-boundary-assessment` | Assess inline-dispatch boundaries, unused warnings and baseline explanations | Merged [PR #156](https://github.com/khansen/nesrev/pull/156); independently approved `dff78e29d` with optional precision refinements; integrated locally; production noise and added value unmeasured |
-| `fix/embedded-pointer-advisory` | Make legacy embedded-pointer matches explicitly unproven and report-only | Independently approved `c05d92f57`; publication pending; evidence failures and independent pointer gates retained |
+| `fix/embedded-pointer-advisory` | Make legacy embedded-pointer matches explicitly unproven and report-only | Merged [PR #157](https://github.com/khansen/nesrev/pull/157); independently approved `c05d92f57`; integrated locally; evidence failures and independent pointer gates retained |
 
 Use ordinary process/tooling branch review, including bad-direction tests
 and representative corpus checks. Do not use the project-pass handoff state
