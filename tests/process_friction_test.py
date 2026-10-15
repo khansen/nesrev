@@ -187,6 +187,13 @@ class ReceiptTests(unittest.TestCase):
         self.ingest("### Investigate missing packet terminators")
         self.assertEqual(len(self.candidates()), 1)
 
+    def test_none_prefix_does_not_hide_new_evidence(self):
+        observation = "_None._ Previously queued, but a fresh rerun now silently loses the second record."
+        self.ingest(observation)
+        candidates = self.candidates()
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[friction.candidate_id(observation)]["content"], observation)
+
     def test_same_text_in_multiple_sources_has_one_identity(self):
         self.write_queue(self.a)
         second = agent_review.render_learning_block({**self.state, "run_id": "second"}, "2", self.archive, [("review-01.md", self.a)])
