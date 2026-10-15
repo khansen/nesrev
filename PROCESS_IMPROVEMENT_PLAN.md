@@ -38,7 +38,11 @@ The embedded-pointer advisory change is merged in
 at `c05d92f57`, and integrated locally.
 It retains discovery and evidence refusals while removing heuristic matches'
 authority to fail verification. The structured proof replacement stays deferred.
-Updated 2026-10-14.
+The separately authorized second five-pass window is complete. Its
+[assessment](#second-window-assessment) selects explicit-deferral integrity and
+no-candidate prompt clarification for bounded fixes on separate branches from
+`master`. These fixes are not yet integrated or evaluated in another live run.
+Updated 2026-10-15.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -75,8 +79,11 @@ entries. Production integration remains deferred until a separately selected
 evaluation measures noise and incremental value. Complete selector proof is
 not a prerequisite for that evaluation; no additional project pass is authorized.
 
-No further follow-up has been selected; review already underway can finish
-independently.
+The second window selects [explicit-deferral integrity](#explicit-deferral-integrity)
+first, followed by [no-candidate prompt wording](#learning-candidate-noop).
+Prepare the plan and each fix in separate worktrees branched directly from
+`master`; leave the completed project checkout and historical evidence intact.
+No additional semantic pass or observation window is authorized.
 PI-1 through PI-5 and the queue-receipt
 prerequisite are delivered; their implementation and activation records remain
 below. Start each follow-up with a current reproducer and a bounded contract.
@@ -175,6 +182,45 @@ Use existing logs for the remaining investigations. The closed window and
 phase-A integration do not authorize another semantic pass. Exact revisions,
 follow-up timestamps, evidence limitations and preservation checks remain in the
 private corpus evidence companion.
+
+<a id="second-window-assessment"></a>
+### Second five-pass assessment — 2026-10-15
+
+Final work was substantive and connected; first submissions needed consistent
+rework. All five passes took two review rounds, with 16 blocking findings.
+The scorecard records 52 rework items, which overlap the findings and include
+self-corrections. Neither total measures human interventions or elapsed cost.
+The five-pass stop was honored; the handoff logs show completed deliveries.
+Exact project identities, revisions, archives and captures stay local.
+
+The combined result added 256 semantic rename records (183 high-confidence and
+73 scoped overlays), reduced unresolved labels by 41 and raw ROM calls by 27,
+and removed 106 hardcoded counter sites. These are supporting measures, not
+readability scores. Final relaxed verification preserved binary identity;
+process and docs checks passed. One runtime analyzer passed 11 tests, and two
+stored captures were reanalyzed against fresh assembler output. No fresh
+emulator run or strict maturity completion is claimed.
+
+| Finding | Cause and recurrence | Disposition |
+|---|---|---|
+| Explicit subjects were stemmed, reordered and truncated | Latent tooling gap; repeated before fix. A synthetic pair differing only in a fourth word silently loses one row | Script fix: preserve explicit identity; keep heuristic keys confined to tagged prose |
+| Malformed explicit syntax produced two blank conditions among about 50 open rows; the ratio advisory stayed quiet | Latent tooling gap with malformed operator input: one observed incident, reported in three artifacts, with no recurrence in the remaining passes. A synthetic reproduction separately confirms that one blank row can escape. PI-7 did not cover missing separators/fields | Script/gate fix: reject incomplete explicit batches before closeout writes; validate each open ledger row independently of aggregate ratios |
+| No-candidate statements with explanatory prose created queue work | Prompt/harness ambiguity; repeated before fix. Three no-new-candidate statements needed duplicate triage | Prompt fix: require the standalone sentinel; preserve ingestion of genuine observations |
+| Sibling names, producers/callers and answerable identities were missed; constants were borrowed across domains by numeric equality | Implementer misses under existing rules; recurrent in this window, without proof that rule visibility caused them | Retain independent review and existing self-review requirements; no additional checklist or speculative semantic gate |
+| Unequal visible terminal panes needed operator correction | Session setup mistake: a fixed window size exceeded the attached client's viewport | Restore client-driven sizing and equal layout; no launcher defect established, so no launcher change selected |
+
+Seven new queue candidates describe two underlying deferral defects; their
+frequency is not seven independent defects. PI-7's earlier kind/context repair
+does not cover these newly reproduced paths. Do not label them regressions of
+that repair or claim effectiveness of the new fixes before integration.
+The review evidence supports keeping the implementer/reviewer separation;
+it does not establish that every missed semantic relationship is automatable.
+
+The implementation branches own the follow-up contracts, validation and
+review/integration status in one place each: the
+[PI-7 integrity follow-up](#explicit-deferral-integrity) and the
+[no-candidate prompt follow-up](#learning-candidate-noop).
+This assessment links to those records instead of maintaining parallel copies.
 
 <a id="interrupted-review-candidate"></a>
 ### Assessment: preserve incomplete review at a usage limit
@@ -718,6 +764,9 @@ migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
+| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | From `master` at `75665c03c`; approved `886ab50ab`; local only |
+| `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) on the implementation branch |
+| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) on the implementation branch |
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
@@ -745,8 +794,9 @@ updated `master`. Rerun affected CI after each merge; report pre-existing
 unfinished-input failures separately and never relabel relaxed checks as
 strict-CI success. Prune eligible queue entries incrementally once receipts
 and their migration tests are in place.
-New observation follow-ups below are planning items; updating this plan does not
-start their implementation, publish a PR, or rebase an active project checkout.
+Unselected observation follow-ups remain planning items. The second-window
+fixes were separately selected by the operator; updating this plan alone does
+not authorize publication, integration or another project pass.
 
 <a id="pi-9-historical-receipt-residue"></a>
 <a id="pi-9-historical-provenance"></a>
