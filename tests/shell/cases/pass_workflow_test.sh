@@ -2268,13 +2268,13 @@ PY
 
   STUB_LOG="${log}" PROJECT_PASS_CLOSEOUT_REPO_ROOT="${target_repo}" \
     PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${stubdir}" \
-    REWORK_ITEMS=2 DEFERRALS=external_gap:static:revisit \
+    REWORK_ITEMS=2 DEFERRALS='external_gap :: inspect caller :: static' \
     bash "${PASS_CLOSEOUT}" "${slug}" 1 relaxed >/dev/null
 
   local target_scorecard="${target_repo}/projects/${slug}/docs/reverse_engineering/PROGRESS_SCORECARD.md"
   assert_match "cwd=${target_repo_real}" "$(cat "${log}")" \
     "external closeout helpers must run from the declared target repo root"
-  assert_match "deferrals external_gap:static:revisit" "$(cat "${log}")" \
+  assert_match "deferrals external_gap :: inspect caller :: static" "$(cat "${log}")" \
     "external closeout must still forward DEFERRALS"
   assert_match "\\| 1 \\| Existing closed row .*\\| pass \\(LXXXX allowed\\) \\| pass \\| 2 \\|" \
     "$(cat "${target_scorecard}")" \
@@ -3194,6 +3194,43 @@ ASM
   rc=$?
   set -e
   assert_eq "${rc}" "3" "strict mode must exit non-zero when drift remains"
+}
+
+test_process_check_requires_each_open_deferral_condition() {
+  local slug; slug="$(unique_slug deferral_condition)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_workflow_project "${slug}" none
+  _write_pass_one_scorecard "${slug}" "Analogue: none (synthetic fixture)."
+  local ledger="projects/${slug}/docs/reverse_engineering/inventory/deferrals.csv" out rc
+  # Empty and historical closed ledgers are valid; no migration is implicit.
+  bash "${PROCESS_CHECK}" "${slug}" >"${NESREV_TEST_TMPDIR}/out" 2>&1
+  printf '0,Legacy corridor,closed-gap,static,Historical gap,,closed\n' >> "${ledger}"
+  bash "${PROCESS_CHECK}" "${slug}" >"${NESREV_TEST_TMPDIR}/out" 2>&1
+  python3 - "${ledger}" <<'PY'
+import csv, sys
+with open(sys.argv[1], 'a', newline='') as handle:
+    writer = csv.writer(handle, lineterminator='\n')
+    for i in range(20):
+        writer.writerow([1, 'Fixture corridor', f'gap-{i}', 'static', 'Gap', 'Inspect writer', 'open'])
+    writer.writerow([1, 'Fixture corridor', 'missing-evidence', 'static', 'Gap', '  ', 'open'])
+PY
+  cp "${ledger}" "${NESREV_TEST_TMPDIR}/before.csv"
+  rc=0
+  out="$(bash "${PROCESS_CHECK}" "${slug}" 2>&1)" || rc=$?
+  assert_eq "${rc}" 1 "one incomplete open row must fail independently of ratios"
+  assert_match "deferrals.csv:23: open deferral 'missing-evidence' requires a nonempty revisit_condition" "${out}"
+  cmp "${ledger}" "${NESREV_TEST_TMPDIR}/before.csv"
+  python3 - "${ledger}" <<'PY'
+import csv, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+with path.open(newline='') as handle:
+    rows = list(csv.reader(handle))
+rows[-1][-2] = 'Trace the writer'
+with path.open('w', newline='') as handle:
+    csv.writer(handle, lineterminator='\n').writerows(rows)
+PY
+  bash "${PROCESS_CHECK}" "${slug}" >"${NESREV_TEST_TMPDIR}/out" 2>&1
 }
 
 test_process_check_reports_hardware_drift_advisory_without_failing() {
@@ -5313,6 +5350,7 @@ with path.open(newline='') as handle:
     reader = csv.DictReader(handle)
     fields, rows = reader.fieldnames, list(reader)
 assert len(rows) == 2, rows
+assert [row['subject'] for row in rows] == ['cue identities', 'tempo transitions'], rows
 assert [row['corridor'] for row in rows] == ['Saved audio corridor'] * 2, 'saved corridor missing from deferrals'
 assert [row['kind'] for row in rows] == ['static', 'runtime'], rows
 rows[0].update(subject='curated-cue-key', corridor='Authored corridor', revisit_condition='Read both callers', status='resolved')
@@ -5411,7 +5449,11 @@ Path(sys.argv[2]).write_text(json.dumps({str(p.relative_to(root)): hashlib.sha25
                                        for p in root.rglob('*') if p.is_file()}))
 PY
   local invalid rc
-  for invalid in 'missing condition :: static' 'missing condition :: RUNTIME' 'bad kind :: inspect the caller :: runtyme'; do
+  for invalid in 'missing condition :: static' 'missing condition :: RUNTIME' \
+      'bad kind :: inspect the caller :: runtyme' 'missing separator' \
+      'gap|static|trace producer' 'gap :: ' ':: inspect caller' \
+      'gap :: inspect caller :: ' 'gap :: inspect caller :: static :: ignored' \
+      'gap :: inspect caller; gap :: inspect writer'; do
     rc=0
     FOCUS='' VERIFY_PROBE="${NESREV_TEST_TMPDIR}/verify-ran" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
       make project-pass-closeout PROJECT="${slug}" REWORK_ITEMS=0 \

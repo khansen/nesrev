@@ -27,7 +27,60 @@ class DeferralCaptureTests(unittest.TestCase):
             {"deferral":"cue identity", "revisit_condition":"static caller analysis", "kind":"static"},
             {"deferral":"timing", "revisit_condition":"runtime capture", "kind":"runtime"},
         ])
-        self.assertEqual(capture.explicit_entries("cue identity")[0]["revisit_condition"], "")
+
+    def test_explicit_subjects_keep_distinct_verbatim_keys_and_rerun_cleanly(self):
+        subjects = ["contact-knockback-latch-tag", "contact-knockback-latch-timer",
+                    "Cumulus-other-placements", "shared-contact-guards"]
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            path = Path(directory) / "deferrals.csv"
+            args = [str(path), "--pass-id", "7", "--corridor", "Contact corridor", "--explicit",
+                    "; ".join(f" {s} :: inspect the reader " for s in subjects)]
+            self.assertEqual(capture.main(args), 0)
+            with path.open(newline="") as handle:
+                self.assertEqual([r["subject"] for r in csv.DictReader(handle)], subjects)
+            before = path.read_bytes()
+            self.assertEqual(capture.main(args), 0)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_legacy_normalized_key_does_not_hide_a_different_explicit_subject(self):
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            path = Path(directory) / "deferrals.csv"
+            path.write_text(','.join(capture.HEADER) + '\n'
+                            '7,Authored corridor,contact-knockback-latch,static,'
+                            'contact-knockback-latch-tag,Read tag reader,open\n')
+            args = [str(path), "--pass-id", "7", "--corridor", "Contact corridor", "--explicit"]
+            before = path.read_bytes()
+            self.assertEqual(capture.main(args + ["contact-knockback-latch-tag :: compare callers"]), 0)
+            self.assertEqual(path.read_bytes(), before)
+            self.assertEqual(capture.main(args + ["contact-knockback-latch-timer :: Read timer reader"]), 0)
+            with path.open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["subject"], "contact-knockback-latch")
+            self.assertEqual(rows[0]["revisit_condition"], "Read tag reader")
+            self.assertEqual(rows[1]["subject"], "contact-knockback-latch-timer")
+
+    def test_incomplete_or_conflicting_explicit_batches_are_rejected_atomically(self):
+        invalid = ["cue identity", "cue|static|trace producer", "cue :: ",
+                   ":: inspect caller", "cue :: inspect caller ::", "cue :: :: runtime",
+                   "cue :: inspect caller :: static :: ignored",
+                   "cue :: inspect caller; cue :: inspect writer",
+                   "cue :: inspect caller :: static; cue :: inspect caller :: runtime"]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "deferrals.csv"
+            for existing in (False, True):
+                if existing:
+                    path.write_bytes(b"authored ledger bytes\r\n")
+                before = path.read_bytes() if path.exists() else None
+                for spec in invalid:
+                    with self.subTest(existing=existing, spec=spec), contextlib.redirect_stderr(io.StringIO()):
+                        self.assertEqual(capture.main([str(path), "--pass-id", "7", "--explicit",
+                                                       "valid :: Read caller; " + spec]), 2)
+                        self.assertEqual(path.read_bytes() if path.exists() else None, before)
+
+    def test_identical_duplicate_explicit_entries_are_idempotent(self):
+        self.assertEqual(capture.explicit_entries("cue :: inspect caller; cue :: inspect caller :: static"),
+                         [{"deferral": "cue", "revisit_condition": "inspect caller", "kind": "static"}])
 
     def test_invalid_batch_leaves_existing_or_absent_ledger_untouched(self):
         with tempfile.TemporaryDirectory() as directory:

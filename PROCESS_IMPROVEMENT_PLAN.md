@@ -1107,6 +1107,58 @@ compares every project-file hash, then completes a corrected ordinary closeout.
 Focused correctness checks cover the follow-up; the reviewed timing and corpus
 results were not rerun.
 
+### PI-7 integrity follow-up — 2026-10-15
+
+Implemented locally on `fix/explicit-deferral-integrity`, directly from
+`master` at `75665c03c`. Not yet independently reviewed, published or integrated
+into a project checkout. The earlier PI-7 record above describes its original
+delivery; this follow-up replaces subject-only explicit capture.
+
+Explicit subjects now retain their trimmed spelling, order and full length.
+Two keys sharing the first three normalized words remain separate. Legacy
+normalized and curated rows are recognized by their original deferral text on
+rerun; existing rows are preserved. Use established curated keys for ongoing
+gaps. No automatic historical migration or equivalence between different keys
+is introduced.
+
+Explicit entries require a subject and nonempty condition, with an optional
+valid kind. Missing/empty/extra fields and conflicting duplicate subjects fail
+the entire batch in existing closeout preflight, before any writes. Identical
+duplicates remain idempotent. Tagged NOTES retain heuristic capture; their
+draft conditions must be filled before process validation. The existing process
+check rejects each open row with a blank condition, independent of debt ratios;
+closed historical rows and aggregate advisories remain unchanged.
+
+Validation: `python3 -B tests/deferral_capture_test.py` passes 12 tests.
+The shell harness's 43 relevant deferral, proof-debt, closeout and process-check
+cases pass, including canonical Make closeout and external-tool-root forwarding.
+Invalid explicit batches leave all fixture project-file hashes unchanged;
+valid reruns preserve authored rows. A single blank open condition among 20
+complete open rows fails with its ledger line and subject; empty ledgers and
+closed history pass. Strict playbook, repository hygiene and diff checks pass.
+
+Bad-direction proof in a disposable copy restores the master versions of
+`scripts/deferral_capture.py` and `scripts/project_process_check.sh`:
+
+| Check | Exit and expected failure |
+|---|---|
+| `python3 -B tests/deferral_capture_test.py` | 1: distinct-key loss, accepted malformed batches and duplicate conflicts |
+| Shell `test_closeout_rejects_invalid_deferrals_before_any_writes_or_gates` | 1: expected refusal 2, received success 0 |
+| Shell `test_process_check_requires_each_open_deferral_condition` | 1: expected refusal 1, received success 0 |
+
+Copied-ledger checks cover all 23 local projects and preserve all 143 authored
+rows. Every copy accepts two distinct explicit keys, preserves bytes on rerun,
+and rejects malformed capture without writes. No open row lacks a condition;
+there is no newly exposed condition debt or migration. This is a ledger sweep,
+not 23 full project-verification runs.
+
+On the largest local assembly source, one warmup per version followed by three
+alternating before/after pairs measured median changes of -0.29% for
+`project-process-check` and -0.99% for relaxed `project-pass-closeout`.
+Every run completed successfully; closeout captured a new deferral each time
+from restored identical inputs. No command or assembly invocation was added.
+No all-project timing campaign or live post-integration observation was run.
+
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
 
