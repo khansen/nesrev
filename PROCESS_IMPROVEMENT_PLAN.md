@@ -251,7 +251,7 @@ verification, process and docs evidence; no new runtime or gold claim is made.
 | Temporary scripts guessed schemas and interfaces | Repeated ledger and renderer retries contribute to rework. Use existing helpers and inspect schemas; no new generic framework is selected. |
 | Repeat count and current gap descriptions drifted | A review counted two occurrences where the ledger and packet showed three. Preserve the review, append a correction, update partial conditions and prioritize the live identity checkpoint locally. |
 | Seven fixed queue candidates remained after integration | Receipt and prune resolved entries; preserve original archives and undecided candidates. |
-| Explicit-deferral preflight | Two malformed batches were rejected before verification; the corrected entries have complete conditions. This is observed use of the repaired path, not coverage of every refusal case. |
+| Explicit-deferral capture and preflight | All 19 new rows retained their exact explicit keys; the pre-PR #159 capture would normalize every one. Two malformed batches exercised PR #142's pre-existing misplaced-kind check before verification, not PR #159's new validation. |
 | No-candidate guidance and handoffs | All 16 artifact sections used the standalone sentinel; no new queue entries were created. Deliveries completed, equal panes persisted and the five-pass stop was honored. |
 
 Exact project identities, revisions, logs and cleanup receipts remain in the
@@ -261,9 +261,10 @@ not proof that all friction is gone.
 <a id="checkout-inspection-permissions"></a>
 ### Scoped checkout-inspection follow-up
 
-Status: implementation prepared on a branch from `master`. Preliminary Codex
-sub-agent review found no blockers; the user's external review and integration
-are pending. Validation and rollout requirements are recorded here.
+Status: the user's external reviewer approved implementation `bcb297452` on
+2026-10-16. The assessment row above now distinguishes live key preservation
+from the older misplaced-kind check. Integration is pending; validation and
+rollout requirements are recorded here.
 
 The launcher prompts for the whole `git branch` family, so a live branch query
 also asks. A narrower allow cannot override a matching prompt: the native
