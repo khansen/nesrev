@@ -195,7 +195,7 @@ retain reasoned permanent dispositions. Acknowledgements never establish gold.
 accepts newline/semicolon-separated entries with verbatim subjects. Empty/extra fields, bare-kind conditions and conflicting duplicates refuse writes.
 `inventory/deferrals.csv`: `pass_id,corridor,subject,kind,deferral,revisit_condition,status`.
 Rows use `FOCUS`, then a project/pass-matching plan's selected corridor; unavailable context warns ([details](../PROCESS_IMPROVEMENT_PLAN.md#pi-7-deferral-capture)).
-Reruns preserve authored rows. Without `DEFERRALS`, only sentence-opening `Deferred: <subject>[, <subject>]` tags are captured, using heuristic keys.
+Closeout refuses `Deferred:` NOTES without `DEFERRALS` before writes; reruns preserve authored rows. Reuse exact keys across passes.
 Open rows require a nonempty condition at `project-process-check`; closed rows remain unchanged.
 
 Keep temporary session stops in handoff/pass state, not deferral conditions;

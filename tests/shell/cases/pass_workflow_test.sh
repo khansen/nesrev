@@ -5479,6 +5479,68 @@ PY
   assert_match 'Saved audio corridor' "$(cat "${inventory}/deferrals.csv")"
 }
 
+test_closeout_deferrals_reject_tagged_notes_before_writes_and_allow_corrected_rerun() {
+  local slug; slug="$(unique_slug tagged_preflight)"
+  trap "cleanup_project ${slug}" EXIT
+  _make_deferral_closeout_project "${slug}"
+  _write_pass_zero_scorecard "${slug}"
+  local root="projects/${slug}" inventory="projects/${slug}/docs/reverse_engineering/inventory"
+  local notes='Analogue: none (synthetic fixture). Deferred: cue identities.'
+  cat > "${inventory}/pass/current_pass_plan.json" <<JSON
+{"project":"${slug}","intended_pass_id":1,"corridor_objective":{"selected_corridor":"Saved fixture corridor"}}
+JSON
+  cat > "${root}/closeout_stubs/project_verify.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+touch "${VERIFY_PROBE}"
+python3 "${REPO_ROOT}/scripts/analysis_bundle.py" produce \
+  "${NESREV_ANALYSIS_BUILD_DIR}" "projects/$1/asm/$1.asm" "${NESREV_ANALYSIS_BUILD_DIR}/out.bin"
+SH
+  cat > "${root}/closeout_stubs/project_process_check.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+exec bash "${REPO_ROOT}/scripts/project_process_check.sh" "$@"
+SH
+  python3 - "${root}" "${NESREV_TEST_TMPDIR}/before.json" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+Path(sys.argv[2]).write_text(json.dumps({str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+                                       for p in root.rglob('*') if p.is_file()}))
+PY
+  local explicit rc
+  for explicit in '' ' ' ';;'; do
+    rc=0
+    FOCUS='' VERIFY_PROBE="${NESREV_TEST_TMPDIR}/verify-ran" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+      make project-pass-closeout PROJECT="${slug}" REWORK_ITEMS=0 "NOTES=${notes}" "DEFERRALS=${explicit}" \
+        >"${NESREV_TEST_TMPDIR}/out" 2>&1 || rc=$?
+    assert_eq "${rc}" 2 "tag-only deferrals must refuse closeout"
+    [[ ! -e "${NESREV_TEST_TMPDIR}/verify-ran" ]] || fail "verification ran before tagged deferral rejection"
+    assert_match 'tagged NOTES require DEFERRALS=' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+    python3 - "${root}" "${NESREV_TEST_TMPDIR}/before.json" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+actual = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+          for p in root.rglob('*') if p.is_file()}
+assert actual == json.loads(Path(sys.argv[2]).read_text()), 'tag-only closeout changed project files'
+PY
+  done
+  FOCUS='' VERIFY_PROBE="${NESREV_TEST_TMPDIR}/verify-ran" PROJECT_PASS_CLOSEOUT_SCRIPT_DIR="${root}/closeout_stubs" \
+    make project-pass-closeout PROJECT="${slug}" REWORK_ITEMS=0 "NOTES=${notes}" \
+      'DEFERRALS=cue identities :: compare callers' >"${NESREV_TEST_TMPDIR}/out" 2>&1
+  assert_match 'OK: project process checks passed' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+  assert_match 'project-pass-closeout: completed pass 1' "$(cat "${NESREV_TEST_TMPDIR}/out")"
+  python3 - "${inventory}/deferrals.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='') as handle:
+    rows = list(csv.DictReader(handle))
+assert len(rows) == 1, rows
+assert rows[0]['subject'] == 'cue identities' and rows[0]['revisit_condition'] == 'compare callers', rows
+assert rows[0]['pass_id'] == '1' and rows[0]['status'] == 'open', rows
+PY
+}
+
 test_raw_ram_reconciliation_uses_fresh_bundle_without_writing() {
   local slug; slug="$(unique_slug reconcile)"
   trap "cleanup_project ${slug}" EXIT

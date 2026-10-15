@@ -13,8 +13,8 @@ The operator states the deferral directly, either as `--explicit` (the
 <subject>` tag opening a sentence in the closeout NOTES. This turns that
 statement into a ledger row at the moment it is written, rather than asking a
 later audit to reconstruct it from pass history. Explicit entries require a
-revisit condition. Tagged NOTES start with an empty condition for the operator
-to fill before process validation.
+revisit condition. This standalone helper can capture tagged NOTES as draft
+rows; canonical closeout refuses that path and requires complete explicit entries.
 
 The ledger is deliberately not WORKING_NOTES.md. Those notes are curated prose
 under a maturity line budget, and appending every deferral would turn them into
@@ -280,6 +280,7 @@ def main(argv: list[str]) -> int:
     # Explicit identity must not pass through the lossy prose key. The original
     # deferral text also recognizes old normalized or manually curated keys.
     already: set[tuple[str, str]] = set()
+    described: set[tuple[str, str]] = set()
     for row in rows:
         row_pass_id = row.get("pass_id", "")
         subject = row.get("subject", "").strip()
@@ -292,6 +293,7 @@ def main(argv: list[str]) -> int:
         # generated key beside it.
         deferral = row.get("deferral", "").strip()
         if deferral:
+            described.add((row_pass_id, deferral))
             already.add((row_pass_id, deferral if args.explicit else subject_key(deferral)))
 
     added = 0
@@ -300,6 +302,13 @@ def main(argv: list[str]) -> int:
         subject = entry["deferral"] if args.explicit else subject_key(entry["deferral"])
         key = (str(args.pass_id), subject)
         if key in already:
+            if args.explicit and key not in described:
+                print(
+                    f"deferral_capture: explicit subject {subject!r} for pass {args.pass_id} "
+                    "matches only an existing subject key, with different deferral text; "
+                    "existing row preserved. Inspect the ledger and use a distinct key "
+                    "if this is a different gap.", file=sys.stderr,
+                )
             continue
         if corridor is None:
             corridor = capture_corridor(args.corridor, args.plan, args.project, args.pass_id)
@@ -315,6 +324,7 @@ def main(argv: list[str]) -> int:
             }
         )
         already.add(key)
+        described.add((str(args.pass_id), entry["deferral"]))
         added += 1
 
     if not added:

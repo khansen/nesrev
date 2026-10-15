@@ -54,12 +54,18 @@ scripts_dir_arg = sys.argv[4]
 focus_env = os.environ.get("FOCUS", "").strip()
 notes_env = os.environ.get("NOTES", "").strip()
 
-if os.environ.get("DEFERRALS"):
+if os.environ.get("DEFERRALS") or notes_env:
     sys.path.insert(0, scripts_dir_arg)
-    from deferral_capture import explicit_entries
+    from deferral_capture import deferral_sentences, explicit_entries
 
     try:
-        explicit_entries(os.environ["DEFERRALS"])
+        entries = explicit_entries(os.environ.get("DEFERRALS", ""))
+        if not entries and deferral_sentences(notes_env):
+            raise ValueError(
+                "tagged NOTES require DEFERRALS='subject :: revisit condition "
+                "[:: static|runtime]' before closeout; state the evidence needed "
+                "to close each gap, then rerun"
+            )
     except ValueError as exc:
         print(f"deferral_capture: {exc}", file=sys.stderr)
         raise SystemExit(2)

@@ -29,11 +29,11 @@ class DeferralCaptureTests(unittest.TestCase):
         ])
 
     def test_explicit_subjects_keep_distinct_verbatim_keys_and_rerun_cleanly(self):
-        subjects = ["contact-knockback-latch-tag", "contact-knockback-latch-timer",
-                    "Cumulus-other-placements", "shared-contact-guards"]
+        subjects = ["buffer-channel-frame-tag", "buffer-channel-frame-timer",
+                    "Cumulus-other-placements", "shared-buffer-guards"]
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
             path = Path(directory) / "deferrals.csv"
-            args = [str(path), "--pass-id", "7", "--corridor", "Contact corridor", "--explicit",
+            args = [str(path), "--pass-id", "7", "--corridor", "Buffer corridor", "--explicit",
                     "; ".join(f" {s} :: inspect the reader " for s in subjects)]
             self.assertEqual(capture.main(args), 0)
             with path.open(newline="") as handle:
@@ -46,19 +46,19 @@ class DeferralCaptureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
             path = Path(directory) / "deferrals.csv"
             path.write_text(','.join(capture.HEADER) + '\n'
-                            '7,Authored corridor,contact-knockback-latch,static,'
-                            'contact-knockback-latch-tag,Read tag reader,open\n')
-            args = [str(path), "--pass-id", "7", "--corridor", "Contact corridor", "--explicit"]
+                            '7,Authored corridor,buffer-channel-frame,static,'
+                            'buffer-channel-frame-tag,Read tag reader,open\n')
+            args = [str(path), "--pass-id", "7", "--corridor", "Buffer corridor", "--explicit"]
             before = path.read_bytes()
-            self.assertEqual(capture.main(args + ["contact-knockback-latch-tag :: compare callers"]), 0)
+            self.assertEqual(capture.main(args + ["buffer-channel-frame-tag :: compare callers"]), 0)
             self.assertEqual(path.read_bytes(), before)
-            self.assertEqual(capture.main(args + ["contact-knockback-latch-timer :: Read timer reader"]), 0)
+            self.assertEqual(capture.main(args + ["buffer-channel-frame-timer :: Read timer reader"]), 0)
             with path.open(newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(len(rows), 2)
-            self.assertEqual(rows[0]["subject"], "contact-knockback-latch")
+            self.assertEqual(rows[0]["subject"], "buffer-channel-frame")
             self.assertEqual(rows[0]["revisit_condition"], "Read tag reader")
-            self.assertEqual(rows[1]["subject"], "contact-knockback-latch-timer")
+            self.assertEqual(rows[1]["subject"], "buffer-channel-frame-timer")
 
     def test_incomplete_or_conflicting_explicit_batches_are_rejected_atomically(self):
         invalid = ["cue identity", "cue|static|trace producer", "cue :: ",
@@ -77,6 +77,27 @@ class DeferralCaptureTests(unittest.TestCase):
                         self.assertEqual(capture.main([str(path), "--pass-id", "7", "--explicit",
                                                        "valid :: Read caller; " + spec]), 2)
                         self.assertEqual(path.read_bytes() if path.exists() else None, before)
+
+    def test_subject_only_matches_warn_without_rewriting_legacy_or_curated_rows(self):
+        cases = [("buffer-channel-frame", "buffer-channel-frame-tag"),
+                 ("cue-identity", "cue identities"), ("curated-key", "Authored description")]
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            path = Path(directory) / "deferrals.csv"
+            for subject, description in cases:
+                path.write_text(','.join(capture.HEADER) + '\n'
+                                f'7,Authored corridor,{subject},static,{description},Read writer,open\n')
+                before = path.read_bytes()
+                args = [str(path), "--pass-id", "7", "--explicit"]
+                with self.subTest(subject=subject), contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(capture.main(args + [subject + " :: Inspect writer"]), 0)
+                    self.assertIn("matches only an existing subject key", err.getvalue())
+                    self.assertIn("use a distinct key", err.getvalue())
+                    self.assertIn(repr(subject), err.getvalue())
+                self.assertEqual(path.read_bytes(), before)
+                with contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(capture.main(args + [description + " :: Inspect writer"]), 0)
+                    self.assertEqual(err.getvalue(), "")
+                self.assertEqual(path.read_bytes(), before)
 
     def test_identical_duplicate_explicit_entries_are_idempotent(self):
         self.assertEqual(capture.explicit_entries("cue :: inspect caller; cue :: inspect caller :: static"),
