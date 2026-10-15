@@ -12,9 +12,9 @@ The operator states the deferral directly, either as `--explicit` (the
 `DEFERRALS=` contract: `subject :: what would close it`) or as a `Deferred:
 <subject>` tag opening a sentence in the closeout NOTES. This turns that
 statement into a ledger row at the moment it is written, rather than asking a
-later audit to reconstruct it from pass history. `revisit_condition` starts
-empty and is the operator's to fill: the proof-debt signal keeps raising it
-until they do.
+later audit to reconstruct it from pass history. Explicit entries require a
+revisit condition. This standalone helper can capture tagged NOTES as draft
+rows; canonical closeout refuses that path and requires complete explicit entries.
 
 The ledger is deliberately not WORKING_NOTES.md. Those notes are curated prose
 under a maturity line budget, and appending every deferral would turn them into
@@ -108,7 +108,7 @@ def _normalise(word: str) -> str:
 
 
 def subject_key(sentence: str) -> str:
-    """A stable key for what a deferral is about.
+    """A heuristic key for tagged prose, never for an explicit subject.
 
     `deferral_repeat` needs to recognise the same gap across passes. Keying on
     the pass focus cannot do that — focus lines are unique per pass, so the
@@ -152,21 +152,26 @@ def explicit_entries(spec: str) -> list[dict[str, str]]:
     and the incentive to phrase notes for the parser.
     """
     out: list[dict[str, str]] = []
+    seen: dict[str, dict[str, str]] = {}
     for raw in re.split(r"[;\n]", spec):
         entry = raw.strip()
         if not entry:
             continue
         parts = [f.strip() for f in entry.split("::")]
+        if len(parts) not in (2, 3) or any(not part for part in parts):
+            raise ValueError(
+                f"invalid explicit deferral {entry!r}; "
+                "use 'subject :: revisit condition [:: static|runtime]' "
+                "with no empty fields"
+            )
         subject = parts[0]
-        if not subject:
-            continue
-        if len(parts) > 1 and parts[1].lower() in ("static", "runtime"):
+        if parts[1].lower() in ("static", "runtime"):
             raise ValueError(
                 f"{parts[1]!r} is a kind, not a revisit condition in {entry!r}; "
                 "use 'subject :: revisit condition :: kind' with the evidence "
                 "needed to close the gap in the second field"
             )
-        kind = parts[2].lower() if len(parts) > 2 and parts[2] else "static"
+        kind = parts[2].lower() if len(parts) == 3 else "static"
         if kind not in ("static", "runtime"):
             # Downgrading a typo to static would silently suppress the
             # trace-plan signal, which is the opposite of what the operator
@@ -175,11 +180,17 @@ def explicit_entries(spec: str) -> list[dict[str, str]]:
                 f"unknown deferral kind {parts[2]!r} in {entry!r}; "
                 "expected 'static' or 'runtime'"
             )
-        out.append({
+        parsed = {
             "deferral": subject,
-            "revisit_condition": parts[1] if len(parts) > 1 else "",
+            "revisit_condition": parts[1],
             "kind": kind,
-        })
+        }
+        if subject in seen:
+            if seen[subject] != parsed:
+                raise ValueError(f"conflicting explicit deferrals for subject {subject!r}")
+            continue
+        seen[subject] = parsed
+        out.append(parsed)
     return out
 
 
@@ -266,10 +277,10 @@ def main(argv: list[str]) -> int:
 
     ledger = Path(args.ledger)
     rows = existing_rows(ledger)
-    # Re-running closeout for the same pass must not duplicate its rows, and
-    # editing NOTES between runs must not either — hence the subject key rather
-    # than the sentence, which changes when the prose is reworded.
+    # Explicit identity must not pass through the lossy prose key. The original
+    # deferral text also recognizes old normalized or manually curated keys.
     already: set[tuple[str, str]] = set()
+    described: set[tuple[str, str]] = set()
     for row in rows:
         row_pass_id = row.get("pass_id", "")
         subject = row.get("subject", "").strip()
@@ -282,14 +293,22 @@ def main(argv: list[str]) -> int:
         # generated key beside it.
         deferral = row.get("deferral", "").strip()
         if deferral:
-            already.add((row_pass_id, subject_key(deferral)))
+            described.add((row_pass_id, deferral))
+            already.add((row_pass_id, deferral if args.explicit else subject_key(deferral)))
 
     added = 0
     corridor = None
     for entry in entries:
-        subject = subject_key(entry["deferral"])
+        subject = entry["deferral"] if args.explicit else subject_key(entry["deferral"])
         key = (str(args.pass_id), subject)
         if key in already:
+            if args.explicit and key not in described:
+                print(
+                    f"deferral_capture: explicit subject {subject!r} for pass {args.pass_id} "
+                    "matches only an existing subject key, with different deferral text; "
+                    "existing row preserved. Inspect the ledger and use a distinct key "
+                    "if this is a different gap.", file=sys.stderr,
+                )
             continue
         if corridor is None:
             corridor = capture_corridor(args.corridor, args.plan, args.project, args.pass_id)
@@ -305,6 +324,7 @@ def main(argv: list[str]) -> int:
             }
         )
         already.add(key)
+        described.add((str(args.pass_id), entry["deferral"]))
         added += 1
 
     if not added:

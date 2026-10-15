@@ -77,6 +77,13 @@ with path.open(newline="", encoding="utf-8") as fh:
                     file=sys.stderr,
                 )
                 raise SystemExit(1)
+        if cells.get("status", "").strip() == "open" and not cells["revisit_condition"].strip():
+            print(
+                f"{path}:{i}: open deferral {cells['subject']!r} requires "
+                "a nonempty revisit_condition describing the evidence needed to close it",
+                file=sys.stderr,
+            )
+            raise SystemExit(1)
 PDPY
 done
 
