@@ -79,8 +79,8 @@ entries. Production integration remains deferred until a separately selected
 evaluation measures noise and incremental value. Complete selector proof is
 not a prerequisite for that evaluation; no additional project pass is authorized.
 
-The second window selects [explicit-deferral integrity](#pi-7-deferral-capture)
-first, followed by [no-candidate prompt wording](#friction-files-are-triage-queues-not-archives).
+The second window selects [explicit-deferral integrity](#explicit-deferral-integrity)
+first, followed by [no-candidate prompt wording](#learning-candidate-noop).
 Prepare the plan and each fix in separate worktrees branched directly from
 `master`; leave the completed project checkout and historical evidence intact.
 No additional semantic pass or observation window is authorized.
@@ -218,8 +218,8 @@ it does not establish that every missed semantic relationship is automatable.
 
 The implementation branches own the follow-up contracts, validation and
 review/integration status in one place each: the
-[PI-7 integrity follow-up](#pi-7-deferral-capture) and the
-[no-candidate prompt follow-up](#friction-files-are-triage-queues-not-archives).
+[PI-7 integrity follow-up](#explicit-deferral-integrity) and the
+[no-candidate prompt follow-up](#learning-candidate-noop).
 This assessment links to those records instead of maintaining parallel copies.
 
 <a id="interrupted-review-candidate"></a>
@@ -764,9 +764,9 @@ migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | Prepared from `master` at `75665c03c`; local only |
-| `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#pi-7-deferral-capture) on the implementation branch |
-| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#friction-files-are-triage-queues-not-archives) on the implementation branch |
+| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | From `master` at `75665c03c`; approved `886ab50ab`; local only |
+| `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) on the implementation branch |
+| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) on the implementation branch |
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
