@@ -1457,8 +1457,9 @@ cover low-level replacement/file-sync failures and four pass-zero refusal modes.
 ## Friction files are triage queues, not archives
 
 2026-10-15 follow-up: implemented locally on `fix/learning-candidate-noop`,
-branched directly from `master` at `75665c03c`. Not yet independently reviewed,
-published or integrated into a project checkout.
+branched directly from `master` at `75665c03c`. Review of `e93722a76` requested
+a launcher-guidance assertion; that revision is pending re-review. Not published
+or integrated into a project checkout.
 
 Generated role and launcher prompts require exactly `_None._` alone when there
 is no new candidate. Status explanations and references to already-queued issues
@@ -1469,13 +1470,18 @@ duplicate queue work; its effect on live candidate production is unmeasured.
 
 Validation: `python3 -B tests/agent_review_artifact_test.py` (11 tests),
 `python3 -B tests/process_friction_test.py` (36 tests), and
-`python3 -B tests/agent_review_tmux_test.py` (67 tests) pass. These synthetic
-fixtures cover both roles, project/checkout boundaries, launcher contexts,
-sentinel no-ops and preservation of new evidence. No game data is needed.
+`python3 -B tests/agent_review_tmux_test.py` (68 tests) pass. These synthetic
+fixtures cover both roles, project/checkout boundaries, the exact no-candidate
+instruction in `kickoff()` output, sentinel no-ops and preservation of new evidence. No game data is needed.
 In a disposable copy, replacing `scripts/agent_review.py` with the master
 version makes
 `python3 -B tests/agent_review_artifact_test.py ArtifactTests.test_both_role_prompts_require_an_unambiguous_no_candidate_section`
-exit 1 for both roles: the exact sentinel instruction is absent. Strict playbook,
+exit 1 for both roles: the exact sentinel instruction is absent. Removing the
+shared-guidance line from `scripts/agent_review_tmux.py` in a disposable copy
+also makes
+`python3 -B tests/agent_review_tmux_test.py LauncherTests.test_kickoff_requires_an_unambiguous_no_candidate_section`
+exit 1 because the instruction is absent from the launcher's kickoff text.
+Strict playbook,
 repository hygiene and diff checks pass. Prompt text adds no command, assembly
 or validation work; full handoff timing was not rerun for this wording change.
 
