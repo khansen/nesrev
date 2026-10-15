@@ -539,8 +539,7 @@ PY
 
 # Capture this pass's deferrals while the operator's own wording is at hand.
 # A deferral with no recorded revisit condition is how a placeholder fossilises.
-# DEFERRALS is the contract; NOTES prose is the fallback for when the
-# operator did not state the gaps directly.
+# Closeout preflight requires complete explicit DEFERRALS for tagged NOTES.
 DEFERRAL_CAPTURE_SCRIPT="${RUN_SCRIPT_DIR}/deferral_capture.py"
 if [[ ! -f "${DEFERRAL_CAPTURE_SCRIPT}" ]]; then
   # A test/external harness may override only the stage wrappers. Deferral

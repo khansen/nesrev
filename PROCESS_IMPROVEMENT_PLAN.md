@@ -1107,11 +1107,12 @@ compares every project-file hash, then completes a corrected ordinary closeout.
 Focused correctness checks cover the follow-up; the reviewed timing and corpus
 results were not rerun.
 
+<a id="explicit-deferral-integrity"></a>
 ### PI-7 integrity follow-up — 2026-10-15
 
 Implemented locally on `fix/explicit-deferral-integrity`, directly from
-`master` at `75665c03c`. Review of `abdc2cfce` requested changes; the revision
-addresses preflight, ambiguous matches and documentation, pending re-review.
+`master` at `75665c03c`. Independent re-review approved `ac2a91b9b`, including
+the preflight, ambiguous-match warnings and documentation revisions.
 Not published or integrated into a project checkout. The earlier PI-7 record
 above describes its original delivery; this follow-up replaces subject-only
 explicit capture.
