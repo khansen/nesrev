@@ -103,7 +103,9 @@ need approval, including builds under Claude, installations, network access,
 and unusual Git operations.
 Existing user permissions remain in effect; Codex's project rules are shared
 by both Codex sessions. This does not isolate the agents from each other.
-See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
+For live branch, HEAD and working-tree inspection, use the approved
+`checkout-status` command in the generated guide. Raw `git branch` inspection
+can still prompt. See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
 
 For custom agent wrappers or to use your existing permission setup, add
 `--permissions inherit`. This skips installation and does not remove rules

@@ -38,10 +38,13 @@ The embedded-pointer advisory change is merged in
 at `c05d92f57`, and integrated locally.
 It retains discovery and evidence refusals while removing heuristic matches'
 authority to fail verification. The structured proof replacement stays deferred.
-The separately authorized second five-pass window is complete. Its
-[assessment](#second-window-assessment) selects explicit-deferral integrity and
-no-candidate prompt clarification for bounded fixes on separate branches from
-`master`. These fixes are not yet integrated or evaluated in another live run.
+The second window's explicit-deferral and no-candidate fixes are merged in
+[PR #159](https://github.com/khansen/nesrev/pull/159) and
+[PR #160](https://github.com/khansen/nesrev/pull/160); its assessment is merged
+in [PR #161](https://github.com/khansen/nesrev/pull/161). They were integrated
+before the separately authorized third five-pass window. Its
+[assessment](#third-window-assessment) selects a bounded
+[checkout-inspection follow-up](#checkout-inspection-permissions).
 Updated 2026-10-15.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -79,11 +82,14 @@ entries. Production integration remains deferred until a separately selected
 evaluation measures noise and incremental value. Complete selector proof is
 not a prerequisite for that evaluation; no additional project pass is authorized.
 
-The second window selects [explicit-deferral integrity](#explicit-deferral-integrity)
-first, followed by [no-candidate prompt wording](#learning-candidate-noop).
-Prepare the plan and each fix in separate worktrees branched directly from
-`master`; leave the completed project checkout and historical evidence intact.
-No additional semantic pass or observation window is authorized.
+The second window's [explicit-deferral integrity](#explicit-deferral-integrity)
+and [no-candidate wording](#learning-candidate-noop) fixes are integrated.
+The [checkout-inspection follow-up](#checkout-inspection-permissions) was
+implemented on a branch from `master` and independently reviewed. Rollout
+requires a refreshed permission profile and fresh agents. Keep corpus cleanup
+and original evidence on the local corpus
+branch. Any subsequent semantic work uses the user's explicit run limit;
+this shared plan does not grant additional passes.
 PI-1 through PI-5 and the queue-receipt
 prerequisite are delivered; their implementation and activation records remain
 below. Start each follow-up with a current reproducer and a bounded contract.
@@ -221,6 +227,89 @@ review/integration status in one place each: the
 [PI-7 integrity follow-up](#explicit-deferral-integrity) and the
 [no-candidate prompt follow-up](#learning-candidate-noop).
 This assessment links to those records instead of maintaining parallel copies.
+
+<a id="third-window-assessment"></a>
+### Third five-pass assessment — 2026-10-15
+
+The final work closed connected actor identities, motion, rendering and
+projectile lifetimes. Review took eight rounds (2, 2, 1, 1, 2), with eight
+blocking findings and one minor finding. Recorded rework was 48 items,
+including self-corrections and overlapping review findings. The preceding
+window took ten rounds, had 16 blocking findings and recorded 52 rework items.
+Different corridors prevent attributing those changes to the process fixes.
+
+The ledger added 316 rename records: 238 high-confidence, 66 scoped overlays
+and 12 mechanical changes. Unresolved labels fell by 43, raw ROM calls by 20
+and hardcoded counter sites by 146. Independent assessment reran 26 rendering
+tests, assembled byte-identical PRG output and ran four static renderers
+against fresh output. Final review packets supplied successful relaxed
+verification, process and docs evidence; no new runtime or gold claim is made.
+
+| Finding or exercised repair | Evidence and disposition |
+|---|---|
+| Approval interrupted routine checkout inspection | User confirmed a manual approval wait of about 38 minutes. Native policy reproduces a prompt for the branch-read command in the stalled batch. Select the bounded follow-up below; do not attribute every delayed read to a separate prompt. |
+| Shared helpers and overwritten values were misinterpreted | Review corrected several names; one approved animation claim needed a later dated correction. Retain independent review and existing caller/consumer obligations, with no new semantic gate. |
+| Temporary scripts guessed schemas and interfaces | Repeated ledger and renderer retries contribute to rework. Use existing helpers and inspect schemas; no new generic framework is selected. |
+| Repeat count and current gap descriptions drifted | A review counted two occurrences where the ledger and packet showed three. Preserve the review, append a correction, update partial conditions and prioritize the live identity checkpoint locally. |
+| Seven fixed queue candidates remained after integration | Receipt and prune resolved entries; preserve original archives and undecided candidates. |
+| Explicit-deferral capture and preflight | All 19 new rows retained their exact explicit keys; the pre-PR #159 capture would normalize every one. Two malformed batches exercised PR #142's pre-existing misplaced-kind check before verification, not PR #159's new validation. |
+| No-candidate guidance and handoffs | All 16 artifact sections used the standalone sentinel; no new queue entries were created. Deliveries completed, equal panes persisted and the five-pass stop was honored. |
+
+Exact project identities, revisions, logs and cleanup receipts remain in the
+local corpus evidence companion. A lower candidate count is a healthy outcome,
+not proof that all friction is gone.
+
+<a id="checkout-inspection-permissions"></a>
+### Scoped checkout-inspection follow-up
+
+Status: the user's external reviewer approved implementation `bcb297452` on
+2026-10-16. The assessment row above now distinguishes live key preservation
+from the older misplaced-kind check. Integration is pending; validation and
+rollout requirements are recorded here.
+
+The launcher prompts for the whole `git branch` family, so a live branch query
+also asks. A narrower allow cannot override a matching prompt: the native
+policy uses the most restrictive decision. Preserve the mutation restrictions
+and give both roles an approved, argument-free `checkout-status` entry instead.
+The generated guide, startup, kickoff and handoff prompts direct routine
+inspection through that entry. It reports live root, branch, HEAD and changes
+without relying on saved review state or refreshing Git's index. Raw Git
+inspection can still prompt; arbitrary Git arguments are not forwarded.
+
+Acceptance: demonstrate native policy approval of the supported command,
+correct live results before review initialization and in detached, unborn and
+linked worktrees, no index/state writes, and refusal of arbitrary suffixes
+before execution. Preserve branch creation/deletion/rename, config, worktree
+and push restrictions under inherited broad Git grants. Mutation checks must
+catch removal of the grant, guidance or no-optional-locks protection.
+Existing staging, commits and handoffs must continue to work.
+
+Validation on 2026-10-15: all 124 agent-review tests passed. The preliminary
+Codex reviewer reran 95 of those tests (11 real-Git, 15 permissions/native-policy
+and 69 launcher tests) and found no implementation issues. Three
+separate synthetic checkouts covered a configured project, a legacy project
+without `project.conf`, and an absent project without review state. All passed
+live inspection, native policy evaluation, both-role grants and generated
+guidance, including quoted paths and invocation from another working directory.
+No ROM or project verification is needed for this checkout-level command.
+
+The reviewer ran eight mutations in a disposable copy, restoring the approved
+source between probes. Each focused test command exited 1 as intended:
+
+| Mutation | Test command after `python3 -B` | Failure |
+|---|---|---|
+| Remove implementer grant | `tests/agent_review_permissions_test.py PermissionTests.test_checkout_status_grant_and_guide_cover_both_roles_and_projects` | Supported command absent from grants |
+| Remove guide guidance | Same command as above | Supported command absent from guide |
+| Remove bootstrap, kickoff or handoff guidance separately | `tests/agent_review_tmux_test.py LauncherTests.test_live_checkout_inspection_is_in_startup_kickoff_and_handoffs` | Supported command absent from the affected prompt |
+| Remove `--no-optional-locks` | `tests/agent_review_git_test.py ProjectGitTests.test_checkout_status_reports_live_changes_without_review_state_or_index_refresh` | Index bytes/mtime changed |
+| Accept command suffixes | `tests/agent_review_git_test.py ProjectGitTests.test_checkout_status_rejects_suffixes_before_git_is_called` | Expected parser refusal absent |
+| Remove branch protection | `tests/agent_review_permissions_test.py PermissionTests.test_native_codex_policy_allows_exact_handoffs_but_not_generic_execution` | Native decision no longer required a prompt (`None != 'prompt'`) |
+
+Refresh the installed profile and restart its agents after integration; a
+reconnection preserves old processes and settings. Smoke-test the supported
+inspection and handoff paths before the next authorized semantic pass.
+No project verification wrapper changes or new recurring measurements are
+part of this fix.
 
 <a id="interrupted-review-candidate"></a>
 ### Assessment: preserve incomplete review at a usage limit
@@ -764,9 +853,10 @@ migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
-| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | From `master` at `75665c03c`; approved `886ab50ab`; local only |
-| `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) on the implementation branch |
-| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) on the implementation branch |
+| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | Merged [PR #161](https://github.com/khansen/nesrev/pull/161) |
+| `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) |
+| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) |
+| `fix/pass-cycle-readonly-inspection` | Scoped live checkout inspection and third-window assessment | [Canonical delivery record](#checkout-inspection-permissions) |
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
@@ -1160,10 +1250,10 @@ results were not rerun.
 <a id="explicit-deferral-integrity"></a>
 ### PI-7 integrity follow-up — 2026-10-15
 
-Implemented locally on `fix/explicit-deferral-integrity`, directly from
-`master` at `75665c03c`. Independent re-review approved `ac2a91b9b`, including
-the preflight, ambiguous-match warnings and documentation revisions.
-Not published or integrated into a project checkout. The earlier PI-7 record
+Merged in [PR #159](https://github.com/khansen/nesrev/pull/159) and integrated
+before the third observation window. Independent re-review approved
+`ac2a91b9b`, including the preflight, ambiguous-match warnings and documentation
+revisions. The earlier PI-7 record
 above describes its original delivery; this follow-up replaces subject-only
 explicit capture.
 
@@ -1608,17 +1698,18 @@ cover low-level replacement/file-sync failures and four pass-zero refusal modes.
 ## Friction files are triage queues, not archives
 
 <a id="learning-candidate-noop"></a>
-2026-10-15 follow-up: implemented locally on `fix/learning-candidate-noop`,
-branched directly from `master` at `75665c03c`. Independent re-review approved
-`6e5fa50d8`, including the launcher-guidance assertion. Not published or
-integrated into a project checkout.
+2026-10-15 follow-up: merged in
+[PR #160](https://github.com/khansen/nesrev/pull/160) and integrated before
+the third observation window. Independent re-review approved `6e5fa50d8`,
+including the launcher-guidance assertion.
 
 Generated role and launcher prompts require exactly `_None._` alone when there
 is no new candidate. Status explanations and references to already-queued issues
 belong outside the section; recurrences need new evidence. Ingestion remains
 conservative: substantive text following a no-candidate statement is retained.
 No receipts, archives, states or admission gates change. This wording addresses
-duplicate queue work; its effect on live candidate production is unmeasured.
+duplicate queue work; the [third-window assessment](#third-window-assessment)
+records the observed use without claiming a causal productivity gain.
 
 Validation: `python3 -B tests/agent_review_artifact_test.py` (11 tests),
 `python3 -B tests/process_friction_test.py` (36 tests), and

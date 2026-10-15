@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Exercise guarded staging and commits against a real disposable Git index."""
 
+import contextlib
+import io
+import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
@@ -53,6 +58,61 @@ class ProjectGitTests(unittest.TestCase):
 
     def index(self):
         return (self.root / ".git/index").read_bytes()
+
+    def checkout_status(self, root=None):
+        return json.loads(self.command([*review.script_argv(root or self.root), "checkout-status"]).stdout)
+
+    def test_checkout_status_reports_live_changes_without_review_state_or_index_refresh(self):
+        self.git("add", "projects/demo/source.asm")
+        (self.project / "source.asm").write_text("RunGame:\n  NOP\n  RTS\n")
+        (self.project / "new file.asm").write_text("New:\n  RTS\n")
+        # A same-content file with changed stat data makes ordinary status refresh the index.
+        unchanged = self.root / "README.md"
+        timestamp = unchanged.stat().st_mtime_ns + 2_000_000_000
+        os.utime(unchanged, ns=(timestamp, timestamp))
+        index = self.root / ".git/index"
+        before = index.read_bytes(), index.stat().st_mtime_ns
+        result = self.checkout_status()
+        self.assertEqual(result["root"], str(self.root))
+        self.assertEqual(result["branch"], self.git("branch", "--show-current").strip())
+        self.assertEqual(result["head"], self.git("rev-parse", "HEAD").strip())
+        self.assertTrue(any(line.startswith("1 MM ") and line.endswith("projects/demo/source.asm")
+                            for line in result["changes"]), result)
+        self.assertIn("? projects/demo/new file.asm", result["changes"])
+        self.assertEqual((index.read_bytes(), index.stat().st_mtime_ns), before)
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_checkout_status_ignores_stale_handoff_branch_and_head(self):
+        path = self.root / ".agents/current.json"
+        path.parent.mkdir()
+        path.write_text('{"branch":"old-branch","review_head":"old-head"}\n')
+        before = path.read_bytes()
+        result = self.checkout_status()
+        self.assertEqual(result["branch"], self.git("branch", "--show-current").strip())
+        self.assertEqual(result["head"], self.git("rev-parse", "HEAD").strip())
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_checkout_status_supports_unborn_detached_and_linked_worktrees(self):
+        unborn = Path(self.temp.name).resolve() / "unborn"
+        subprocess.run(["git", "init", "-q", "-b", "empty", str(unborn)], check=True)
+        self.assertEqual(self.checkout_status(unborn),
+                         dict(root=str(unborn), branch="empty", head=None, changes=[]))
+        self.git("checkout", "--detach", "-q", "HEAD")
+        self.assertIsNone(self.checkout_status()["branch"])
+        linked = Path(self.temp.name).resolve() / "linked checkout"
+        self.git("worktree", "add", "-q", "-b", "linked", str(linked))
+        result = self.checkout_status(linked)
+        self.assertEqual(result, dict(root=str(linked), branch="linked",
+                                     head=self.git("rev-parse", "HEAD").strip(), changes=[]))
+
+    def test_checkout_status_rejects_suffixes_before_git_is_called(self):
+        for suffix in (["--repo", str(self.root)], ["--git-dir", "/tmp"], ["--json"],
+                       ["--", "reset", "--hard"], ["branch", "-D", "main"], ["extra"]):
+            with self.subTest(suffix=suffix), patch.object(review, "run_git") as git, \
+                    contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                review.main(["--repo", str(self.root), "checkout-status", *suffix])
+            self.assertEqual(error.exception.code, 2)
+            git.assert_not_called()
 
     def test_exact_add_modify_delete_and_rename_commit_leave_unrelated_work_unstaged(self):
         (self.project / "new file.asm").write_text("New:\n RTS\n")

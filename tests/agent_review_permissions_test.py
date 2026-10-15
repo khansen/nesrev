@@ -102,6 +102,19 @@ class PermissionTests(unittest.TestCase):
             subprocess.run(["git", "check-ignore", "-q", name], cwd=self.root, check=True)
         self.assertEqual(json.loads((self.root / permissions.RECEIPT).read_text()), plan.receipt())
 
+    def test_checkout_status_grant_and_guide_cover_both_roles_and_projects(self):
+        for project in ("demo", "legacy_demo"):
+            for agent in ("codex", "claude"):
+                plan = self.plan(agent, agent, project)
+                command = review.script_argv(self.root) + ["checkout-status"]
+                for role in ("implementer", "reviewer"):
+                    self.assertIn(command, permissions.grants(self.root, project, role))
+                    if agent == "claude":
+                        rules = json.loads(plan.files[f"{permissions.DIRECTORY}/{role}.json"])
+                        self.assertIn(f"Bash({shlex.join(command)} *)", rules["permissions"]["allow"])
+                self.assertIn(shlex.join(command), plan.files[permissions.GUIDE])
+                self.assertIn("without extra arguments", plan.files[permissions.GUIDE])
+
     def test_documented_git_commands_create_a_local_commit_from_another_cwd(self):
         for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid"), ("commit.gpgsign", "false")):
             subprocess.run(["git", "-C", str(self.root), "config", key, value], check=True)
@@ -205,6 +218,13 @@ class PermissionTests(unittest.TestCase):
         self.assertEqual(decision(["git", "push"], [inherited]), "forbidden")
         self.assertEqual(decision(["git", "-C", str(self.root), "reset", "--hard"], [inherited]), "prompt")
         for git in (["git"], ["git", "-C", str(self.root)]):
+            # Prefix rules cannot exempt read-only forms from the broad prompt.
+            self.assertEqual(decision(git + ["branch", "--show-current"]), "prompt")
+            for operation in (["branch", "new-branch"], ["branch", "-D", "old-branch"],
+                              ["branch", "-f", "topic", "HEAD"], ["branch", "-m", "new-name"],
+                              ["config", "user.name", "Changed"],
+                              ["worktree", "add", "/tmp/other"]):
+                self.assertEqual(decision(git + operation, [inherited]), "prompt")
             for path in (".", "*", "-A", "projects/demo/", "projects/other/source.asm", ":(top)*"):
                 for operation in (["add", "--", path],
                                   ["commit", "--file", "projects/demo/tmp/commit-message.txt", "--", path]):

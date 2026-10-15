@@ -24,6 +24,17 @@ import reference_tools as refs
 
 
 class LauncherTests(unittest.TestCase):
+    def test_live_checkout_inspection_is_in_startup_kickoff_and_handoffs(self):
+        expected = review.script_command(self.root) + " checkout-status"
+        self.assertIn(expected, launcher.kickoff(self.root, "demo", "One pass"))
+        for role in launcher.ROLES:
+            self.assertIn(expected, launcher.bootstrap(role, "demo", self.root, self.root / "task.md"))
+        for role, status in (("reviewer", "READY_FOR_REVIEW"), ("implementer", "CHANGES_REQUESTED"),
+                             ("implementer", "APPROVED")):
+            state = dict(project="demo", run_id="demo-pass-1", round=1, max_rounds=3,
+                         status=status, review_base="base", review_head="head", packet="packet.md")
+            self.assertIn(expected, review.render_prompt(self.root, state, role))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
