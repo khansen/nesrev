@@ -84,9 +84,10 @@ not a prerequisite for that evaluation; no additional project pass is authorized
 
 The second window's [explicit-deferral integrity](#explicit-deferral-integrity)
 and [no-candidate wording](#learning-candidate-noop) fixes are integrated.
-Implement and independently review the selected
-[checkout-inspection follow-up](#checkout-inspection-permissions) on a branch
-from `master`. Keep corpus cleanup and original evidence on the local corpus
+The [checkout-inspection follow-up](#checkout-inspection-permissions) was
+implemented on a branch from `master` and independently reviewed. Rollout
+requires a refreshed permission profile and fresh agents. Keep corpus cleanup
+and original evidence on the local corpus
 branch. Any subsequent semantic work uses the user's explicit run limit;
 this shared plan does not grant additional passes.
 PI-1 through PI-5 and the queue-receipt
