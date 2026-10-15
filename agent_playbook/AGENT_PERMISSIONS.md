@@ -9,8 +9,9 @@ tool paths, or generated settings requires confirmation again.
 The implementer receives grants for `stage-project` and `commit-project`, which
 validate explicit file paths and staged changes for the selected project,
 plus `start-pass`, `reready`, `archive`, `status`, and
-response publication. The reviewer receives `approve`, `request-changes`,
-`status`, and review publication. Claude file-edit grants cover the selected
+response publication. Both roles receive `checkout-status` for live inspection.
+The reviewer receives `approve`, `request-changes`, `status`, and review
+publication. Claude file-edit grants cover the selected
 project for the implementer and only its `tmp` directory for the reviewer.
 Codex keeps `workspace-write`, `on-request`, and human approval review; Claude
 uses its normal manual permission mode. Neither receives a blanket Git, Python,
@@ -55,7 +56,18 @@ that escalation without another human prompt. Do not wrap the command in a
 different interpreter or silently broaden the rules to address a refusal.
 
 The launcher fixes the Python executable, handoff script, and `--repo` path in
-both grants and prompts. The implementer writes a commit message with a normal
+both grants and prompts. For live branch, HEAD and working-tree inspection,
+use the argument-free `checkout-status` command printed in the guide and
+handoffs. It returns JSON with `root`, `branch`, `head` and `changes` (Git
+porcelain-v2 records), works before review initialization, and disables Git's
+optional index refresh. Detached HEAD has a null `branch`; an unborn branch
+has a null `head`. The existing `status` command reports saved review state.
+Direct `git branch`, `git config` and `git worktree` still prompt, including
+read-only forms: a narrower allow cannot override a matching Codex prompt rule.
+Use the approved inspection command from the outset; it accepts no arbitrary
+Git options, paths or command suffixes.
+
+The implementer writes a commit message with a normal
 file-edit tool to `projects/<slug>/tmp/commit-message.txt`, then uses the printed
 `stage-project <slug> -- <file> <file>` and `commit-project <slug>` commands.
 Staging validates the whole list before invoking Git with literal pathspecs.

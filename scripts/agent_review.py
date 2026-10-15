@@ -144,6 +144,16 @@ def script_command(root: Path) -> str:
     return shlex.join(script_argv(root))
 
 
+def checkout_status_guidance(root: Path) -> str:
+    return (
+        "With scoped pass-cycle permissions, use "
+        f"`{script_command(root)} checkout-status` without extra arguments to inspect "
+        "the live branch, HEAD and working-tree changes before work or a commit. "
+        "It works without review state. `status` reports the saved review handoff instead. "
+        "Raw git branch/config/worktree commands can prompt even for inspection."
+    )
+
+
 def read_state(root: Path) -> dict[str, Any]:
     path = state_path(root)
     if not path.exists():
@@ -518,6 +528,7 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
         "",
         "When using the scoped pass-cycle profile, follow `.agents/permissions/commands.md` "
         "and verify it names this project; otherwise follow the launcher's permission mode.",
+        checkout_status_guidance(root),
         "Run handoff commands exactly as shown, as separate commands without",
         "shell redirection, environment assignments, or compound scripts.",
         "The command's stdout and generated artifacts provide the handoff result.",
@@ -902,6 +913,31 @@ def command_import_artifact(args: argparse.Namespace) -> int:
     ensure_repo_contained(root / ".agents" / "runs", destination, "artifact")
     atomic_write(destination, text)
     print(f"Imported {args.kind}: {rel(root, destination)}")
+    return 0
+
+
+def command_checkout_status(args: argparse.Namespace) -> int:
+    root = repo_root()
+    output = run_git([
+        "--no-optional-locks", "status", "--porcelain=v2", "--branch",
+        "--untracked-files=normal",
+    ], cwd=root)
+    headers = {}
+    changes = []
+    for line in output.splitlines():
+        if line.startswith("# "):
+            key, value = line[2:].split(" ", 1)
+            headers[key] = value
+        else:
+            changes.append(line)
+    branch = headers["branch.head"]
+    head = headers["branch.oid"]
+    print(json.dumps({
+        "root": str(root),
+        "branch": None if branch == "(detached)" else branch,
+        "head": None if head == "(initial)" else head,
+        "changes": changes,
+    }, indent=2))
     return 0
 
 
@@ -1361,6 +1397,9 @@ def build_parser() -> argparse.ArgumentParser:
     status = sub.add_parser("status", help="print current state")
     status.add_argument("--json", action="store_true")
     status.set_defaults(func=command_status)
+
+    checkout = sub.add_parser("checkout-status", help="inspect live branch, HEAD and worktree without writes")
+    checkout.set_defaults(func=command_checkout_status)
 
     artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
     artifact.add_argument("--kind", choices=("review", "response"), required=True)
