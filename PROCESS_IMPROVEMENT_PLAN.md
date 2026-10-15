@@ -38,7 +38,11 @@ The embedded-pointer advisory change is merged in
 at `c05d92f57`, and integrated locally.
 It retains discovery and evidence refusals while removing heuristic matches'
 authority to fail verification. The structured proof replacement stays deferred.
-Updated 2026-10-14.
+The separately authorized second five-pass window is complete. Its
+[assessment](#second-window-assessment) selects explicit-deferral integrity and
+no-candidate prompt clarification for bounded fixes on separate branches from
+`master`. These fixes are not yet integrated or evaluated in another live run.
+Updated 2026-10-15.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -75,8 +79,11 @@ entries. Production integration remains deferred until a separately selected
 evaluation measures noise and incremental value. Complete selector proof is
 not a prerequisite for that evaluation; no additional project pass is authorized.
 
-No further follow-up has been selected; review already underway can finish
-independently.
+The second window selects [explicit-deferral integrity](#explicit-deferral-integrity)
+first, followed by [no-candidate prompt wording](#learning-candidate-noop).
+Prepare the plan and each fix in separate worktrees branched directly from
+`master`; leave the completed project checkout and historical evidence intact.
+No additional semantic pass or observation window is authorized.
 PI-1 through PI-5 and the queue-receipt
 prerequisite are delivered; their implementation and activation records remain
 below. Start each follow-up with a current reproducer and a bounded contract.
@@ -175,6 +182,100 @@ Use existing logs for the remaining investigations. The closed window and
 phase-A integration do not authorize another semantic pass. Exact revisions,
 follow-up timestamps, evidence limitations and preservation checks remain in the
 private corpus evidence companion.
+
+<a id="second-window-assessment"></a>
+### Second five-pass assessment — 2026-10-15
+
+Final work was substantive and connected; first submissions needed consistent
+rework. All five passes took two review rounds, with 16 blocking findings.
+The scorecard records 52 rework items, which overlap the findings and include
+self-corrections. Neither total measures human interventions or elapsed cost.
+The five-pass stop was honored; the handoff logs show completed deliveries.
+Exact project identities, revisions, archives and captures stay local.
+
+The combined result added 256 semantic rename records (183 high-confidence and
+73 scoped overlays), reduced unresolved labels by 41 and raw ROM calls by 27,
+and removed 106 hardcoded counter sites. These are supporting measures, not
+readability scores. Final relaxed verification preserved binary identity;
+process and docs checks passed. One runtime analyzer passed 11 tests, and two
+stored captures were reanalyzed against fresh assembler output. No fresh
+emulator run or strict maturity completion is claimed.
+
+| Finding | Cause and recurrence | Disposition |
+|---|---|---|
+| Explicit subjects were stemmed, reordered and truncated | Latent tooling gap; repeated before fix. A synthetic pair differing only in a fourth word silently loses one row | Script fix: preserve explicit identity; keep heuristic keys confined to tagged prose |
+| Malformed explicit syntax produced an empty condition; a single incomplete row escaped a ratio advisory | Latent tooling gap, with malformed operator input; repeated before fix. Existing PI-7 validation covers misplaced kinds, not missing separators/fields | Script/gate fix: reject incomplete explicit batches before closeout writes; validate each open ledger row independently of aggregate ratios |
+| No-candidate statements with explanatory prose created queue work | Prompt/harness ambiguity; repeated before fix. Three no-new-candidate statements needed duplicate triage | Prompt fix: require the standalone sentinel; preserve ingestion of genuine observations |
+| Sibling names, producers/callers and answerable identities were missed; constants were borrowed across domains by numeric equality | Implementer misses under existing rules; recurrent in this window, without proof that rule visibility caused them | Retain independent review and existing self-review requirements; no additional checklist or speculative semantic gate |
+| Unequal visible terminal panes needed operator correction | Session setup mistake: a fixed window size exceeded the attached client's viewport | Restore client-driven sizing and equal layout; no launcher defect established, so no launcher change selected |
+
+Seven new queue candidates describe two underlying deferral defects; their
+frequency is not seven independent defects. PI-7's earlier kind/context repair
+does not cover these newly reproduced paths. Do not label them regressions of
+that repair or claim effectiveness of the new fixes before integration.
+The review evidence supports keeping the implementer/reviewer separation;
+it does not establish that every missed semantic relationship is automatable.
+
+<a id="explicit-deferral-integrity"></a>
+### Follow-up: preserve explicit deferrals and require closure evidence
+
+Implemented locally at `abdc2cfce` on `fix/explicit-deferral-integrity`, directly
+from `master`. This extends PI-7 without rewriting its historical delivery
+record. Not independently reviewed, published or integrated.
+
+- Preserve the trimmed explicit subject verbatim. For example,
+  `contact-knockback-latch-tag` and `contact-knockback-latch-timer` must remain
+  two rows. Do not stem proper nouns, sort words, truncate keys or infer a
+  replacement identity. Tagged-NOTES prose retains its heuristic fallback.
+- Accept only `subject :: nonempty condition [:: static|runtime]` for explicit
+  entries. Reject missing/empty/extra fields, misplaced kinds and conflicting
+  duplicate subjects before any closeout mutation. Validate the entire batch.
+- Preserve authored rows and idempotent reruns, including old normalized or
+  curated keys whose original deferral text identifies the same entry.
+  Never migrate historical keys automatically or merge different explicit
+  subjects through a normalized alias.
+- Require a nonempty revisit condition on every open deferral in the existing
+  process check. Tagged-NOTES capture can still create a draft row, but the
+  operator must complete it before process validation passes. Closed historical
+  rows remain unchanged. Keep aggregate proof-debt signals advisory.
+
+Acceptance: demonstrate collision loss and malformed-input acceptance against
+the baseline; show the fixed parser and canonical closeout reject invalid
+batches without changing project-file hashes; verify valid static/runtime
+entries, legacy reruns and distinct keys. Inject one blank open condition among
+many complete rows and require a row-specific process-check failure. Include
+empty-ledger and closed-history controls. Check copies of every local ledger
+for compatibility and preservation; record newly exposed debt without filling
+conditions by guesswork. Measure affected wrappers on the largest local project.
+
+Validation completed: 12 Python tests and 43 focused shell cases pass;
+baseline mutations reproduce key loss, malformed-input acceptance and the
+missing-condition false green. All 143 authored rows in copies of 23 ledgers
+are preserved, with no newly exposed missing conditions. Largest-project
+median timing changes are -0.29% for process check and -0.99% for relaxed
+closeout, from one warmup per version and three alternating pairs. All runs
+passed; no full-corpus verification or live effectiveness claim is made.
+
+<a id="learning-candidate-noop"></a>
+### Follow-up: make the no-candidate response unambiguous
+
+Implemented locally at `e93722a76` on `fix/learning-candidate-noop`, directly
+from `master`. Not independently reviewed, published or integrated.
+Generated implementer and reviewer guidance should require exactly `_None._`
+alone under `## Learning Candidates` when there is no new unresolved friction.
+Already-queued issue references and status explanations belong elsewhere.
+
+Do not broaden the ingestion filter to discard arbitrary prose beginning with
+“None”: that could erase a real observation. Verify both generated role prompts,
+the existing sentinel no-op, and preservation of a genuine observation even
+when preceded by a no-candidate statement. Preserve existing receipts and
+archives; any eventual project-queue cleanup needs its normal provenance.
+No new gate, state transition, per-pass metric or semantic pass is selected.
+
+Validation completed: 114 artifact, friction-ingestion and launcher tests
+pass. Restoring the old prompt makes the new two-role guidance regression fail.
+Existing receipts and archives are unchanged. No live observation window was
+started to measure the wording's effectiveness.
 
 <a id="interrupted-review-candidate"></a>
 ### Assessment: preserve incomplete review at a usage limit
@@ -718,6 +819,9 @@ migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
+| `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | Prepared from `master` at `75665c03c`; local only |
+| `fix/explicit-deferral-integrity` | Preserve explicit subjects, reject malformed batches, require open-row conditions | Tested local commit `abdc2cfce`; directly from `master` at `75665c03c`; review and integration pending |
+| `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | Tested local commit `e93722a76`; directly from `master` at `75665c03c`; review and integration pending |
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |
@@ -745,8 +849,9 @@ updated `master`. Rerun affected CI after each merge; report pre-existing
 unfinished-input failures separately and never relabel relaxed checks as
 strict-CI success. Prune eligible queue entries incrementally once receipts
 and their migration tests are in place.
-New observation follow-ups below are planning items; updating this plan does not
-start their implementation, publish a PR, or rebase an active project checkout.
+Unselected observation follow-ups remain planning items. The second-window
+fixes were separately selected by the operator; updating this plan alone does
+not authorize publication, integration or another project pass.
 
 <a id="pi-9-historical-receipt-residue"></a>
 <a id="pi-9-historical-provenance"></a>
