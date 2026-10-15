@@ -89,6 +89,10 @@ class LauncherTests(unittest.TestCase):
             launcher.main()
         self.assertEqual(launch.call_args.args[0].permissions, "pass-cycle")
 
+    def test_kickoff_requires_an_unambiguous_no_candidate_section(self):
+        prompt = launcher.kickoff(self.root, "demo", "Complete the authorized passes.")
+        self.assertIn("write exactly `_None._` alone in the section, without an explanation", prompt)
+
     def test_cli_accepts_explicit_bypass(self):
         argv = ["launcher", "--project", "demo", "--permissions", "bypass"]
         with patch.object(sys, "argv", argv), patch.object(launcher, "launch", return_value=0) as launch:

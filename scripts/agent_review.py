@@ -58,8 +58,11 @@ PACKET_LXXXX_FAILURE_RE = re.compile(
 )
 LEARNING_HEADING_RE = re.compile(r"^(#{1,6})\s+Learning Candidates\s*$", re.IGNORECASE)
 LEARNING_CANDIDATE_GUIDANCE = (
-    "Include a `## Learning Candidates` section for unresolved process, harness, "
-    "or tooling friction, or `_None._`. No proposed fix is required. "
+    "Include a `## Learning Candidates` section for new unresolved process, harness, "
+    "or tooling friction. If there are no new candidates, write exactly `_None._` "
+    "alone in the section, without an explanation. Put references to already-queued "
+    "issues and status explanations elsewhere; record a recurrence only when it "
+    "adds new evidence. No proposed fix is required. "
     "Do not record already-fixed friction or completed-work history."
 )
 RUNTIME_EXCLUDE_PATTERNS = (

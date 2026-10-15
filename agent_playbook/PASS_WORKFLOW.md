@@ -192,12 +192,11 @@ Unscoped identity rows cannot suppress new work. Other signals
 retain reasoned permanent dispositions. Acknowledgements never establish gold.
 
 **Capture deferrals at closeout.** `DEFERRALS="subject :: condition [:: static|runtime]"`
-accepts newline/semicolon-separated entries; bare kinds are invalid conditions.
-`inventory/deferrals.csv` columns: `pass_id,corridor,subject,kind,deferral,revisit_condition,status`.
-New rows use `FOCUS`, then the selected corridor from a project/pass-matching plan;
-unavailable context warns and stays blank ([details](../PROCESS_IMPROVEMENT_PLAN.md#pi-7-deferral-capture)).
-Reruns preserve authored rows and curated keys. Without `DEFERRALS`, only sentence-opening
-`Deferred: <subject>[, <subject>]` tags are captured; ordinary prose creates no gaps.
+accepts newline/semicolon-separated entries with verbatim subjects. Empty/extra fields, bare-kind conditions and conflicting duplicates refuse writes.
+`inventory/deferrals.csv`: `pass_id,corridor,subject,kind,deferral,revisit_condition,status`.
+Rows use `FOCUS`, then a project/pass-matching plan's selected corridor; unavailable context warns ([details](../PROCESS_IMPROVEMENT_PLAN.md#pi-7-deferral-capture)).
+Closeout refuses `Deferred:` NOTES without `DEFERRALS` before writes; reruns preserve authored rows. Reuse exact keys across passes.
+Open rows require a nonempty condition at `project-process-check`; closed rows remain unchanged.
 
 Keep temporary session stops in handoff/pass state, not deferral conditions;
 see [session stop instructions](DOCUMENTATION.md#session-stop-instructions).

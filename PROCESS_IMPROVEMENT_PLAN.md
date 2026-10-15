@@ -1157,6 +1157,107 @@ compares every project-file hash, then completes a corrected ordinary closeout.
 Focused correctness checks cover the follow-up; the reviewed timing and corpus
 results were not rerun.
 
+<a id="explicit-deferral-integrity"></a>
+### PI-7 integrity follow-up — 2026-10-15
+
+Implemented locally on `fix/explicit-deferral-integrity`, directly from
+`master` at `75665c03c`. Independent re-review approved `ac2a91b9b`, including
+the preflight, ambiguous-match warnings and documentation revisions.
+Not published or integrated into a project checkout. The earlier PI-7 record
+above describes its original delivery; this follow-up replaces subject-only
+explicit capture.
+
+Explicit subjects now retain their trimmed spelling, order and full length.
+Two keys sharing the first three normalized words remain separate. Legacy
+normalized and curated rows are recognized by their original deferral text on
+rerun; existing rows are preserved. Use established curated keys for ongoing
+gaps. Repeat detection groups exact subject strings: `Cue identities`,
+`cue identities` and `cue identity` are now three keys, whereas the old heuristic
+grouped them together. Reuse the same spelling and case across passes; no
+historical migration or cross-key equivalence is introduced. When an explicit
+entry matches only an existing subject column with different deferral text,
+capture preserves the row and warns on stderr. Inspect that match and choose a
+distinct key if it is a different gap; matching curated keys remains supported.
+
+Explicit entries require a subject and nonempty condition, with an optional
+valid kind. Missing/empty/extra fields and conflicting duplicate subjects fail
+the entire batch in existing closeout preflight, before any writes. Identical
+duplicates remain idempotent. Closeout now rejects `Deferred:` tags in NOTES
+unless complete explicit entries are supplied, before verification or any
+project-file writes. Empty, whitespace-only or separator-only `DEFERRALS` do
+not bypass this refusal. Supply `DEFERRALS="subject :: condition"` and rerun;
+no manual ledger repair is needed after this refusal. The standalone capture
+helper still supports draft tags, but this is not a closeout path. The process
+check rejects each open row with a blank condition, independent of debt ratios;
+closed historical rows and aggregate advisories remain unchanged.
+
+Validation: `python3 -B tests/deferral_capture_test.py` passes 13 tests.
+The shell harness's 44 relevant deferral, proof-debt, closeout and process-check
+cases pass, including canonical Make closeout and external-tool-root forwarding.
+Invalid explicit batches and tag-only closeout leave all fixture project-file
+hashes unchanged. The new tag test uses the real process checker, proves
+verification never ran on refusal, then completes an ordinary corrected rerun
+with one fully populated row. Other closeout stages are fixture stubs.
+Valid reruns preserve authored rows. A single blank open condition among 20
+complete open rows fails with its ledger line and subject; empty ledgers and
+closed history pass. Strict playbook, repository hygiene and diff checks pass.
+
+Bad-direction proof in a disposable copy restores the master versions of
+`scripts/deferral_capture.py` and `scripts/project_process_check.sh`:
+
+| Check | Exit and expected failure |
+|---|---|
+| `python3 -B tests/deferral_capture_test.py` | 1: distinct-key loss, accepted malformed batches and duplicate conflicts |
+| Shell `test_closeout_rejects_invalid_deferrals_before_any_writes_or_gates` | 1: expected refusal 2, received success 0 |
+| Shell `test_process_check_requires_each_open_deferral_condition` | 1: expected refusal 1, received success 0 |
+
+Copied-ledger checks cover all 23 local projects and preserve all 143 authored
+rows. Every copy accepts two distinct explicit keys, preserves bytes on rerun,
+and rejects malformed capture without writes. No open row lacks a condition;
+there is no newly exposed condition debt or migration. Rechecking all 143 rows
+by their stored subject preserves each file byte-for-byte; 124 legacy matches
+warn because their descriptions differ from their keys. This is the intended
+nonblocking diagnostic, including for curated keys. This is a ledger sweep,
+not 23 full project-verification runs.
+
+On the largest local assembly source, one warmup per version followed by three
+alternating before/after pairs measured median changes of -0.29% for
+`project-process-check` and -0.99% for relaxed `project-pass-closeout`.
+Every run completed successfully; closeout captured a new deferral each time
+from restored identical inputs. No command or assembly invocation was added.
+No all-project timing campaign or live post-integration observation was run.
+These timings cover the original explicit-input path; no assembly or process
+was added by the review revision.
+The revision was also compared directly with `abdc2cfce` on the largest source
+using ordinary NOTES and no explicit deferrals: one warmup per version and
+three alternating measured pairs all passed, with a -0.44% median change in
+relaxed closeout time. The standalone process-check implementation is unchanged
+by this revision, so its timing was not repeated.
+
+Review-revision mutations in disposable copies:
+
+- Restoring `abdc2cfce`'s `project_pass_closeout.sh` makes the shell case
+  `test_closeout_deferrals_reject_tagged_notes_before_writes_and_allow_corrected_rerun`
+  exit 1: `verification ran before tagged deferral rejection`.
+- Restoring `abdc2cfce`'s `deferral_capture.py` makes
+  `python3 -B tests/deferral_capture_test.py DeferralCaptureTests.test_subject_only_matches_warn_without_rewriting_legacy_or_curated_rows`
+  exit 1 in all three subcases: the subject-only-match warning is absent.
+
+Shell cases run with the repository test library and workflow cases sourced,
+`REPO_ROOT` set to the disposable checkout, a fresh `NESREV_TEST_TMPDIR`, and
+`set -euo pipefail`. The production checker is not stubbed in the tag test.
+Restoring the master capture against the revised synthetic fixtures still
+makes `python3 -B tests/deferral_capture_test.py` exit 1 (24 failed assertions).
+
+The three revised branch diffs apply cleanly together to `75665c03c`.
+In that disposable combined checkout, `make test` exits 2: 684 of 685 shell
+cases pass, while the process-cleanup case cannot execute sandbox-denied `ps`.
+Its unrestricted `python3 -B tests/fceux_runner_test.py` retry passes all 17
+checks. `javac NESrev.java NESrevTest.java -Xlint:unchecked` and
+`java NESrevTest` then pass all 1,206 Java tests; the initial shell failure had
+prevented Make from reaching them. No full-corpus verify/CI or live agent run
+was performed.
+
 <a id="pi-8-analyzer-portability"></a>
 ## PI-8 — Demonstrate runtime-analyzer test portability at handoff
 
@@ -1505,6 +1606,37 @@ rows and byte-identical repeated snapshots. Independent checks additionally
 cover low-level replacement/file-sync failures and four pass-zero refusal modes.
 
 ## Friction files are triage queues, not archives
+
+<a id="learning-candidate-noop"></a>
+2026-10-15 follow-up: implemented locally on `fix/learning-candidate-noop`,
+branched directly from `master` at `75665c03c`. Independent re-review approved
+`6e5fa50d8`, including the launcher-guidance assertion. Not published or
+integrated into a project checkout.
+
+Generated role and launcher prompts require exactly `_None._` alone when there
+is no new candidate. Status explanations and references to already-queued issues
+belong outside the section; recurrences need new evidence. Ingestion remains
+conservative: substantive text following a no-candidate statement is retained.
+No receipts, archives, states or admission gates change. This wording addresses
+duplicate queue work; its effect on live candidate production is unmeasured.
+
+Validation: `python3 -B tests/agent_review_artifact_test.py` (11 tests),
+`python3 -B tests/process_friction_test.py` (36 tests), and
+`python3 -B tests/agent_review_tmux_test.py` (68 tests) pass. These synthetic
+fixtures cover both roles, project/checkout boundaries, the exact no-candidate
+instruction in `kickoff()` output, sentinel no-ops and preservation of new
+evidence. No game data is needed.
+In a disposable copy, replacing `scripts/agent_review.py` with the master
+version makes
+`python3 -B tests/agent_review_artifact_test.py ArtifactTests.test_both_role_prompts_require_an_unambiguous_no_candidate_section`
+exit 1 for both roles: the exact sentinel instruction is absent. Removing the
+shared-guidance line from `scripts/agent_review_tmux.py` in a disposable copy
+also makes
+`python3 -B tests/agent_review_tmux_test.py LauncherTests.test_kickoff_requires_an_unambiguous_no_candidate_section`
+exit 1 because the instruction is absent from the launcher's kickoff text.
+Strict playbook, repository hygiene and diff checks pass. Prompt text adds no
+command, assembly or validation work; full handoff timing was not rerun for
+this wording change.
 
 Recommendation: prune entries after triage. Keep only candidates still
 awaiting a decision or a specific missing piece of triage evidence. Accepted

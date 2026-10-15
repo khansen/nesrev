@@ -113,6 +113,14 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn(f"{command} import-artifact --kind response", prompt)
         self.assertIn(f"{command} reready", prompt)
 
+    def test_both_role_prompts_require_an_unambiguous_no_candidate_section(self):
+        for role, status in (("reviewer", "READY_FOR_REVIEW"), ("implementer", "CHANGES_REQUESTED")):
+            with self.subTest(role=role):
+                self.state["status"] = status
+                prompt = review.render_prompt(self.root, self.state, role)
+                self.assertIn("write exactly `_None._` alone in the section, without an explanation", prompt)
+                self.assertIn("record a recurrence only when it adds new evidence", prompt)
+
 
 class CheckpointTests(unittest.TestCase):
     def setUp(self):
