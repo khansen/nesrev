@@ -9,7 +9,9 @@ tool paths, or generated settings requires confirmation again.
 The implementer receives grants for `stage-project` and `commit-project`, which
 validate explicit file paths and staged changes for the selected project,
 plus `start-pass`, `reready`, `archive`, `status`, and
-response publication. Both roles receive `checkout-status` for live inspection.
+response publication and `trace-project` for project trace drivers. Both roles
+receive `checkout-status` for live inspection and `find-project-symbols` for
+source searches without shell loops.
 The reviewer receives `approve`, `request-changes`, `status`, and review
 publication. Claude file-edit grants cover the selected
 project for the implementer and only its `tmp` directory for the reviewer.
@@ -44,7 +46,10 @@ patterns do not cover every equivalent Git invocation or indirect script.
 Never push `projects`, regardless of available permissions. This profile trusts
 the named handoff script, repository code it invokes, and Git hooks; it is a
 convenience configuration for cooperating agents, not containment for hostile
-code. Installation, network, emulator, build, and other requests may still prompt.
+code. Trace drivers and their dependencies, including drivers the agent writes
+during the pass, are trusted code with desktop access outside the Codex sandbox;
+the grant does not constrain their effects. Installation,
+network, direct emulator launches, builds, and other unlisted requests may still prompt.
 
 ## Commands that match the grants
 
@@ -66,6 +71,35 @@ Direct `git branch`, `git config` and `git worktree` still prompt, including
 read-only forms: a narrower allow cannot override a matching Codex prompt rule.
 Use the approved inspection command from the outset; it accepts no arbitrary
 Git options, paths or command suffixes.
+
+Use native Read/Grep tools for ordinary inspection. For repeated symbol-use
+searches, use the guide's `find-project-symbols <slug> <project-file> <symbol>…`
+command instead of a compound shell loop. It accepts 1–64 literal whole-symbol
+tokens and one explicit UTF-8 project file, prints matching lines as JSON,
+and writes nothing. Paths outside the selected project, symlinks, directories,
+and shell/regex expressions are refused. No matches is a successful empty
+result. Other analysis commands can still require approval.
+
+The implementer uses `trace-project <slug> run_<scenario>.py -- <arguments>`
+for desktop captures. It selects a regular, non-symlinked Python driver under
+`projects/<slug>/tools/trace/`, replaces the helper process with that driver from
+the repository root without a shell, and forwards arguments literally. The driver
+retains the helper's PID and receives signals directly; callers observe its exit
+or signal status. The first `--` separates helper arguments from driver arguments;
+an additional `--` is passed to the driver. It accepts
+no arbitrary interpreter or script path. Drivers must use the supervised
+`scripts/run_fceux_trace.py` lifecycle and explicit scenario acceptance. This
+helper validates dispatch, not the driver's implementation or capture evidence;
+changing drivers and dependencies retain the trust described above. Codex must
+request escalation on the exact printed helper command, rather than directly
+launching the driver and repeatedly requesting a new prefix. Claude reviewer
+settings omit the trace grant; Codex roles share project rules as described above.
+
+Keep commands that may prompt separate from routine reads. If a supported form
+still prompts, record the exact command, loaded permission mode and observed
+intervention. Do not treat an escalation request as proof that a human approved.
+Report unknown when the harness does not expose whether a human approved.
+Do not switch permission modes to make a scoped smoke test pass.
 
 The implementer writes a commit message with a normal
 file-edit tool to `projects/<slug>/tmp/commit-message.txt`, then uses the printed
@@ -102,6 +136,54 @@ Implementer responses use `--kind response` before `reready`. Import rejects
 the wrong turn, sources outside project scratch space, empty/non-Markdown
 files, and destination symlinks. A draft can replace its current-round copy
 while that role still owns the turn. Verdict and archive checks are unchanged.
+
+<a id="live-permission-smoke"></a>
+## Live permission smoke test
+
+After a permission change, use fresh agents and a known, bounded capture
+scenario before authorizing another batch. The launcher can run only these
+probes, without selecting a pass or starting either handoff watcher:
+
+```sh
+python3 scripts/agent_review_tmux.py --project my_game --smoke-only /tmp/smoke.json
+```
+
+The specification names existing source and trace inputs; it does not contain
+arbitrary shell commands. For example, adapt these names to the project:
+
+```json
+{
+  "inspection": {
+    "path": "projects/my_game/asm/my_game.asm",
+    "symbols": ["UpdateActors", "SpawnProjectile"]
+  },
+  "trace": {
+    "driver": "run_actor_scene.py",
+    "arguments": ["--scenario", "known-room"]
+  }
+}
+```
+
+Prepare any listing/xref inputs required by that driver first. `--check` with
+the same specification validates setup without launching agents or captures.
+The smoke mode requires `pass-cycle`, refuses to reconnect to an existing
+session, and keeps saved review state unchanged. Smoke sessions are tagged with
+`@nesrev_review_smoke=1`; a normal launch refuses to reconnect to them and prints
+the command to stop the session first. After both agents say READY,
+confirm readiness in the startup pane. Both inspect the checkout; the reviewer
+runs the symbol search twice and the implementer runs the real capture twice
+to exercise grant reuse. Help/version output cannot substitute for a capture.
+Each agent reports commands, exits, evidence paths, mode and interventions,
+then stops. The launcher does not automatically certify success or release a
+pass; the operator checks those results against the session/tool logs.
+
+Acceptance requires both captures' scenario checks and both source searches
+to succeed under the intended unchanged modes, without manual per-command
+approval. Setup trust/consent is separate. Preserve any failure or intervention
+as evidence; a mode change invalidates the unattended result. Stop this smoke
+session before launching the next separately authorized semantic task.
+Smoke sessions created before this marker was introduced must also be stopped;
+the launcher cannot identify those untagged sessions as smoke-only.
 
 <a id="recovery-and-custom-setups"></a>
 ## Recovery and custom setups

@@ -281,9 +281,9 @@ python3 scripts/agent_review_tmux.py --project <slug> \
 set independent choices; omitted values use agent defaults. See [examples](../README.md#choose-models-and-effort).
 Matching workspaces keep their settings; restart for overrides.
 `--permissions bypass` uses native bypass for both agents ([scope](AGENT_PERMISSIONS.md#recovery-and-custom-setups)).
-`--no-attach` leaves it detached. `--*-cmd` takes executable/arguments, not shell programs.
-`--check` checks tools, supplied references' PDF/OCR prerequisites, and Git identity
-without scaffolding or launching agents; `project-doctor PROJECT=<slug>` shares the reference check.
+`--no-attach` stays detached; `--*-cmd` accepts argv, not shell programs.
+`--check` validates tools, reference extraction and Git identity without launching or scaffolding; `project-doctor PROJECT=<slug>` shares the reference check.
+[`--smoke-only <spec.json>`](AGENT_PERMISSIONS.md#live-permission-smoke) tests live permissions without starting pass handoffs.
 
 The implementer records the pre-pass base, closes out and commits a coherent
 pass, runs `start-pass` with that base, then yields until review returns. It

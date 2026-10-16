@@ -85,8 +85,9 @@ not a prerequisite for that evaluation; no additional project pass is authorized
 The second window's [explicit-deferral integrity](#explicit-deferral-integrity)
 and [no-candidate wording](#learning-candidate-noop) fixes are integrated.
 The [checkout-inspection follow-up](#checkout-inspection-permissions) was
-implemented on a branch from `master` and independently reviewed. Rollout
-requires a refreshed permission profile and fresh agents. Keep corpus cleanup
+merged and its refreshed profile passed live checkout inspection. The next
+single-pass observation selected a [runtime/inspection follow-up](#runtime-inspection-permissions)
+for the remaining manual interventions. Keep corpus cleanup
 and original evidence on the local corpus
 branch. Any subsequent semantic work uses the user's explicit run limit;
 this shared plan does not grant additional passes.
@@ -264,8 +265,11 @@ not proof that all friction is gone.
 
 Status: the user's external reviewer approved implementation `bcb297452` on
 2026-10-16. The assessment row above now distinguishes live key preservation
-from the older misplaced-kind check. Integration is pending; validation and
-rollout requirements are recorded here.
+from the older misplaced-kind check. Merged in
+[PR #162](https://github.com/khansen/nesrev/pull/162), with the profile refreshed
+and fresh agents tested. Live checkout inspection succeeded for both roles;
+the subsequent single-pass window still needed capture approvals and a reviewer
+mode change, as recorded in the [runtime/inspection follow-up](#runtime-inspection-permissions).
 
 The launcher prompts for the whole `git branch` family, so a live branch query
 also asks. A narrower allow cannot override a matching prompt: the native
@@ -310,6 +314,136 @@ reconnection preserves old processes and settings. Smoke-test the supported
 inspection and handoff paths before the next authorized semantic pass.
 No project verification wrapper changes or new recurring measurements are
 part of this fix.
+
+<a id="runtime-inspection-permissions"></a>
+### Scoped trace execution, source inspection and live smoke follow-up
+
+Status: the user's usual external reviewer approved `047cc4f4d` and its
+follow-up revision `8a91bcd7e` on 2026-10-16. All six follow-ups are resolved
+on `fix/pass-cycle-runtime-inspection`, branched from master `81d749afd`.
+The final documentation correction below clarifies capture shutdown timing;
+the approved tools are unchanged. Integration, profile refresh and a fresh
+production smoke remain pending. The installed project profile and existing
+agents remain unchanged.
+
+The fourth observation window contains one approved pass with three review
+rounds, four blocking findings and six recorded rework items. It added 45 rename
+rows (40 high-confidence, five scoped overlays); generic labels fell by seven,
+raw ROM calls by one and counter sites by 25. The final static source audit
+covered 640 room records and 47 writer sites. Independent assessment reproduced
+PRG parity, all nine focused tests, the byte-identical audit receipt and refusal
+of a missing writer row. Exact project identities and captures remain local.
+
+The user confirmed approving emulator commands and switching the reviewer to
+auto mode. Logs show nine desktop escalation requests and 1,429.915 seconds
+between those requests and emulator start, in aggregate; that interval includes
+approval handling and scheduling, not measured human response time alone. The
+six accepted captures took about three seconds each. The reviewer used default
+mode initially and auto mode later, so this is not a successful unattended run
+under the launcher's default profile. Checkout inspection itself worked for
+both roles. The other three requests were two empty-log startup timeouts and one
+capture with a Lua error: "no stock direct-type placement". That capture then
+hit the runner's 45-second timeout (exit 124, 45.237 seconds), and the emulator
+exited -11 during shutdown. Its logs were not empty. The two empty-log captures
+also timed out and exited -9 after the shutdown grace period. Their startup
+failure is distinct from the approval delays; its cause remains unproven.
+Only the later timeout entered the friction queue. The approval interruptions
+and mode change were missing from that queue.
+
+The selected fix adds `find-project-symbols` for both roles and `trace-project`
+for the implementer, with explicit project-bound prefixes in the generated
+native profiles. Symbol searches read one validated project file without shell
+loops. Trace dispatch accepts only `tools/trace/run_*.py` drivers in the selected
+project, forwards arguments without a shell, and preserves exit status. The
+profile explicitly trusts changing trace drivers and their dependencies with
+desktop access outside the sandbox; it is not a boundary around that code.
+Existing Codex rules remain shared by roles. No blanket shell/interpreter grant
+or automatic switch to auto/bypass mode is added.
+
+Generated guidance reaches the guide, bootstrap, kickoff and handoffs. Learning
+guidance explicitly includes operator approval interventions and mode changes,
+while distinguishing requests, confirmed prompts and emulator failures. The
+new `--smoke-only` launch runs checkout inspection plus repeated source search
+and actual capture commands in fresh scoped agents. It never starts handoff
+watchers or releases a semantic pass. Its results need session/log inspection;
+successful commands alone do not prove absence of human intervention.
+
+Validation of `047cc4f4d` on 2026-10-16: all 94 focused operation, permission
+and launcher tests passed (5 + 16 + 73). Full `make test` passed outside the
+sandbox: 686 shell cases and 1,206 Java tests. The sandboxed attempt failed only
+the existing supervised-emulator cleanup case; the unrestricted rerun passed it. Source
+inspection and project-bound grants also passed across all 23 copied projects,
+with inspected source files unchanged.
+
+Eight bad-direction probes ran in a disposable copy; each named focused test
+exited 1 with a failed assertion:
+
+| Mutation | Test after `python3 -B` |
+|---|---|
+| Remove implementer trace grant | `tests/agent_review_permissions_test.py PermissionTests.test_project_operations_grants_scope_roles_projects_and_guidance` |
+| Remove project from the trace grant prefix | `tests/agent_review_permissions_test.py PermissionTests.test_native_codex_policy_allows_exact_handoffs_but_not_generic_execution` |
+| Remove reviewer search grant | `tests/agent_review_permissions_test.py PermissionTests.test_project_operations_grants_scope_roles_projects_and_guidance` |
+| Accept symlinked project paths | `tests/agent_review_operations_test.py OperationsTests.test_search_refuses_other_projects_paths_symlinks_and_non_symbols` |
+| Hide trace-driver failure | `tests/agent_review_operations_test.py OperationsTests.test_trace_preserves_arguments_runs_from_root_repeats_and_propagates_failure` |
+| Remove repeated smoke operation | `tests/agent_review_operations_test.py OperationsTests.test_smoke_spec_validates_real_inputs_and_generates_repeated_standalone_commands` |
+| Start a watcher during smoke | `tests/agent_review_tmux_test.py LauncherTests.test_smoke_only_delivers_both_probes_but_never_starts_watchers_or_changes_state` |
+| Remove handoff operation guidance | `tests/agent_review_tmux_test.py LauncherTests.test_project_operations_guidance_reaches_both_roles_and_all_handoffs` |
+
+A live disposable-worktree smoke of `047cc4f4d` used fresh Codex and Claude
+sessions with the generated profile. Codex remained workspace-write/on-request
+and requested escalation on both exact capture commands; the profile allowed
+both without per-command human approval. Their request-to-capture-start intervals were
+0.639 and 0.607 seconds. Both accepted 300-frame captures finished in about
+three seconds. Claude stayed in default/manual mode and repeated the same
+three-symbol search successfully, with seven matches and no approval prompt.
+Both agents also inspected the live checkout. Neither a ready marker nor saved
+review state was created, and no semantic pass was started. Setup consent and
+readiness confirmation are excluded from the unattended-command claim. The
+first launcher attempt failed during tmux pane allocation; an unchanged retry
+succeeded before smoke dispatch. This is a setup failure, not a successful probe.
+
+Raw validation logs, mutation diagnostics, native session paths, command timing
+pairs and capture acceptance paths are indexed in the local
+`/private/tmp/nesrev-runtime-inspection-evidence.json` review attachment.
+These are bounded live results, not a guarantee that arbitrary shell commands,
+new drivers or different administrator settings will run unattended. Production
+installation still waits for integration, profile refresh and fresh-agent
+smoke validation in that checkout.
+
+The review follow-up marks smoke sessions and refuses normal reconnects to them;
+older untagged smoke sessions still require manual shutdown. Trace dispatch now
+replaces the helper process, preserving its PID and signal status, and keeps a
+literal leading `--` after the CLI separator. Regression fixtures cover suffix
+symbol matches, an existing non-driver Python file, missing project configuration
+and both consent-preview trust lines. The preview explicitly includes drivers
+the agent writes during the pass, and learning guidance requires "unknown" when
+the harness cannot expose whether a human approved. Capture accounting above now
+includes the ninth request's driver error.
+
+Revision validation: all 98 focused tests passed (8 operations, 16 permissions,
+74 launcher). Full `make test` passed outside the sandbox: 686 shell cases and
+1,206 Java tests, including supervised-emulator cleanup. Eleven disposable
+mutations failed with the intended assertions:
+the four uncovered restrictions (each preview line tested separately), removal
+of the smoke marker, query field or reconnect refusal, restored child-process
+dispatch, stripping the literal separator and removing the unknown fallback.
+All 23 project slugs/configurations passed dispatch probes with synthetic drivers:
+PID identity, repository-root working directory and literal arguments matched.
+No live emulator or original project driver was run in that sweep. Commands,
+mutation diagnostics and results are indexed in the local
+`/private/tmp/nesrev-runtime-revision-probe-results.json` attachment; the complete
+revision evidence index is `/private/tmp/nesrev-runtime-revision-evidence.json`.
+
+These revisions have not received another live agent smoke. The earlier live
+evidence and tool hashes describe `047cc4f4d` only. Reviewer ad-hoc analysis can
+still prompt: the observed reviewer ran 82 shell commands after switching to
+auto mode, including nine Python analyses. The source-search helper covers the
+observed 17-symbol loop that waited 71.5 seconds; the smoke does not exercise
+arbitrary analyses or certify a whole unattended pass.
+
+The emulator startup timeout investigation and general reviewer completeness
+are outside this bounded permissions change. Copy-and-run validation of published
+commands remains required; the last review round was avoidable command drift.
 
 <a id="interrupted-review-candidate"></a>
 ### Assessment: preserve incomplete review at a usage limit
@@ -857,6 +991,7 @@ migration and each newly exposed failure before landing.
 | `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) |
 | `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) |
 | `fix/pass-cycle-readonly-inspection` | Scoped live checkout inspection and third-window assessment | [Canonical delivery record](#checkout-inspection-permissions) |
+| `fix/pass-cycle-runtime-inspection` | Scoped trace execution, source inspection and live smoke | [Canonical delivery record](#runtime-inspection-permissions) |
 | `fix/pi-1-checker-coverage` | Consumer parsing and PPU stream coverage | Merged [PR #98](https://github.com/khansen/nesrev/pull/98); reviewed `70e488a7f` |
 | `feat/pi-2-policy-evidence` | Manifest membership and disposition checks | Merged [PR #100](https://github.com/khansen/nesrev/pull/100); reviewed `447b72477` with local activation migration |
 | `feat/pi-2-runtime-evidence` | Runtime deferrals and executable evidence | Merged [PR #105](https://github.com/khansen/nesrev/pull/105); independently approved `c405c932a` with the supported local migration and explicit failing debt |

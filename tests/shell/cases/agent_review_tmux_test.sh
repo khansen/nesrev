@@ -19,3 +19,7 @@ test_agent_review_artifact_import() {
 test_agent_review_project_git() {
   python3 "${REPO_ROOT}/tests/agent_review_git_test.py"
 }
+
+test_agent_review_project_operations() {
+  python3 "${REPO_ROOT}/tests/agent_review_operations_test.py"
+}

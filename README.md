@@ -105,7 +105,12 @@ Existing user permissions remain in effect; Codex's project rules are shared
 by both Codex sessions. This does not isolate the agents from each other.
 For live branch, HEAD and working-tree inspection, use the approved
 `checkout-status` command in the generated guide. Raw `git branch` inspection
-can still prompt. See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
+can still prompt. `find-project-symbols` replaces compound symbol-search loops;
+the implementer's `trace-project` command grants desktop execution to the selected
+project's trusted trace drivers. Before another batch, use
+[`--smoke-only <spec.json>`](agent_playbook/AGENT_PERMISSIONS.md#live-permission-smoke)
+to test repeated inspection and real captures with fresh agents, then stop.
+See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
 
 For custom agent wrappers or to use your existing permission setup, add
 `--permissions inherit`. This skips installation and does not remove rules
