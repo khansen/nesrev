@@ -45,6 +45,11 @@ class PermissionTests(unittest.TestCase):
         self.assertEqual(before, list(self.root.rglob("*")))
         for text in ("Existing user/admin grants", "shared by Codex sessions", "--repo", "--kind", "no global settings"):
             self.assertIn(text, out.getvalue())
+        for line in (
+            "Both roles can search project symbols read-only. The implementer can execute the selected project's tools/trace/run_*.py drivers with desktop access.",
+            "Trace grants trust those changing drivers and their dependencies outside the sandbox, including drivers the agent writes during the pass; they do not constrain what the driver itself can do.",
+        ):
+            self.assertIn(line, out.getvalue().splitlines())
 
     def test_all_role_combinations_keep_native_models_and_scope_claude_grants(self):
         for implementer in ("codex", "claude"):

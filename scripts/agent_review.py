@@ -65,6 +65,7 @@ LEARNING_CANDIDATE_GUIDANCE = (
     "adds new evidence. No proposed fix is required. "
     "Include approval interruptions or permission-mode changes that required operator intervention; "
     "distinguish approval requests from confirmed prompts and emulator failures. "
+    "Say unknown when the harness does not expose whether a human approved. "
     "Do not record already-fixed friction or completed-work history."
 )
 RUNTIME_EXCLUDE_PATTERNS = (
@@ -1292,18 +1293,17 @@ def project_trace_argv(root: Path, project: str, driver: str, arguments: list[st
     path = validate_project_file(root, project, f"projects/{project}/tools/trace/{driver}")
     if not path.is_file():
         raise UserError(f"trace driver does not exist: {path}")
-    # argparse may consume the separator before the REMAINDER positional.
-    forwarded = arguments[1:] if arguments[:1] == ["--"] else arguments
-    if any("\0" in argument for argument in forwarded):
+    if any("\0" in argument for argument in arguments):
         raise UserError("trace arguments cannot contain NUL bytes")
-    return [sys.executable, str(path), *forwarded]
+    return [sys.executable, str(path), *arguments]
 
 
 def command_trace_project(args: argparse.Namespace) -> int:
     root = repo_root().resolve()
     command = project_trace_argv(root, args.project, args.driver, args.arguments)
     try:
-        return subprocess.call(command, cwd=root)
+        os.chdir(root)
+        os.execv(sys.executable, command)
     except OSError as exc:
         raise UserError(f"cannot start project trace driver: {exc}") from exc
 

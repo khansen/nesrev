@@ -318,9 +318,11 @@ part of this fix.
 <a id="runtime-inspection-permissions"></a>
 ### Scoped trace execution, source inspection and live smoke follow-up
 
-Status: implemented and tested on `fix/pass-cycle-runtime-inspection`,
-branched from master `81d749afd`. The user's usual external reviewer gates
-integration; the installed project profile and existing agents remain unchanged.
+Status: the user's usual external reviewer approved `047cc4f4d` on 2026-10-16.
+The six follow-ups below are addressed on the same
+`fix/pass-cycle-runtime-inspection` branch from master `81d749afd`; the revision
+awaits focused re-review before integration. The installed project profile and
+existing agents remain unchanged.
 
 The fourth observation window contains one approved pass with three review
 rounds, four blocking findings and six recorded rework items. It added 45 rename
@@ -337,9 +339,12 @@ approval handling and scheduling, not measured human response time alone. The
 six accepted captures took about three seconds each. The reviewer used default
 mode initially and auto mode later, so this is not a successful unattended run
 under the launcher's default profile. Checkout inspection itself worked for
-both roles. Two empty-log startup timeouts are distinct from those approval
-delays; their cause remains unproven. Only the later timeout entered the friction
-queue. The approval interruptions and mode change were missing from that queue.
+both roles. The other three requests were two empty-log startup timeouts and one
+driver error: Lua reported "no stock direct-type placement", the emulator exited
+-11, and its logs were not empty. The two startup timeouts are distinct from the
+approval delays; their cause remains unproven. Only the later timeout entered
+the friction queue. The approval interruptions and mode change were missing
+from that queue.
 
 The selected fix adds `find-project-symbols` for both roles and `trace-project`
 for the implementer, with explicit project-bound prefixes in the generated
@@ -359,10 +364,10 @@ and actual capture commands in fresh scoped agents. It never starts handoff
 watchers or releases a semantic pass. Its results need session/log inspection;
 successful commands alone do not prove absence of human intervention.
 
-Validation on 2026-10-16: all 94 focused operation, permission and launcher tests
-passed (5 + 16 + 73). Full `make test` passed outside the sandbox: 686 shell
-cases and 1,206 Java tests. The sandboxed attempt failed only the existing
-supervised-emulator cleanup case; the unrestricted rerun passed it. Source
+Validation of `047cc4f4d` on 2026-10-16: all 94 focused operation, permission
+and launcher tests passed (5 + 16 + 73). Full `make test` passed outside the
+sandbox: 686 shell cases and 1,206 Java tests. The sandboxed attempt failed only
+the existing supervised-emulator cleanup case; the unrestricted rerun passed it. Source
 inspection and project-bound grants also passed across all 23 copied projects,
 with inspected source files unchanged.
 
@@ -380,10 +385,10 @@ exited 1 with a failed assertion:
 | Start a watcher during smoke | `tests/agent_review_tmux_test.py LauncherTests.test_smoke_only_delivers_both_probes_but_never_starts_watchers_or_changes_state` |
 | Remove handoff operation guidance | `tests/agent_review_tmux_test.py LauncherTests.test_project_operations_guidance_reaches_both_roles_and_all_handoffs` |
 
-A live disposable-worktree smoke used fresh Codex and Claude sessions with the
-generated profile. Codex remained workspace-write/on-request and requested
-escalation on both exact capture commands; the profile allowed both without
-per-command human approval. Their request-to-capture-start intervals were
+A live disposable-worktree smoke of `047cc4f4d` used fresh Codex and Claude
+sessions with the generated profile. Codex remained workspace-write/on-request
+and requested escalation on both exact capture commands; the profile allowed
+both without per-command human approval. Their request-to-capture-start intervals were
 0.639 and 0.607 seconds. Both accepted 300-frame captures finished in about
 three seconds. Claude stayed in default/manual mode and repeated the same
 three-symbol search successfully, with seven matches and no approval prompt.
@@ -400,6 +405,37 @@ These are bounded live results, not a guarantee that arbitrary shell commands,
 new drivers or different administrator settings will run unattended. Production
 installation still waits for external review, integration, profile refresh and
 fresh-agent smoke validation in that checkout.
+
+The review follow-up marks smoke sessions and refuses normal reconnects to them;
+older untagged smoke sessions still require manual shutdown. Trace dispatch now
+replaces the helper process, preserving its PID and signal status, and keeps a
+literal leading `--` after the CLI separator. Regression fixtures cover suffix
+symbol matches, an existing non-driver Python file, missing project configuration
+and both consent-preview trust lines. The preview explicitly includes drivers
+the agent writes during the pass, and learning guidance requires "unknown" when
+the harness cannot expose whether a human approved. Capture accounting above now
+includes the ninth request's driver error.
+
+Revision validation: all 98 focused tests passed (8 operations, 16 permissions,
+74 launcher). Full `make test` passed outside the sandbox: 686 shell cases and
+1,206 Java tests, including supervised-emulator cleanup. Eleven disposable
+mutations failed with the intended assertions:
+the four uncovered restrictions (each preview line tested separately), removal
+of the smoke marker, query field or reconnect refusal, restored child-process
+dispatch, stripping the literal separator and removing the unknown fallback.
+All 23 project slugs/configurations passed dispatch probes with synthetic drivers:
+PID identity, repository-root working directory and literal arguments matched.
+No live emulator or original project driver was run in that sweep. Commands,
+mutation diagnostics and results are indexed in the local
+`/private/tmp/nesrev-runtime-revision-probe-results.json` attachment; the complete
+revision evidence index is `/private/tmp/nesrev-runtime-revision-evidence.json`.
+
+These revisions have not received another live agent smoke. The earlier live
+evidence and tool hashes describe `047cc4f4d` only. Reviewer ad-hoc analysis can
+still prompt: the observed reviewer ran 82 shell commands after switching to
+auto mode, including nine Python analyses. The source-search helper covers the
+observed 17-symbol loop that waited 71.5 seconds; the smoke does not exercise
+arbitrary analyses or certify a whole unattended pass.
 
 The emulator startup timeout investigation and general reviewer completeness
 are outside this bounded permissions change. Copy-and-run validation of published

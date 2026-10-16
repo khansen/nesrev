@@ -46,8 +46,9 @@ patterns do not cover every equivalent Git invocation or indirect script.
 Never push `projects`, regardless of available permissions. This profile trusts
 the named handoff script, repository code it invokes, and Git hooks; it is a
 convenience configuration for cooperating agents, not containment for hostile
-code. Trace drivers and their dependencies are trusted code with desktop access
-outside the Codex sandbox; the grant does not constrain their effects. Installation,
+code. Trace drivers and their dependencies, including drivers the agent writes
+during the pass, are trusted code with desktop access outside the Codex sandbox;
+the grant does not constrain their effects. Installation,
 network, direct emulator launches, builds, and other unlisted requests may still prompt.
 
 ## Commands that match the grants
@@ -81,8 +82,11 @@ result. Other analysis commands can still require approval.
 
 The implementer uses `trace-project <slug> run_<scenario>.py -- <arguments>`
 for desktop captures. It selects a regular, non-symlinked Python driver under
-`projects/<slug>/tools/trace/`, invokes it from the repository root without a
-shell, forwards arguments literally, and propagates its exit status. It accepts
+`projects/<slug>/tools/trace/`, replaces the helper process with that driver from
+the repository root without a shell, and forwards arguments literally. The driver
+retains the helper's PID and receives signals directly; callers observe its exit
+or signal status. The first `--` separates helper arguments from driver arguments;
+an additional `--` is passed to the driver. It accepts
 no arbitrary interpreter or script path. Drivers must use the supervised
 `scripts/run_fceux_trace.py` lifecycle and explicit scenario acceptance. This
 helper validates dispatch, not the driver's implementation or capture evidence;
@@ -94,6 +98,7 @@ settings omit the trace grant; Codex roles share project rules as described abov
 Keep commands that may prompt separate from routine reads. If a supported form
 still prompts, record the exact command, loaded permission mode and observed
 intervention. Do not treat an escalation request as proof that a human approved.
+Report unknown when the harness does not expose whether a human approved.
 Do not switch permission modes to make a scoped smoke test pass.
 
 The implementer writes a commit message with a normal
@@ -162,7 +167,9 @@ arbitrary shell commands. For example, adapt these names to the project:
 Prepare any listing/xref inputs required by that driver first. `--check` with
 the same specification validates setup without launching agents or captures.
 The smoke mode requires `pass-cycle`, refuses to reconnect to an existing
-session, and keeps saved review state unchanged. After both agents say READY,
+session, and keeps saved review state unchanged. Smoke sessions are tagged with
+`@nesrev_review_smoke=1`; a normal launch refuses to reconnect to them and prints
+the command to stop the session first. After both agents say READY,
 confirm readiness in the startup pane. Both inspect the checkout; the reviewer
 runs the symbol search twice and the implementer runs the real capture twice
 to exercise grant reuse. Help/version output cannot substitute for a capture.
@@ -175,6 +182,8 @@ to succeed under the intended unchanged modes, without manual per-command
 approval. Setup trust/consent is separate. Preserve any failure or intervention
 as evidence; a mode change invalidates the unattended result. Stop this smoke
 session before launching the next separately authorized semantic task.
+Smoke sessions created before this marker was introduced must also be stopped;
+the launcher cannot identify those untagged sessions as smoke-only.
 
 <a id="recovery-and-custom-setups"></a>
 ## Recovery and custom setups

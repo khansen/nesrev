@@ -447,17 +447,22 @@ def launch(args: argparse.Namespace) -> int:
         return 0
     sessions = tmux(
         "list-sessions", "-F",
-        "#{session_id}\t#{session_name}\t#{@nesrev_review_root}\t#{@nesrev_review_project}",
+        "#{session_id}\t#{session_name}\t#{@nesrev_review_root}\t#{@nesrev_review_project}\t#{@nesrev_review_smoke}",
         check=False,
     )
     entries = [line.split("\t") for line in sessions.stdout.splitlines() if line]
-    for session_id, name, checkout, project in entries:
+    for session_id, name, checkout, project, existing_smoke in entries:
         if checkout == str(root) and project == args.project:
             if smoke is not None:
                 raise review.UserError("smoke-only requires fresh agents; the existing session was left unchanged")
+            if existing_smoke == "1":
+                raise review.UserError(
+                    f"tmux session {name} is smoke-only; stop it with "
+                    f"tmux kill-session -t {shlex.quote(name)} before launching a pass"
+                )
             print(f"Reconnecting to {name} for {project}; keeping its existing agents, permissions, models, effort, and task. Requested changes require a restart.")
             return connect(session_id, name, args.no_attach)
-    for session_id, name, checkout, project in entries:
+    for session_id, name, checkout, project, existing_smoke in entries:
         if name == args.session or checkout == str(root):
             raise review.UserError(
                 f"tmux session {name} already exists; use tmux attach -t {name} "
@@ -500,6 +505,7 @@ def launch(args: argparse.Namespace) -> int:
         session_id, agents_window, implementer = created.split("\t")
         tmux("set-option", "-t", session_id, "@nesrev_review_root", str(root))
         tmux("set-option", "-t", session_id, "@nesrev_review_project", args.project)
+        tmux("set-option", "-t", session_id, "@nesrev_review_smoke", "1" if smoke is not None else "0")
         tmux("set-option", "-w", "-t", agents_window, "remain-on-exit", "on")
         tmux("set-option", "-w", "-t", agents_window, "pane-border-status", "top")
         tmux("set-option", "-w", "-t", agents_window, "pane-border-format", " #{pane_title} ")

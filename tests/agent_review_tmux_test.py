@@ -48,6 +48,8 @@ class LauncherTests(unittest.TestCase):
             self.assertIn("trace-project demo", prompt)
             self.assertIn("Keep commands that may prompt separate", prompt)
         self.assertIn("approval requests from confirmed prompts", review.LEARNING_CANDIDATE_GUIDANCE)
+        for prompt in (prompts[0], *prompts[3:5]):
+            self.assertIn("Say unknown when the harness does not expose whether a human approved", prompt)
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -142,6 +144,22 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(review.state_path(self.root).read_bytes(), before)
         self.assertFalse((self.root / ".agents/reference_intake").exists())
 
+    def test_normal_launch_refuses_a_leftover_smoke_session_without_changes(self):
+        self.smoke_spec()
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+        self.assertIn(["set-option", "-t", "$1", "@nesrev_review_smoke", "1"], self.calls())
+        before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        previous_calls = len(self.calls())
+        self.args.smoke_only = None
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$1\treview-test\t{self.root}\tdemo\t1"}):
+            with self.assertRaisesRegex(review.UserError, "smoke-only; stop it with tmux kill-session -t review-test"):
+                self.launch()
+        calls = self.calls()[previous_calls:]
+        self.assertEqual([c[0] for c in calls], ["list-sessions"])
+        self.assertIn("#{@nesrev_review_smoke}", calls[0][-1])
+        self.assertEqual(before, {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
+
     def test_smoke_only_refuses_reconnection_and_non_scoped_modes(self):
         self.smoke_spec()
         for mode in ("inherit", "bypass"):
@@ -149,7 +167,7 @@ class LauncherTests(unittest.TestCase):
             with self.assertRaisesRegex(review.UserError, "scoped pass-cycle"):
                 self.launch()
         self.args.permissions = "pass-cycle"
-        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$1\told\t{self.root}\tdemo"}):
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$1\told\t{self.root}\tdemo\t"}):
             with self.assertRaisesRegex(review.UserError, "fresh agents"):
                 self.launch()
         self.assertFalse((self.root / ".agents").exists())
@@ -276,7 +294,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_bypass_reconnect_preserves_running_permission_mode(self):
         self.args.permissions = "bypass"
-        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$5\treview-test\t{self.root}\tdemo"}), \
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$5\treview-test\t{self.root}\tdemo\t"}), \
              patch.object(launcher, "launch_commands", side_effect=AssertionError("reconnect must not change commands")), \
              contextlib.redirect_stdout(io.StringIO()) as output:
             self.assertEqual(launcher.launch(self.args), 0)
@@ -635,11 +653,12 @@ class LauncherTests(unittest.TestCase):
         config = self.root / "projects/demo/project.conf"
         original = config.read_bytes()
         self.launch()
+        self.assertIn(["set-option", "-t", "$1", "@nesrev_review_smoke", "0"], self.calls())
         self.assertEqual(config.read_bytes(), original)
         self.assertFalse((self.root / "scaffold.log").exists())
 
     def test_existing_session_and_other_session_for_same_checkout_are_preserved(self):
-        for sessions in ("$5\treview-test\t/other/checkout\tdemo", f"$5\tanother-name\t{self.root}\tother"):
+        for sessions in ("$5\treview-test\t/other/checkout\tdemo\t", f"$5\tanother-name\t{self.root}\tother\t"):
             with self.subTest(sessions=sessions), patch.dict(os.environ, {"TMUX_SESSIONS": sessions}):
                 with self.assertRaisesRegex(review.UserError, "already exists"):
                     self.launch()
@@ -651,7 +670,7 @@ class LauncherTests(unittest.TestCase):
         self.args.no_attach = False
         self.args.reviewer_cmd = "/not/needed/when/reconnecting"
         self.args.implementer_model, self.args.reviewer_effort = "not-applied", "not-applied"
-        with patch.dict(os.environ, {"TMUX": "live", "TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo"}):
+        with patch.dict(os.environ, {"TMUX": "live", "TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo\t"}):
             self.launch()
         self.assertEqual([c[0] for c in self.calls()], ["list-sessions", "switch-client"])
         self.assertEqual(self.calls()[-1], ["switch-client", "-t", "$5"])
@@ -659,9 +678,12 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse((self.root / ".agents/logs").exists())
 
     def test_repeated_detached_launch_does_not_attach_or_create_agents(self):
-        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo"}):
-            self.launch()
-        self.assertEqual([c[0] for c in self.calls()], ["list-sessions"])
+        for marker in ("", "0"):
+            with self.subTest(marker=marker), patch.dict(os.environ, {
+                "TMUX_SESSIONS": f"$5\texisting-name\t{self.root}\tdemo\t{marker}",
+            }):
+                self.launch()
+        self.assertEqual([c[0] for c in self.calls()], ["list-sessions", "list-sessions"])
 
     def test_setup_failure_removes_only_the_session_it_created(self):
         with patch.dict(os.environ, {"TMUX_FAIL_COMMAND": "new-window"}):

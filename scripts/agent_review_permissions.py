@@ -121,7 +121,7 @@ class Plan:
         print("Pass-cycle permissions (checkout-local; no global settings changed):")
         print("Validated project-file staging/commits for the implementer, named review handoffs, live checkout inspection, and scoped Claude file edits.")
         print("Both roles can search project symbols read-only. The implementer can execute the selected project's tools/trace/run_*.py drivers with desktop access.")
-        print("Trace grants trust those changing drivers and their dependencies outside the sandbox; they do not constrain what the driver itself can do.")
+        print("Trace grants trust those changing drivers and their dependencies outside the sandbox, including drivers the agent writes during the pass; they do not constrain what the driver itself can do.")
         print("Codex keeps workspace-write / on-request; Claude keeps manual approval for unlisted actions.")
         print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
         print("Existing user/admin grants still apply and may allow more; this is not a permissions reset or a security boundary.")

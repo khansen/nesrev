@@ -26,7 +26,7 @@ def load_spec(root: Path, project: str, path: Path) -> dict:
             raise ValueError("inspection must match project source")
         if any(arg in {"--help", "-h", "--version"} for arg in trace["arguments"]):
             raise ValueError("smoke requires a real capture, not help/version output")
-        review.project_trace_argv(root, project, trace["driver"], ["--", *trace["arguments"]])
+        review.project_trace_argv(root, project, trace["driver"], trace["arguments"])
         return spec
     except (OSError, ValueError, TypeError) as exc:
         raise review.UserError(f"invalid smoke specification: {exc}") from exc

@@ -2,6 +2,9 @@
 """Real subprocess coverage for scoped inspection, trace dispatch, and smoke input."""
 
 import json
+import os
+import selectors
+import signal
 import subprocess
 import sys
 import tempfile
@@ -25,7 +28,7 @@ class OperationsTests(unittest.TestCase):
         (self.project / "tools/trace").mkdir(parents=True)
         (self.project / "project.conf").write_text('PROJECT="demo"\n')
         self.source = self.project / "source file.asm"
-        self.source.write_text("Actor:\n    JSR Actor\nOtherActor:\n    JMP @@done\n@@done:\n")
+        self.source.write_text("Actor:\n    JSR Actor\nOtherActor:\n    JMP @@done\n@@done:\n    JSR ActorX\n")
         self.driver = self.project / "tools/trace/run_probe.py"
         self.driver.write_text(
             "import json, os, sys\nfrom pathlib import Path\n"
@@ -38,7 +41,7 @@ class OperationsTests(unittest.TestCase):
                      "trace": {"driver": "run_probe.py", "arguments": ["--scenario", "fixture with spaces"]}}
 
     def run_command(self, *args, expected=0):
-        result = subprocess.run([*self.command, *args], cwd=self.temp.name, text=True, capture_output=True)
+        result = subprocess.run([*self.command, *args], cwd=self.temp.name, text=True, capture_output=True, timeout=15)
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
@@ -64,6 +67,12 @@ class OperationsTests(unittest.TestCase):
                 self.run_command("find-project-symbols", "demo", "projects/demo/source file.asm", symbol, expected=2)
         self.assertFalse((self.root / "injected").exists())
 
+    def test_search_requires_project_configuration(self):
+        (self.project / "project.conf").unlink()
+        result = self.run_command("find-project-symbols", "demo", "projects/demo/source file.asm", "Actor", expected=2)
+        self.assertIn("project.conf", result.stderr)
+        self.assertEqual(result.stdout, "")
+
     def test_trace_preserves_arguments_runs_from_root_repeats_and_propagates_failure(self):
         arguments = ["--scenario", "value with spaces", "$(touch injected)", "--repo", "/not-an-override"]
         for _ in range(2):
@@ -74,11 +83,49 @@ class OperationsTests(unittest.TestCase):
         self.assertFalse((self.root / "injected").exists())
         self.run_command("trace-project", "demo", "run_probe.py", "--", "--fail", expected=7)
 
+    def test_trace_preserves_a_literal_leading_separator(self):
+        for arguments in ([], ["--"], ["--", "z"], ["--", "--", "z"]):
+            with self.subTest(arguments=arguments):
+                result = self.run_command("trace-project", "demo", "run_probe.py", "--", *arguments)
+                self.assertEqual(json.loads(result.stdout)["args"], arguments)
+
+    @unittest.skipUnless(os.name == "posix", "POSIX process and signal semantics")
+    def test_trace_replaces_helper_and_preserves_signal_status(self):
+        self.driver.write_text(
+            "import os, signal, sys\n"
+            "if '--kill' in sys.argv: os.kill(os.getpid(), signal.SIGKILL)\n"
+            "print(os.getpid(), flush=True)\n"
+            "signal.pause()\n"
+        )
+        process = subprocess.Popen(
+            [*self.command, "trace-project", "demo", "run_probe.py"],
+            cwd=self.temp.name, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, start_new_session=True,
+        )
+        try:
+            with selectors.DefaultSelector() as selector:
+                selector.register(process.stdout, selectors.EVENT_READ)
+                self.assertTrue(selector.select(timeout=5), "trace driver did not start")
+            driver_pid = int(process.stdout.readline())
+            self.assertEqual(driver_pid, process.pid, "trace driver must replace the helper process")
+            process.terminate()
+            process.communicate(timeout=5)
+            self.assertEqual(process.returncode, -signal.SIGTERM)
+        finally:
+            # A child-process regression must not leave the fixture driver alive.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.communicate(timeout=5)
+        self.run_command("trace-project", "demo", "run_probe.py", "--", "--kill", expected=-signal.SIGKILL)
+
     def test_trace_refuses_non_drivers_and_symlinked_files_or_directories_before_execution(self):
         outside = self.root / "run_outside.py"
         outside.write_bytes(self.driver.read_bytes())
         (self.driver.parent / "run_link.py").symlink_to(outside)
-        for driver in (str(self.driver), "../run_probe.py", "run_link.py", "run_missing.py", "-c", "probe.py"):
+        (self.driver.parent / "helper.py").write_bytes(self.driver.read_bytes())
+        for driver in (str(self.driver), "../run_probe.py", "run_link.py", "run_missing.py", "-c", "helper.py"):
             with self.subTest(driver=driver):
                 self.run_command("trace-project", "demo", driver, "--", expected=2)
         # A directory symlink must not turn an approved project into a different one.
