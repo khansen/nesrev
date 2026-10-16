@@ -54,11 +54,14 @@ def grants(root: Path, project: str, role: str) -> list[list[str]]:
             tool + ["reready"], tool + ["archive"],
             tool + ["import-artifact", "--kind", "response"],
             tool + ["checkout-status"],
+            tool + ["find-project-symbols", project],
+            tool + ["trace-project", project],
         ]
     return common + [
         tool + ["approve"], tool + ["request-changes"],
         tool + ["import-artifact", "--kind", "review"],
         tool + ["checkout-status"],
+        tool + ["find-project-symbols", project],
     ]
 
 
@@ -79,6 +82,10 @@ def command_guide(root: Path, project: str) -> str:
         "another interpreter, environment assignment, shell script, or output redirection. "
         "For Codex, request sandbox escalation when needed; the installed rules can approve the matching command.\n\n"
         f"{review.checkout_status_guidance(root)}\n\n"
+        f"{review.project_operations_guidance(root, project)}\n\n"
+        "The trace grant trusts the selected project's changing Python drivers and their dependencies, "
+        "including desktop access outside the Codex sandbox. It is implementer-owned and not a sandbox "
+        "around that code. Drivers must use the supervised run_fceux_trace.py lifecycle and bounded scenarios.\n\n"
         f"Write the commit message using the file-edit tool at `projects/{project}/tmp/commit-message.txt`. "
         "Stage only reviewed, explicit project file paths, including deleted files, then commit the staged changes. "
         "Staging rejects directories, pathspec patterns, symlinks, and paths outside this project; "
@@ -113,6 +120,8 @@ class Plan:
     def preview(self) -> None:
         print("Pass-cycle permissions (checkout-local; no global settings changed):")
         print("Validated project-file staging/commits for the implementer, named review handoffs, live checkout inspection, and scoped Claude file edits.")
+        print("Both roles can search project symbols read-only. The implementer can execute the selected project's tools/trace/run_*.py drivers with desktop access.")
+        print("Trace grants trust those changing drivers and their dependencies outside the sandbox; they do not constrain what the driver itself can do.")
         print("Codex keeps workspace-write / on-request; Claude keeps manual approval for unlisted actions.")
         print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
         print("Existing user/admin grants still apply and may allow more; this is not a permissions reset or a security boundary.")

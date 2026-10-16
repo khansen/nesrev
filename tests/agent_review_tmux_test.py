@@ -35,6 +35,20 @@ class LauncherTests(unittest.TestCase):
                          status=status, review_base="base", review_head="head", packet="packet.md")
             self.assertIn(expected, review.render_prompt(self.root, state, role))
 
+    def test_project_operations_guidance_reaches_both_roles_and_all_handoffs(self):
+        prompts = [launcher.kickoff(self.root, "demo", "One pass")]
+        prompts.extend(launcher.bootstrap(role, "demo", self.root, self.root / "task.md") for role in launcher.ROLES)
+        for role, status in (("reviewer", "READY_FOR_REVIEW"), ("implementer", "CHANGES_REQUESTED"),
+                             ("implementer", "APPROVED")):
+            state = dict(project="demo", run_id="demo-pass-1", round=1, max_rounds=3,
+                         status=status, review_base="base", review_head="head", packet="packet.md")
+            prompts.append(review.render_prompt(self.root, state, role))
+        for prompt in prompts:
+            self.assertIn("find-project-symbols demo", prompt)
+            self.assertIn("trace-project demo", prompt)
+            self.assertIn("Keep commands that may prompt separate", prompt)
+        self.assertIn("approval requests from confirmed prompts", review.LEARNING_CANDIDATE_GUIDANCE)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -94,6 +108,63 @@ class LauncherTests(unittest.TestCase):
             binary.write_bytes(self.agent.read_bytes())
             binary.chmod(0o755)
             setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)))
+
+    def smoke_spec(self):
+        self.permission_agents()
+        source = self.root / "projects/demo/source.asm"
+        source.write_text("Entry:\n  JSR Helper\nHelper:\n  RTS\n")
+        trace = self.root / "projects/demo/tools/trace/run_probe.py"
+        trace.parent.mkdir(parents=True)
+        trace.write_text("raise SystemExit(0)\n")
+        spec = {"inspection": {"path": "projects/demo/source.asm", "symbols": ["Entry", "Helper"]},
+                "trace": {"driver": "run_probe.py", "arguments": ["--scenario", "demo"]}}
+        path = self.root / "smoke.json"
+        path.write_text(json.dumps(spec))
+        self.args.smoke_only = path
+        return spec
+
+    def test_smoke_only_delivers_both_probes_but_never_starts_watchers_or_changes_state(self):
+        spec = self.smoke_spec()
+        self.state(status="APPROVED")
+        before = review.state_path(self.root).read_bytes()
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+        config = json.loads(self.config().read_text())
+        self.assertEqual(config["smoke"], spec)
+        self.assertNotIn("project-next-pass", self.config().with_name("task.md").read_text())
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+        for role in ("reviewer", "implementer"):
+            result, execute = self.run_worker(role=role)
+            self.assertEqual(result, 0)
+            execute.assert_not_called()
+        self.assertEqual(sum(c[0] == "paste-buffer" for c in self.calls()), 2)
+        self.assertFalse(self.config().with_name("ready").exists())
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+        self.assertFalse((self.root / ".agents/reference_intake").exists())
+
+    def test_smoke_only_refuses_reconnection_and_non_scoped_modes(self):
+        self.smoke_spec()
+        for mode in ("inherit", "bypass"):
+            self.args.permissions = mode
+            with self.assertRaisesRegex(review.UserError, "scoped pass-cycle"):
+                self.launch()
+        self.args.permissions = "pass-cycle"
+        with patch.dict(os.environ, {"TMUX_SESSIONS": f"$1\told\t{self.root}\tdemo"}):
+            with self.assertRaisesRegex(review.UserError, "fresh agents"):
+                self.launch()
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_smoke_only_eof_or_dead_agent_never_delivers_probes(self):
+        self.smoke_spec()
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+        with self.assertRaises(EOFError):
+            self.run_worker(answer=EOFError)
+        with patch.object(launcher, "require_live_agents", side_effect=review.UserError("dead")):
+            with self.assertRaisesRegex(review.UserError, "dead"):
+                self.run_worker()
+        self.assertFalse(any(c[0] == "paste-buffer" for c in self.calls()))
+        self.assertFalse(self.config().with_name("ready").exists())
 
     def test_pass_cycle_is_the_cli_default(self):
         with patch.object(sys, "argv", ["launcher", "--project", "demo"]), patch.object(launcher, "launch", return_value=0) as launch:

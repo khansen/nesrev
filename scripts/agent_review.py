@@ -63,6 +63,8 @@ LEARNING_CANDIDATE_GUIDANCE = (
     "alone in the section, without an explanation. Put references to already-queued "
     "issues and status explanations elsewhere; record a recurrence only when it "
     "adds new evidence. No proposed fix is required. "
+    "Include approval interruptions or permission-mode changes that required operator intervention; "
+    "distinguish approval requests from confirmed prompts and emulator failures. "
     "Do not record already-fixed friction or completed-work history."
 )
 RUNTIME_EXCLUDE_PATTERNS = (
@@ -151,6 +153,21 @@ def checkout_status_guidance(root: Path) -> str:
         "the live branch, HEAD and working-tree changes before work or a commit. "
         "It works without review state. `status` reports the saved review handoff instead. "
         "Raw git branch/config/worktree commands can prompt even for inspection."
+    )
+
+
+def project_operations_guidance(root: Path, project: str) -> str:
+    command = script_command(root)
+    return (
+        "For source inspection, prefer native Read/Grep tools or "
+        f"`{command} find-project-symbols {project} projects/{project}/asm/<file>.asm SymbolA SymbolB` "
+        "as one standalone command instead of a shell loop. This searches whole symbol tokens read-only. "
+        "The implementer runs desktop captures through "
+        f"`{command} trace-project {project} run_<scenario>.py -- <driver arguments>`; "
+        "this invokes the selected project's tools/trace driver from the repository root. "
+        "For Codex, request sandbox escalation on that exact command so the installed grant can apply. "
+        "Keep commands that may prompt separate from routine reads. If a supported command still prompts, "
+        "report its exact spelling and permission mode; do not change modes or command forms to evade it."
     )
 
 
@@ -529,6 +546,7 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
         "When using the scoped pass-cycle profile, follow `.agents/permissions/commands.md` "
         "and verify it names this project; otherwise follow the launcher's permission mode.",
         checkout_status_guidance(root),
+        project_operations_guidance(root, state["project"]),
         "Run handoff commands exactly as shown, as separate commands without",
         "shell redirection, environment assignments, or compound scripts.",
         "The command's stdout and generated artifacts provide the handoff result.",
@@ -1243,6 +1261,53 @@ def validate_project_file(root: Path, project: str, name: str) -> Path:
     return target
 
 
+def project_symbol_matches(root: Path, project: str, name: str, symbols: list[str]) -> dict:
+    project_commit_root(root, project)
+    target = validate_project_file(root, project, name)
+    if not symbols or len(symbols) > 64 or any(
+        not re.fullmatch(r"[A-Za-z_@][A-Za-z0-9_@.]*", symbol) for symbol in symbols
+    ):
+        raise UserError("supply 1–64 literal assembly symbols, not options or expressions")
+    pattern = re.compile(r"(?<![A-Za-z0-9_@.])(?:" + "|".join(map(re.escape, symbols)) + r")(?![A-Za-z0-9_@.])")
+    try:
+        lines = target.read_text().splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise UserError(f"cannot read project text file: {exc}") from exc
+    return {"path": name, "symbols": symbols, "matches": [
+        {"line": number, "text": line}
+        for number, line in enumerate(lines, 1) if pattern.search(line)
+    ]}
+
+
+def command_find_project_symbols(args: argparse.Namespace) -> int:
+    result = project_symbol_matches(repo_root().resolve(), args.project, args.path, args.symbols)
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def project_trace_argv(root: Path, project: str, driver: str, arguments: list[str]) -> list[str]:
+    project_commit_root(root, project)
+    if not re.fullmatch(r"run_[A-Za-z0-9_]+\.py", driver):
+        raise UserError("trace driver must be a run_<scenario>.py filename")
+    path = validate_project_file(root, project, f"projects/{project}/tools/trace/{driver}")
+    if not path.is_file():
+        raise UserError(f"trace driver does not exist: {path}")
+    # argparse may consume the separator before the REMAINDER positional.
+    forwarded = arguments[1:] if arguments[:1] == ["--"] else arguments
+    if any("\0" in argument for argument in forwarded):
+        raise UserError("trace arguments cannot contain NUL bytes")
+    return [sys.executable, str(path), *forwarded]
+
+
+def command_trace_project(args: argparse.Namespace) -> int:
+    root = repo_root().resolve()
+    command = project_trace_argv(root, args.project, args.driver, args.arguments)
+    try:
+        return subprocess.call(command, cwd=root)
+    except OSError as exc:
+        raise UserError(f"cannot start project trace driver: {exc}") from exc
+
+
 def command_stage_project(args: argparse.Namespace) -> int:
     root = repo_root().resolve()
     project_commit_root(root, args.project)
@@ -1400,6 +1465,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     checkout = sub.add_parser("checkout-status", help="inspect live branch, HEAD and worktree without writes")
     checkout.set_defaults(func=command_checkout_status)
+
+    search = sub.add_parser("find-project-symbols", help="read whole-symbol uses in one project text file", allow_abbrev=False)
+    search.add_argument("project")
+    search.add_argument("path")
+    search.add_argument("symbols", nargs="+")
+    search.set_defaults(func=command_find_project_symbols)
+
+    trace = sub.add_parser("trace-project", help="run a trusted project tools/trace/run_*.py driver", allow_abbrev=False)
+    trace.add_argument("project")
+    trace.add_argument("driver")
+    trace.add_argument("arguments", nargs=argparse.REMAINDER)
+    trace.set_defaults(func=command_trace_project)
 
     artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
     artifact.add_argument("--kind", choices=("review", "response"), required=True)

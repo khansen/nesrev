@@ -161,6 +161,7 @@ def bootstrap(role: str, project: str, root: Path, task_path: Path, permission_m
         "watchers deliver the handoffs. Never push the projects branch.\n"
         f"{permission_guidance(permission_mode)}"
         f"{review.checkout_status_guidance(root)}\n"
+        f"{review.project_operations_guidance(root, project)}\n"
         f"Before acting on a handoff, read .agents/reference_intake/{project}.json for the user's "
         "reference choice. The launcher records it at startup after your READY reply. "
         "Only a manual_decision of waived authorizes proceeding without a manual.\n"
@@ -177,6 +178,7 @@ def kickoff(root: Path, project: str, task: str, permission_mode: str = "pass-cy
         "never push the projects branch. Preserve unrelated work.\n"
         f"{permission_guidance(permission_mode)}"
         f"{review.checkout_status_guidance(root)}\n"
+        f"{review.project_operations_guidance(root, project)}\n"
         f"Before semantic analysis, read the user-supplied manual in projects/{project}/docs/game_reference/manuals/ "
         f"and any optional FAQs in projects/{project}/docs/game_reference/faqs/. "
         "Extract vocabulary into MANUAL_TERMS.md and seed TERMINOLOGY_CROSSWALK.md before naming. "
@@ -314,6 +316,22 @@ def run_worker(config_path: Path, role: str) -> int:
     root = Path(config["root"])
     os.chdir(root)
     ready = config_path.with_name("ready")
+    if config.get("smoke") is not None:
+        # Smoke sessions never run a watcher, even with pending saved state.
+        if role == "implementer":
+            input("Wait for BOTH agents to say READY and return to their prompts. Press Enter to run only the smoke commands: ")
+            require_live_agents(config)
+            for target in ROLES:
+                subprocess.run(
+                    [str(SCRIPT.with_name("agent_review_tmux_notify.sh")), target, "SMOKE_ONLY",
+                     str(config_path.with_name(f"smoke-{target}.md"))],
+                    env=dict(os.environ, **{f"AGENT_REVIEW_TMUX_{target.upper()}": config["panes"][target]}),
+                    check=True,
+                )
+            print("Smoke commands delivered. Inspect both results and any interventions; no handoff watcher was started.", flush=True)
+        else:
+            print("Smoke-only session: no review watcher. Both agents stop after their tests.", flush=True)
+        return 0
     if role == "implementer":
         print(
             "Finish any login/trust prompts in the agents window.\n"
@@ -396,6 +414,12 @@ def launch(args: argparse.Namespace) -> int:
         raise review.UserError("invalid project slug")
     if not re.fullmatch(r"[A-Za-z0-9_-]+", args.session):
         raise review.UserError("session name may contain only letters, digits, underscore, and dash")
+    smoke = None
+    if getattr(args, "smoke_only", None):
+        import agent_review_smoke
+        if args.permissions != "pass-cycle":
+            raise review.UserError("smoke-only tests the scoped pass-cycle profile; inherit/bypass cannot certify it")
+        smoke = agent_review_smoke.load_spec(root, args.project, args.smoke_only)
     tmux_bin = shutil.which(os.environ.get("AGENT_REVIEW_TMUX_BIN", "tmux"))
     if not tmux_bin:
         raise review.UserError("tmux executable not found")
@@ -429,6 +453,8 @@ def launch(args: argparse.Namespace) -> int:
     entries = [line.split("\t") for line in sessions.stdout.splitlines() if line]
     for session_id, name, checkout, project in entries:
         if checkout == str(root) and project == args.project:
+            if smoke is not None:
+                raise review.UserError("smoke-only requires fresh agents; the existing session was left unchanged")
             print(f"Reconnecting to {name} for {project}; keeping its existing agents, permissions, models, effort, and task. Requested changes require a restart.")
             return connect(session_id, name, args.no_attach)
     for session_id, name, checkout, project in entries:
@@ -452,7 +478,12 @@ def launch(args: argparse.Namespace) -> int:
     logs.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix="tmux-", dir=logs))
     config_path = run / "workspace.json"
-    (run / "task.md").write_text(kickoff(root, args.project, args.task, args.permissions))
+    if smoke is not None:
+        (run / "task.md").write_text("Smoke-only session. No semantic pass or saved handoff is authorized.\n")
+        for role in ROLES:
+            (run / f"smoke-{role}.md").write_text(agent_review_smoke.prompt(root, args.project, role, smoke))
+    else:
+        (run / "task.md").write_text(kickoff(root, args.project, args.task, args.permissions))
     if args.permissions == "bypass":
         (run / "prompt-context.md").write_text(
             "## Current launcher permissions\n\n"
@@ -481,6 +512,8 @@ def launch(args: argparse.Namespace) -> int:
             "agents_window": agents_window, "tmux_bin": str(Path(tmux_bin).absolute()),
             "permission_mode": args.permissions, "commands": commands,
         }
+        if smoke is not None:
+            config["smoke"] = smoke
         review.atomic_write(config_path, json.dumps(config, indent=2) + "\n")
         for role, pane in panes.items():
             tmux("select-pane", "-t", pane, "-T", role)
@@ -515,7 +548,9 @@ def launch(args: argparse.Namespace) -> int:
         raise
 
     print(f"Created {args.session} for {args.project} in {root}.")
-    print("Check both agents, then choose your manual and optional FAQs in watchers before work begins.")
+    print("Check both agents, then confirm readiness in watchers. " +
+          ("Only smoke commands will run; no pass handoffs." if smoke is not None else
+           "Choose your manual and optional FAQs before work begins."))
     return connect(session_id, args.session, args.no_attach)
 
 
@@ -544,6 +579,7 @@ def main() -> int:
         "Stop only after final gold approval or when specific user input is needed."
     ), help="implementation objective")
     parser.add_argument("--check", action="store_true", help="check tools and Git identity without creating a project or starting agents")
+    parser.add_argument("--smoke-only", type=Path, metavar="SPEC.json", help="run live checkout, source-search and repeated capture probes, then stop without handoff watchers")
     parser.add_argument("--no-attach", action="store_true", help="create the workspace without attaching or switching clients")
     return launch(parser.parse_args())
 
