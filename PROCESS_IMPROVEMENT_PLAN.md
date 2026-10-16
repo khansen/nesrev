@@ -318,11 +318,13 @@ part of this fix.
 <a id="runtime-inspection-permissions"></a>
 ### Scoped trace execution, source inspection and live smoke follow-up
 
-Status: the user's usual external reviewer approved `047cc4f4d` on 2026-10-16.
-The six follow-ups below are addressed on the same
-`fix/pass-cycle-runtime-inspection` branch from master `81d749afd`; the revision
-awaits focused re-review before integration. The installed project profile and
-existing agents remain unchanged.
+Status: the user's usual external reviewer approved `047cc4f4d` and its
+follow-up revision `8a91bcd7e` on 2026-10-16. All six follow-ups are resolved
+on `fix/pass-cycle-runtime-inspection`, branched from master `81d749afd`.
+The final documentation correction below clarifies capture shutdown timing;
+the approved tools are unchanged. Integration, profile refresh and a fresh
+production smoke remain pending. The installed project profile and existing
+agents remain unchanged.
 
 The fourth observation window contains one approved pass with three review
 rounds, four blocking findings and six recorded rework items. It added 45 rename
@@ -340,11 +342,13 @@ six accepted captures took about three seconds each. The reviewer used default
 mode initially and auto mode later, so this is not a successful unattended run
 under the launcher's default profile. Checkout inspection itself worked for
 both roles. The other three requests were two empty-log startup timeouts and one
-driver error: Lua reported "no stock direct-type placement", the emulator exited
--11, and its logs were not empty. The two startup timeouts are distinct from the
-approval delays; their cause remains unproven. Only the later timeout entered
-the friction queue. The approval interruptions and mode change were missing
-from that queue.
+capture with a Lua error: "no stock direct-type placement". That capture then
+hit the runner's 45-second timeout (exit 124, 45.237 seconds), and the emulator
+exited -11 during shutdown. Its logs were not empty. The two empty-log captures
+also timed out and exited -9 after the shutdown grace period. Their startup
+failure is distinct from the approval delays; its cause remains unproven.
+Only the later timeout entered the friction queue. The approval interruptions
+and mode change were missing from that queue.
 
 The selected fix adds `find-project-symbols` for both roles and `trace-project`
 for the implementer, with explicit project-bound prefixes in the generated
@@ -403,8 +407,8 @@ pairs and capture acceptance paths are indexed in the local
 `/private/tmp/nesrev-runtime-inspection-evidence.json` review attachment.
 These are bounded live results, not a guarantee that arbitrary shell commands,
 new drivers or different administrator settings will run unattended. Production
-installation still waits for external review, integration, profile refresh and
-fresh-agent smoke validation in that checkout.
+installation still waits for integration, profile refresh and fresh-agent
+smoke validation in that checkout.
 
 The review follow-up marks smoke sessions and refuses normal reconnects to them;
 older untagged smoke sessions still require manual shutdown. Trace dispatch now
