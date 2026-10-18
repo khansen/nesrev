@@ -68,12 +68,20 @@ by themselves prove the cause of an individual failure.
    retrying the affected executable or merely increasing timeouts. Use an
    already-validated standard release when available. Otherwise, for the
    documented macOS ARM64 maximum-speed workflow, prefer the maintained
-   patched build. Reuse a validated local installation, or follow its
+   patched build. Agents may use an existing installation validated on this
+   host via `--fceux`, within their capture permissions. Building or installing
+   a replacement, refreshing an installed profile, or changing `current` is
+   operator-directed work, not authorized by this recovery procedure. If that
+   work is needed and has not already been explicitly authorized, preserve the
+   failed capture and report `NEEDS INPUT` with the failure, intended source/
+   installation paths and prepared commands from the
    [setup](../scripts/patches/fceux/LOCAL_BUILD.md#rebuild-local) and
-   [acceptance checks](../scripts/patches/fceux/LOCAL_BUILD.md#local-acceptance)
-   on this host before adoption. Other platforms need their own validation.
-3. Select the candidate explicitly with `--fceux`, or activate its profile
-   before a fresh agent session. Confirm the selected executable in the next
+   [acceptance runbook](../scripts/patches/fceux/LOCAL_BUILD.md#local-acceptance).
+   Continue independent static work while waiting. Other platforms need their
+   own validation.
+3. Select the validated executable explicitly with `--fceux`. The operator
+   may activate its installed profile before a fresh agent session.
+   Confirm the selected executable in the next
    capture's recorded command. Reconnecting does not refresh existing agents'
    environments. Preserve every probe attempt, including failed cold starts;
    do not silently fall back or relabel the original failure after a success.

@@ -14,6 +14,13 @@ follow the playbook's
 [symptom-based recovery](../../../agent_playbook/RUNTIME_EVIDENCE.md#fceux-recovery)
 to select and validate a replacement.
 
+The operator owns setup and installation maintenance, including builds,
+installed-profile refreshes and changes to `current`. The operator may perform
+these steps or explicitly delegate them. Permission to run project captures
+alone does not authorize installation changes. Agents can use an existing
+validated installation; otherwise the recovery playbook defines the
+`NEEDS INPUT` handoff when the required work has not already been authorized.
+
 This opt-in workaround covers reproduced problems on one macOS ARM64 setup.
 The pin is a temporary compatibility choice, not a permanent supported-version
 ceiling or a requirement for other platforms. Keep the reviewed fixes local

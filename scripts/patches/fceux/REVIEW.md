@@ -29,6 +29,8 @@ Inspect the whole diff and focus on:
    Check the playbooks' [recovery routing](../../../agent_playbook/RUNTIME_EVIDENCE.md#fceux-recovery):
    matching symptoms should favor a validated replacement without claiming
    every timeout has the same cause or making the custom build mandatory.
+   Installation work must remain operator-directed; permission for captures
+   alone must not authorize builds, profile refreshes or changes to `current`.
 2. **Activation and tmux.** Missing or altered release files must block a
    dependent launch, including missing config directories and checksum lists
    omitting either executable. Switching `current` after activation must leave
