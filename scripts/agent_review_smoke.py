@@ -66,7 +66,8 @@ def prompt(root: Path, project: str, role: str, spec: dict) -> str:
         "Run these standalone commands in order (repeated operations check grant reuse). Stop at the first "
         "failed command or refused scenario; do not continue the list:\n\n"
         + "\n\n".join("```sh\n" + shlex.join(argv) + "\n```" for argv in [tool + ["checkout-status"], *operations, *operations])
-        + "\n\nReport each exit status and the inspection matches or each capture's acceptance and artifact path. "
+        + "\n\nReport each exit status, the inspection matches, each analysis's result and output path, "
+        "and each capture's acceptance and artifact path. "
         "A successful launch or help output is not a completed capture. Report approval requests, "
         "observed prompts, permission mode and any operator intervention separately; say unknown "
         "when the harness does not expose whether a human approved. End with SMOKE_COMMANDS_PASSED "

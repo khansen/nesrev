@@ -157,6 +157,13 @@ class PermissionTests(unittest.TestCase):
                         self.assertIn(f"Bash({shlex.join(analysis)} *)", allowed)
                 for text in (shlex.join(search), shlex.join(trace), shlex.join(analysis), "outside the Codex sandbox", "permission mode"):
                     self.assertIn(text, plan.files[permissions.GUIDE])
+                self.assertIn(
+                    "The trace and analysis grants trust the selected project's changing Python tools and their dependencies, "
+                    "including desktop access outside the Codex sandbox. Both roles receive them; they are not a sandbox "
+                    "around that code.",
+                    plan.files[permissions.GUIDE],
+                )
+                self.assertNotIn("implementer-owned", plan.files[permissions.GUIDE])
 
     def test_project_or_role_change_requires_fresh_consent_and_removes_old_owned_rules(self):
         self.apply(self.plan())

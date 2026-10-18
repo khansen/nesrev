@@ -125,7 +125,8 @@ class OperationsTests(unittest.TestCase):
         outside.write_bytes(self.driver.read_bytes())
         (self.driver.parent / "run_link.py").symlink_to(outside)
         (self.driver.parent / "helper.py").write_bytes(self.driver.read_bytes())
-        for driver in (str(self.driver), "../run_probe.py", "run_link.py", "run_missing.py", "-c", "helper.py"):
+        (self.driver.parent / "analyze_probe.py").write_bytes(self.driver.read_bytes())
+        for driver in (str(self.driver), "../run_probe.py", "run_link.py", "run_missing.py", "-c", "helper.py", "analyze_probe.py"):
             with self.subTest(driver=driver):
                 self.run_command("trace-project", "demo", driver, "--", expected=2)
         # A directory symlink must not turn an approved project into a different one.
@@ -168,6 +169,7 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(prompt.count(" trace-project demo "), 2)
         self.assertLess(prompt.index(" analyze-project demo "), prompt.index(" trace-project demo "))
         self.assertIn("Stop at the first failed command", prompt)
+        self.assertIn("each analysis's result and output path", prompt)
         other = smoke.prompt(self.root, "demo", "implementer", spec)
         self.assertEqual(other.count(" find-project-symbols demo "), 2)
         self.assertNotIn(" trace-project demo ", other)

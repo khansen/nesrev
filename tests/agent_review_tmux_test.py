@@ -43,6 +43,7 @@ class LauncherTests(unittest.TestCase):
             state = dict(project="demo", run_id="demo-pass-1", round=1, max_rounds=3,
                          status=status, review_base="base", review_head="head", packet="packet.md")
             prompts.append(review.render_prompt(self.root, state, role))
+        self.assertIn("reviewers may independently replay bounded evidence scenarios", prompts[0])
         for prompt in prompts:
             self.assertIn("find-project-symbols demo", prompt)
             self.assertIn("trace-project demo", prompt)

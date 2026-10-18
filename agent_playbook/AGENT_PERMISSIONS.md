@@ -90,7 +90,7 @@ the repository root without a shell, and forwards arguments literally. The drive
 retains the helper's PID and receives signals directly; callers observe its exit
 or signal status. The first `--` separates helper arguments from driver arguments;
 an additional `--` is passed to the driver. It accepts
-no arbitrary interpreter or script path. Drivers must use the supervised
+no arbitrary interpreter or script path. Capture drivers must use the supervised
 `scripts/run_fceux_trace.py` lifecycle and explicit scenario acceptance. This
 helper validates dispatch, not the driver's implementation or capture evidence;
 changing drivers and dependencies retain the trust described above. Codex must
@@ -179,9 +179,10 @@ The smoke mode requires `pass-cycle`, refuses to reconnect to an existing
 session, and keeps saved review state unchanged. Smoke sessions are tagged with
 `@nesrev_review_smoke=1`; a normal launch refuses to reconnect to them and prints
 the command to stop the session first. After both agents say READY,
-confirm readiness in the startup pane. Both inspect the checkout; the reviewer
-runs the symbol search twice and the implementer runs the real capture twice
-to exercise grant reuse. Help/version output cannot substitute for a capture.
+confirm readiness in the startup pane. Both inspect the checkout; by default
+the reviewer runs the symbol search twice and the implementer runs the real
+capture twice to exercise grant reuse. Help/version output cannot substitute
+for a capture.
 Each agent reports commands, exits, evidence paths, mode and interventions,
 then stops. The launcher does not automatically certify success or release a
 pass; the operator checks those results against the session/tool logs.
@@ -204,6 +205,13 @@ to succeed under the intended unchanged modes, without manual per-command
 approval. Setup trust/consent is separate. Preserve any failure or intervention
 as evidence; a mode change invalidates the unattended result. Stop this smoke
 session before launching the next separately authorized semantic task.
+Compare every executed command with the generated standalone command, including
+the interpreter, helper path, project and arguments. Existing broad grants may
+allow a different spelling without a prompt; that does not validate this profile.
+An approval log that says only `rule` cannot identify which rule matched.
+Record emulator startup stalls separately from permission decisions: a capture
+timeout after Lua initialization with no frame advancement is an emulator stall,
+not evidence of a permission refusal. Preserve it and stop the smoke for assessment.
 Smoke sessions created before this marker was introduced must also be stopped;
 the launcher cannot identify those untagged sessions as smoke-only.
 

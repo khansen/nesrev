@@ -88,7 +88,7 @@ def command_guide(root: Path, project: str) -> str:
         f"{review.project_operations_guidance(root, project)}\n\n"
         "The trace and analysis grants trust the selected project's changing Python tools and their dependencies, "
         "including desktop access outside the Codex sandbox. Both roles receive them; they are not a sandbox "
-        "around that code. Drivers must use the supervised run_fceux_trace.py lifecycle and bounded scenarios.\n\n"
+        "around that code. Capture drivers must use the supervised run_fceux_trace.py lifecycle and bounded scenarios.\n\n"
         f"Write the commit message using the file-edit tool at `projects/{project}/tmp/commit-message.txt`. "
         "Stage only reviewed, explicit project file paths, including deleted files, then commit the staged changes. "
         "Staging rejects directories, pathspec patterns, symlinks, and paths outside this project; "
