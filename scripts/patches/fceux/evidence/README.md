@@ -15,7 +15,8 @@ directory, temporary files or conversation history. Executables are not shipped.
 | [build/base-config-control.log](build/base-config-control.log) | Restoring the base config implementation fails seven regression assertions; the fixed implementation passes CTest |
 | [cold-starts.json](cold-starts.json), `cold-0/` through `cold-4/` | Five first launches of fresh copies: per-attempt result, emulator log and 60-frame synthetic trace |
 | [activation.json](activation.json) | Original bash/zsh activation results, including blocked dependent launches for missing/changed binaries |
-| [profile-tests.txt](profile-tests.txt), [mutations.json](mutations.json) | Portable profile tests with a private tmux server and three deliberate regressions caught in disposable copies |
+| [profile-tests.txt](profile-tests.txt), [mutations.json](mutations.json) | Original profile tests before release pinning, with a private tmux server and three deliberate regressions caught in disposable copies |
+| [profile-revision.json](profile-revision.json), [profile-revision-suite.log](profile-revision-suite.log) | Release-pinning revision: source hashes, current tests, mutation controls and full main-suite output |
 | [SHA256SUMS](SHA256SUMS) | Checksums of all other files in this evidence directory |
 
 Verify the packet from this directory with `shasum -a 256 -c SHA256SUMS`.
@@ -35,7 +36,8 @@ different upstream base is in the [separate issue handoff](../upstream/STARTUP_I
 The logs are retained outputs with local path prefixes replaced by labels:
 `<work>` is the build/validation workspace, `<fixtures>` is the extracted
 synthetic fixture bundle, `<nesrev>` is the checkout and `<installation>` is
-the optional runtime installation. These labels are explanatory, not paths to
+the optional runtime installation. Revision checks use `<mutation>` and
+`<temporary-directory>` for disposable test locations. These are labels, not paths to
 existing resources. A cold-start result's trace/log is stored beside that result
 in this packet, regardless of its recorded workspace label.
 Trailing whitespace in build logs is removed.
@@ -55,6 +57,13 @@ The first tmux experiment exposed a trailing-semicolon argument bug; the final
 adapter and the portable test below cover it. No successful rerun is used to
 relabel those earlier attempts.
 
+Review of `68b882339` found that the original activation kept paths through
+`current`, so switching the symlink changed subsequent captures' executable.
+The revised profile checks and exports one physical release. The old profile
+records above remain historical; `profile-revision.json` records the new checks.
+The supervisor already resolves the executable per capture, but that did not
+pin selection across captures and it does not record an executable hash.
+
 <a id="repeat-checks"></a>
 ## Repeat checks from a clone
 
@@ -69,10 +78,11 @@ git diff --check
 
 The first command uses synthetic installation files and skips the tmux case.
 The second creates its own server on an explicit socket, checks a bare-launch
-negative control, forwarding into initial/split panes, semicolon handling and
-missing-variable refusals, then stops that server. It does not connect to user
-sessions or start an emulator/agent. These standalone tests are not automatically
-run by the main test target; a machine without tmux reports that case skipped.
+negative control, forwarding into initial/split/respawned panes and new windows,
+semicolon handling and missing-variable refusals, then stops that server. It
+does not connect to user sessions or start an emulator/agent.
+`make test` runs the non-tmux profile cases;
+the private-server test remains opt-in. A machine without tmux skips that case.
 
 For a negative control, copy the three profile/test files into a disposable
 directory and run the copied test there. Replacing the checksum command with
@@ -80,6 +90,9 @@ directory and run the copied test there. Replacing the checksum command with
 plain `exec tmux "$@"` must fail environment forwarding. Removing its trailing-
 semicolon escaping must fail the same real-server test. Never mutate the
 reviewed checkout or an installed profile.
+Restoring the original activation must fail the symlink-switch regression;
+removing the config-directory check or either required checksum entry check
+must fail the corresponding refusal test.
 
 Apply the [config patch](../2.7.0-no-config.patch) to a fresh checkout of its
 recorded base and run the standalone CTest commands in the

@@ -65,10 +65,12 @@ python3 scripts/agent_review_tmux.py --project <slug>
 ```
 
 Use the same activation before standalone project trace commands. The profile
-checks the selected release's checksums and fails if a required file is missing
-or changed. Keep the `&&`: a failed activation must stop the launch rather than
-fall back to the stock binary. `NESREV_FCEUX_ROOT` can select an installation
-elsewhere; the default also respects `XDG_DATA_HOME`.
+resolves `current` once, checks that physical release, and exports its resolved
+paths. The checksum list must include both `bin/fceux` and
+`bin/tmux-local-fceux`; every listed file must match. A missing config directory
+also refuses activation. Keep the `&&`: a failed activation must stop the launch
+rather than fall back to the stock binary. `NESREV_FCEUX_ROOT` can select an
+installation elsewhere; the default also respects `XDG_DATA_HOME`.
 
 The profile exports `FCEUX_BIN`, `FCEUX_CONFIG_DIR`, and the bundled Lua search
 path. It also selects a small tmux adapter through `AGENT_REVIEW_TMUX_BIN`.
@@ -80,6 +82,10 @@ that hardcodes `fceux` or passes its own `--fceux` must be corrected or given
 the selected path explicitly. Confirm `result.json`'s command names the selected
 release. Existing agents retain their launch environment: stop a completed
 session and start fresh after selecting a different build.
+Switching `current` affects future activations; already-activated sessions keep
+their checked release. Do not modify or remove that release while they use it.
+The supervisor records the resolved executable path, but does not hash the
+executable; record that hash separately with the acceptance evidence.
 
 Plain `fceux` still resolves through the normal shell path. The profile is not
 a global replacement and must be used for each fresh session. Keep automated
@@ -203,6 +209,20 @@ absolute executable path or copies their binary automatically.
 <a id="local-acceptance"></a>
 ## Acceptance and maintenance
 
+The installation-root `activate.sh` is a copy outside the release checksum
+list. Updating NESrev does not refresh it. After reviewing a profile change,
+copy it again from the updated checkout before activating:
+
+```sh
+cp "$NESREV_ROOT/scripts/patches/fceux/activate.sh" "$NESREV_FCEUX_ROOT/activate.sh"
+```
+
+Use a fresh shell and session with the updated profile. Older profile versions
+exported paths through `current`; keep that symlink unchanged until sessions
+using those versions have stopped at a safe handoff. Merely copying the new
+profile does not repair their existing environments. Release-local adapter
+changes belong in a new checksummed release, never an edit to an active release.
+
 Before selecting a rebuilt or upgraded emulator:
 
 - Run the standalone config tests; verify the no-config guard and stale-flag
@@ -264,7 +284,8 @@ that this repository monitors releases automatically.
    If reusing a shell, remove only this profile's `FCEUX_BIN`, `FCEUX_CONFIG_DIR`,
    `LUA_PATH` addition and `AGENT_REVIEW_TMUX_BIN` selection, restoring any prior
    custom values. Restart completed agent sessions; a reconnect retains their
-   old environment. Check the next capture's recorded executable path/hash.
+   old environment. Check the next capture's recorded executable path and
+   record its hash separately.
 5. Keep the old release for a short rollback window, such as one successful
    reviewed runtime pass. Then remove its activation hooks and archive or
    delete the obsolete local binary at the operator's discretion. Preserve
@@ -291,9 +312,11 @@ exit `-11` during deliberate post-completion shutdown, not a clean emulator exit
 These are coordinator checks, not a new independent review or live agent smoke.
 
 The [portable profile tests](test_profile.py) exercise activation/refusal in bash
-and zsh and environment forwarding on a private tmux server, including spaces
-and trailing semicolons. They need no emulator or project ROM. The evidence
-packet gives exact commands, recorded results and negative controls.
+and zsh, release selection after a `current` switch, and environment forwarding
+on a private tmux server through initial/split/respawned panes and new windows.
+They cover spaces and trailing semicolons and need no emulator or project ROM.
+The evidence packet separates the original profile checks from the release-
+pinning revision and gives commands, recorded results and negative controls.
 
 Project-specific gameplay captures and personal configuration records are not
 part of this public packet or prerequisites for reviewing the PR. The synthetic

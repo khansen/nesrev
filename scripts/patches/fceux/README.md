@@ -17,8 +17,9 @@ a fresh agent smoke gate adoption. The delivery record is in the
 
 ## Source and scope
 
-Base: upstream tag `fceux-2.7.0`, commit
+Base: the original target of upstream tag `fceux-2.7.0`, commit
 [`a6d03e7968bd77a8156a7c9b628a673753f2f4c6`](https://github.com/TASEmulators/fceux/tree/a6d03e7968bd77a8156a7c9b628a673753f2f4c6).
+The tag was subsequently moved; use this exact commit for the backport.
 The [patch](2.7.0-static-mutex.patch) backports only the static-mutex hunks from
 upstream commit
 [`01f01cc547268fbbb4ce4e98b812bf53c727edf0`](https://github.com/TASEmulators/fceux/commit/01f01cc547268fbbb4ce4e98b812bf53c727edf0)
@@ -71,9 +72,11 @@ results can be attributed to the runner that produced them.
 Do not overwrite the Homebrew binary. Unsetting `FCEUX_BIN` restores the
 supervisor's normal executable lookup.
 
-FCEUX rewrites `SDL.LastOpenFile` and `SDL.LuaScript` in
-`~/.fceux/fceux.cfg` even with `--no-config 1`. Save the configuration before
-probes and compare it afterward; that option does not isolate user settings.
+Builds without the [config-saving patch](2.7.0-no-config.patch), including this
+mutex-only backport, rewrite `SDL.LastOpenFile` and `SDL.LuaScript` in
+`~/.fceux/fceux.cfg` even with `--no-config 1`. Use an isolated configuration
+directory for probes and compare it afterward. The combined local build includes
+that config fix; it protects `fceux.cfg`, not every file the emulator writes.
 
 The diagnostic builds used CMake 3.31.6, Apple Clang, Release optimization,
 Qt 6.12.0, SDL2 compatibility 2.32.74 and bundled Lua. Optional Qt QML/UiTools

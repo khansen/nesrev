@@ -30,9 +30,12 @@ Inspect the whole diff and focus on:
    matching symptoms should favor a validated replacement without claiming
    every timeout has the same cause or making the custom build mandatory.
 2. **Activation and tmux.** Missing or altered release files must block a
-   dependent launch. Check exact environment forwarding into initial and split
-   panes on an already-running private server, including spaces and trailing
-   semicolons. Verify the negative controls fail for the intended reasons.
+   dependent launch, including missing config directories and checksum lists
+   omitting either executable. Switching `current` after activation must leave
+   the selected binary, Lua path and adapter pinned to the checked release.
+   Check exact environment forwarding into initial, split and respawned panes
+   and new windows on an already-running private server, including spaces and
+   trailing semicolons. Verify the negative controls fail for the intended reasons.
 3. **Evidence and limits.** Check source pins, patch/source/artifact hashes,
    config-reset ordering and test claims. Distinguish the older frame-zero fix,
    the corrected release's frame-one race, and retained shutdown failures.

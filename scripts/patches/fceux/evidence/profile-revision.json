@@ -1,0 +1,139 @@
+{
+  "revision_base": "cf9fa555f",
+  "scope": "Synthetic profile checks only; no emulator or user tmux sessions",
+  "source_sha256": {
+    "scripts/patches/fceux/activate.sh": "a5f05a05074030ebb6001a0049f6f934a599221e7803ac74f1c4c4ff61d42a60",
+    "scripts/patches/fceux/tmux-local-fceux": "17056d6914cadd4ae123108a6d10216fd41cf34a661876bf1892e4a3e7c4efd8",
+    "scripts/patches/fceux/test_profile.py": "665f94e334d3b18b58f5fcb16b05145c83c437ff97feac078968b7a20348c8ca",
+    "tests/shell/cases/fceux_profile_test.sh": "68188e6850fa5299936b3f8c6a49dc36d9546b91e7740fd6056e4483c65a5605"
+  },
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "-B",
+        "scripts/patches/fceux/test_profile.py"
+      ],
+      "exit_code": 0,
+      "output": "....s.\n----------------------------------------------------------------------\nRan 6 tests in 0.505s\n\nOK (skipped=1)\n"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "scripts/patches/fceux/test_profile.py",
+        "--tmux"
+      ],
+      "exit_code": 0,
+      "output": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.919s\n\nOK\n"
+    }
+  ],
+  "mutations": [
+    {
+      "mutation": "restore-reviewed-activation",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_current_switch_keeps_checked_release"
+      ],
+      "exit_code": 1,
+      "output": "FF\n======================================================================\nFAIL: test_current_switch_keeps_checked_release (__main__.ProfileTests.test_current_switch_keeps_checked_release) (shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 85, in test_current_switch_keeps_checked_release\n    self.assertEqual(values[\"ran\"], \"release one\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'release two' != 'release one'\n- release two\n?         --\n+ release one\n?          ++\n\n\n======================================================================\nFAIL: test_current_switch_keeps_checked_release (__main__.ProfileTests.test_current_switch_keeps_checked_release) (shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 85, in test_current_switch_keeps_checked_release\n    self.assertEqual(values[\"ran\"], \"release one\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'release two' != 'release one'\n- release two\n?         --\n+ release one\n?          ++\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.214s\n\nFAILED (failures=2)\n"
+    },
+    {
+      "mutation": "export-current-paths",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_current_switch_keeps_checked_release"
+      ],
+      "exit_code": 1,
+      "output": "FF\n======================================================================\nFAIL: test_current_switch_keeps_checked_release (__main__.ProfileTests.test_current_switch_keeps_checked_release) (shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 85, in test_current_switch_keeps_checked_release\n    self.assertEqual(values[\"ran\"], \"release one\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'release two' != 'release one'\n- release two\n?         --\n+ release one\n?          ++\n\n\n======================================================================\nFAIL: test_current_switch_keeps_checked_release (__main__.ProfileTests.test_current_switch_keeps_checked_release) (shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 85, in test_current_switch_keeps_checked_release\n    self.assertEqual(values[\"ran\"], \"release one\")\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 'release two' != 'release one'\n- release two\n?         --\n+ release one\n?          ++\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.135s\n\nFAILED (failures=2)\n"
+    },
+    {
+      "mutation": "omit-config-directory-check",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_missing_config_blocks_dependent_command"
+      ],
+      "exit_code": 1,
+      "output": "FF\n======================================================================\nFAIL: test_missing_config_blocks_dependent_command (__main__.ProfileTests.test_missing_config_blocks_dependent_command) (shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 100, in test_missing_config_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_missing_config_blocks_dependent_command (__main__.ProfileTests.test_missing_config_blocks_dependent_command) (shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 100, in test_missing_config_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n----------------------------------------------------------------------\nRan 1 test in 0.076s\n\nFAILED (failures=2)\n"
+    },
+    {
+      "mutation": "omit-binary-checksum-entry-check",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_checksum_manifest_requires_both_executables"
+      ],
+      "exit_code": 1,
+      "output": "FFFF\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='fceux', present=True, shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='fceux', present=True, shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='fceux', present=False, shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='fceux', present=False, shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n----------------------------------------------------------------------\nRan 1 test in 0.175s\n\nFAILED (failures=4)\n"
+    },
+    {
+      "mutation": "omit-adapter-checksum-entry-check",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_checksum_manifest_requires_both_executables"
+      ],
+      "exit_code": 1,
+      "output": "FFFF\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='tmux-local-fceux', present=True, shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='tmux-local-fceux', present=True, shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='tmux-local-fceux', present=False, shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_checksum_manifest_requires_both_executables (__main__.ProfileTests.test_checksum_manifest_requires_both_executables) (file='tmux-local-fceux', present=False, shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 117, in test_checksum_manifest_requires_both_executables\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n----------------------------------------------------------------------\nRan 1 test in 0.172s\n\nFAILED (failures=4)\n"
+    },
+    {
+      "mutation": "disable-checksums",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "ProfileTests.test_damaged_installation_blocks_dependent_command"
+      ],
+      "exit_code": 1,
+      "output": "FFFFFFFFFFFF\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='fceux', state='changed', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='fceux', state='changed', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='fceux', state='missing', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='fceux', state='missing', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='tmux-local-fceux', state='changed', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='tmux-local-fceux', state='changed', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='tmux-local-fceux', state='missing', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='tmux-local-fceux', state='missing', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 137, in test_damaged_installation_blocks_dependent_command\n    self.assertNotEqual(result.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='SHA256SUMS', state='changed', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 138, in test_damaged_installation_blocks_dependent_command\n    self.assertFalse(marker.exists())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\nAssertionError: True is not false\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='SHA256SUMS', state='changed', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 138, in test_damaged_installation_blocks_dependent_command\n    self.assertFalse(marker.exists())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\nAssertionError: True is not false\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='SHA256SUMS', state='missing', shell='/bin/bash')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 138, in test_damaged_installation_blocks_dependent_command\n    self.assertFalse(marker.exists())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\nAssertionError: True is not false\n\n======================================================================\nFAIL: test_damaged_installation_blocks_dependent_command (__main__.ProfileTests.test_damaged_installation_blocks_dependent_command) (file='SHA256SUMS', state='missing', shell='/bin/zsh')\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 138, in test_damaged_installation_blocks_dependent_command\n    self.assertFalse(marker.exists())\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^\nAssertionError: True is not false\n\n----------------------------------------------------------------------\nRan 1 test in 0.261s\n\nFAILED (failures=12)\n"
+    },
+    {
+      "mutation": "drop-environment-forwarding",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "--tmux",
+        "ProfileTests.test_existing_tmux_server_and_panes_receive_environment"
+      ],
+      "exit_code": 1,
+      "output": "F\n======================================================================\nFAIL: test_existing_tmux_server_and_panes_receive_environment (__main__.ProfileTests.test_existing_tmux_server_and_panes_receive_environment)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 197, in test_existing_tmux_server_and_panes_receive_environment\n    self.assertEqual(observed(label), chosen)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: {'FCEUX_BIN': None, 'FCEUX_CONFIG_DIR': None, 'LUA_PATH': None} != {'FCEUX_BIN': '/fixture with spaces/fceux;', 'FCEUX_CON[80 chars]a;;'}\n- {'FCEUX_BIN': None, 'FCEUX_CONFIG_DIR': None, 'LUA_PATH': None}\n+ {'FCEUX_BIN': '/fixture with spaces/fceux;',\n+  'FCEUX_CONFIG_DIR': '/fixture with spaces/config;',\n+  'LUA_PATH': '/fixture with spaces/?.lua;;'}\n\n----------------------------------------------------------------------\nRan 1 test in 0.376s\n\nFAILED (failures=1)\n"
+    },
+    {
+      "mutation": "drop-semicolon-escaping",
+      "command": [
+        "python3",
+        "-B",
+        "<mutation>/test_profile.py",
+        "--tmux",
+        "ProfileTests.test_existing_tmux_server_and_panes_receive_environment"
+      ],
+      "exit_code": 1,
+      "output": "F\n======================================================================\nFAIL: test_existing_tmux_server_and_panes_receive_environment (__main__.ProfileTests.test_existing_tmux_server_and_panes_receive_environment)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"<mutation>/test_profile.py\", line 196, in test_existing_tmux_server_and_panes_receive_environment\n    self.assertEqual(result.returncode, 0, result.stderr)\n    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 1 != 0 : unknown command: -e\n\n\n----------------------------------------------------------------------\nRan 1 test in 0.320s\n\nFAILED (failures=1)\n"
+    }
+  ],
+  "full_suite": {
+    "command": [
+      "make",
+      "test"
+    ],
+    "exit_code": 0,
+    "shell_cases_passed": 687,
+    "java_tests_passed": 1206,
+    "output": "profile-revision-suite.log",
+    "original_output_sha256": "f198947240f4d245c1a2678353b7beb149f77ce89e35220a64fa14202ace12ed"
+  },
+  "limits": [
+    "No live FCEUX captures or rebuild; emulator patches and binary are unchanged.",
+    "Private-server tests are opt-in; make test covers the non-tmux cases.",
+    "No installed profile or user session was changed."
+  ]
+}
