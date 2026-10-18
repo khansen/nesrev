@@ -57,8 +57,14 @@ The macOS executable is `build/src/fceux.app/Contents/MacOS/fceux`.
 Use a separate executable path, record its hash, and select it with the
 supervisor's existing `--fceux` option or `FCEUX_BIN` environment variable.
 Drivers that invoke FCEUX directly need their own explicit selection.
+Record the supervisor path and hash alongside the executable so cleanup
+results can be attributed to the runner that produced them.
 Do not overwrite the Homebrew binary. Unsetting `FCEUX_BIN` restores the
 supervisor's normal executable lookup.
+
+FCEUX rewrites `SDL.LastOpenFile` and `SDL.LuaScript` in
+`~/.fceux/fceux.cfg` even with `--no-config 1`. Save the configuration before
+probes and compare it afterward; that option does not isolate user settings.
 
 The diagnostic builds used CMake 3.31.6, Apple Clang, Release optimization,
 Qt 6.12.0, SDL2 compatibility 2.32.74 and bundled Lua. Optional Qt QML/UiTools

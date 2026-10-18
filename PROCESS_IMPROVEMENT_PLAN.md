@@ -100,7 +100,7 @@ candidates in their project queues.
 
 The latest profile smoke is paused on
 [FCEUX startup and cleanup reliability](#fceux-startup-reliability). Complete
-that fix's independent review and a fresh smoke before the next corpus project.
+that approved fix's integration and a fresh smoke before the next corpus project.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -2078,11 +2078,12 @@ exact-command rollout checks are recorded with the project-local probe.
 <a id="fceux-startup-reliability"></a>
 ## FCEUX startup and cleanup reliability — 2026-10-18
 
-Status: implementation and diagnostic validation on `fix/fceux-startup-race`,
-branched from master `237f26889`; designated independent review is pending.
-The installed emulator and agent permissions are unchanged by this follow-up.
-The original failed smoke remains failed, and the next semantic pass stays on
-hold until review and a fresh smoke succeed.
+Status: the designated independent reviewer approved `0a48ec9c6` on
+`fix/fceux-startup-race`, branched from master `237f26889`, on 2026-10-18.
+Integration, explicit selection of the tested executable and a fresh agent
+smoke remain pending. The installed emulator and agent permissions are
+unchanged by this follow-up. The original failed smoke remains failed, and
+the next semantic pass stays on hold until the fresh smoke succeeds.
 
 The first four bounded replays reproduced one zero-frame stall and three
 accepted captures. A process sample of the stalled emulator put all 78 samples
@@ -2118,10 +2119,13 @@ that error and retries the group signal once. A live child or a group that
 still refuses the signal remains an error; surviving descendants still receive
 the signal. It does not turn arbitrary permission errors into successful
 cleanup. This separate race was found by the startup fix's blast-radius check.
-The fresh sweep with the final supervisor and the same patched executable
-passes all 23 projects: every probe returns from all 60 frame-advance calls,
-exits 0 through cleanup, and preserves its ROM hash. This is a startup sweep,
-not 23 gameplay or project-verification passes.
+The second sweep with the patched executable passes all 23 projects: every
+probe returns from all 60 frame-advance calls, exits 0 through cleanup, and
+preserves its ROM hash. Its result files do not identify the supervisor path
+or hash, so this sweep does not independently establish the cleanup fix.
+The deterministic reproducer below provides that evidence. These are startup
+sweeps, not 23 gameplay or project-verification passes. Subsequent rollout
+evidence must record both the executable and supervisor paths and hashes.
 
 The live cleanup reproducer deliberately lets a child exit unreaped after a
 poll reports it alive. The base supervisor raises `PermissionError: [Errno 1]`;
@@ -2140,6 +2144,25 @@ that is separate from the frame-zero spin and remains unresolved. Shutdown
 crashes during the supervisor's deliberate stop also remain outside the
 upstream backport. Validation here targets maximum-speed automation. No other
 OS/build configuration, listening capture, or new live-agent smoke is claimed.
+
+Independent review reproduced the startup controls and the emulator-zombie
+cleanup race, confirmed the upstream subset byte for byte, and reran all 20
+supervisor tests. It also identified a remaining descendant-only cleanup race:
+after the leader is reaped, a reparented descendant's zombie can briefly keep
+the group present with `EPERM` until launchd reaps it. An immediate retry can
+still fail. Captured FCEUX process snapshots contain no children, so this does
+not invalidate the observed emulator fix. A bounded recheck and a real-process
+`stop_group()` denial test are follow-ups; swallowing a denial at that outer
+level is not caught by the current tests. No broader cleanup guarantee is made.
+
+Forced shutdown remains visible: the second sweep has three `-9` exits among
+23 probes, and three of eight scenario replays do too. The scenario samples
+taken at four seconds show the emulator idling during shutdown, not startup
+stalls. Also, `--no-config 1` does not prevent FCEUX from rewriting
+`SDL.LastOpenFile` and `SDL.LuaScript` in its user configuration. The review's
+probes changed those two fields; only a prior hash was saved, so their earlier
+values cannot be restored exactly. Snapshot configuration before future probes
+and report observed changes separately from capture acceptance.
 
 Raw source, build logs, binary hashes, forced-window controls, corpus results
 and mutation evidence live in ignored `tmp/fceux-startup-investigation/` and
