@@ -1,0 +1,254 @@
+diff --git a/src/drivers/common/configSys.cpp b/src/drivers/common/configSys.cpp
+index ea5dc7a..c47502e 100644
+--- a/src/drivers/common/configSys.cpp
++++ b/src/drivers/common/configSys.cpp
+@@ -670,6 +670,10 @@ Config::parse(int argc,
+ #else
+ // FIXME TODO WIN32
+ #endif
++    // Older versions persisted this command-line-only switch in config files.
++    // Reset it after all file loads so saving is disabled only for this launch.
++    setOption("SDL.NoConfig", 0);
++
+     // parse the arguments
+     return _parseArgs(argc, argv);
+ }
+@@ -779,6 +783,13 @@ Config::_loadFile(const char* fname)
+ int
+ Config::save()
+ {
++	int noConfig = 0;
++	getOption("SDL.NoConfig", &noConfig);
++	if (noConfig)
++	{
++		return 0;
++	}
++
+ 	std::fstream config;
+ 	std::map<std::string, int>::iterator int_i;
+ 	std::map<std::string, double>::iterator dbl_i;
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+new file mode 100644
+index 0000000..9074092
+--- /dev/null
++++ b/tests/CMakeLists.txt
+@@ -0,0 +1,11 @@
++cmake_minimum_required(VERSION 3.8)
++project(fceux_config_tests LANGUAGES CXX)
++
++enable_testing()
++add_executable(config_no_config config_no_config.cpp
++    ../src/drivers/common/configSys.cpp)
++set_property(TARGET config_no_config PROPERTY CXX_STANDARD 11)
++set_property(TARGET config_no_config PROPERTY CXX_STANDARD_REQUIRED ON)
++file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/config-scratch")
++add_test(NAME config_no_config COMMAND config_no_config
++    "${CMAKE_CURRENT_BINARY_DIR}/config-scratch")
+diff --git a/tests/README.md b/tests/README.md
+new file mode 100644
+index 0000000..56c0353
+--- /dev/null
++++ b/tests/README.md
+@@ -0,0 +1,21 @@
++# Configuration regression test
++
++This standalone test builds the common configuration implementation without
++Qt, SDL, a ROM or an emulator process. It uses a scratch directory inside its
++build directory and never reads or writes the user's configuration.
++
++```sh
++cmake -S tests -B build/config-tests
++cmake --build build/config-tests
++ctest --test-dir build/config-tests --output-on-failure
++```
++
++It checks that `--no-config 1` preserves an existing file across repeated
++saves, does not create a missing file, and retains in-memory changes. Default
++saving, explicit `--no-config 0`, configurations without the option, and normal
++write-error reporting remain covered. A stale `SDL.NoConfig = 1` in `fceux.cfg`
++must not suppress saving when no flag is given. On platforms that load `cfg.d`,
++the test also checks that auxiliary files cannot persist this launch-only switch
++and that an explicit command-line flag still takes effect afterward.
++
++This test is run manually; it is not connected to the main build or upstream CI.
+diff --git a/tests/config_no_config.cpp b/tests/config_no_config.cpp
+new file mode 100644
+index 0000000..9e89b47
+--- /dev/null
++++ b/tests/config_no_config.cpp
+@@ -0,0 +1,175 @@
++#include "../src/drivers/common/configSys.h"
++
++#include <cstdio>
++#include <fstream>
++#include <iostream>
++#include <iterator>
++#include <string>
++
++#ifndef WIN32
++#include <sys/stat.h>
++#include <unistd.h>
++#endif
++
++namespace {
++int failures = 0;
++
++void expect(bool condition, const char *message)
++{
++    if (!condition) {
++        std::cerr << "FAIL: " << message << '\n';
++        ++failures;
++    }
++}
++
++std::string read(const std::string &path)
++{
++    std::ifstream stream(path.c_str(), std::ios::binary);
++    return std::string(std::istreambuf_iterator<char>(stream),
++                       std::istreambuf_iterator<char>());
++}
++
++void write(const std::string &path, const std::string &contents)
++{
++    std::ofstream stream(path.c_str(), std::ios::binary | std::ios::trunc);
++    stream << contents;
++    stream.close();
++    expect(!stream.fail(), "test fixture must be writable");
++}
++
++Config options(const std::string &directory, bool registerNoConfig = true)
++{
++    Config config(directory);
++    if (registerNoConfig) {
++        config.addOption("no-config", "SDL.NoConfig", 0);
++    }
++    config.addOption("SDL.LastOpenFile", std::string("before.nes"));
++    config.addOption("loadlua", "SDL.LuaScript", std::string("before.lua"));
++    return config;
++}
++
++void parseNoConfig(Config &config, char value)
++{
++    char program[] = "config-test";
++    char option[] = "--no-config";
++    char argument[] = {value, '\0'};
++    char rom[] = "test.nes";
++    char *argv[] = {program, option, argument, rom};
++    expect(config.parse(4, argv) == 3, "no-config argument must parse");
++}
++
++void parseDefault(Config &config)
++{
++    char program[] = "config-test";
++    char rom[] = "test.nes";
++    char *argv[] = {program, rom};
++    expect(config.parse(2, argv) == 1, "default arguments must parse");
++}
++}
++
++int main(int argc, char **argv)
++{
++    if (argc != 2) {
++        std::cerr << "usage: config_no_config <disposable-existing-directory>\n";
++        return 2;
++    }
++    const std::string directory = argv[1];
++    const std::string path = directory + "/fceux.cfg";
++    const std::string original = "# Preserve this comment and exact contents.\n"
++        "SDL.NoConfig = 0\nSDL.LastOpenFile = before.nes\n"
++        "SDL.LuaScript = before.lua\n";
++
++    write(path, original);
++    Config disabled = options(directory);
++    parseNoConfig(disabled, '1');
++    disabled.setOption("SDL.LastOpenFile", "after.nes");
++    expect(disabled.save() == 0, "disabled ROM save must be a successful no-op");
++    expect(read(path) == original, "no-config must preserve existing config bytes");
++    disabled.setOption("SDL.LuaScript", "after.lua");
++    expect(disabled.save() == 0, "disabled Lua save must be a successful no-op");
++    expect(read(path) == original, "repeated no-config saves must preserve config bytes");
++    std::string current;
++    disabled.getOption("SDL.LastOpenFile", &current);
++    expect(current == "after.nes", "no-config must retain in-memory updates");
++
++    expect(std::remove(path.c_str()) == 0, "remove the existing config fixture");
++    Config missing = options(directory);
++    parseNoConfig(missing, '1');
++    expect(missing.save() == 0, "no-config with no file must succeed");
++    expect(!std::ifstream(path.c_str()).is_open(), "no-config must not create a config file");
++
++    Config defaults = options(directory);
++    defaults.setOption("SDL.LastOpenFile", "default.nes");
++    expect(defaults.save() == 0, "default configuration must still save");
++    expect(read(path).find("SDL.LastOpenFile = default.nes\n") != std::string::npos,
++           "default saving must persist the new ROM path");
++
++    write(path, "SDL.NoConfig = 1\nSDL.LastOpenFile = stale.nes\n");
++    Config stale = options(directory);
++    parseDefault(stale);
++    int noConfig = -1;
++    stale.getOption("SDL.NoConfig", &noConfig);
++    expect(noConfig == 0, "a saved no-config flag must not affect this launch");
++    stale.setOption("SDL.LastOpenFile", "repaired.nes");
++    expect(stale.save() == 0, "a stale flag must not block a default save");
++    expect(read(path).find("SDL.LastOpenFile = repaired.nes\n") != std::string::npos,
++           "launching without a flag must persist changes despite a saved one");
++    expect(read(path).find("SDL.NoConfig = 0\n") != std::string::npos,
++           "a default save must clear the stale no-config value");
++
++#ifndef WIN32
++    const std::string auxiliaryDirectory = directory + "/cfg.d";
++    const std::string auxiliaryPath = auxiliaryDirectory + "/test.cfg";
++    expect(mkdir(auxiliaryDirectory.c_str(), 0700) == 0,
++           "create the auxiliary config fixture directory");
++    write(auxiliaryPath, "SDL.NoConfig = 1\nSDL.LastOpenFile = auxiliary.nes\n");
++    Config auxiliary = options(directory);
++    parseDefault(auxiliary);
++    auxiliary.getOption("SDL.NoConfig", &noConfig);
++    expect(noConfig == 0, "an auxiliary config must not enable no-config");
++    auxiliary.getOption("SDL.LastOpenFile", &current);
++    expect(current == "auxiliary.nes", "other auxiliary options must still load");
++    auxiliary.setOption("SDL.LastOpenFile", "layered.nes");
++    expect(auxiliary.save() == 0, "a stale auxiliary flag must not block saving");
++    expect(read(path).find("SDL.LastOpenFile = layered.nes\n") != std::string::npos,
++           "saving after auxiliary config loading must persist changes");
++    parseNoConfig(auxiliary, '1');
++    const std::string beforeAuxiliarySave = read(path);
++    auxiliary.setOption("SDL.LastOpenFile", "not-saved.nes");
++    expect(auxiliary.save() == 0, "explicit no-config after auxiliary loading must succeed");
++    expect(read(path) == beforeAuxiliarySave,
++           "explicit no-config must still suppress saves after auxiliary loading");
++    expect(std::remove(auxiliaryPath.c_str()) == 0, "remove auxiliary config fixture");
++    expect(rmdir(auxiliaryDirectory.c_str()) == 0, "remove auxiliary fixture directory");
++#endif
++
++    write(path, "SDL.NoConfig = 1\n");
++    Config enabled = options(directory);
++    parseNoConfig(enabled, '0');
++    enabled.setOption("SDL.LastOpenFile", "enabled.nes");
++    enabled.setOption("SDL.LuaScript", "enabled.lua");
++    expect(enabled.save() == 0, "explicit zero must re-enable saving");
++    expect(read(path).find("SDL.LastOpenFile = enabled.nes\n") != std::string::npos,
++           "explicit zero must save the ROM path");
++    expect(read(path).find("SDL.LuaScript = enabled.lua\n") != std::string::npos,
++           "explicit zero must save the Lua path");
++
++    write(path, "SDL.NoConfig = 1\n");
++    Config generic = options(directory, false);
++    parseDefault(generic);
++    expect(generic.getOption("SDL.NoConfig", &noConfig) == -1,
++           "parsing must not register an absent no-config option");
++    generic.setOption("SDL.LastOpenFile", "generic.nes");
++    expect(generic.save() == 0, "an unregistered no-config option must not disable saving");
++    expect(read(path).find("SDL.LastOpenFile = generic.nes\n") != std::string::npos,
++           "configurations without no-config must still save");
++
++    Config invalidDestination = options(path);
++    expect(invalidDestination.save() != 0, "normal save errors must remain errors");
++    std::remove(path.c_str());
++    if (failures) {
++        return 1;
++    }
++    std::cout << "Config no-config regression checks passed\n";
++    return 0;
++}

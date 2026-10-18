@@ -2078,6 +2078,13 @@ exact-command rollout checks are recorded with the project-local probe.
 <a id="fceux-startup-reliability"></a>
 ## FCEUX startup and cleanup reliability — 2026-10-18
 
+Current local maintenance policy: upstream submission is deferred. The
+[maintained local build](scripts/patches/fceux/LOCAL_BUILD.md) pins the older
+source with the reviewed mutex and config-saving patches, avoiding the newer
+release's separate preemption race. That runbook owns selection, rebuild and
+acceptance instructions and the combined-build validation record. The original
+delivery and review evidence below remains historical.
+
 Status: the designated independent reviewer approved `0a48ec9c6` on
 `fix/fceux-startup-race`, branched from master `237f26889`, on 2026-10-18.
 Integration, explicit selection of the tested executable and a fresh agent

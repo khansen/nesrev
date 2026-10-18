@@ -1,0 +1,20 @@
+#!/bin/sh
+# A running tmux server need not inherit the launcher's current environment.
+set -eu
+literal() {
+    # tmux treats a trailing semicolon as a command separator, even in argv.
+    case "$1" in
+        *';') printf '%s%s' "${1%;}" '\;' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+if [ "${1-}" = new-session ]; then
+    shift
+    : "${FCEUX_BIN:?activate the maintained local FCEUX profile first}"
+    : "${FCEUX_CONFIG_DIR:?activate the maintained local FCEUX profile first}"
+    : "${LUA_PATH:?activate the maintained local FCEUX profile first}"
+    exec tmux new-session -e "$(literal "FCEUX_BIN=$FCEUX_BIN")" \
+        -e "$(literal "FCEUX_CONFIG_DIR=$FCEUX_CONFIG_DIR")" \
+        -e "$(literal "LUA_PATH=$LUA_PATH")" "$@"
+fi
+exec tmux "$@"

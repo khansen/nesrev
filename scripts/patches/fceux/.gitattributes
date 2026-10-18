@@ -1,0 +1,2 @@
+# Preserve the approved unified diff: context prefixes precede upstream tabs.
+2.7.0-no-config.patch whitespace=-space-before-tab
