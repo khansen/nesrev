@@ -134,6 +134,50 @@ class OperationsTests(unittest.TestCase):
         self.run_command("trace-project", "alias", "run_link.py", "--", expected=2)
         self.assertFalse((self.root / "invocations.jsonl").exists())
 
+    def test_analysis_dispatch_preserves_arguments_and_failure(self):
+        (self.driver.parent / "analyze_probe.py").write_bytes(self.driver.read_bytes())
+        arguments = ["--", "$(touch injected)", "space in input", "--repo", "/elsewhere"]
+        for _ in range(2):
+            result = self.run_command("analyze-project", "demo", "analyze_probe.py", "--", *arguments)
+            self.assertEqual(json.loads(result.stdout), {"cwd": str(self.root), "args": arguments})
+        self.run_command("analyze-project", "demo", "analyze_probe.py", "--", "--fail", expected=7)
+        self.assertFalse((self.root / "injected").exists())
+
+    def test_analysis_refuses_wrong_names_paths_and_projects_before_execution(self):
+        analyzer = self.driver.parent / "analyze_probe.py"
+        analyzer.write_bytes(self.driver.read_bytes())
+        (self.driver.parent / "analyze_link.py").symlink_to(analyzer)
+        (self.driver.parent / "analyze_directory.py").mkdir()
+        for name in ("run_probe.py", "../analyze_probe.py", str(analyzer), "analyze_link.py",
+                     "analyze_missing.py", "analyze_directory.py", "analyze_probe.py/", "-c"):
+            with self.subTest(name=name):
+                self.run_command("analyze-project", "demo", name, expected=2)
+        (self.project / "project.conf").unlink()
+        self.run_command("analyze-project", "demo", "analyze_probe.py", expected=2)
+        self.assertFalse((self.root / "invocations.jsonl").exists())
+
+    def test_reviewer_smoke_runs_analysis_and_capture_without_competing_emulator(self):
+        (self.driver.parent / "analyze_probe.py").write_bytes(self.driver.read_bytes())
+        spec = {**self.spec, "trace_role": "reviewer",
+                "analysis": {"driver": "analyze_probe.py", "arguments": ["capture with spaces"]}}
+        path = self.root / "smoke.json"
+        path.write_text(json.dumps(spec))
+        self.assertEqual(smoke.load_spec(self.root, "demo", path), spec)
+        prompt = smoke.prompt(self.root, "demo", "reviewer", spec)
+        self.assertEqual(prompt.count(" analyze-project demo "), 2)
+        self.assertEqual(prompt.count(" trace-project demo "), 2)
+        self.assertLess(prompt.index(" analyze-project demo "), prompt.index(" trace-project demo "))
+        self.assertIn("Stop at the first failed command", prompt)
+        other = smoke.prompt(self.root, "demo", "implementer", spec)
+        self.assertEqual(other.count(" find-project-symbols demo "), 2)
+        self.assertNotIn(" trace-project demo ", other)
+        for change in ({"trace_role": "both"}, {"analysis": []},
+                       {"analysis": {"driver": "run_probe.py", "arguments": []}},
+                       {"analysis": {"driver": "analyze_probe.py", "arguments": ["--help"]}}):
+            path.write_text(json.dumps({**spec, **change}))
+            with self.subTest(change=change), self.assertRaises(review.UserError):
+                smoke.load_spec(self.root, "demo", path)
+
     def test_smoke_spec_validates_real_inputs_and_generates_repeated_standalone_commands(self):
         path = self.root / "smoke.json"
         path.write_text(json.dumps(self.spec))

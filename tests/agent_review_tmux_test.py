@@ -46,6 +46,7 @@ class LauncherTests(unittest.TestCase):
         for prompt in prompts:
             self.assertIn("find-project-symbols demo", prompt)
             self.assertIn("trace-project demo", prompt)
+            self.assertIn("analyze-project demo", prompt)
             self.assertIn("Keep commands that may prompt separate", prompt)
         self.assertIn("approval requests from confirmed prompts", review.LEARNING_CANDIDATE_GUIDANCE)
         for prompt in (prompts[0], *prompts[3:5]):
@@ -143,6 +144,25 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse(self.config().with_name("ready").exists())
         self.assertEqual(review.state_path(self.root).read_bytes(), before)
         self.assertFalse((self.root / ".agents/reference_intake").exists())
+
+    def test_reviewer_smoke_delivers_analysis_and_capture_only_to_reviewer(self):
+        spec = self.smoke_spec()
+        (self.root / "projects/demo/tools/trace/analyze_probe.py").write_text("raise SystemExit(0)\n")
+        spec.update(trace_role="reviewer", analysis={"driver": "analyze_probe.py", "arguments": ["capture"]})
+        self.args.smoke_only.write_text(json.dumps(spec))
+        self.state(status="READY_FOR_REVIEW")
+        before = review.state_path(self.root).read_bytes()
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+        for role in ("implementer", "reviewer"):
+            text = self.config().with_name(f"smoke-{role}.md").read_text()
+            self.assertEqual(" trace-project demo " in text, role == "reviewer")
+            self.assertEqual(" analyze-project demo " in text, role == "reviewer")
+            result, execute = self.run_worker(role=role)
+            self.assertEqual(result, 0)
+            execute.assert_not_called()
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+        self.assertFalse(self.config().with_name("ready").exists())
 
     def test_normal_launch_refuses_a_leftover_smoke_session_without_changes(self):
         self.smoke_spec()

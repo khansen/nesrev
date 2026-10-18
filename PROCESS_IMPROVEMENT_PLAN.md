@@ -1965,3 +1965,70 @@ in an older review.
 
 This document records the proposed work and lifecycle. It does not itself
 change tooling, playbooks, review archives, or existing friction queues.
+
+<a id="reviewer-evidence-permissions"></a>
+## Reviewer analysis and replay provisioning follow-up — 2026-10-18
+
+Status: implemented on `fix/reviewer-evidence-commands`, based on master
+`6f4f02bab`; external review, integration, profile consent and a fresh agent
+smoke remain pending. The preceding runtime-inspection change landed in
+PR #163. This follow-up does not start another semantic pass.
+
+A completed retrospective pilot exposed two remaining gaps. A reviewer
+switched from default to auto mode, confirmed by the user and session records,
+while its report incorrectly denied intervention. A compound analyzer loop
+also failed because it assumed shell word splitting; a later Python rerun
+succeeded. Its 45.243-second tool-call interval is not a measurement of human
+approval time. A subsequent emulator replay initialized Lua but advanced zero
+frames, hitting its 30-second limit (32.02 seconds including cleanup; exit 124,
+emulator -9). The reviewer lacked a trace grant. That mismatch is real, but
+neither the missing grant nor the mode transition proves the timeout's cause.
+Project-local evidence and an append-only review amendment retain those facts.
+
+The scoped profile now grants both roles `trace-project` and `analyze-project`.
+The latter accepts only a regular, non-symlinked `analyze_*.py` under the selected
+project's `tools/trace/`, with literal arguments and the same direct process
+replacement as trace dispatch. Both execute trusted, changing project code;
+neither is a read-only interpreter or an input/output sandbox. The preview
+explicitly discloses that trust, including tools written during a pass. There
+is no blanket Python grant and no change to Claude sandbox settings. Existing
+ad-hoc analyses can still prompt; these commands cover reviewed project tools.
+
+The smoke specification can select the reviewer as the trace role and add a
+real existing-capture analysis. It repeats analysis and capture in order; the
+other agent only searches source so the pair does not launch two emulators
+concurrently. Legacy specifications keep the implementer capture path. Failed
+commands or scenario acceptance stop the smoke. The capture tool must validate
+its new evidence; successful launch, supervisor completion or analysis of an
+older capture cannot substitute for acceptance of that replay.
+
+Acceptance before the next project: the designated independent reviewer
+approves the shared change, the operator consents to the concrete updated
+profile, and fresh agents complete the bounded smoke in their intended modes.
+Compare commands, results and mode records, and ask about any operator
+intervention the harness cannot observe. Preserve refusals and timeouts;
+changing modes invalidates the unattended result. A smoke marker alone does
+not establish success. If a fresh replay still stalls, investigate that
+failure separately rather than broadening permissions on inference.
+
+Validation: full `make test` passed outside the sandbox (686 shell cases and
+1,206 Java tests). The sandbox attempt failed only the FCEUX cleanup fixture
+because it could not invoke `ps`; the unrestricted rerun passed that case too.
+Seven disposable-copy mutations were caught: dropping analyzer-name validation,
+either reviewer evidence grant, the analyzer trust disclosure, reviewer smoke
+routing, smoke analysis execution, or analyzer guidance. Logs and the mutation
+script are retained in the implementation worktree's `tmp/reviewer-evidence/`.
+Project-slug dispatch/policy fixtures cover all 23 corpus slugs with synthetic
+analyzers: literal arguments and root cwd are preserved, own-project grants
+match, foreign and extended slugs do not, and direct pushes remain forbidden.
+These fixtures test dispatch and generated policy, not 23 live game captures.
+The project-local coordinator replay succeeded, including semantic analysis;
+it does not substitute for the pending fresh-reviewer smoke.
+
+A subsequent coordinator probe reproduced the zero-frame startup timeout with
+desktop escalation, outside the reviewer session. A direct comparison and an
+unchanged wrapper repeat then completed with accepted semantic evidence. The
+failure is preserved; neither the cause nor a failure rate is established.
+This provisioning fix does not claim to repair emulator startup. Diagnostic
+retries are not a passed rollout; the actual agent smoke still stops on its
+first failure and keeps the next project on hold for assessment.
