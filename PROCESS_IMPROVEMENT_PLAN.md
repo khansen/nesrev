@@ -1969,12 +1969,12 @@ change tooling, playbooks, review archives, or existing friction queues.
 <a id="reviewer-evidence-permissions"></a>
 ## Reviewer analysis and replay provisioning follow-up — 2026-10-18
 
-Status: implemented on `fix/reviewer-evidence-commands`, based on master
-`6f4f02bab`. The external tooling review requested README consistency, a guide
-trust-statement assertion and a more complete intervention record; these are
-addressed below, pending re-review. Integration, profile consent and a fresh
-agent smoke remain pending. The preceding runtime-inspection change landed in
-PR #163. This follow-up does not start another semantic pass.
+Status: the designated independent reviewer approved `0f34b562e` on
+`fix/reviewer-evidence-commands`, based on master `6f4f02bab`, on 2026-10-18.
+The re-review confirmed the README, guide trust-statement test and intervention
+record corrections, reran all 142 focused tests and found no blockers. Profile
+consent and a fresh agent smoke remain pending. The preceding runtime-inspection
+change landed in PR #163. This follow-up does not start another semantic pass.
 
 A completed retrospective pilot exposed two remaining gaps. A reviewer
 switched from default to auto mode, confirmed by the user and session records,
