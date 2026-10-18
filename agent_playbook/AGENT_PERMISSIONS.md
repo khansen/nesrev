@@ -9,9 +9,10 @@ tool paths, or generated settings requires confirmation again.
 The implementer receives grants for `stage-project` and `commit-project`, which
 validate explicit file paths and staged changes for the selected project,
 plus `start-pass`, `reready`, `archive`, `status`, and
-response publication and `trace-project` for project trace drivers. Both roles
+response publication. Both roles
 receive `checkout-status` for live inspection and `find-project-symbols` for
-source searches without shell loops.
+source searches without shell loops, plus `trace-project` and `analyze-project`
+for project evidence tools.
 The reviewer receives `approve`, `request-changes`, `status`, and review
 publication. Claude file-edit grants cover the selected
 project for the implementer and only its `tmp` directory for the reviewer.
@@ -46,9 +47,10 @@ patterns do not cover every equivalent Git invocation or indirect script.
 Never push `projects`, regardless of available permissions. This profile trusts
 the named handoff script, repository code it invokes, and Git hooks; it is a
 convenience configuration for cooperating agents, not containment for hostile
-code. Trace drivers and their dependencies, including drivers the agent writes
+code. Trace drivers, analyzers and their dependencies, including tools the agent writes
 during the pass, are trusted code with desktop access outside the Codex sandbox;
-the grant does not constrain their effects. Installation,
+the grants do not constrain their effects or input/output paths. An analyzer
+name does not make execution read-only. Installation,
 network, direct emulator launches, builds, and other unlisted requests may still prompt.
 
 ## Commands that match the grants
@@ -80,20 +82,27 @@ and writes nothing. Paths outside the selected project, symlinks, directories,
 and shell/regex expressions are refused. No matches is a successful empty
 result. Other analysis commands can still require approval.
 
-The implementer uses `trace-project <slug> run_<scenario>.py -- <arguments>`
-for desktop captures. It selects a regular, non-symlinked Python driver under
+Both roles use `trace-project <slug> run_<scenario>.py -- <arguments>`
+for desktop captures and `analyze-project <slug> analyze_<scenario>.py -- <arguments>`
+for existing evidence analyzers. Each selects a regular, non-symlinked Python tool under
 `projects/<slug>/tools/trace/`, replaces the helper process with that driver from
 the repository root without a shell, and forwards arguments literally. The driver
 retains the helper's PID and receives signals directly; callers observe its exit
 or signal status. The first `--` separates helper arguments from driver arguments;
 an additional `--` is passed to the driver. It accepts
-no arbitrary interpreter or script path. Drivers must use the supervised
+no arbitrary interpreter or script path. Capture drivers must use the supervised
 `scripts/run_fceux_trace.py` lifecycle and explicit scenario acceptance. This
 helper validates dispatch, not the driver's implementation or capture evidence;
 changing drivers and dependencies retain the trust described above. Codex must
 request escalation on the exact printed helper command, rather than directly
 launching the driver and repeatedly requesting a new prefix. Claude reviewer
-settings omit the trace grant; Codex roles share project rules as described above.
+settings include both grants; Codex roles share project rules as described above.
+Runtime discovery remains implementer-owned; independent reviewers may replay
+bounded evidence scenarios. Ad-hoc Python, shell loops, and scratch scripts
+remain outside these grants. Do not relocate a refused scratch script to the
+trusted tool directory to bypass approval. Reusable analyzers belong in the
+project's reviewed tooling. This profile does not disable Claude's sandbox or
+override restrictive user or administrator settings.
 
 Keep commands that may prompt separate from routine reads. If a supported form
 still prompts, record the exact command, loaded permission mode and observed
@@ -170,18 +179,39 @@ The smoke mode requires `pass-cycle`, refuses to reconnect to an existing
 session, and keeps saved review state unchanged. Smoke sessions are tagged with
 `@nesrev_review_smoke=1`; a normal launch refuses to reconnect to them and prints
 the command to stop the session first. After both agents say READY,
-confirm readiness in the startup pane. Both inspect the checkout; the reviewer
-runs the symbol search twice and the implementer runs the real capture twice
-to exercise grant reuse. Help/version output cannot substitute for a capture.
+confirm readiness in the startup pane. Both inspect the checkout; by default
+the reviewer runs the symbol search twice and the implementer runs the real
+capture twice to exercise grant reuse. Help/version output cannot substitute
+for a capture.
 Each agent reports commands, exits, evidence paths, mode and interventions,
 then stops. The launcher does not automatically certify success or release a
 pass; the operator checks those results against the session/tool logs.
 
-Acceptance requires both captures' scenario checks and both source searches
+To exercise the reviewer path, add `"trace_role": "reviewer"` and an optional
+`"analysis"` object with `"driver": "analyze_actor_scene.py"` and an `"arguments"`
+array naming an existing capture and scratch output. The selected trace role
+runs analysis then capture, twice in order; the other role runs only source
+searches. This avoids competing emulator launches between roles. The default
+trace role remains implementer for older specifications. Analyzer help/version
+output is refused, just like capture help. Stop on the first failed command
+or scenario. A trace driver that only checks supervisor completion needs a
+scenario-validation wrapper before use here: it must reject missing gameplay
+evidence and report the new capture's semantic acceptance. Reanalyzing an old
+capture does not validate the new replay.
+
+Acceptance requires both captures' scenario checks, both analyses when supplied,
+and both source searches
 to succeed under the intended unchanged modes, without manual per-command
 approval. Setup trust/consent is separate. Preserve any failure or intervention
 as evidence; a mode change invalidates the unattended result. Stop this smoke
 session before launching the next separately authorized semantic task.
+Compare every executed command with the generated standalone command, including
+the interpreter, helper path, project and arguments. Existing broad grants may
+allow a different spelling without a prompt; that does not validate this profile.
+An approval log that says only `rule` cannot identify which rule matched.
+Record emulator startup stalls separately from permission decisions: a capture
+timeout after Lua initialization with no frame advancement is an emulator stall,
+not evidence of a permission refusal. Preserve it and stop the smoke for assessment.
 Smoke sessions created before this marker was introduced must also be stopped;
 the launcher cannot identify those untagged sessions as smoke-only.
 

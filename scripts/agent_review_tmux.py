@@ -225,7 +225,7 @@ def kickoff(root: Path, project: str, task: str, permission_mode: str = "pass-cy
         "This requests a whole-project reviewer assessment and strict CI. "
         "After final approval, archive and commit the review, then stop with "
         "GOLD STANDARD APPROVED, the archive path, and the reviewed head.\n"
-        "Runtime analysis is implementer-owned. Read agent_playbook/RUNTIME_EVIDENCE.md#agent-capture "
+        "Runtime discovery is implementer-owned; reviewers may independently replay bounded evidence scenarios. Read agent_playbook/RUNTIME_EVIDENCE.md#agent-capture "
         "and attempt bounded emulator captures yourself before asking the user to play or trace. "
         "For FCEUX, use scripts/run_fceux_trace.py with the trace template's output environment "
         "and explicit scenario completion checks; it supervises timeouts and emulator cleanup. "

@@ -163,7 +163,9 @@ def project_operations_guidance(root: Path, project: str) -> str:
         "For source inspection, prefer native Read/Grep tools or "
         f"`{command} find-project-symbols {project} projects/{project}/asm/<file>.asm SymbolA SymbolB` "
         "as one standalone command instead of a shell loop. This searches whole symbol tokens read-only. "
-        "The implementer runs desktop captures through "
+        "Both roles run existing project analyzers through "
+        f"`{command} analyze-project {project} analyze_<scenario>.py -- <analyzer arguments>` "
+        "and bounded desktop captures through "
         f"`{command} trace-project {project} run_<scenario>.py -- <driver arguments>`; "
         "this invokes the selected project's tools/trace driver from the repository root. "
         "For Codex, request sandbox escalation on that exact command so the installed grant can apply. "
@@ -1286,26 +1288,35 @@ def command_find_project_symbols(args: argparse.Namespace) -> int:
     return 0
 
 
-def project_trace_argv(root: Path, project: str, driver: str, arguments: list[str]) -> list[str]:
+def project_tool_argv(root: Path, project: str, driver: str, arguments: list[str], prefix: str) -> list[str]:
     project_commit_root(root, project)
-    if not re.fullmatch(r"run_[A-Za-z0-9_]+\.py", driver):
-        raise UserError("trace driver must be a run_<scenario>.py filename")
+    if not re.fullmatch(prefix + r"_[A-Za-z0-9_]+\.py", driver):
+        raise UserError(f"project tool filename must match {prefix}_<scenario>.py")
     path = validate_project_file(root, project, f"projects/{project}/tools/trace/{driver}")
     if not path.is_file():
-        raise UserError(f"trace driver does not exist: {path}")
+        raise UserError(f"project tool does not exist: {path}")
     if any("\0" in argument for argument in arguments):
-        raise UserError("trace arguments cannot contain NUL bytes")
+        raise UserError("project tool arguments cannot contain NUL bytes")
     return [sys.executable, str(path), *arguments]
+
+
+def project_trace_argv(root: Path, project: str, driver: str, arguments: list[str]) -> list[str]:
+    return project_tool_argv(root, project, driver, arguments, "run")
+
+
+def project_analysis_argv(root: Path, project: str, driver: str, arguments: list[str]) -> list[str]:
+    return project_tool_argv(root, project, driver, arguments, "analyze")
 
 
 def command_trace_project(args: argparse.Namespace) -> int:
     root = repo_root().resolve()
-    command = project_trace_argv(root, args.project, args.driver, args.arguments)
+    builder = project_analysis_argv if args.command == "analyze-project" else project_trace_argv
+    command = builder(root, args.project, args.driver, args.arguments)
     try:
         os.chdir(root)
         os.execv(sys.executable, command)
     except OSError as exc:
-        raise UserError(f"cannot start project trace driver: {exc}") from exc
+        raise UserError(f"cannot start project evidence tool: {exc}") from exc
 
 
 def command_stage_project(args: argparse.Namespace) -> int:
@@ -1477,6 +1488,12 @@ def build_parser() -> argparse.ArgumentParser:
     trace.add_argument("driver")
     trace.add_argument("arguments", nargs=argparse.REMAINDER)
     trace.set_defaults(func=command_trace_project)
+
+    analysis = sub.add_parser("analyze-project", help="run a trusted project tools/trace/analyze_*.py analyzer", allow_abbrev=False)
+    analysis.add_argument("project")
+    analysis.add_argument("driver")
+    analysis.add_argument("arguments", nargs=argparse.REMAINDER)
+    analysis.set_defaults(func=command_trace_project)
 
     artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
     artifact.add_argument("--kind", choices=("review", "response"), required=True)

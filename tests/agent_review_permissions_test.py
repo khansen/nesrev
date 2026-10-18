@@ -46,8 +46,9 @@ class PermissionTests(unittest.TestCase):
         for text in ("Existing user/admin grants", "shared by Codex sessions", "--repo", "--kind", "no global settings"):
             self.assertIn(text, out.getvalue())
         for line in (
-            "Both roles can search project symbols read-only. The implementer can execute the selected project's tools/trace/run_*.py drivers with desktop access.",
+            "Both roles can search project symbols read-only and execute the selected project's tools/trace/run_*.py drivers and analyze_*.py analyzers with desktop access.",
             "Trace grants trust those changing drivers and their dependencies outside the sandbox, including drivers the agent writes during the pass; they do not constrain what the driver itself can do.",
+            "Analysis grants also execute trusted project code, including analyzers written during the pass; they are not read-only or restricted to the supplied input/output paths.",
         ):
             self.assertIn(line, out.getvalue().splitlines())
 
@@ -142,17 +143,27 @@ class PermissionTests(unittest.TestCase):
                 plan = self.plan(agent, agent, project)
                 search = review.script_argv(self.root) + ["find-project-symbols", project]
                 trace = review.script_argv(self.root) + ["trace-project", project]
+                analysis = review.script_argv(self.root) + ["analyze-project", project]
                 for role in ("implementer", "reviewer"):
                     grants = permissions.grants(self.root, project, role)
                     self.assertIn(search, grants)
-                    self.assertEqual(trace in grants, role == "implementer")
+                    self.assertIn(trace, grants)
+                    self.assertIn(analysis, grants)
                     if agent == "claude":
                         settings = json.loads(plan.files[f"{permissions.DIRECTORY}/{role}.json"])
                         allowed = settings["permissions"]["allow"]
                         self.assertIn(f"Bash({shlex.join(search)} *)", allowed)
-                        self.assertEqual(f"Bash({shlex.join(trace)} *)" in allowed, role == "implementer")
-                for text in (shlex.join(search), shlex.join(trace), "outside the Codex sandbox", "permission mode"):
+                        self.assertIn(f"Bash({shlex.join(trace)} *)", allowed)
+                        self.assertIn(f"Bash({shlex.join(analysis)} *)", allowed)
+                for text in (shlex.join(search), shlex.join(trace), shlex.join(analysis), "outside the Codex sandbox", "permission mode"):
                     self.assertIn(text, plan.files[permissions.GUIDE])
+                self.assertIn(
+                    "The trace and analysis grants trust the selected project's changing Python tools and their dependencies, "
+                    "including desktop access outside the Codex sandbox. Both roles receive them; they are not a sandbox "
+                    "around that code.",
+                    plan.files[permissions.GUIDE],
+                )
+                self.assertNotIn("implementer-owned", plan.files[permissions.GUIDE])
 
     def test_project_or_role_change_requires_fresh_consent_and_removes_old_owned_rules(self):
         self.apply(self.plan())
@@ -230,6 +241,8 @@ class PermissionTests(unittest.TestCase):
                     self.assertEqual(shlex.split(shlex.join(argv)), argv)
         unsafe = ([sys.executable, "-c", "print('unrelated')"], ["bash", "-c", "echo unrelated"],
                   review.script_argv(self.root) + ["trace-project", "other", "run_probe.py", "--"],
+                  review.script_argv(self.root) + ["analyze-project", "other", "analyze_probe.py", "--"],
+                  review.script_argv(self.root) + ["analyze-project", "demo_extended", "analyze_probe.py", "--"],
                   review.script_argv(self.root) + ["find-project-symbols", "other", "projects/other/source.asm", "Entry"],
                   ["git", "-C", str(self.root), "commit", "--amend"], ["make", "arbitrary-target"],
                   review.script_argv(self.root) + ["watch", "--notify", "arbitrary-command"],
