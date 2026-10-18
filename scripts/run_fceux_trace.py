@@ -51,6 +51,17 @@ def signal_group(process, signum):
         return True
     except ProcessLookupError:
         return False
+    except PermissionError:
+        # macOS can refuse a group containing only our unreaped zombie if the
+        # child exits between poll() and killpg(). Reap, then retry once; a
+        # live child or a still-inaccessible group remains an actual error.
+        if process.poll() is None:
+            raise
+        try:
+            os.killpg(process.pid, signum)
+            return True
+        except ProcessLookupError:
+            return False
 
 
 def stop_group(process, grace):

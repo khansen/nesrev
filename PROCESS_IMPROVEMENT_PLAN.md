@@ -45,7 +45,7 @@ in [PR #161](https://github.com/khansen/nesrev/pull/161). They were integrated
 before the separately authorized third five-pass window. Its
 [assessment](#third-window-assessment) selects a bounded
 [checkout-inspection follow-up](#checkout-inspection-permissions).
-Updated 2026-10-15.
+Updated 2026-10-18.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -97,6 +97,10 @@ below. Start each follow-up with a current reproducer and a bounded contract.
 If existing tooling already resolves the observation, record that evidence and
 retriage it instead of adding another gate. Keep other undecided friction
 candidates in their project queues.
+
+The latest profile smoke is paused on
+[FCEUX startup and cleanup reliability](#fceux-startup-reliability). Complete
+that fix's independent review and a fresh smoke before the next corpus project.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -1972,9 +1976,13 @@ change tooling, playbooks, review archives, or existing friction queues.
 Status: the designated independent reviewer approved `0f34b562e` on
 `fix/reviewer-evidence-commands`, based on master `6f4f02bab`, on 2026-10-18.
 The re-review confirmed the README, guide trust-statement test and intervention
-record corrections, reran all 142 focused tests and found no blockers. Profile
-consent and a fresh agent smoke remain pending. The preceding runtime-inspection
-change landed in PR #163. This follow-up does not start another semantic pass.
+record corrections, reran all 142 focused tests and found no blockers. This
+change landed in PR #164; the approved profile was installed. Fresh agents
+kept their intended permission modes without runtime intervention, but the
+smoke stopped on its first new capture after Lua initialized at frame zero.
+The [startup investigation](#fceux-startup-reliability) owns the next step;
+the smoke remains failed. The preceding runtime-inspection change landed in
+PR #163. This follow-up does not start another semantic pass.
 
 A completed retrospective pilot exposed two remaining gaps. A reviewer
 switched from default to auto mode, confirmed by the user and session records,
@@ -2066,3 +2074,77 @@ limits: its location guard also accepts its source location, and it does not
 forward SIGTERM to its child. The helper validates the dispatched location;
 the supervised capture timeout bounds the child run. These limits and the
 exact-command rollout checks are recorded with the project-local probe.
+
+<a id="fceux-startup-reliability"></a>
+## FCEUX startup and cleanup reliability — 2026-10-18
+
+Status: implementation and diagnostic validation on `fix/fceux-startup-race`,
+branched from master `237f26889`; designated independent review is pending.
+The installed emulator and agent permissions are unchanged by this follow-up.
+The original failed smoke remains failed, and the next semantic pass stays on
+hold until review and a fresh smoke succeed.
+
+The first four bounded replays reproduced one zero-frame stall and three
+accepted captures. A process sample of the stalled emulator put all 78 samples
+of its emulation thread in `fceuWrapperUpdate()+28`. Disassembly of the
+installed ARM64 FCEUX 2.7.0 binary shows the null `consoleWindow` read cached
+across the spin loop. The constructor starts that thread before `main()` assigns
+the pointer. This identifies the cause of the sampled reproduction. Historical
+frame-zero timeouts have a compatible signature but no saved thread sample;
+their exact causes cannot be retroactively proved.
+
+The [optional upstream backport and reproduction instructions](scripts/patches/fceux/README.md)
+remove the window-pointer dependency from mutex access. It contains only the
+static-mutex hunks of upstream `01f01cc547268fbbb4ce4e98b812bf53c727edf0`,
+applied to the exact 2.7.0 source. No NESrev retry or game-specific workaround
+is added. A separate executable can be selected through the supervisor's
+existing `--fceux` / `FCEUX_BIN` interface after approval.
+
+Bad-direction proof uses matched disposable builds with a 250 ms delay after
+the constructor starts the emulator thread. With the same minimal maximum-
+speed frame-advance script, the unpatched build times out at frame zero in all
+three runs; the backport completes all 60 frames in all three. Thread samples
+confirm the original spin on each failure. The final patched binary contains
+no diagnostic delay. Eight full natural-input replays then pass the existing
+scenario analyzer; their trace and screenshot hashes equal the three accepted
+baseline replays. This is semantic non-regression evidence for that scenario,
+not a replacement for the agent permission smoke.
+
+The initial 23-project startup sweep reaches all 60 frames for every ROM and
+leaves every ROM hash unchanged. It returns 22 successes and one cleanup
+failure: the child exits between the supervisor's `poll()` and `killpg()`, and
+macOS reports `EPERM` for its unreaped zombie. The supervisor now reaps after
+that error and retries the group signal once. A live child or a group that
+still refuses the signal remains an error; surviving descendants still receive
+the signal. It does not turn arbitrary permission errors into successful
+cleanup. This separate race was found by the startup fix's blast-radius check.
+The fresh sweep with the final supervisor and the same patched executable
+passes all 23 projects: every probe returns from all 60 frame-advance calls,
+exits 0 through cleanup, and preserves its ROM hash. This is a startup sweep,
+not 23 gameplay or project-verification passes.
+
+The live cleanup reproducer deliberately lets a child exit unreaped after a
+poll reports it alive. The base supervisor raises `PermissionError: [Errno 1]`;
+the fixed supervisor reaps it and completes. All 20 focused supervisor tests
+pass. Four disposable-copy mutations are caught: remove the recovery handler
+(`PermissionError: zombie`), swallow live-child denial or persistent denial
+(`PermissionError not raised`), and skip the descendant signal
+(`False is not true`). Each mutated test exits 1; the harness exits 0 only when
+all four are caught. Full `make test` passes 686 shell cases and 1,206 Java
+tests outside the sandbox. The first focused run's six `ps` permission errors
+and the interrupted sandboxed full run are retained separately.
+
+Retained limits: normal-speed diagnostic captures also stall in
+`SpeedThrottle()` after one frame on an unpatched build and on the backport;
+that is separate from the frame-zero spin and remains unresolved. Shutdown
+crashes during the supervisor's deliberate stop also remain outside the
+upstream backport. Validation here targets maximum-speed automation. No other
+OS/build configuration, listening capture, or new live-agent smoke is claimed.
+
+Raw source, build logs, binary hashes, forced-window controls, corpus results
+and mutation evidence live in ignored `tmp/fceux-startup-investigation/` and
+the implementation worktree's `tmp/fceux-review/`. Project-specific captures
+and scenario evidence remain on the local corpus branch. The source tarball's
+diagnostic build inherited its enclosing repository's generated Git display
+string; the pinned upstream source, patch and recorded binary hashes identify
+these builds. The documented rebuild uses a standalone upstream checkout.
