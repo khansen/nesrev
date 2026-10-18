@@ -1252,7 +1252,7 @@ first instruction (`- LDA $00`, not on a standalone line); use Perl
 Runtime tracing is a standard evidence lane, not an ad-hoc last resort. Use it
 when static analysis cannot prove a behavior because the answer depends on live
 input, timing, RNG, scenario state, or emulator-visible external state.
-Optional FCEUX workaround: [setup and retirement](../scripts/patches/fceux/LOCAL_BUILD.md).
+FCEUX startup or config failures: [recovery](RUNTIME_EVIDENCE.md#fceux-recovery).
 
 Commit durable trace infrastructure when it is repeatable and project-local:
 

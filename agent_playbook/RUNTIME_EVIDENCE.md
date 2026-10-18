@@ -26,6 +26,8 @@ identify an object:
    display, or capture support. Test these when needed. If unavailable, use an
    existing suitable backend or prepare the harness while continuing static
    work. Request installation/access only when needed, with the actual failure.
+   For startup stalls or unexpected config writes, follow
+   [FCEUX recovery](#fceux-recovery) before repeating captures.
 3. Inspect captured frames to identify visible enemies, objects, and actions.
    Correlate screenshots with frame numbers, object slots, state transitions,
    and supplied manual/FAQ terms. Appearance alone cannot prove which handler
@@ -47,6 +49,40 @@ milestones. Check compatibility and synchronization against the actual run;
 a movie's title or successful launch does not prove the intended scenario ran.
 On desync, repair the setup, script inputs, or use a documented
 [trace helper ROM](TOOLING.md#trace-helper-roms) that preserves the measured path.
+
+<a id="fceux-recovery"></a>
+## Prefer a validated FCEUX replacement when symptoms appear
+
+Standard FCEUX remains the default. Open the
+[maintained workaround runbook](../scripts/patches/fceux/LOCAL_BUILD.md) when
+a bounded capture stalls before frame 1 or stays at frame 1, particularly on
+the first launch of a fresh executable copy, or `--no-config 1` still creates
+or changes `fceux.cfg`. These symptoms match known failure classes; they do not
+by themselves prove the cause of an individual failure.
+
+1. Preserve the failed `result.json`, trace and emulator log. Record the actual
+   executable path/hash and platform. Check input paths, Lua errors, display
+   failures and approval blocks first; an empty log alone does not diagnose a
+   startup race. Use isolated settings for diagnostic captures.
+2. If the symptoms persist after setup checks, prefer a replacement over
+   retrying the affected executable or merely increasing timeouts. Use an
+   already-validated standard release when available. Otherwise, for the
+   documented macOS ARM64 maximum-speed workflow, prefer the maintained
+   patched build. Reuse a validated local installation, or follow its
+   [setup](../scripts/patches/fceux/LOCAL_BUILD.md#rebuild-local) and
+   [acceptance checks](../scripts/patches/fceux/LOCAL_BUILD.md#local-acceptance)
+   on this host before adoption. Other platforms need their own validation.
+3. Select the candidate explicitly with `--fceux`, or activate its profile
+   before a fresh agent session. Confirm the selected executable in the next
+   capture's recorded command. Reconnecting does not refresh existing agents'
+   environments. Preserve every probe attempt, including failed cold starts;
+   do not silently fall back or relabel the original failure after a success.
+4. Record the replacement and acceptance evidence in the existing trace
+   summary. Follow the runbook's
+   [retirement procedure](../scripts/patches/fceux/LOCAL_BUILD.md#retire-local-workaround)
+   when a suitable standard release becomes available. The workaround does
+   not establish normal-speed/audio support or fix post-completion shutdown
+   crashes; retain supervisor and emulator exit results separately.
 
 <a id="human-review-batch"></a>
 ## Batch the questions that need a human

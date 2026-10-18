@@ -96,8 +96,10 @@ The supervisor resolves ROM, Lua, movie, emulator, and output paths before
 launch. Lua receives absolute `TRACE_OUT` (the log) and `TRACE_DIR` (screenshots
 and other capture artifacts), plus `TRACE_MAX_FRAMES`. Use these variables
 because FCEUX may change its working directory. The runner starts muted with
-configuration and Game Genie disabled; use its `--sound 1` option when needed.
+`--no-config 1` and Game Genie disabled; use its `--sound 1` option when needed.
 Enabling sound does not record audio; listening batches still need audio capture.
+For startup stalls or unexpected config writes, follow
+[FCEUX recovery](../../RUNTIME_EVIDENCE.md#fceux-recovery).
 
 `TRACE_TIMEOUT=180` sets the wrapper's wall-clock limit, independently of the
 Lua frame limit. On timeout, Ctrl+C, or termination, the supervisor sends TERM

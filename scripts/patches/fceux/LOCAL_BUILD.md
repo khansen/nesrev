@@ -9,6 +9,11 @@ for runtime work; the supervisor normally finds `fceux` on `PATH`, with
 not install, build, activate or require the patched emulator. Missing FCEUX
 does not block static work; runtime-dependent claims still need runtime evidence.
 
+If an installed emulator shows startup stalls or unexpected config writes,
+follow the playbook's
+[symptom-based recovery](../../../agent_playbook/RUNTIME_EVIDENCE.md#fceux-recovery)
+to select and validate a replacement.
+
 This opt-in workaround covers reproduced problems on one macOS ARM64 setup.
 The pin is a temporary compatibility choice, not a permanent supported-version
 ceiling or a requirement for other platforms. Keep the reviewed fixes local

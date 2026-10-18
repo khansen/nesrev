@@ -26,6 +26,9 @@ Inspect the whole diff and focus on:
 1. **Optional setup and portability.** Normal FCEUX lookup and static work must
    remain unaffected. Check that a fresh clone can follow the setup recipe using
    public source and tracked inputs, without an existing local release.
+   Check the playbooks' [recovery routing](../../../agent_playbook/RUNTIME_EVIDENCE.md#fceux-recovery):
+   matching symptoms should favor a validated replacement without claiming
+   every timeout has the same cause or making the custom build mandatory.
 2. **Activation and tmux.** Missing or altered release files must block a
    dependent launch. Check exact environment forwarding into initial and split
    panes on an already-running private server, including spaces and trailing
