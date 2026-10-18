@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import Mock, patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -208,6 +209,36 @@ class RunnerTests(unittest.TestCase):
         os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
         run_fceux_trace.stop_group(process, 0.1)
         self.assertEqual(process.returncode, 0)
+
+    def test_group_signal_reaps_a_child_that_exited_after_the_callers_poll(self):
+        for signum in (0, signal.SIGTERM, signal.SIGKILL):
+            with self.subTest(signal=signum):
+                process = Mock(pid=12345)
+                process.poll.return_value = 0
+                with patch.object(run_fceux_trace.os, 'killpg',
+                                  side_effect=[PermissionError('zombie'), ProcessLookupError()]) as killpg:
+                    self.assertFalse(run_fceux_trace.signal_group(process, signum))
+                process.poll.assert_called_once_with()
+                self.assertEqual(killpg.call_args_list, [unittest.mock.call(12345, signum)] * 2)
+
+    def test_group_signal_preserves_descendant_cleanup_after_reaping_leader(self):
+        process = Mock(pid=12345)
+        process.poll.return_value = 0
+        with patch.object(run_fceux_trace.os, 'killpg',
+                          side_effect=[PermissionError('zombie'), None]) as killpg:
+            self.assertTrue(run_fceux_trace.signal_group(process, signal.SIGTERM))
+        self.assertEqual(killpg.call_count, 2)
+
+    def test_group_signal_does_not_hide_permission_errors(self):
+        for child_status, expected_calls in ((None, 1), (0, 2)):
+            with self.subTest(child_status=child_status):
+                process = Mock(pid=12345)
+                process.poll.return_value = child_status
+                with patch.object(run_fceux_trace.os, 'killpg',
+                                  side_effect=PermissionError('actual denial')) as killpg:
+                    with self.assertRaisesRegex(PermissionError, 'actual denial'):
+                        run_fceux_trace.signal_group(process, signal.SIGTERM)
+                self.assertEqual(killpg.call_count, expected_calls)
 
     def test_malformed_json_fails(self):
         result = self.run_capture('json:{"event":"start"}\n{', ["--require-milestone", "entered"])
