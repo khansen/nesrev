@@ -2085,6 +2085,13 @@ release's separate preemption race. That runbook owns selection, rebuild and
 acceptance instructions and the combined-build validation record. The original
 delivery and review evidence below remains historical.
 
+The workaround is optional; normal FCEUX installations remain supported. The
+runbook now includes setup from a clone, explicit reassessment triggers and
+retirement in favor of a validated standard release, regardless of who fixes
+the upstream bugs. The [tracked contribution handoff](scripts/patches/fceux/upstream/README.md)
+preserves both approved patches, submission drafts and sanitized startup-race
+evidence so future contributors do not depend on private local directories.
+
 Status: the designated independent reviewer approved `0a48ec9c6` on
 `fix/fceux-startup-race`, branched from master `237f26889`, on 2026-10-18.
 Integration, explicit selection of the tested executable and a fresh agent

@@ -1,0 +1,19 @@
+diff --git a/Formula/f/fceux.rb b/Formula/f/fceux.rb
+index 5c40e18..6811be7 100644
+--- a/Formula/f/fceux.rb
++++ b/Formula/f/fceux.rb
+@@ -3,12 +3,13 @@ class Fceux < Formula
+   homepage "https://fceux.com/"
+   url "https://github.com/TASEmulators/fceux.git",
+       tag:      "fceux-2.7.0",
+-      revision: "a6d03e7968bd77a8156a7c9b628a673753f2f4c6"
++      revision: "8cdbeeb248f5a13aa97a58b4a0437ae13fb6aea8"
+   license all_of: [
+     "GPL-2.0-or-later",
+     "LGPL-2.1-or-later", # src/drivers/common/{hq2x.cpp,nes_ntsc*}
+     "MIT", # src/emufile*, src/drivers/Qt/TasEditor/, src/lua/
+   ]
++  revision 1
+   head "https://github.com/TASEmulators/fceux.git", branch: "master"
+ 
+   bottle do

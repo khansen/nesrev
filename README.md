@@ -113,6 +113,13 @@ project code; analyzer execution is not read-only. Before another batch, use
 to test repeated inspection and real captures with fresh agents, then stop.
 See [permission scope and recovery](agent_playbook/AGENT_PERMISSIONS.md).
 
+Runtime captures can use a standard FCEUX installation; a custom build is not
+required. The [optional local workaround](scripts/patches/fceux/LOCAL_BUILD.md)
+documents specific macOS startup/config issues, setup from a clone, and migration
+back to a fixed standard release. The [upstream handoff](scripts/patches/fceux/upstream/README.md)
+preserves the FCEUX/Homebrew patches and evidence for future contributors.
+Cloning NESrev does not install or activate either patch.
+
 For custom agent wrappers or to use your existing permission setup, add
 `--permissions inherit`. This skips installation and does not remove rules
 you previously installed. A running tmux workspace keeps its original settings;
