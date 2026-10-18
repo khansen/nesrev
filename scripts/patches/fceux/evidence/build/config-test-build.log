@@ -1,0 +1,4 @@
+[ 33%] Building CXX object CMakeFiles/config_no_config.dir/config_no_config.cpp.o
+[ 66%] Building CXX object CMakeFiles/config_no_config.dir<work>/source/src/drivers/common/configSys.cpp.o
+[100%] Linking CXX executable config_no_config
+[100%] Built target config_no_config

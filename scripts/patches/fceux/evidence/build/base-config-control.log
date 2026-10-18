@@ -1,0 +1,22 @@
+Test project <work>/validation/unpatched-config-control/build
+    Start 1: config_no_config
+1/1 Test #1: config_no_config .................***Failed    0.22 sec
+FAIL: no-config must preserve existing config bytes
+FAIL: repeated no-config saves must preserve config bytes
+FAIL: no-config must not create a config file
+FAIL: a saved no-config flag must not affect this launch
+FAIL: a default save must clear the stale no-config value
+Loading auxiliary configuration file at <work>/validation/unpatched-config-control/build/config-scratch/cfg.d/test.cfg...
+FAIL: an auxiliary config must not enable no-config
+Loading auxiliary configuration file at <work>/validation/unpatched-config-control/build/config-scratch/cfg.d/test.cfg...
+FAIL: explicit no-config must still suppress saves after auxiliary loading
+ios_base::clear: unspecified iostream_category error
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.22 sec
+
+The following tests FAILED:
+	  1 - config_no_config (Failed)
+Errors while running CTest

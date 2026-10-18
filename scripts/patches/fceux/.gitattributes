@@ -1,0 +1,3 @@
+# Preserve approved unified diffs: context prefixes are part of patch syntax.
+2.7.0-no-config.patch whitespace=-space-before-tab
+upstream/homebrew-corrected-release.patch whitespace=-blank-at-eol

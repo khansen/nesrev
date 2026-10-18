@@ -1,0 +1,44 @@
+[
+  {
+    "shell": "/bin/bash",
+    "case": "valid",
+    "exit_code": 0,
+    "launch_marker": true,
+    "stderr": ""
+  },
+  {
+    "shell": "/bin/bash",
+    "case": "tampered",
+    "exit_code": 1,
+    "launch_marker": false,
+    "stderr": "bin/fceux: FAILED\nshasum: WARNING: 1 computed checksum did NOT match\nLocal FCEUX is missing or changed; check scripts/patches/fceux/LOCAL_BUILD.md.\n"
+  },
+  {
+    "shell": "/bin/bash",
+    "case": "missing",
+    "exit_code": 1,
+    "launch_marker": false,
+    "stderr": "shasum: bin/fceux: No such file or directory\nbin/fceux: FAILED open or read\nshasum: WARNING: 1 listed file could not be read\nLocal FCEUX is missing or changed; check scripts/patches/fceux/LOCAL_BUILD.md.\n"
+  },
+  {
+    "shell": "/bin/zsh",
+    "case": "valid",
+    "exit_code": 0,
+    "launch_marker": true,
+    "stderr": ""
+  },
+  {
+    "shell": "/bin/zsh",
+    "case": "tampered",
+    "exit_code": 1,
+    "launch_marker": false,
+    "stderr": "bin/fceux: FAILED\nshasum: WARNING: 1 computed checksum did NOT match\nLocal FCEUX is missing or changed; check scripts/patches/fceux/LOCAL_BUILD.md.\n"
+  },
+  {
+    "shell": "/bin/zsh",
+    "case": "missing",
+    "exit_code": 1,
+    "launch_marker": false,
+    "stderr": "shasum: bin/fceux: No such file or directory\nbin/fceux: FAILED open or read\nshasum: WARNING: 1 listed file could not be read\nLocal FCEUX is missing or changed; check scripts/patches/fceux/LOCAL_BUILD.md.\n"
+  }
+]

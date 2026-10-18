@@ -1,0 +1,886 @@
+[  0%] Built target fceux_autogen_timestamp_deps
+[  1%] Automatic MOC and UIC for target fceux
+AutoMoc: <work>/source/src/drivers/Qt/HelpPages.h: note: No relevant classes found. No output generated.
+AutoMoc: <work>/source/src/drivers/Qt/QtScriptManager.h: note: No relevant classes found. No output generated.
+[  1%] Built target fceux_autogen
+[  1%] Automatic RCC for ../resources.qrc
+[  1%] Generating fceux_git_info.cpp
+Output File: <work>/build/src/fceux_git_info.cpp
+fatal: not a git repository (or any of the parent directories): .git
+Git URL:
+Git Rev:
+Generated <work>/build/src/fceux_git_info.cpp
+[  1%] Building CXX object src/CMakeFiles/fceux.dir/asm.cpp.o
+[  2%] Building CXX object src/CMakeFiles/fceux.dir/fceux_autogen/mocs_compilation.cpp.o
+[  2%] Building CXX object src/CMakeFiles/fceux.dir/cheat.cpp.o
+[  2%] Building CXX object src/CMakeFiles/fceux.dir/cart.cpp.o
+[  3%] Building CXX object src/CMakeFiles/fceux.dir/conddebug.cpp.o
+[  3%] Building CXX object src/CMakeFiles/fceux.dir/config.cpp.o
+<work>/source/src/cheat.cpp:214:6: warning: variable 'tc' set but not used [-Wunused-but-set-variable]
+  214 |         int tc = 0;
+      |             ^
+[  3%] Building CXX object src/CMakeFiles/fceux.dir/debug.cpp.o
+[  4%] Building CXX object src/CMakeFiles/fceux.dir/debugsymboltable.cpp.o
+1 warning generated.
+[  4%] Building CXX object src/CMakeFiles/fceux.dir/drawing.cpp.o
+[  4%] Building CXX object src/CMakeFiles/fceux.dir/fceu.cpp.o
+[  4%] Building CXX object src/CMakeFiles/fceux.dir/fds.cpp.o
+[  5%] Building CXX object src/CMakeFiles/fceux.dir/file.cpp.o
+[  5%] Building CXX object src/CMakeFiles/fceux.dir/emufile.cpp.o
+[  5%] Building CXX object src/CMakeFiles/fceux.dir/filter.cpp.o
+<work>/source/src/debugsymboltable.cpp:50:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   50 |                 sprintf( stmp, "[%i]", arrayIndex );
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/debugsymboltable.cpp:278:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  278 |                 sprintf( suffix, ".%X.nl", _pageNum );
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/debugsymboltable.cpp:439:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  439 |                 sprintf( stmp, ".%X.nl", bank);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/debugsymboltable.cpp:678:7: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  678 |                                                 sprintf( stmp, "[%i]", j );
+      |                                                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+[  6%] Building CXX object src/CMakeFiles/fceux.dir/ines.cpp.o
+<work>/source/src/fceu.cpp:1525:6: warning: variable 'mapper' set but not used [-Wunused-but-set-variable]
+ 1525 |         int mapper = (head.ROM_type >> 4);
+      |             ^
+[  6%] Building CXX object src/CMakeFiles/fceux.dir/input.cpp.o
+[  6%] Building CXX object src/CMakeFiles/fceux.dir/ld65dbg.cpp.o
+4 warnings generated.
+1 warning generated.
+[  6%] Building CXX object src/CMakeFiles/fceux.dir/movie.cpp.o
+[  7%] Building CXX object src/CMakeFiles/fceux.dir/netplay.cpp.o
+[  7%] Building CXX object src/CMakeFiles/fceux.dir/nsf.cpp.o
+In file included from <work>/source/src/ld65dbg.cpp:8:
+<work>/source/src/ld65dbg.h:28:10: warning: private field '_id' is not used [-Wunused-private-field]
+   28 |                         int   _id;           // Debug ID
+      |                               ^
+<work>/source/src/ld65dbg.h:30:10: warning: private field '_size' is not used [-Wunused-private-field]
+   30 |                         int   _size;         // Memory region size
+      |                               ^
+<work>/source/src/ld65dbg.h:32:18: warning: private field '_type' is not used [-Wunused-private-field]
+   32 |                         unsigned char _type; // ro or rw
+      |                                       ^
+<work>/source/src/ld65dbg.h:51:10: warning: private field '_id' is not used [-Wunused-private-field]
+   51 |                         int   _id;           // Debug ID
+      |                               ^
+<work>/source/src/ld65dbg.h:52:10: warning: private field '_parentID' is not used [-Wunused-private-field]
+   52 |                         int   _parentID;     // Parent ID
+      |                               ^
+<work>/source/src/ld65dbg.h:53:10: warning: private field '_size' is not used [-Wunused-private-field]
+   53 |                         int   _size;
+      |                               ^
+[  7%] Building CXX object src/CMakeFiles/fceux.dir/oldmovie.cpp.o
+[  7%] Building CXX object src/CMakeFiles/fceux.dir/palette.cpp.o
+6 warnings generated.
+[  8%] Building CXX object src/CMakeFiles/fceux.dir/profiler.cpp.o
+[  8%] Building CXX object src/CMakeFiles/fceux.dir/ppu.cpp.o
+[  8%] Building CXX object src/CMakeFiles/fceux.dir/sound.cpp.o
+<work>/source/src/ppu.cpp:1179:8: warning: variable 'tochange' set but not used [-Wunused-but-set-variable]
+ 1179 |                         int tochange = MMC5HackSPMode & 0x1F;
+      |                             ^
+[  9%] Building CXX object src/CMakeFiles/fceux.dir/state.cpp.o
+[  9%] Building CXX object src/CMakeFiles/fceux.dir/unif.cpp.o
+[  9%] Building CXX object src/CMakeFiles/fceux.dir/video.cpp.o
+1 warning generated.
+[  9%] Building CXX object src/CMakeFiles/fceux.dir/vsuni.cpp.o
+[ 10%] Building CXX object src/CMakeFiles/fceux.dir/wave.cpp.o
+[ 10%] Building CXX object src/CMakeFiles/fceux.dir/x6502.cpp.o
+[ 10%] Building C object src/CMakeFiles/fceux.dir/lua/src/lapi.c.o
+[ 11%] Building C object src/CMakeFiles/fceux.dir/lua/src/lauxlib.c.o
+[ 11%] Building C object src/CMakeFiles/fceux.dir/lua/src/lbaselib.c.o
+[ 11%] Building C object src/CMakeFiles/fceux.dir/lua/src/lcode.c.o
+[ 11%] Building C object src/CMakeFiles/fceux.dir/lua/src/ldblib.c.o
+[ 11%] Building C object src/CMakeFiles/fceux.dir/lua/src/ldo.c.o
+[ 12%] Building C object src/CMakeFiles/fceux.dir/lua/src/ldebug.c.o
+[ 12%] Building C object src/CMakeFiles/fceux.dir/lua/src/ldump.c.o
+[ 12%] Building C object src/CMakeFiles/fceux.dir/lua/src/lfunc.c.o
+[ 13%] Building C object src/CMakeFiles/fceux.dir/lua/src/lgc.c.o
+[ 13%] Building C object src/CMakeFiles/fceux.dir/lua/src/linit.c.o
+[ 13%] Building C object src/CMakeFiles/fceux.dir/lua/src/liolib.c.o
+[ 14%] Building C object src/CMakeFiles/fceux.dir/lua/src/llex.c.o
+[ 14%] Building C object src/CMakeFiles/fceux.dir/lua/src/lmathlib.c.o
+[ 14%] Building C object src/CMakeFiles/fceux.dir/lua/src/lmem.c.o
+[ 14%] Building C object src/CMakeFiles/fceux.dir/lua/src/loadlib.c.o
+[ 15%] Building C object src/CMakeFiles/fceux.dir/lua/src/lobject.c.o
+[ 15%] Building C object src/CMakeFiles/fceux.dir/lua/src/lopcodes.c.o
+[ 15%] Building C object src/CMakeFiles/fceux.dir/lua/src/loslib.c.o
+[ 16%] Building C object src/CMakeFiles/fceux.dir/lua/src/lparser.c.o
+[ 16%] Building C object src/CMakeFiles/fceux.dir/lua/src/lstate.c.o
+[ 16%] Building C object src/CMakeFiles/fceux.dir/lua/src/lstring.c.o
+[ 16%] Building C object src/CMakeFiles/fceux.dir/lua/src/lstrlib.c.o
+[ 17%] Building C object src/CMakeFiles/fceux.dir/lua/src/ltable.c.o
+[ 17%] Building C object src/CMakeFiles/fceux.dir/lua/src/ltablib.c.o
+[ 17%] Building C object src/CMakeFiles/fceux.dir/lua/src/ltm.c.o
+<work>/source/src/lua/src/ltablib.c:140:5: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+  140 |     luaL_addvalue(b);
+      |     ^
+<work>/source/src/lua/src/ltablib.c:137:3: note: previous statement is here
+  137 |   if (!lua_isstring(L, -1))
+      |   ^
+1 warning generated.
+[ 17%] Building C object src/CMakeFiles/fceux.dir/lua/src/lundump.c.o
+[ 18%] Building C object src/CMakeFiles/fceux.dir/lua/src/lvm.c.o
+[ 18%] Building C object src/CMakeFiles/fceux.dir/lua/src/lzio.c.o
+[ 18%] Building C object src/CMakeFiles/fceux.dir/lua/src/print.c.o
+[ 19%] Building CXX object src/CMakeFiles/fceux.dir/lua-engine.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/fceux.dir/boards/01-222.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/fceux.dir/boards/09-034a.cpp.o
+[ 19%] Building CXX object src/CMakeFiles/fceux.dir/boards/103.cpp.o
+[ 20%] Building CXX object src/CMakeFiles/fceux.dir/boards/106.cpp.o
+[ 20%] Building CXX object src/CMakeFiles/fceux.dir/boards/108.cpp.o
+[ 20%] Building CXX object src/CMakeFiles/fceux.dir/boards/112.cpp.o
+[ 21%] Building CXX object src/CMakeFiles/fceux.dir/boards/116.cpp.o
+[ 21%] Building CXX object src/CMakeFiles/fceux.dir/boards/117.cpp.o
+[ 21%] Building CXX object src/CMakeFiles/fceux.dir/boards/120.cpp.o
+[ 21%] Building CXX object src/CMakeFiles/fceux.dir/boards/121.cpp.o
+[ 22%] Building CXX object src/CMakeFiles/fceux.dir/boards/12in1.cpp.o
+[ 22%] Building CXX object src/CMakeFiles/fceux.dir/boards/156.cpp.o
+[ 22%] Building CXX object src/CMakeFiles/fceux.dir/boards/158B.cpp.o
+[ 22%] Building CXX object src/CMakeFiles/fceux.dir/boards/164.cpp.o
+[ 23%] Building CXX object src/CMakeFiles/fceux.dir/boards/15.cpp.o
+[ 23%] Building CXX object src/CMakeFiles/fceux.dir/boards/168.cpp.o
+[ 23%] Building CXX object src/CMakeFiles/fceux.dir/boards/170.cpp.o
+[ 24%] Building CXX object src/CMakeFiles/fceux.dir/boards/175.cpp.o
+<work>/source/src/lua-engine.cpp:459:3: warning: misleading indentation; statement is not part of the previous 'else' [-Wmisleading-indentation]
+  459 |                 if (speedmode == SPEED_NORMAL)
+      |                 ^
+<work>/source/src/lua-engine.cpp:455:4: note: previous statement is here
+  455 |         } else
+      |           ^
+<work>/source/src/boards/164.cpp:144:109: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+  144 |                 case 0x5000: reg[1] = V; WSync(); if (!(reg[1] & 0x80) && (scanline < 128)) setchr8(0); /* setchr8(0); */ break;
+      |                                                                                                                           ^
+<work>/source/src/boards/164.cpp:141:2: note: previous statement is here
+  141 |         else
+      |         ^
+<work>/source/src/lua-engine.cpp:3086:16: warning: 'tempnam' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of tempnam(3), it is highly recommended that you use mkstemp(3) instead. [-Wdeprecated-declarations]
+ 3086 |                         char* tmp = tempnam(NULL, "snlua");
+      |                                     ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:407:1: note: 'tempnam' has been explicitly marked deprecated here
+  407 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of tempnam(3), it is highly recommended that you use mkstemp(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/lua-engine.cpp:4780:6: warning: variable 'colorsTotal' set but not used [-Wunused-but-set-variable]
+ 4780 |         int colorsTotal = 0;
+      |             ^
+<work>/source/src/lua-engine.cpp:4785:6: warning: variable 'transparent' set but not used [-Wunused-but-set-variable]
+ 4785 |         int transparent = *ptr++ << 24;
+      |             ^
+1 warning generated.
+[ 24%] Building CXX object src/CMakeFiles/fceux.dir/boards/176.cpp.o
+[ 24%] Building CXX object src/CMakeFiles/fceux.dir/boards/177.cpp.o
+[ 24%] Building CXX object src/CMakeFiles/fceux.dir/boards/178.cpp.o
+[ 25%] Building CXX object src/CMakeFiles/fceux.dir/boards/183.cpp.o
+[ 25%] Building CXX object src/CMakeFiles/fceux.dir/boards/185.cpp.o
+[ 25%] Building CXX object src/CMakeFiles/fceux.dir/boards/186.cpp.o
+[ 26%] Building CXX object src/CMakeFiles/fceux.dir/boards/187.cpp.o
+<work>/source/src/boards/183.cpp:85:46: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+   85 |                 case 0xF008: IRQa = V; if (!V) IRQPre = 0; X6502_IRQEnd(FCEU_IQEXT); break;
+      |                                                            ^
+<work>/source/src/boards/183.cpp:78:4: note: previous statement is here
+   78 |         } else switch (A & 0xF80C) {
+      |           ^
+[ 26%] Building CXX object src/CMakeFiles/fceux.dir/boards/189.cpp.o
+1 warning generated.
+[ 26%] Building CXX object src/CMakeFiles/fceux.dir/boards/18.cpp.o
+[ 26%] Building CXX object src/CMakeFiles/fceux.dir/boards/190.cpp.o
+4 warnings generated.
+[ 27%] Building CXX object src/CMakeFiles/fceux.dir/boards/193.cpp.o
+[ 27%] Building CXX object src/CMakeFiles/fceux.dir/boards/199.cpp.o
+[ 27%] Building CXX object src/CMakeFiles/fceux.dir/boards/206.cpp.o
+[ 28%] Building CXX object src/CMakeFiles/fceux.dir/boards/208.cpp.o
+[ 28%] Building CXX object src/CMakeFiles/fceux.dir/boards/222.cpp.o
+[ 28%] Building CXX object src/CMakeFiles/fceux.dir/boards/225.cpp.o
+[ 28%] Building CXX object src/CMakeFiles/fceux.dir/boards/228.cpp.o
+[ 29%] Building CXX object src/CMakeFiles/fceux.dir/boards/230.cpp.o
+[ 29%] Building CXX object src/CMakeFiles/fceux.dir/boards/232.cpp.o
+[ 29%] Building CXX object src/CMakeFiles/fceux.dir/boards/234.cpp.o
+[ 29%] Building CXX object src/CMakeFiles/fceux.dir/boards/235.cpp.o
+[ 30%] Building CXX object src/CMakeFiles/fceux.dir/boards/244.cpp.o
+[ 30%] Building CXX object src/CMakeFiles/fceux.dir/boards/246.cpp.o
+[ 30%] Building CXX object src/CMakeFiles/fceux.dir/boards/252.cpp.o
+[ 31%] Building CXX object src/CMakeFiles/fceux.dir/boards/253.cpp.o
+[ 31%] Building CXX object src/CMakeFiles/fceux.dir/boards/28.cpp.o
+[ 31%] Building CXX object src/CMakeFiles/fceux.dir/boards/32.cpp.o
+[ 31%] Building CXX object src/CMakeFiles/fceux.dir/boards/33.cpp.o
+[ 32%] Building CXX object src/CMakeFiles/fceux.dir/boards/34.cpp.o
+[ 32%] Building CXX object src/CMakeFiles/fceux.dir/boards/354.cpp.o
+[ 32%] Building CXX object src/CMakeFiles/fceux.dir/boards/413.cpp.o
+[ 33%] Building CXX object src/CMakeFiles/fceux.dir/boards/471.cpp.o
+[ 33%] Building CXX object src/CMakeFiles/fceux.dir/boards/451.cpp.o
+[ 33%] Building CXX object src/CMakeFiles/fceux.dir/boards/36.cpp.o
+[ 33%] Building CXX object src/CMakeFiles/fceux.dir/boards/3d-block.cpp.o
+[ 34%] Building CXX object src/CMakeFiles/fceux.dir/boards/40.cpp.o
+[ 34%] Building CXX object src/CMakeFiles/fceux.dir/boards/411120-c.cpp.o
+[ 34%] Building CXX object src/CMakeFiles/fceux.dir/boards/41.cpp.o
+[ 34%] Building CXX object src/CMakeFiles/fceux.dir/boards/42.cpp.o
+[ 35%] Building CXX object src/CMakeFiles/fceux.dir/boards/43.cpp.o
+[ 35%] Building CXX object src/CMakeFiles/fceux.dir/boards/46.cpp.o
+[ 35%] Building CXX object src/CMakeFiles/fceux.dir/boards/50.cpp.o
+[ 36%] Building CXX object src/CMakeFiles/fceux.dir/boards/51.cpp.o
+[ 36%] Building CXX object src/CMakeFiles/fceux.dir/boards/57.cpp.o
+[ 36%] Building CXX object src/CMakeFiles/fceux.dir/boards/603-5052.cpp.o
+[ 36%] Building CXX object src/CMakeFiles/fceux.dir/boards/62.cpp.o
+[ 37%] Building CXX object src/CMakeFiles/fceux.dir/boards/65.cpp.o
+[ 37%] Building CXX object src/CMakeFiles/fceux.dir/boards/67.cpp.o
+[ 37%] Building CXX object src/CMakeFiles/fceux.dir/boards/68.cpp.o
+[ 38%] Building CXX object src/CMakeFiles/fceux.dir/boards/69.cpp.o
+[ 38%] Building CXX object src/CMakeFiles/fceux.dir/boards/71.cpp.o
+[ 38%] Building CXX object src/CMakeFiles/fceux.dir/boards/72.cpp.o
+[ 38%] Building CXX object src/CMakeFiles/fceux.dir/boards/77.cpp.o
+[ 39%] Building CXX object src/CMakeFiles/fceux.dir/boards/79.cpp.o
+[ 39%] Building CXX object src/CMakeFiles/fceux.dir/boards/80013-B.cpp.o
+[ 39%] Building CXX object src/CMakeFiles/fceux.dir/boards/80.cpp.o
+[ 39%] Building CXX object src/CMakeFiles/fceux.dir/boards/8157.cpp.o
+[ 39%] Building CXX object src/CMakeFiles/fceux.dir/boards/82.cpp.o
+[ 40%] Building CXX object src/CMakeFiles/fceux.dir/boards/8237.cpp.o
+[ 40%] Building CXX object src/CMakeFiles/fceux.dir/boards/830118C.cpp.o
+[ 41%] Building CXX object src/CMakeFiles/fceux.dir/boards/88.cpp.o
+[ 41%] Building CXX object src/CMakeFiles/fceux.dir/boards/8in1.cpp.o
+[ 41%] Building CXX object src/CMakeFiles/fceux.dir/boards/90.cpp.o
+[ 41%] Building CXX object src/CMakeFiles/fceux.dir/boards/91.cpp.o
+[ 42%] Building CXX object src/CMakeFiles/fceux.dir/boards/96.cpp.o
+[ 42%] Building CXX object src/CMakeFiles/fceux.dir/boards/99.cpp.o
+[ 42%] Building CXX object src/CMakeFiles/fceux.dir/boards/a9746.cpp.o
+[ 43%] Building CXX object src/CMakeFiles/fceux.dir/boards/ac-08.cpp.o
+[ 43%] Building CXX object src/CMakeFiles/fceux.dir/boards/addrlatch.cpp.o
+[ 43%] Building CXX object src/CMakeFiles/fceux.dir/boards/ax5705.cpp.o
+[ 43%] Building CXX object src/CMakeFiles/fceux.dir/boards/bandai.cpp.o
+[ 44%] Building CXX object src/CMakeFiles/fceux.dir/boards/bb.cpp.o
+[ 44%] Building CXX object src/CMakeFiles/fceux.dir/boards/bmc13in1jy110.cpp.o
+[ 44%] Building CXX object src/CMakeFiles/fceux.dir/boards/bmc42in1r.cpp.o
+[ 45%] Building CXX object src/CMakeFiles/fceux.dir/boards/bmc64in1nr.cpp.o
+[ 45%] Building CXX object src/CMakeFiles/fceux.dir/boards/bmc70in1.cpp.o
+[ 45%] Building CXX object src/CMakeFiles/fceux.dir/boards/BMW8544.cpp.o
+[ 45%] Building CXX object src/CMakeFiles/fceux.dir/boards/bonza.cpp.o
+[ 46%] Building CXX object src/CMakeFiles/fceux.dir/boards/bs-5.cpp.o
+[ 46%] Building CXX object src/CMakeFiles/fceux.dir/boards/bs4xxxr.cpp.o
+[ 46%] Building CXX object src/CMakeFiles/fceux.dir/boards/cheapocabra.cpp.o
+[ 46%] Building CXX object src/CMakeFiles/fceux.dir/boards/cityfighter.cpp.o
+[ 47%] Building CXX object src/CMakeFiles/fceux.dir/boards/coolboy.cpp.o
+[ 47%] Building CXX object src/CMakeFiles/fceux.dir/boards/coolgirl.cpp.o
+[ 47%] Building CXX object src/CMakeFiles/fceux.dir/boards/dance2000.cpp.o
+[ 48%] Building CXX object src/CMakeFiles/fceux.dir/boards/datalatch.cpp.o
+[ 48%] Building CXX object src/CMakeFiles/fceux.dir/boards/dream.cpp.o
+[ 48%] Building CXX object src/CMakeFiles/fceux.dir/boards/__dummy_mapper.cpp.o
+[ 48%] Building CXX object src/CMakeFiles/fceux.dir/boards/edu2000.cpp.o
+[ 49%] Building CXX object src/CMakeFiles/fceux.dir/boards/eh8813a.cpp.o
+[ 49%] Building C object src/CMakeFiles/fceux.dir/boards/emu2413.c.o
+[ 49%] Building CXX object src/CMakeFiles/fceux.dir/boards/et-100.cpp.o
+[ 50%] Building CXX object src/CMakeFiles/fceux.dir/boards/et-4320.cpp.o
+<work>/source/src/boards/emu2413.c:444:20: warning: unused function 'slotOn2' [-Wunused-function]
+  444 | INLINE static void slotOn2(OPLL_SLOT * slot) {
+      |                    ^~~~~~~
+<work>/source/src/boards/emu2413.c:484:20: warning: unused function 'setSlotVolume' [-Wunused-function]
+  484 | INLINE static void setSlotVolume(OPLL_SLOT * slot, int32 volume) {
+      |                    ^~~~~~~~~~~~~
+[ 50%] Building CXX object src/CMakeFiles/fceux.dir/boards/F-15.cpp.o
+[ 50%] Building CXX object src/CMakeFiles/fceux.dir/boards/famicombox.cpp.o
+2 warnings generated.
+[ 50%] Building CXX object src/CMakeFiles/fceux.dir/boards/ffe.cpp.o
+[ 51%] Building CXX object src/CMakeFiles/fceux.dir/boards/fk23c.cpp.o
+[ 51%] Building CXX object src/CMakeFiles/fceux.dir/boards/fns.cpp.o
+[ 51%] Building CXX object src/CMakeFiles/fceux.dir/boards/ghostbusters63in1.cpp.o
+[ 51%] Building CXX object src/CMakeFiles/fceux.dir/boards/gs-2004.cpp.o
+[ 52%] Building CXX object src/CMakeFiles/fceux.dir/boards/gs-2013.cpp.o
+[ 52%] Building CXX object src/CMakeFiles/fceux.dir/boards/h2288.cpp.o
+[ 52%] Building CXX object src/CMakeFiles/fceux.dir/boards/hp10xx_hp20xx.cpp.o
+[ 53%] Building CXX object src/CMakeFiles/fceux.dir/boards/inlnsf.cpp.o
+[ 53%] Building CXX object src/CMakeFiles/fceux.dir/boards/hp898f.cpp.o
+[ 53%] Building CXX object src/CMakeFiles/fceux.dir/boards/karaoke.cpp.o
+[ 53%] Building CXX object src/CMakeFiles/fceux.dir/boards/kof97.cpp.o
+[ 54%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7010.cpp.o
+[ 54%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7012.cpp.o
+[ 54%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7013.cpp.o
+[ 55%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7016.cpp.o
+[ 55%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7017.cpp.o
+[ 55%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7030.cpp.o
+[ 55%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7031.cpp.o
+[ 56%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7032.cpp.o
+[ 56%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7037.cpp.o
+[ 56%] Building CXX object src/CMakeFiles/fceux.dir/boards/ks7057.cpp.o
+[ 56%] Building CXX object src/CMakeFiles/fceux.dir/boards/le05.cpp.o
+[ 57%] Building CXX object src/CMakeFiles/fceux.dir/boards/lh32.cpp.o
+[ 57%] Building CXX object src/CMakeFiles/fceux.dir/boards/lh53.cpp.o
+[ 57%] Building CXX object src/CMakeFiles/fceux.dir/boards/malee.cpp.o
+[ 58%] Building CXX object src/CMakeFiles/fceux.dir/boards/mihunche.cpp.o
+[ 58%] Building CXX object src/CMakeFiles/fceux.dir/boards/mmc1.cpp.o
+[ 58%] Building CXX object src/CMakeFiles/fceux.dir/boards/mmc2and4.cpp.o
+[ 58%] Building CXX object src/CMakeFiles/fceux.dir/boards/mmc3.cpp.o
+[ 59%] Building CXX object src/CMakeFiles/fceux.dir/boards/mmc5.cpp.o
+[ 59%] Building CXX object src/CMakeFiles/fceux.dir/boards/n106.cpp.o
+[ 59%] Building CXX object src/CMakeFiles/fceux.dir/boards/n625092.cpp.o
+[ 60%] Building CXX object src/CMakeFiles/fceux.dir/boards/novel.cpp.o
+[ 60%] Building CXX object src/CMakeFiles/fceux.dir/boards/onebus.cpp.o
+[ 60%] Building CXX object src/CMakeFiles/fceux.dir/boards/pec-586.cpp.o
+[ 60%] Building CXX object src/CMakeFiles/fceux.dir/boards/rt-01.cpp.o
+[ 61%] Building CXX object src/CMakeFiles/fceux.dir/boards/sa-9602b.cpp.o
+[ 61%] Building CXX object src/CMakeFiles/fceux.dir/boards/sachen.cpp.o
+[ 61%] Building CXX object src/CMakeFiles/fceux.dir/boards/sb-2000.cpp.o
+[ 62%] Building CXX object src/CMakeFiles/fceux.dir/boards/sc-127.cpp.o
+[ 62%] Building CXX object src/CMakeFiles/fceux.dir/boards/sheroes.cpp.o
+[ 62%] Building CXX object src/CMakeFiles/fceux.dir/boards/sl1632.cpp.o
+[ 62%] Building CXX object src/CMakeFiles/fceux.dir/boards/subor.cpp.o
+[ 63%] Building CXX object src/CMakeFiles/fceux.dir/boards/super24.cpp.o
+[ 63%] Building CXX object src/CMakeFiles/fceux.dir/boards/supervision.cpp.o
+[ 63%] Building CXX object src/CMakeFiles/fceux.dir/boards/t-227-1.cpp.o
+[ 63%] Building CXX object src/CMakeFiles/fceux.dir/boards/t-262.cpp.o
+[ 64%] Building CXX object src/CMakeFiles/fceux.dir/boards/tengen.cpp.o
+[ 64%] Building CXX object src/CMakeFiles/fceux.dir/boards/tf-1201.cpp.o
+[ 64%] Building CXX object src/CMakeFiles/fceux.dir/boards/transformer.cpp.o
+[ 65%] Building CXX object src/CMakeFiles/fceux.dir/boards/unrom512.cpp.o
+[ 65%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc1.cpp.o
+[ 65%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc2and4.cpp.o
+[ 65%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc3.cpp.o
+<work>/source/src/boards/tf-1201.cpp:83:91: warning: misleading indentation; statement is not part of the previous 'if' [-Wmisleading-indentation]
+   83 |                 case 0xF003: IRQa = V & 2; X6502_IRQEnd(FCEU_IQEXT); if (scanline < 240) IRQCount -= 8; break;
+      |                                                                                                         ^
+<work>/source/src/boards/tf-1201.cpp:75:4: note: previous statement is here
+   75 |         } else switch (A & 0xF003) {
+      |           ^
+1 warning generated.
+[ 66%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc5.cpp.o
+[ 66%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc6.cpp.o
+[ 66%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc7.cpp.o
+[ 67%] Building CXX object src/CMakeFiles/fceux.dir/boards/vrc7p.cpp.o
+[ 67%] Building CXX object src/CMakeFiles/fceux.dir/boards/yoko.cpp.o
+[ 67%] Building CXX object src/CMakeFiles/fceux.dir/boards/inx007t.cpp.o
+[ 67%] Building CXX object src/CMakeFiles/fceux.dir/input/arkanoid.cpp.o
+[ 68%] Building CXX object src/CMakeFiles/fceux.dir/input/bworld.cpp.o
+[ 68%] Building CXX object src/CMakeFiles/fceux.dir/input/cursor.cpp.o
+[ 68%] Building CXX object src/CMakeFiles/fceux.dir/input/fkb.cpp.o
+[ 68%] Building CXX object src/CMakeFiles/fceux.dir/input/fns.cpp.o
+[ 69%] Building CXX object src/CMakeFiles/fceux.dir/input/ftrainer.cpp.o
+[ 69%] Building CXX object src/CMakeFiles/fceux.dir/input/hypershot.cpp.o
+[ 69%] Building CXX object src/CMakeFiles/fceux.dir/input/mahjong.cpp.o
+[ 70%] Building CXX object src/CMakeFiles/fceux.dir/input/mouse.cpp.o
+[ 70%] Building CXX object src/CMakeFiles/fceux.dir/input/oekakids.cpp.o
+[ 70%] Building CXX object src/CMakeFiles/fceux.dir/input/pec586kb.cpp.o
+[ 70%] Building CXX object src/CMakeFiles/fceux.dir/input/powerpad.cpp.o
+[ 71%] Building CXX object src/CMakeFiles/fceux.dir/input/quiz.cpp.o
+[ 71%] Building CXX object src/CMakeFiles/fceux.dir/input/shadow.cpp.o
+[ 71%] Building CXX object src/CMakeFiles/fceux.dir/input/snesmouse.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/fceux.dir/input/suborkb.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/fceux.dir/input/toprider.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/fceux.dir/input/virtualboy.cpp.o
+[ 72%] Building CXX object src/CMakeFiles/fceux.dir/input/lcdcompzapper.cpp.o
+[ 73%] Building CXX object src/CMakeFiles/fceux.dir/input/zapper.cpp.o
+[ 73%] Building CXX object src/CMakeFiles/fceux.dir/utils/backward.cpp.o
+[ 73%] Building CXX object src/CMakeFiles/fceux.dir/utils/xstring.cpp.o
+[ 73%] Building CXX object src/CMakeFiles/fceux.dir/utils/crc32.cpp.o
+[ 74%] Building CXX object src/CMakeFiles/fceux.dir/utils/endian.cpp.o
+[ 74%] Building CXX object src/CMakeFiles/fceux.dir/utils/general.cpp.o
+[ 74%] Building CXX object src/CMakeFiles/fceux.dir/utils/guid.cpp.o
+<work>/source/src/utils/xstring.cpp:210:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  210 |                 sprintf(temp,"%d",*(const unsigned char*)data);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/utils/xstring.cpp:213:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  213 |                 sprintf(temp,"%d",*(const unsigned short*)data);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/utils/xstring.cpp:216:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  216 |                 sprintf(temp,"%d",*(const unsigned int*)data);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/utils/xstring.cpp:555:2: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  555 |         sprintf(tempbuf, "%d", n);
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+[ 75%] Building CXX object src/CMakeFiles/fceux.dir/utils/md5.cpp.o
+[ 75%] Building CXX object src/CMakeFiles/fceux.dir/utils/memory.cpp.o
+[ 75%] Building CXX object src/CMakeFiles/fceux.dir/utils/mutex.cpp.o
+[ 75%] Building CXX object src/CMakeFiles/fceux.dir/utils/timeStamp.cpp.o
+<work>/source/src/utils/guid.cpp:12:2: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+   12 |         sprintf(buf,"%08X-%04X-%04X-%04X-%02X%02X%02X%02X%02X%02X",
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+4 warnings generated.
+1 warning generated.
+[ 76%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/args.cpp.o
+[ 76%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/cheat.cpp.o
+[ 76%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/configSys.cpp.o
+[ 77%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/hq2x.cpp.o
+[ 77%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/hq3x.cpp.o
+<work>/source/src/drivers/common/hq2x.cpp:45:20: warning: unused function 'Interp5' [-Wunused-function]
+   45 | static inline void Interp5(unsigned char * pc, int c1, int c2)
+      |                    ^~~~~~~
+[ 77%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/scale2x.cpp.o
+<work>/source/src/drivers/common/cheat.cpp:352:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  352 |   sprintf(tmp,"%s   $%04x:%03u:%03d - %s",s?"*":" ",(unsigned int)a,(unsigned int)v,compare,name);
+      |   ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/drivers/common/cheat.cpp:354:3: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  354 |   sprintf(tmp,"%s   $%04x:%03u     - %s",s?"*":" ",(unsigned int)a,(unsigned int)v,name);
+      |   ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+<work>/source/src/drivers/common/cheat.cpp:402:2: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  402 |  sprintf(tmp, "$%04x:%03u:%03u",(unsigned int)a,(unsigned int)last,(unsigned int)current);
+      |  ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+3 warnings generated.
+[ 77%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/scale3x.cpp.o
+1 warning generated.
+[ 78%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/scalebit.cpp.o
+[ 78%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/vidblit.cpp.o
+[ 78%] Building CXX object src/CMakeFiles/fceux.dir/drivers/common/os_utils.cpp.o
+[ 78%] Building C object src/CMakeFiles/fceux.dir/drivers/common/nes_ntsc.c.o
+[ 79%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/main.cpp.o
+[ 79%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleWindow.cpp.o
+[ 79%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleViewerGL.cpp.o
+[ 80%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleViewerSDL.cpp.o
+[ 80%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleViewerQWidget.cpp.o
+[ 80%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleViewerInterface.cpp.o
+[ 80%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/InputConf.cpp.o
+[ 81%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/GamePadConf.cpp.o
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:682:2: warning: 'glLoadIdentity' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  682 |         glLoadIdentity();
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2571:13: note: 'glLoadIdentity' has been explicitly marked deprecated here
+ 2571 | extern void glLoadIdentity (void) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:683:2: warning: 'glMatrixMode' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  683 |         glMatrixMode(GL_PROJECTION);
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2588:13: note: 'glMatrixMode' has been explicitly marked deprecated here
+ 2588 | extern void glMatrixMode (GLenum mode) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:684:2: warning: 'glLoadIdentity' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  684 |         glLoadIdentity();
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2571:13: note: 'glLoadIdentity' has been explicitly marked deprecated here
+ 2571 | extern void glLoadIdentity (void) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:685:2: warning: 'glMatrixMode' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  685 |         glMatrixMode(GL_MODELVIEW);
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2588:13: note: 'glMatrixMode' has been explicitly marked deprecated here
+ 2588 | extern void glMatrixMode (GLenum mode) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:686:2: warning: 'glOrtho' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  686 |         glOrtho( 0.0,  rw,  0.0,  rh,  -1.0,  1.0);
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2604:13: note: 'glOrtho' has been explicitly marked deprecated here
+ 2604 | extern void glOrtho (GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:713:3: warning: 'glBegin' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  713 |                 glBegin(GL_QUADS);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2385:13: note: 'glBegin' has been explicitly marked deprecated here
+ 2385 | extern void glBegin (GLenum mode) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:714:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  714 |                 glTexCoord2f( l, b); // Bottom left of picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:715:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  715 |                 glVertex2f( 0.0, 0.0f); // Bottom left of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:717:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  717 |                 glTexCoord2f(r, b);// Bottom right of picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:718:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  718 |                 glVertex2f( rw, 0.0f);  // Bottom right of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:720:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  720 |                 glTexCoord2f(r, t); // Top right of our picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:721:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  721 |                 glVertex2f( rw,  rh);   // Top right of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:723:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  723 |                 glTexCoord2f(l, t);  // Top left of our picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:724:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  724 |                 glVertex2f( 0.0f,  rh); // Top left of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:725:3: warning: 'glEnd' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  725 |                 glEnd();
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2474:13: note: 'glEnd' has been explicitly marked deprecated here
+ 2474 | extern void glEnd (void) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:745:3: warning: 'glBegin' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  745 |                 glBegin(GL_QUADS);
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2385:13: note: 'glBegin' has been explicitly marked deprecated here
+ 2385 | extern void glBegin (GLenum mode) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:746:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  746 |                 glTexCoord2f( x1, y1); // Bottom left of picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:747:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  747 |                 glVertex2f( 0.0, 0.0f); // Bottom left of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:749:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  749 |                 glTexCoord2f( x2, y1);// Bottom right of picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:750:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  750 |                 glVertex2f( rw, 0.0f);  // Bottom right of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:752:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  752 |                 glTexCoord2f( x2, y2); // Top right of our picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:753:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  753 |                 glVertex2f( rw,  rh);   // Top right of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:755:3: warning: 'glTexCoord2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  755 |                 glTexCoord2f( x1, y2);  // Top left of our picture.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2685:13: note: 'glTexCoord2f' has been explicitly marked deprecated here
+ 2685 | extern void glTexCoord2f (GLfloat s, GLfloat t) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:756:3: warning: 'glVertex2f' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  756 |                 glVertex2f( 0.0f,  rh); // Top left of target.
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2732:13: note: 'glVertex2f' has been explicitly marked deprecated here
+ 2732 | extern void glVertex2f (GLfloat x, GLfloat y) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+<work>/source/src/drivers/Qt/ConsoleViewerGL.cpp:757:3: warning: 'glEnd' is deprecated: first deprecated in macOS 10.14 - OpenGL API deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings) [-Wdeprecated-declarations]
+  757 |                 glEnd();
+      |                 ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework/Headers/gl.h:2474:13: note: 'glEnd' has been explicitly marked deprecated here
+ 2474 | extern void glEnd (void) OPENGL_DEPRECATED(10.0, 10.14);
+      |             ^
+25 warnings generated.
+[ 81%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/FamilyKeyboard.cpp.o
+[ 81%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/HotKeyConf.cpp.o
+[ 82%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TimingConf.cpp.o
+[ 82%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/FrameTimingStats.cpp.o
+[ 82%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/PaletteConf.cpp.o
+[ 82%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/PaletteEditor.cpp.o
+[ 83%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ColorMenu.cpp.o
+[ 83%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/GuiConf.cpp.o
+[ 83%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/HelpPages.cpp.o
+[ 84%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/MoviePlay.cpp.o
+[ 84%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/MovieRecord.cpp.o
+[ 84%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/MovieOptions.cpp.o
+[ 84%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/LuaControl.cpp.o
+<work>/source/src/drivers/Qt/GuiConf.cpp:1023:10: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+ 1023 |                         color.setNamedColor( colorTxt );
+      |                               ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+[ 85%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/CheatsConf.cpp.o
+1 warning generated.
+[ 85%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/GameGenie.cpp.o
+[ 85%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/HexEditor.cpp.o
+[ 85%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/MsgLogViewer.cpp.o
+[ 86%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/CodeDataLogger.cpp.o
+[ 86%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/SymbolicDebug.cpp.o
+[ 86%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleDebugger.cpp.o
+[ 87%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleUtilities.cpp.o
+[ 87%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleVideoConf.cpp.o
+<work>/source/src/drivers/Qt/HexEditor.cpp:1973:10: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+ 1973 |         bgColor.setNamedColor( colorString.c_str() );
+      |                 ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+<work>/source/src/drivers/Qt/HexEditor.cpp:1975:10: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+ 1975 |         fgColor.setNamedColor( colorString.c_str() );
+      |                 ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+<work>/source/src/drivers/Qt/HexEditor.cpp:1978:18: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+ 1978 |         rowColHlgtColor.setNamedColor( colorString.c_str() );
+      |                         ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+<work>/source/src/drivers/Qt/HexEditor.cpp:1982:18: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+ 1982 |         altColHlgtColor.setNamedColor( colorString.c_str() );
+      |                         ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+[ 87%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ConsoleSoundConf.cpp.o
+[ 87%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/StateRecorderConf.cpp.o
+<work>/source/src/drivers/Qt/ConsoleUtilities.cpp:315:10: warning: 'setNamedColor' is deprecated: Use fromString() instead. [-Wdeprecated-declarations]
+  315 |                 color->setNamedColor( colorString.c_str() );
+      |                        ^
+/opt/homebrew/lib/QtGui.framework/Headers/qcolor.h:65:5: note: 'setNamedColor' has been explicitly marked deprecated here
+   65 |     QT_DEPRECATED_VERSION_X_6_6("Use fromString() instead.")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+4 warnings generated.
+[ 88%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/iNesHeaderEditor.cpp.o
+<work>/source/src/drivers/Qt/ConsoleDebugger.cpp:7772:23: warning: 'QMouseEvent' is deprecated: Use another constructor [-Wdeprecated-declarations]
+ 7772 |                         QMouseEvent *e=new QMouseEvent(QEvent::MouseButtonRelease,
+      |                                            ^
+/opt/homebrew/lib/QtGui.framework/Headers/qevent.h:202:5: note: 'QMouseEvent' has been explicitly marked deprecated here
+  202 |     QT_DEPRECATED_VERSION_X_6_4("Use another constructor")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:180:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_4'
+  180 | # define QT_DEPRECATED_VERSION_X_6_4(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+1 warning generated.
+[ 88%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/QtScriptManager.cpp.o
+[ 88%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/SplashScreen.cpp.o
+[ 89%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TraceLogger.cpp.o
+[ 89%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/AboutWindow.cpp.o
+[ 89%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/fceuWrapper.cpp.o
+[ 89%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/ppuViewer.cpp.o
+1 warning generated.
+[ 90%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/NameTableViewer.cpp.o
+[ 90%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/RamWatch.cpp.o
+[ 90%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/RamSearch.cpp.o
+<work>/source/src/drivers/Qt/fceuWrapper.cpp:144:26: warning: variable 'mode' set but not used [-Wunused-but-set-variable]
+  144 |         std::ios_base::openmode mode = std::ios_base::binary;
+      |                                 ^
+[ 90%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/config.cpp.o
+1 warning generated.
+[ 91%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/input.cpp.o
+[ 91%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/nes_shm.cpp.o
+[ 91%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/keyscan.cpp.o
+[ 92%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/sdl-sound.cpp.o
+[ 92%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/sdl-video.cpp.o
+[ 92%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/sdl-joystick.cpp.o
+[ 92%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/sdl-throttle.cpp.o
+[ 93%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/unix-netplay.cpp.o
+[ 93%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/NetPlay.cpp.o
+[ 93%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/AviRecord.cpp.o
+[ 94%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/AviRiffViewer.cpp.o
+[ 94%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/avi/avi-utils.cpp.o
+[ 94%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/avi/fileio.cpp.o
+<work>/source/src/drivers/Qt/avi/avi-utils.cpp:589:2: warning: 'sprintf' is deprecated: This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead. [-Wdeprecated-declarations]
+  589 |         sprintf( fcc, "ix%02i", indx->streamId );
+      |         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/_stdio.h:278:1: note: 'sprintf' has been explicitly marked deprecated here
+  278 | __deprecated_msg("This function is provided for compatibility reasons only.  Due to security concerns inherent in the design of sprintf(3), it is highly recommended that you use snprintf(3) instead.")
+      | ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/cdefs.h:227:48: note: expanded from macro '__deprecated_msg'
+  227 |         #define __deprecated_msg(_msg) __attribute__((__deprecated__(_msg)))
+      |                                                       ^
+[ 94%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/avi/gwavi.cpp.o
+1 warning generated.
+[ 95%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/TasEditorWindow.cpp.o
+[ 95%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/taseditor_project.cpp.o
+<work>/source/src/drivers/Qt/NetPlay.cpp:281:4: warning: ignoring return value of function declared with 'nodiscard' attribute [-Wunused-result]
+  281 |                         debugFile->open();
+      |                         ^~~~~~~~~~~~~~~
+<work>/source/src/drivers/Qt/NetPlay.cpp:1984:4: warning: ignoring return value of function declared with 'nodiscard' attribute [-Wunused-result]
+ 1984 |                         tmpFile.open(QIODevice::ReadWrite);
+      |                         ^~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~
+[ 95%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/taseditor_config.cpp.o
+<work>/source/src/drivers/Qt/AviRecord.cpp:2290:38: warning: 'countryToString' is deprecated: Use territoryToString(Territory) instead [-Wdeprecated-declarations]
+ 2290 |         avi_info.add_pair( "IARL", QLocale::countryToString( locale.country() ).toLocal8Bit().constData() );
+      |                                             ^
+/opt/homebrew/lib/QtCore.framework/Headers/qlocale.h:1161:5: note: 'countryToString' has been explicitly marked deprecated here
+ 1161 |     QT_DEPRECATED_VERSION_X_6_6("Use territoryToString(Territory) instead")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+<work>/source/src/drivers/Qt/AviRecord.cpp:2290:62: warning: 'country' is deprecated: Use territory() instead [-Wdeprecated-declarations]
+ 2290 |         avi_info.add_pair( "IARL", QLocale::countryToString( locale.country() ).toLocal8Bit().constData() );
+      |                                                                     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qlocale.h:939:5: note: 'country' has been explicitly marked deprecated here
+  939 |     QT_DEPRECATED_VERSION_X_6_6("Use territory() instead")
+      |     ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:196:44: note: expanded from macro 'QT_DEPRECATED_VERSION_X_6_6'
+  196 | # define QT_DEPRECATED_VERSION_X_6_6(text) QT_DEPRECATED_X(text)
+      |                                            ^
+/opt/homebrew/lib/QtCore.framework/Headers/qtdeprecationmarkers.h:32:33: note: expanded from macro 'QT_DEPRECATED_X'
+   32 | #  define QT_DEPRECATED_X(text) Q_DECL_DEPRECATED_X(text)
+      |                                 ^
+/opt/homebrew/lib/QtCore.framework/Headers/qcompilerdetection.h:1018:36: note: expanded from macro 'Q_DECL_DEPRECATED_X'
+ 1018 | #  define Q_DECL_DEPRECATED_X(x) [[deprecated(x)]]
+      |                                    ^
+2 warnings generated.
+[ 95%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/taseditor_lua.cpp.o
+[ 96%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/markers_manager.cpp.o
+2 warnings generated.
+[ 96%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/greenzone.cpp.o
+[ 96%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/selection.cpp.o
+[ 97%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/playback.cpp.o
+[ 97%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/recorder.cpp.o
+[ 97%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/history.cpp.o
+[ 97%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/splicer.cpp.o
+[ 97%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/laglog.cpp.o
+[ 98%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/inputlog.cpp.o
+[ 98%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/branches.cpp.o
+[ 99%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/bookmarks.cpp.o
+[ 99%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/bookmark.cpp.o
+[ 99%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/snapshot.cpp.o
+[ 99%] Building CXX object src/CMakeFiles/fceux.dir/drivers/Qt/TasEditor/markers.cpp.o
+[100%] Building CXX object src/CMakeFiles/fceux.dir/fceux_git_info.cpp.o
+[100%] Building CXX object src/CMakeFiles/fceux.dir/fceux_autogen/YCDLW3T4OG/qrc_resources.cpp.o
+Copying OS X content src/fceux.app/Contents/Resources/fceux.icns
+[100%] Linking CXX executable fceux.app/Contents/MacOS/fceux
+[100%] Built target fceux

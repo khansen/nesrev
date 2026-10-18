@@ -1,0 +1,30 @@
+{
+  "release": "2.7.0-nesrev1-macos-arm64",
+  "date": "2026-10-18",
+  "upstream": "https://github.com/TASEmulators/fceux.git",
+  "base": "a6d03e7968bd77a8156a7c9b628a673753f2f4c6",
+  "machine": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+  "patches": {
+    "2.7.0-no-config.patch": "0ac7d1f5da0e4a553d8e13fb582dbdd1a7fd9b8aed9ed62c22c7c59102b7a67c",
+    "2.7.0-static-mutex.patch": "22f39b5e8cc04142fd9c1de54ff6d532fbd2d508c8376e6f504a5d0bd7af5edf"
+  },
+  "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03",
+  "versions": {
+    "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Library/Developer/CommandLineTools/usr/bin\n",
+    "cmake": "cmake version 4.4.4\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n",
+    "linked_libraries": "<work>/build/src/fceux.app/Contents/MacOS/fceux:\n\t/opt/homebrew/opt/qttools/lib/QtHelp.framework/Versions/A/QtHelp (compatibility version 6.0.0, current version 6.12.0)\n\t/opt/homebrew/opt/qtbase/lib/QtNetwork.framework/Versions/A/QtNetwork (compatibility version 6.0.0, current version 6.12.0)\n\t/opt/homebrew/opt/qtbase/lib/QtOpenGLWidgets.framework/Versions/A/QtOpenGLWidgets (compatibility version 6.0.0, current version 6.12.0)\n\t/System/Library/Frameworks/OpenGL.framework/Versions/A/OpenGL (compatibility version 1.0.0, current version 1.0.0)\n\t/opt/homebrew/opt/sdl2-compat/lib/libSDL2-2.0.0.dylib (compatibility version 3201.0.0, current version 3201.74.0)\n\t/System/Library/Frameworks/Cocoa.framework/Versions/A/Cocoa (compatibility version 1.0.0, current version 24.0.0)\n\t/opt/homebrew/opt/minizip/lib/libminizip.1.dylib (compatibility version 2.0.0, current version 2.0.0)\n\t/usr/lib/libz.1.dylib (compatibility version 1.0.0, current version 1.2.12)\n\t/opt/homebrew/opt/x264/lib/libx264.165.dylib (compatibility version 0.0.0, current version 0.0.0)\n\t/opt/homebrew/opt/x265/lib/libx265.217.dylib (compatibility version 217.0.0, current version 217.0.0)\n\t/opt/homebrew/opt/ffmpeg/lib/libavformat.63.dylib (compatibility version 63.0.0, current version 63.1.102)\n\t/opt/homebrew/opt/ffmpeg/lib/libavcodec.63.dylib (compatibility version 63.0.0, current version 63.1.102)\n\t/opt/homebrew/opt/ffmpeg/lib/libswresample.7.dylib (compatibility version 7.0.0, current version 7.1.102)\n\t/opt/homebrew/opt/ffmpeg/lib/libswscale.10.dylib (compatibility version 10.0.0, current version 10.1.102)\n\t/opt/homebrew/opt/ffmpeg/lib/libavutil.61.dylib (compatibility version 61.0.0, current version 61.1.102)\n\t/opt/homebrew/opt/qtbase/lib/QtSql.framework/Versions/A/QtSql (compatibility version 6.0.0, current version 6.12.0)\n\t/opt/homebrew/opt/qtbase/lib/QtWidgets.framework/Versions/A/QtWidgets (compatibility version 6.0.0, current version 6.12.0)\n\t/opt/homebrew/opt/qtbase/lib/QtOpenGL.framework/Versions/A/QtOpenGL (compatibility version 6.0.0, current version 6.12.0)\n\t/opt/homebrew/opt/qtbase/lib/QtGui.framework/Versions/A/QtGui (compatibility version 6.0.0, current version 6.12.0)\n\t/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit (compatibility version 45.0.0, current version 2775.10.103)\n\t/System/Library/Frameworks/ImageIO.framework/Versions/A/ImageIO (compatibility version 1.0.0, current version 1.0.0)\n\t/System/Library/Frameworks/Metal.framework/Versions/A/Metal (compatibility version 1.0.0, current version 382.5.3)\n\t/opt/homebrew/opt/qtbase/lib/QtCore.framework/Versions/A/QtCore (compatibility version 6.0.0, current version 6.12.0)\n\t/System/Library/Frameworks/IOKit.framework/Versions/A/IOKit (compatibility version 1.0.0, current version 275.0.0)\n\t/System/Library/Frameworks/DiskArbitration.framework/Versions/A/DiskArbitration (compatibility version 1.0.0, current version 1.0.0)\n\t/System/Library/Frameworks/UniformTypeIdentifiers.framework/Versions/A/UniformTypeIdentifiers (compatibility version 1.0.0, current version 709.0.0)\n\t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 2200.27.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)\n"
+  },
+  "limits": [
+    "Maximum-speed supervised macOS ARM64 automation only",
+    "Normal-speed playback and listening unvalidated",
+    "Post-completion shutdown exit -11 remains",
+    "Depends on installed Homebrew libraries; rebuild and validate after dependency changes"
+  ],
+  "patched_source_sha256": {
+    "src/drivers/Qt/ConsoleWindow.h": "ad9a7678a0cf2be1d6c2490fa25c2258ebde9b6339bd5a9fb1ac609b87e6bbca",
+    "src/drivers/Qt/fceuWrapper.cpp": "bac583e12345ac0d11af07809e58c788aabb88eb8b4ee4f336ffc38549ee0561",
+    "src/drivers/common/configSys.cpp": "1410e35c6c10fb9bc33d33be46aa3a1272398925d15978df7d443d51bb410de9",
+    "src/drivers/common/configSys.h": "762770ae5be52e26bfd67023f9432a461ba8260188fab94606f3b20b333c594a"
+  }
+}

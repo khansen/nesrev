@@ -1,0 +1,136 @@
+CMake Warning (deprecated) at CMakeLists.txt:2 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+
+-- The C compiler identification is AppleClang 21.0.0.21000334
+-- The CXX compiler identification is AppleClang 21.0.0.21000334
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- GUI Frontend: Qt6
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Performing Test HAVE_STDATOMIC
+-- Performing Test HAVE_STDATOMIC - Success
+-- Found WrapAtomic: TRUE
+-- Found OpenGL: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenGL.framework
+-- Found WrapOpenGL: TRUE
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR)
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR)
+CMake Warning at src/CMakeLists.txt:51 (find_package):
+  Found package configuration file:
+
+    /opt/homebrew/lib/cmake/Qt6/Qt6Config.cmake
+
+  but it set Qt6_FOUND to FALSE so package "Qt6" is considered to be NOT
+  FOUND.  Reason given by package:
+
+  Failed to find required Qt component "Qml".
+
+  Expected Config file at "/opt/homebrew/lib/cmake/Qt6Qml/Qt6QmlConfig.cmake"
+  exists
+
+
+
+  Configuring with --debug-find-pkg=Qt6Qml might reveal details why the
+  package was not found.
+
+  Configuring with -DQT_DEBUG_FIND_PACKAGE=ON will print the values of some
+  of the path variables that find_package uses to try and find the package.
+
+
+
+CMake Warning at src/CMakeLists.txt:52 (find_package):
+  Found package configuration file:
+
+    /opt/homebrew/lib/cmake/Qt6/Qt6Config.cmake
+
+  but it set Qt6_FOUND to FALSE so package "Qt6" is considered to be NOT
+  FOUND.  Reason given by package:
+
+  Failed to find required Qt component "UiTools".
+
+  Expected Config file at
+  "/opt/homebrew/lib/cmake/Qt6UiTools/Qt6UiToolsConfig.cmake" exists
+
+
+
+  Configuring with --debug-find-pkg=Qt6UiTools might reveal details why the
+  package was not found.
+
+  Configuring with -DQT_DEBUG_FIND_PACKAGE=ON will print the values of some
+  of the path variables that find_package uses to try and find the package.
+
+
+
+-- Qt6 Help Module Found
+-- Qt6 Network Module Found
+-- Qt6 Qml Module Not Found
+-- Qt6 UiTools Module Not Found
+-- OpenGL preference: LEGACY
+-- Found PkgConfig: /opt/homebrew/bin/pkg-config (found version "3.0.9")
+-- Found ZLIB: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/libz.tbd (found version "1.2.12")
+-- Address Sanitizer Disabled
+-- Thread Sanitizer Disabled
+-- Checking for module 'minizip'
+--   Found minizip, version 1.3.2
+-- Using System minizip 1.3.2
+-- Checking for module 'libarchive'
+--   Package 'libarchive' not found
+-- Checking for module 'x264'
+--   Found x264, version 0.165.3222
+-- Using System X264 Encoder Library 0.165.3222
+-- Checking for module 'x265'
+--   Found x265, version 4.3
+-- Using System X265 Encoder Library 4.3
+-- Checking for modules 'libavcodec;libavformat;libavutil;libswresample;libswscale'
+--   Found libavcodec, version 63.1.102
+--   Found libavformat, version 63.1.102
+--   Found libavutil, version 61.1.102
+--   Found libswresample, version 7.1.102
+--   Found libswscale, version 10.1.102
+-- Using System Libav Library
+-- Checking for module 'x11'
+--   Found x11, version 1.8.14
+-- Has X11 Library 1.8.14
+-- Checking for module 'xkbcommon'
+--   Package 'xkbcommon' not found
+-- Checking for module 'sdl2'
+--   Found sdl2, version 2.32.74
+-- Checking for one of the modules 'lua5.1;lua-5.1'
+-- Using Internal Lua
+-- Using System zlib 1.2.12
+CMake Warning (author) at src/CMakeLists.txt:794 (include):
+  The module name
+
+    CPACK.cmake
+
+  does not match the case of the module file name on disk
+
+    /opt/homebrew/share/cmake/Modules/CPack.cmake
+
+  This may fail on case-sensitive file systems.  Use the module name
+
+    CPack.cmake
+
+  instead.
+This warning is for project developers.  Use -Wno-author to suppress it.
+
+-- Found Perl: /usr/bin/perl (found version "5.34.1")
+-- Configuring done (2.2s)
+-- Generating done (0.5s)
+-- Build files have been written to: <work>/build
