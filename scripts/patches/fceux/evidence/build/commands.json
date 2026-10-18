@@ -1,0 +1,66 @@
+[
+  {
+    "step": "config-test-configure",
+    "command": [
+      "cmake",
+      "-S",
+      "<work>/source/tests",
+      "-B",
+      "<work>/config-tests"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.535
+  },
+  {
+    "step": "config-test-build",
+    "command": [
+      "cmake",
+      "--build",
+      "<work>/config-tests"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.803
+  },
+  {
+    "step": "config-test",
+    "command": [
+      "ctest",
+      "--test-dir",
+      "<work>/config-tests",
+      "--output-on-failure"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 0.246
+  },
+  {
+    "step": "configure",
+    "command": [
+      "cmake",
+      "-S",
+      "<work>/source",
+      "-B",
+      "<work>/build",
+      "-DQT6=ON",
+      "-DPUBLIC_RELEASE=1",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_PREFIX_PATH=/opt/homebrew",
+      "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6Qml=TRUE",
+      "-DCMAKE_DISABLE_FIND_PACKAGE_Qt6UiTools=TRUE",
+      "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 2.681
+  },
+  {
+    "step": "build",
+    "command": [
+      "cmake",
+      "--build",
+      "<work>/build",
+      "--parallel",
+      "6"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 36.41
+  }
+]

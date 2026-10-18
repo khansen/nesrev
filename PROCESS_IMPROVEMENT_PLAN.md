@@ -2091,6 +2091,9 @@ retirement in favor of a validated standard release, regardless of who fixes
 the upstream bugs. The [tracked contribution handoff](scripts/patches/fceux/upstream/README.md)
 preserves both approved patches, submission drafts and sanitized startup-race
 evidence so future contributors do not depend on private local directories.
+The [review instructions](scripts/patches/fceux/REVIEW.md) link to tracked build
+logs, synthetic captures and portable profile tests with negative controls.
+Review and reproduction require only the clone and public upstream inputs.
 
 Status: the designated independent reviewer approved `0a48ec9c6` on
 `fix/fceux-startup-race`, branched from master `237f26889`, on 2026-10-18.

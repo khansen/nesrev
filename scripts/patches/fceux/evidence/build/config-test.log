@@ -1,0 +1,7 @@
+Test project <work>/config-tests
+    Start 1: config_no_config
+1/1 Test #1: config_no_config .................   Passed    0.21 sec
+
+100% tests passed out of 1
+
+Total Test time (real) =   0.22 sec

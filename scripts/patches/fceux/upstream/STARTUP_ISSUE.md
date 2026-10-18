@@ -122,8 +122,9 @@ Missing first-launch result files are not fabricated. The bundle
 also records the debugger values as reviewer-reported observations and includes
 SHA-256 checksums. Local user/session paths in the logs are replaced with generic
 paths, including account-specific macOS temporary folders. Stack addresses,
-symbols and sample counts are preserved. The sample already had its local paths
-abbreviated by the sampling tool; its timestamps and timezone are retained.
+symbols and sample counts are preserved. The sample's already-abbreviated
+executable paths are normalized to `<capture>/`; its timestamps and timezone
+are retained.
 
 The sampled run's trace and the stalled debugger trace end at `FRAME 1`; the
 healthy debugger trace reaches `COMPLETE`. These artifact checks were performed after copying;

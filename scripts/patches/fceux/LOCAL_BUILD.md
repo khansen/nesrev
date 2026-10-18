@@ -44,10 +44,10 @@ new independent review or agent smoke is implied by coordinator-run checks.
 <a id="select-local-build"></a>
 ## Select the local build
 
-The original maintainer's installation is under
-`$HOME/.local/share/nesrev/fceux`. A fresh clone does not have that installation;
-follow [setup from a clone](#setup-from-clone) only if opting into the workaround.
-The layout has immutable `releases/` directories, an explicitly selected
+The default optional installation directory is
+`$HOME/.local/share/nesrev/fceux`. Follow
+[setup from a clone](#setup-from-clone) to create your own installation.
+The layout uses immutable `releases/` directories, an explicitly selected
 `current` symlink, a dedicated `config/`, and an `activate.sh` copy. Source and
 build records live alongside the release. Homebrew's executable and links are
 left intact. A Homebrew upgrade must not change `current`.
@@ -81,13 +81,6 @@ a global replacement and must be used for each fresh session. Keep automated
 captures bounded with the existing supervisor; do not add retries that conceal
 failed startup attempts.
 
-The original maintainer's machine also has
-`$HOME/.local/share/nesrev/fceux/start-review`, which
-activates the profile, enters the recorded NESrev checkout and forwards its
-arguments to the normal tmux launcher. That site-specific convenience wrapper
-is not part of a clone or required by NESrev. The activation and normal launcher
-commands above work without it. Neither refreshes an existing session.
-
 <a id="rebuild-local"></a>
 ## Rebuild and record provenance
 
@@ -97,8 +90,8 @@ other environments need their own dependency setup and validation. Follow
 upstream's [build instructions](https://github.com/TASEmulators/fceux/blob/a6d03e7968bd77a8156a7c9b628a673753f2f4c6/README)
 for prerequisites; the example disables optional Qt QML and UiTools. Use fresh
 source/build directories, never the active release.
-The original installation's private source bundle and logs are useful historical
-evidence, but are not required to reproduce the build from a clone. For example:
+The tracked patches, tests and [evidence packet](evidence/README.md) are sufficient
+to review this procedure without a pre-existing installation. For example:
 
 ```sh
 NESREV_ROOT=/absolute/path/to/your/nesrev
@@ -280,40 +273,26 @@ Update this document when a reusable platform-level conclusion is established.
 Retiring the runtime workaround does not require deleting the upstream handoff.
 
 <a id="local-validation"></a>
-## Initial combined-build validation — 2026-10-18
+## Bundled validation — 2026-10-18
 
 Executable SHA-256:
 `978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c`.
 
-- Full Qt Release build and standalone config tests pass. Reverting the config
-  implementation to the pinned base makes the regression assertions fail.
-- Five first launches of freshly copied binaries complete the 60-frame
-  synthetic-ROM probe. All 23 configured project ROMs complete the 60-frame
-  startup probe; this is startup coverage, not gameplay coverage for 23 games.
-- One existing 1,500-frame natural-input gameplay replay is accepted by its
-  analyzer. Its trace and all six screenshots match the accepted baseline.
-- ROMs and isolated configurations are unchanged. The personal configuration
-  is unchanged. These captures report emulator exit `-11` during deliberate
-  post-completion shutdown; none is reported as a clean emulator exit.
-- Activation succeeds in bash and zsh and blocks the dependent launch when
-  the selected binary is changed or missing.
-- On an already-running private tmux server, the adapter forwards all three
-  runtime variables into both the first pane and a split pane. The same launch
-  without the adapter loses them. The test includes spaces and Lua's trailing
-  `;;`; no real agent session is started or changed.
+The [tracked evidence packet](evidence/README.md) includes the full Qt Release
+build log, command exits, config CTest output, the failing unpatched config
+control, and all five fresh-copy synthetic captures. Each capture completed
+60 frames and preserved its isolated config and ROM. All five reported emulator
+exit `-11` during deliberate post-completion shutdown, not a clean emulator exit.
+These are coordinator checks, not a new independent review or live agent smoke.
 
-The local installation retains the commands, raw results, executable and
-supervisor hashes under `records/2.7.0-nesrev1/`. Records retain their original
-capture paths; `records/2.7.0-nesrev1/README.md` maps those paths to the preserved
-copies. Harness setup errors are retained separately from emulator results.
-These are coordinator checks of the combined build, not a new independent
-review or a live agent permission smoke.
+The [portable profile tests](test_profile.py) exercise activation/refusal in bash
+and zsh and environment forwarding on a private tmux server, including spaces
+and trailing semicolons. They need no emulator or project ROM. The evidence
+packet gives exact commands, recorded results and negative controls.
 
-The portability follow-up checked a clean export of the tracked files, applied
-both patches to a fresh pinned source checkout and reran config CTest. The setup
-recipe passed with spaces in the clone and installation paths, reusing the
-already validated binary to test packaging only. Both submission patches pass
-their historical-base application checks; all bundle hashes and relative doc
-links resolve. No new Qt build, emulator capture or agent session was run for
-this documentation follow-up. Default launcher/supervisor help also works with
-all local-profile environment variables absent.
+Project-specific gameplay captures and personal configuration records are not
+part of this public packet or prerequisites for reviewing the PR. The synthetic
+evidence establishes startup only. Apply the project-specific acceptance steps
+above before using a new emulator for semantic conclusions. Rebuilds on other
+hosts require their own validation; the historical binary hash identifies the
+recorded executable and is not a promise of reproducible build bytes.

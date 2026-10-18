@@ -4,6 +4,8 @@ Standard FCEUX installations remain supported; NESrev does not require a custom
 emulator. For the optional workaround, clone-to-setup instructions and retirement
 policy, use [LOCAL_BUILD.md](LOCAL_BUILD.md). For future FCEUX or Homebrew
 contributions, use the [tracked upstream handoff](upstream/README.md).
+The [review instructions](REVIEW.md) and [evidence packet](evidence/README.md)
+support review from a fresh clone.
 The instructions below describe the original mutex-only backport and its
 historical validation.
 

@@ -7,10 +7,10 @@
   "files": {
     "../2.7.0-no-config.patch": "0ac7d1f5da0e4a553d8e13fb582dbdd1a7fd9b8aed9ed62c22c7c59102b7a67c",
     "homebrew-corrected-release.patch": "02960b524280428604e3470552f6591d2bd13f51428a5c0aea5af2922867ece5",
-    "startup-race-attachments.zip": "318443f1262aa9a1c121460e27def0d00eeab1cd615d5d6f8374db036904fb12",
+    "startup-race-attachments.zip": "8c5b47363b7aff46ae0f0efc2b1abb187be564049c5e438e0eed9c6be3cb21ad",
     "FCEUX_PR.md": "6626d444a34070780d680c9840798c65509c884f71a8e792eb5f4dbe619e0182",
     "HOMEBREW_PR.md": "66e640c95f759212f75bb6064e304787bea25d9855b6dc4e560a3cd2593df1e6",
-    "STARTUP_ISSUE.md": "b934cbbad96633f618a23715b9006a9388972d7a9fe803c1d553ff63e7389e2e"
+    "STARTUP_ISSUE.md": "b2ffc8c982f0459b877966b6636083cfa00c7326eb25c5d99f093f5c86a4b0a1"
   },
   "historical_review": {
     "fceux": "revision 2 approved; patch unchanged",
@@ -21,7 +21,7 @@
   "config_revision_2_binary_sha256": "a17ea72b582b531f42e8fad55e2f2f38faeda3b07c9cb979cb6bd39ab5ac2b92",
   "unmodified_corrected_keg_binary_sha256": "72e2294155b3ca00520d80422b661fac064cb6264719ae0b5beea41d3bd26278",
   "evidence_limits": [
-    "Build binaries and full local build logs are not distributed here.",
+    "Original upstream build binaries and full upstream-build logs are not distributed here; the separate local-workaround evidence is tracked in ../evidence/.",
     "The startup bundle contains synthetic fixture bytes, scripts and sanitized reviewer logs.",
     "Debugger counters were reported by the reviewer; no debugger transcript exists.",
     "No patch for the corrected release frame-one race has been implemented."

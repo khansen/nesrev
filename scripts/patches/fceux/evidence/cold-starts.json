@@ -1,0 +1,67 @@
+[
+  {
+    "name": "cold-0",
+    "exit_code": 0,
+    "accepted": true,
+    "duration_seconds": 2.922,
+    "emulator_exit": -11,
+    "stopped_after_completion": true,
+    "result": "cold-0/result.json",
+    "config_unchanged": true,
+    "rom_unchanged": true,
+    "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+    "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03"
+  },
+  {
+    "name": "cold-1",
+    "exit_code": 0,
+    "accepted": true,
+    "duration_seconds": 2.374,
+    "emulator_exit": -11,
+    "stopped_after_completion": true,
+    "result": "cold-1/result.json",
+    "config_unchanged": true,
+    "rom_unchanged": true,
+    "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+    "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03"
+  },
+  {
+    "name": "cold-2",
+    "exit_code": 0,
+    "accepted": true,
+    "duration_seconds": 2.473,
+    "emulator_exit": -11,
+    "stopped_after_completion": true,
+    "result": "cold-2/result.json",
+    "config_unchanged": true,
+    "rom_unchanged": true,
+    "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+    "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03"
+  },
+  {
+    "name": "cold-3",
+    "exit_code": 0,
+    "accepted": true,
+    "duration_seconds": 2.316,
+    "emulator_exit": -11,
+    "stopped_after_completion": true,
+    "result": "cold-3/result.json",
+    "config_unchanged": true,
+    "rom_unchanged": true,
+    "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+    "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03"
+  },
+  {
+    "name": "cold-4",
+    "exit_code": 0,
+    "accepted": true,
+    "duration_seconds": 2.313,
+    "emulator_exit": -11,
+    "stopped_after_completion": true,
+    "result": "cold-4/result.json",
+    "config_unchanged": true,
+    "rom_unchanged": true,
+    "binary_sha256": "978e47f17f33bc2ed799b5881b06e29954890aaa904f29a2790c2c0b6765c75c",
+    "supervisor_sha256": "6b218f2ed8cdf8c548d7454e448974afa709ae16c0e0093b8d8dccaac1206e03"
+  }
+]

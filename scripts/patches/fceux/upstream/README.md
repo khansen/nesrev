@@ -56,8 +56,10 @@ timeout. A separate reviewer startup experiment had 21 emulator launches plus
 two help warm-ups; see the issue draft for the overlapping first-launch counts.
 The reduced formula passed source-build-backed `brew lgtm` checks on macOS.
 
-These are dated evidence summaries. Full build logs, tested binaries and private
-working copies are not distributed here. A new contributor must rebuild and
+These are dated evidence summaries. The original upstream-build logs, tested
+binaries and private working copies are not distributed here. Full logs and
+synthetic captures for the separate older-base combined workaround are in the
+[tracked evidence packet](../evidence/README.md). A new contributor must rebuild and
 rerun relevant checks rather than claim the archived review as their own work.
 The two patches and bundle suffice to reproduce their tests and the startup
 experiment without access to the original maintainer's home or temporary files.
