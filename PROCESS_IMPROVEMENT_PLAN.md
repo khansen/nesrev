@@ -45,7 +45,11 @@ in [PR #161](https://github.com/khansen/nesrev/pull/161). They were integrated
 before the separately authorized third five-pass window. Its
 [assessment](#third-window-assessment) selects a bounded
 [checkout-inspection follow-up](#checkout-inspection-permissions).
-Updated 2026-10-18.
+A retrospective review adds a proposed
+[runtime-claim validation follow-up](#runtime-claim-validation).
+Its project rework and independent re-review are pending; no shared gate or
+new playbook requirement is selected.
+Updated 2026-10-20.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -98,9 +102,17 @@ If existing tooling already resolves the observation, record that evidence and
 retriage it instead of adding another gate. Keep other undecided friction
 candidates in their project queues.
 
-The latest profile smoke is paused on
-[FCEUX startup and cleanup reliability](#fceux-startup-reliability). Complete
-that approved fix's integration and a fresh smoke before the next corpus project.
+Evaluate the [runtime-claim follow-up](#runtime-claim-validation) from the
+already-authorized project's rework and independent re-review. Preserve its
+current agent session and workflow while this planning branch is reviewed.
+Shared implementation, if justified, is a separately selected master-based
+change; this assessment does not add a project pass.
+
+The 2026-10-18 profile-smoke assessment selected
+[FCEUX startup and cleanup reliability](#fceux-startup-reliability) as a
+prerequisite for a fresh smoke and the next corpus project. That historical
+validation record remains below; subsequent local rollout results belong in
+the corpus evidence.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -914,6 +926,103 @@ paths and retain its output and limits. An agreeing model is not emulator
 evidence; a disagreement requires checking the model as well as the document.
 Do not require enumeration or additional captures for every question.
 
+The following assessment gives this candidate a concrete evaluation target.
+
+<a id="runtime-claim-validation"></a>
+#### Follow-up: test the meaning asserted by runtime claims — 2026-10-20
+
+Status: planning only on `docs/runtime-claim-validation-plan`, based on master
+`366300ba5`. Independent review of this plan and of the ongoing project rework
+remains pending. No shared implementation, permission change or effectiveness
+claim is made here. This is the canonical status record for this follow-up.
+
+Source: the first independent review of an ongoing retrospective corridor,
+read on 2026-10-20. The reviewer reported four fresh accepted replays,
+independent trace reduction and negative controls, corroborating the main
+coordinate and player-state corrections while requesting semantic repairs.
+This assessment inspects that review; it does not claim another capture run.
+Exact project identities, source revisions, original findings and raw evidence
+remain in the local corpus records. Rework is underway, so neither final
+approval nor a reduction in review effort has been established.
+
+The cause assessment is **mixed**. Missed sibling aliases, an unsymbolized
+reader and stale prose are execution misses under the existing
+[reviewer simulation](AGENTS.md#reviewer-simulation-checklist) and
+[current-artifact sweep](agent_playbook/DOCUMENTATION.md#corrected-claim-propagation).
+The visual claim and transition summary also expose a gap between the
+question asked and the evidence the analyzer accepted. This assessment
+records one observed corridor; it does not establish the frequency or cause
+of similar misses elsewhere, or infer an agent's care or effort.
+
+| Observation from the review | Interpretation and disposition |
+|---|---|
+| A visible-reward interpretation survived capture checks for a state change and score increase, while the owning sprite graphics were blank. The entry-frame screenshot still showed the previous display. | Capture acceptance established the event, not its visual interpretation. Evaluate a milestone tied to the displayed state and a control that distinguishes visible output from a hidden state. |
+| A scene-transition summary said the actors stayed active, but the recorded interval contained a reset, entry state and return to active. | Equal endpoint states cannot establish uninterrupted activity. Derive the transition sequence from the trace and compare the authored claim with the whole relevant interval. |
+| Rename rationales attributed repeated runtime evidence to families that had only static proof; symmetric runtime dimensions could not distinguish their axes. | Scope evidence to each family and the exact property tested. Static proof can stand on its own; an agreeing but non-discriminating capture does not add proof of that property. |
+| Current aliases, readers and prose were missed despite existing obligations. | Repair through the existing self-review and independent review cycle. No additional general checklist or semantic gate is justified by those omissions alone. |
+
+**Bounded evaluation, using the current project's rework.** The implementer
+owns project-local capture/analyzer corrections; the independent reviewer
+tests whether they address the original mistaken claims. The coordinator
+records the outcome after re-review without changing the live session for
+this planning update.
+
+1. For an appearance-based name, align the state observation with the display
+   it controls. Record the state-entry frame, actual screenshot/display frame,
+   owning object and relevant OAM/CHR or background data. Inspect a later
+   stable display when the state persists. For short-lived states, establish
+   the actual render phase instead of imposing an arbitrary fixed delay or
+   waiting until the state has ended. Missing or conflicting visual evidence
+   leaves the appearance claim unsupported.
+2. For a claim about behavior through a transition, emit a compact sequence
+   of state changes with frame numbers, actor identities and scenario bounds.
+   Retain intermediate resets and re-entry states, including both actors
+   where ownership is shared. Missing interval coverage cannot establish
+   uninterrupted activity. Disclose assisted setup separately from evidence
+   about the transition itself.
+3. In the existing evidence record and rename rationale, distinguish static
+   producer/consumer proof, runtime corroboration and unresolved interpretation.
+   Link the actual predicate, inspected artifact and limitation to the claim
+   or family. An analyzer's successful capture verdict is narrower than
+   semantic approval. This proposal adds no document or per-symbol checklist;
+   the [semantic-claims ledger's maturity boundary](agent_playbook/QUALITY_REVIEW.md#semantic-claims)
+   remains unchanged.
+
+**Acceptance before considering a shared change.** Use synthetic data for any
+public fixture and preserve real captures locally. Demonstrate these controls
+with diagnostics that identify the unsupported claim, rather than merely
+checking whether the capture completed:
+
+- A visual fixture retains the event and score change but supplies only an
+  old-frame image or blank owned graphics. It must not validate the visible
+  reward claim. A corresponding visible-output fixture must remain accepted;
+  a legitimately hidden state must remain valid under its narrower claim.
+- A transition fixture starts and ends active but resets and re-enters between
+  those endpoints. It must refute continuous activity. Continuous activity
+  over a fully observed interval is the positive control; a truncated interval
+  must leave that claim unproven.
+- An independent reviewer reproduces the original bad direction in disposable
+  copies and verifies the corrected summaries against actual captures. A
+  missing-file rejection alone does not test the semantic interpretation.
+
+These are proposed acceptance criteria, not completed tests. After project
+re-review, record which controls ran, what they caught, remaining limitations
+and whether the extra evidence materially helped. Reuse existing captures
+when they contain the required display phase and interval; authorize no extra
+pass or all-project capture campaign through this plan.
+
+Promote only a demonstrated reusable gap. A shared template/helper change
+would need separate master-based implementation and independent review,
+synthetic positive and negative controls, and representative compatibility
+checks under the existing
+[process-change review procedure](agent_playbook/REVIEW_AUDITS.md#process-change-review-sanity-checks).
+If project-local checks and existing guidance suffice, retain that result
+without adding a universal visual oracle, hard gate or another checklist.
+The [visual-identity contract](agent_playbook/PASS_WORKFLOW.md#visual-identity-evidence)
+and [capture workflow](agent_playbook/RUNTIME_EVIDENCE.md#agent-capture)
+already require interpreting evidence; additional wording is justified only
+by a specific remaining ambiguity.
+
 <a id="triage-boundary-review"></a>
 ### Clarify family closure and boundary evidence
 
@@ -991,6 +1100,7 @@ migration and each newly exposed failure before landing.
 
 | Branch | Scope | Status |
 |---|---|---|
+| `docs/runtime-claim-validation-plan` | Assess runtime interpretation misses and define a bounded project-local evaluation | [Canonical follow-up record](#runtime-claim-validation) |
 | `docs/five-pass-process-assessment` | Second five-pass assessment and bounded follow-up contracts | Merged [PR #161](https://github.com/khansen/nesrev/pull/161) |
 | `fix/explicit-deferral-integrity` | Preserve explicit subjects and require complete deferrals before closeout writes | [Canonical delivery record](#explicit-deferral-integrity) |
 | `fix/learning-candidate-noop` | Require a standalone no-candidate sentinel in generated prompts | [Canonical delivery record](#learning-candidate-noop) |
