@@ -103,16 +103,18 @@ retriage it instead of adding another gate. Keep other undecided friction
 candidates in their project queues.
 
 Evaluate the [runtime-claim follow-up](#runtime-claim-validation) from the
-already-authorized project's rework and independent re-review. Preserve its
-current agent session and workflow while this planning branch is reviewed.
+already-authorized project's rework and independent re-review.
 Shared implementation, if justified, is a separately selected master-based
 change; this assessment does not add a project pass.
 
 The 2026-10-18 profile-smoke assessment selected
 [FCEUX startup and cleanup reliability](#fceux-startup-reliability) as a
-prerequisite for a fresh smoke and the next corpus project. That historical
-validation record remains below; subsequent local rollout results belong in
-the corpus evidence.
+prerequisite for a fresh smoke and the next corpus project. The later fresh
+smoke passed with the reviewed build and user-confirmed absence of runtime
+intervention; its committed corpus record preserves the commands, modes,
+provenance and limits. The earlier smoke remains failed. This bounded result
+does not establish unattended operation for arbitrary analysis commands,
+normal-speed playback or listening.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -932,78 +934,120 @@ The following assessment gives this candidate a concrete evaluation target.
 #### Follow-up: test the meaning asserted by runtime claims — 2026-10-20
 
 Status: planning only on `docs/runtime-claim-validation-plan`, based on master
-`366300ba5`. Independent review of this plan and of the ongoing project rework
-remains pending. No shared implementation, permission change or effectiveness
-claim is made here. This is the canonical status record for this follow-up.
+`366300ba5`. External review requested changes to `444940937`; this revision
+corrects the diagnosis, provenance and evaluation contract. Independent
+re-review of the plan and project rework remains pending. No shared
+implementation, permission change or effectiveness claim is made here.
+This is the canonical status record for this follow-up.
 
 Source: the first independent review of an ongoing retrospective corridor,
 read on 2026-10-20. The reviewer reported four fresh accepted replays,
 independent trace reduction and negative controls, corroborating the main
 coordinate and player-state corrections while requesting semantic repairs.
 This assessment inspects that review; it does not claim another capture run.
-Exact project identities, source revisions, original findings and raw evidence
-remain in the local corpus records. Rework is underway, so neither final
-approval nor a reduction in review effort has been established.
+The source review and its exact project/revision references are currently
+preserved only in ignored project scratch; durable review archival is pending.
+Raw captures also remain untracked. The coordinator must reconcile the manual
+review into the project archive before claiming a committed evidence trail.
+The handoff blocker, evidence-reduction approval and unexplained interpreter
+launch failure are separate operational candidates. Their original text has
+been copied to the project friction queue and validated with its queue reader;
+the queue commit is pending. Automatic handoff ingestion did not run.
+Rework is underway, so neither final approval nor reduced review effort has
+been established.
 
-The cause assessment is **mixed**. Missed sibling aliases, an unsymbolized
-reader and stale prose are execution misses under the existing
+The primary diagnosis is **missed application of existing rules**, including
+the [visual-identity contract](agent_playbook/PASS_WORKFLOW.md#visual-identity-evidence).
+That contract already requires static art and capture inspection before an
+appearance-based name. The renderer's contact sheet covered player poses
+but omitted the enemy state under discussion. Canonical blank graphics,
+absence of a PPU update in the relevant paths and the manual's description
+already contradicted the visual claim. An entry-frame screenshot showing the
+previous display was a contributing weakness, not the only way to catch it.
+Missed sibling aliases, an unsymbolized reader and stale prose also fall under
+the existing
 [reviewer simulation](AGENTS.md#reviewer-simulation-checklist) and
 [current-artifact sweep](agent_playbook/DOCUMENTATION.md#corrected-claim-propagation).
-The visual claim and transition summary also expose a gap between the
-question asked and the evidence the analyzer accepted. This assessment
-records one observed corridor; it does not establish the frequency or cause
-of similar misses elsewhere, or infer an agent's care or effort.
+
+The general lesson is that written claims cited accepted captures for
+properties their predicates never tested. The scene predicate checked scene
+entry and gameplay, with no player-activity assertion. Scenario acceptance
+was overextended into semantic approval. Proposed project-local milestones
+would make that evidence boundary explicit; their absence does not establish
+a missing shared rule.
+
+One wording question merits evaluation: does the contract's reference to
+what an entity, pose or screen looks like make its application to an
+appearance-bearing **state name** clear? An entity-identity-only reading is
+a possible explanation to investigate, not an observed implementer intent.
+This single corridor establishes neither that ambiguity nor its frequency.
 
 | Observation from the review | Interpretation and disposition |
 |---|---|
-| A visible-reward interpretation survived capture checks for a state change and score increase, while the owning sprite graphics were blank. The entry-frame screenshot still showed the previous display. | Capture acceptance established the event, not its visual interpretation. Evaluate a milestone tied to the displayed state and a control that distinguishes visible output from a hidden state. |
-| A scene-transition summary said the actors stayed active, but the recorded interval contained a reset, entry state and return to active. | Equal endpoint states cannot establish uninterrupted activity. Derive the transition sequence from the trace and compare the authored claim with the whole relevant interval. |
+| An appearance-based state name lacked the required enemy-state render. Blank canonical graphics, no PPU update in the relevant paths and the manual contradicted it; the entry-frame image still showed the previous display. | Existing-rule miss first. Apply the static/reference checks before runtime interpretation; evaluate state-name scope as the specific possible wording ambiguity. Display timing is a supporting check, not the primary diagnosis. |
+| A summary said the actors stayed active, although the recorded interval contained a reset, entry state and return to active. The scene predicate never checked activity. | Map the written claim to the actual predicate. Add a project-local interval check if that property is claimed; ordinary scene acceptance cannot support it. |
 | Rename rationales attributed repeated runtime evidence to families that had only static proof; symmetric runtime dimensions could not distinguish their axes. | Scope evidence to each family and the exact property tested. Static proof can stand on its own; an agreeing but non-discriminating capture does not add proof of that property. |
 | Current aliases, readers and prose were missed despite existing obligations. | Repair through the existing self-review and independent review cycle. No additional general checklist or semantic gate is justified by those omissions alone. |
 
 **Bounded evaluation, using the current project's rework.** The implementer
 owns project-local capture/analyzer corrections; the independent reviewer
 tests whether they address the original mistaken claims. The coordinator
-records the outcome after re-review without changing the live session for
-this planning update.
+records the outcome after re-review.
 
-1. For an appearance-based name, align the state observation with the display
-   it controls. Record the state-entry frame, actual screenshot/display frame,
-   owning object and relevant OAM/CHR or background data. Inspect a later
-   stable display when the state persists. For short-lived states, establish
-   the actual render phase instead of imposing an arbitrary fixed delay or
-   waiting until the state has ended. Missing or conflicting visual evidence
-   leaves the appearance claim unsupported.
-2. For a claim about behavior through a transition, emit a compact sequence
+1. In the existing evidence record, map each contested claim to its named
+   project-local predicate or milestone, relevant actor and frame interval,
+   input artifacts, actual output and limitations. Identify the static and
+   reference evidence separately. The analyzer consumes scenario data and
+   explicit predicate parameters; it does not parse prose or decide an
+   arbitrary semantic claim. The reviewer checks that the mapped predicate
+   measures the property asserted. Unmeasured properties stay unsupported
+   even when the capture is accepted. Scope rename rationales to each family.
+   This adds no document or per-symbol checklist; the
+   [semantic-claims ledger's maturity boundary](agent_playbook/QUALITY_REVIEW.md#semantic-claims)
+   remains unchanged.
+2. For an appearance-bearing state name, first apply the existing static
+   render and reference checks to that state, not just other entities or
+   poses in the corridor. Then align the state observation with its display:
+   record state-entry and screenshot/display frames, owning object and
+   relevant OAM/CHR or background data. A project-local milestone can check
+   that the observed graphics and phase support the specified visual
+   property; visual inspection and static ownership proof remain necessary.
+   Inspect a later stable display when the state persists. For short-lived
+   states, establish the render phase instead of imposing a fixed delay or
+   waiting until the state has ended. Reuse sufficient existing evidence.
+3. For a claim about behavior through a transition, emit a compact sequence
    of state changes with frame numbers, actor identities and scenario bounds.
-   Retain intermediate resets and re-entry states, including both actors
-   where ownership is shared. Missing interval coverage cannot establish
+   Retain intermediate resets and re-entry states for every actor that shares
+   the state. A project-local predicate checks the claimed property over that
+   declared interval. Missing interval coverage cannot establish
    uninterrupted activity. Disclose assisted setup separately from evidence
    about the transition itself.
-3. In the existing evidence record and rename rationale, distinguish static
-   producer/consumer proof, runtime corroboration and unresolved interpretation.
-   Link the actual predicate, inspected artifact and limitation to the claim
-   or family. An analyzer's successful capture verdict is narrower than
-   semantic approval. This proposal adds no document or per-symbol checklist;
-   the [semantic-claims ledger's maturity boundary](agent_playbook/QUALITY_REVIEW.md#semantic-claims)
-   remains unchanged.
 
-**Acceptance before considering a shared change.** Use synthetic data for any
-public fixture and preserve real captures locally. Demonstrate these controls
-with diagnostics that identify the unsupported claim, rather than merely
-checking whether the capture completed:
+**Acceptance before considering a shared change.** The test targets are the
+project-local analyzer's proposed claim-specific milestones/predicates and
+their explicit mapping in the evidence record. For each control, record the
+claim, predicate inputs, expected predicate result and observed diagnostic.
+The reviewer verifies the inference from that result to the written claim;
+an unrelated validation failure does not count. Use synthetic data for public
+fixtures and preserve real captures locally.
 
 - A visual fixture retains the event and score change but supplies only an
-  old-frame image or blank owned graphics. It must not validate the visible
-  reward claim. A corresponding visible-output fixture must remain accepted;
-  a legitimately hidden state must remain valid under its narrower claim.
+  old-frame image or blank owned graphics. The mapped visual predicate must
+  report unavailable display evidence or absence of the expected output,
+  respectively, while ordinary event/score predicates can still pass.
+  Corresponding visible output passes that bounded visual predicate. Blank
+  output can support a separately specified hidden-state predicate. Neither
+  result replaces static rendering, reference interpretation or ownership
+  review, and no general image-recognition checker is proposed.
 - A transition fixture starts and ends active but resets and re-enters between
-  those endpoints. It must refute continuous activity. Continuous activity
-  over a fully observed interval is the positive control; a truncated interval
-  must leave that claim unproven.
+  those endpoints. A mapped continuous-activity predicate must fail with the
+  intermediate frame/state even if the scene-entry predicate passes.
+  Continuous activity over a fully observed interval is its positive control;
+  truncated coverage must report insufficient evidence rather than success.
 - An independent reviewer reproduces the original bad direction in disposable
-  copies and verifies the corrected summaries against actual captures. A
-  missing-file rejection alone does not test the semantic interpretation.
+  copies and checks the claim-to-predicate mapping and corrected summaries
+  against static/reference evidence and actual captures. A missing-file
+  rejection alone does not test the semantic interpretation.
 
 These are proposed acceptance criteria, not completed tests. After project
 re-review, record which controls ran, what they caught, remaining limitations
