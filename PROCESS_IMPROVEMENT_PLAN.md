@@ -47,8 +47,9 @@ before the separately authorized third five-pass window. Its
 [checkout-inspection follow-up](#checkout-inspection-permissions).
 A retrospective review adds a proposed
 [runtime-claim validation follow-up](#runtime-claim-validation).
-Its project rework and independent re-review are pending; no shared gate or
-new playbook requirement is selected.
+Its project rework is independently approved and archived; the bounded
+evaluation supports project-local checks and existing rules. No shared gate
+or new playbook requirement is selected.
 Updated 2026-10-20.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
@@ -102,10 +103,11 @@ If existing tooling already resolves the observation, record that evidence and
 retriage it instead of adding another gate. Keep other undecided friction
 candidates in their project queues.
 
-Evaluate the [runtime-claim follow-up](#runtime-claim-validation) from the
-already-authorized project's rework and independent re-review.
-Shared implementation, if justified, is a separately selected master-based
-change; this assessment does not add a project pass.
+The [runtime-claim evaluation](#runtime-claim-validation) is recorded from
+the authorized project's rework and independent review. Retain the local
+checks and existing guidance; no shared implementation is selected.
+A later demonstrated reusable gap requires a separately selected master-based
+change. This assessment does not add a project pass.
 
 The 2026-10-18 profile-smoke assessment selected
 [FCEUX startup and cleanup reliability](#fceux-startup-reliability) as a
@@ -933,29 +935,32 @@ The following assessment gives this candidate a concrete evaluation target.
 <a id="runtime-claim-validation"></a>
 #### Follow-up: test the meaning asserted by runtime claims — 2026-10-20
 
-Status: planning only on `docs/runtime-claim-validation-plan`, based on master
+Status: assessment and bounded evaluation on `docs/runtime-claim-validation-plan`, based on master
 `366300ba5`. External review requested changes to `444940937`; this revision
 corrects the diagnosis, provenance and evaluation contract. Follow-up review
-of `fafc33e64` confirmed all five earlier findings resolved. External
-re-review of the plan and independent project re-review remain pending. No shared
-implementation, permission change or effectiveness claim is made here.
+of `fafc33e64` confirmed all five earlier findings resolved. The independent
+project re-review is approved and the corpus reconciliation is committed.
+External re-review of this updated plan remains pending. No shared
+implementation, permission change or cross-project effectiveness claim is made.
 This is the canonical status record for this follow-up.
 
-Source: the first independent review of an ongoing retrospective corridor,
+Source: the first independent review of a retrospective corridor,
 read on 2026-10-20. The reviewer reported four fresh accepted replays,
 independent trace reduction and negative controls, corroborating the main
 coordinate and player-state corrections while requesting semantic repairs.
 This assessment inspects that review; it does not claim another capture run.
-The source review and its exact project/revision references are currently
-preserved only in ignored project scratch; durable review archival is pending.
-Raw captures also remain untracked. The coordinator must reconcile the manual
-review into the project archive before claiming a committed evidence trail.
+The committed corpus assessment and frozen project archive now preserve the
+exact project/revision references, all three reviews and both rework responses.
+The coordinator checked source hashes and verbatim preservation before
+committing reconciliation. Raw captures remain untracked; the archive preserves
+the reviews, not those capture files.
 The handoff blocker, evidence-reduction approval and unexplained interpreter
 launch failure are separate operational candidates. Their original text has
-been copied to the project friction queue and validated with its queue reader;
-the queue commit is pending. Automatic handoff ingestion did not run.
-Rework is underway, so neither final approval nor reduced review effort has
-been established.
+been copied verbatim to the committed project friction queue, validated with
+its reader and linked to their archived sources. Both the archive and queue
+commit are checked; neither remains pending. Automatic handoff ingestion did
+not run. The final project verdict is approval with no remaining findings.
+Two rework rounds were needed; no reduction in review effort is established.
 
 The primary diagnosis is **missed application of existing rules**, including
 the [visual-identity contract](agent_playbook/PASS_WORKFLOW.md#visual-identity-evidence).
@@ -995,10 +1000,10 @@ keep it open merely to wait for a recurrence.
 | Rename rationales attributed repeated runtime evidence to families that had only static proof; symmetric runtime dimensions could not distinguish their axes. | Scope evidence to each family and the exact property tested. Static proof can stand on its own; an agreeing but non-discriminating capture does not add proof of that property. |
 | Current aliases, readers and prose were missed despite existing obligations. | Repair through the existing self-review and independent review cycle. No additional general checklist or semantic gate is justified by those omissions alone. |
 
-**Bounded evaluation, using the current project's rework.** The implementer
+**Bounded evaluation design, applied in the project's rework.** The implementer
 owns project-local capture/analyzer corrections; the independent reviewer
-tests whether they address the original mistaken claims. The coordinator
-records the outcome after re-review.
+tests whether they address the original mistaken claims. The recorded outcome
+below distinguishes completed checks from proposed general controls.
 
 1. In the existing evidence record, map each contested claim to its named
    project-local predicate or milestone, relevant actor and frame interval,
@@ -1055,16 +1060,50 @@ fixtures and preserve real captures locally.
   against static/reference evidence and actual captures. A missing-file
   rejection alone does not test the semantic interpretation.
 
-These are proposed acceptance criteria, not completed tests. After project
-re-review, record which controls ran, what they caught, remaining limitations
-and whether the extra evidence materially helped. Verify the archive and
-queue commits and clear both pending statuses together in the source record.
+The generic controls above are proposed acceptance criteria for a possible
+shared change, not a claim that those exact fixtures were implemented.
+The project-specific evaluation and its limits follow.
 If later ingestion introduces the original visual-claim learning candidate,
 preserve its text and review provenance in a triage receipt pointing to this
 follow-up once the destination is integrated; do not open a duplicate item.
-Reuse existing captures
-when they contain the required display phase and interval; authorize no extra
+The original candidate is preserved in the committed review meanwhile.
+Reuse existing captures when they contain the required display phase and
+interval; authorize no extra
 pass or all-project capture campaign through this plan.
+
+**Recorded outcome — 2026-10-20.** Independent review confirmed the local
+corrections and approved the corridor after two rework rounds. The final
+label/prose correction preserved the executable bytes and runtime tools, so
+the reviewer reused earlier captures rather than replaying unchanged behavior.
+Final verification, documentation and process checks passed; eight synthetic
+fixtures also passed.
+
+| Evaluation target | Observed result and limit |
+|---|---|
+| Map claims to predicates | The reviewer inspected the new hidden-state and transition-sequence contracts and confirmed that their predicates measure the properties asserted. Static/reference interpretation and image inspection remain separate evidence. |
+| Align a visual state with owned graphics | The local contract checks the selected blank graphics, emitting object's sprite data and frame-end shadow, stable display timing, timer and return path. A reviewer-inspected stable screenshot matched the implementer's image. Visible tiles, mismatched shadow data, ambiguous ownership, wrong delay and a skipped return state were refused in disposable controls. Coverage remains one actor type and route. |
+| Preserve the full transition | The local contract checks each participating actor's complete entry/reset/return sequence, scene and round bounds, hatch flags and stable screenshot. Skipped intermediate states, an entry-frame image, an uncleared flag and a regressing scene were refused. One disclosed setup write remains; natural completion is not established. |
+| Distinguish structural from semantic rejection | The reviewer reproduced 39 missing-evidence refusals and 12 semantic controls, plus nine additional semantic controls in disposable copies, alongside three fresh accepted replays. Missing-file rejection alone was not counted as semantic proof. |
+| Keep unsupported properties explicit | Symmetric captured dimensions cannot distinguish their axes; that result remains static-only. Later types, additional scenes and audible identity remain outside the evaluated scope. |
+
+The generic visible-output and uninterrupted-activity positive/negative fixture
+pairs proposed above were not implemented or run. The project instead asserts
+a hidden state and an explicit transition sequence. Those successful checks
+do not establish a general visual oracle or continuous-activity validator.
+
+The additional evidence materially supported the corrected, bounded claims:
+the reviewer independently reproduced their transitions and exercised controls
+that change the claimed semantics. It does not show that the initial mistakes
+required a new shared rule. The visual claim was already contradicted by static
+and reference evidence; a later false scope exemption was also an implementation
+miss under existing localization rules.
+
+Close the state-name wording question with **no shared wording change**: review
+did not demonstrate a specific ambiguity in the existing contract. Retain the
+project-local predicates, their limits and the existing visual/reference and
+self-review requirements. No shared gate, helper or checklist is selected from
+this evaluation. The separate operational candidates remain untriaged in their
+project queue; routing this semantic observation must not imply they are fixed.
 
 Promote only a demonstrated reusable gap. A shared template/helper change
 would need separate master-based implementation and independent review,
