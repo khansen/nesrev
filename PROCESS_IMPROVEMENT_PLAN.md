@@ -935,8 +935,9 @@ The following assessment gives this candidate a concrete evaluation target.
 
 Status: planning only on `docs/runtime-claim-validation-plan`, based on master
 `366300ba5`. External review requested changes to `444940937`; this revision
-corrects the diagnosis, provenance and evaluation contract. Independent
-re-review of the plan and project rework remains pending. No shared
+corrects the diagnosis, provenance and evaluation contract. Follow-up review
+of `fafc33e64` confirmed all five earlier findings resolved. External
+re-review of the plan and independent project re-review remain pending. No shared
 implementation, permission change or effectiveness claim is made here.
 This is the canonical status record for this follow-up.
 
@@ -981,6 +982,11 @@ what an entity, pose or screen looks like make its application to an
 appearance-bearing **state name** clear? An entity-identity-only reading is
 a possible explanation to investigate, not an observed implementer intent.
 This single corridor establishes neither that ambiguity nor its frequency.
+Close this wording question with no shared wording change at assessment
+closeout unless re-review demonstrates a specific ambiguity. A later,
+separately authorized corridor that again omits rendering for an
+appearance-bearing state name can reopen it with the new evidence; do not
+keep it open merely to wait for a recurrence.
 
 | Observation from the review | Interpretation and disposition |
 |---|---|
@@ -1051,7 +1057,12 @@ fixtures and preserve real captures locally.
 
 These are proposed acceptance criteria, not completed tests. After project
 re-review, record which controls ran, what they caught, remaining limitations
-and whether the extra evidence materially helped. Reuse existing captures
+and whether the extra evidence materially helped. Verify the archive and
+queue commits and clear both pending statuses together in the source record.
+If later ingestion introduces the original visual-claim learning candidate,
+preserve its text and review provenance in a triage receipt pointing to this
+follow-up once the destination is integrated; do not open a duplicate item.
+Reuse existing captures
 when they contain the required display phase and interval; authorize no extra
 pass or all-project capture campaign through this plan.
 
