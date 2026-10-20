@@ -45,7 +45,7 @@ in [PR #161](https://github.com/khansen/nesrev/pull/161). They were integrated
 before the separately authorized third five-pass window. Its
 [assessment](#third-window-assessment) selects a bounded
 [checkout-inspection follow-up](#checkout-inspection-permissions).
-A retrospective review adds a proposed
+A retrospective review records a completed
 [runtime-claim validation follow-up](#runtime-claim-validation).
 Its project rework is independently approved and archived; the bounded
 evaluation supports project-local checks and existing rules. No shared gate
@@ -113,10 +113,10 @@ The 2026-10-18 profile-smoke assessment selected
 [FCEUX startup and cleanup reliability](#fceux-startup-reliability) as a
 prerequisite for a fresh smoke and the next corpus project. The later fresh
 smoke passed with the reviewed build and user-confirmed absence of runtime
-intervention; its committed corpus record preserves the commands, modes,
-provenance and limits. The earlier smoke remains failed. This bounded result
-does not establish unattended operation for arbitrary analysis commands,
-normal-speed playback or listening.
+intervention; its committed corpus record summarizes the operations, modes,
+provenance and limits. The exact-command audit remains untracked. The earlier
+smoke remains failed. This bounded result does not establish unattended
+operation for arbitrary analysis commands, normal-speed playback or listening.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -919,6 +919,10 @@ Effectiveness remains unmeasured until later authorized passes exercise the rule
 <a id="triage-evidence-methods"></a>
 ### Clarify the limits of modeled and captured evidence
 
+Status: open wording candidate. The bounded assessment below closes only its
+state-name scope question; discriminating controls, zero-hit evidence,
+intervention/provenance and bounded enumeration remain open for focused review.
+
 Prepare focused wording for RUNTIME_EVIDENCE and bounded consumer-audit review:
 controls must distinguish the competing explanations, and zero-hit results need
 evidence that the triggering scenario occurred. Record intervention points and
@@ -930,18 +934,20 @@ paths and retain its output and limits. An agreeing model is not emulator
 evidence; a disagreement requires checking the model as well as the document.
 Do not require enumeration or additional captures for every question.
 
-The following assessment gives this candidate a concrete evaluation target.
+The following assessment evaluates one part of this candidate; it does not
+close the broader wording proposal.
 
 <a id="runtime-claim-validation"></a>
 #### Follow-up: test the meaning asserted by runtime claims — 2026-10-20
 
-Status: assessment and bounded evaluation on `docs/runtime-claim-validation-plan`, based on master
-`366300ba5`. External review requested changes to `444940937`; this revision
-corrects the diagnosis, provenance and evaluation contract. Follow-up review
-of `fafc33e64` confirmed all five earlier findings resolved. The independent
+Status: assessment and bounded evaluation on
+`docs/runtime-claim-validation-plan`, based on master `366300ba5`.
+External review approved `23f0c1702` with no blockers after confirming the
+earlier diagnosis, provenance and evaluation-contract corrections. This
+follow-up incorporates the review's recommended precision edits. The independent
 project re-review is approved and the corpus reconciliation is committed.
-External re-review of this updated plan remains pending. No shared
-implementation, permission change or cross-project effectiveness claim is made.
+Integration remains pending. No shared implementation, permission change or
+cross-project effectiveness claim is made.
 This is the canonical status record for this follow-up.
 
 Source: the first independent review of a retrospective corridor,
@@ -957,10 +963,13 @@ the reviews, not those capture files.
 The handoff blocker, evidence-reduction approval and unexplained interpreter
 launch failure are separate operational candidates. Their original text has
 been copied verbatim to the committed project friction queue, validated with
-its reader and linked to their archived sources. Both the archive and queue
-commit are checked; neither remains pending. Automatic handoff ingestion did
+its reader and linked to their archived sources. The archive and queue commits
+have been checked; neither remains pending. Automatic handoff ingestion did
 not run. The final project verdict is approval with no remaining findings.
 Two rework rounds were needed; no reduction in review effort is established.
+The queue also preserves the second review's policy-baseline/xref candidate.
+This evaluation leaves that candidate open and untriaged; correcting the
+implementation does not decide whether a shared check is warranted.
 
 The primary diagnosis is **missed application of existing rules**, including
 the [visual-identity contract](agent_playbook/PASS_WORKFLOW.md#visual-identity-evidence).
@@ -978,24 +987,20 @@ the existing
 The general lesson is that written claims cited accepted captures for
 properties their predicates never tested. The scene predicate checked scene
 entry and gameplay, with no player-activity assertion. Scenario acceptance
-was overextended into semantic approval. Proposed project-local milestones
-would make that evidence boundary explicit; their absence does not establish
+was overextended into semantic approval. The new project-local milestones
+make that evidence boundary explicit; their earlier absence does not establish
 a missing shared rule.
 
-One wording question merits evaluation: does the contract's reference to
-what an entity, pose or screen looks like make its application to an
-appearance-bearing **state name** clear? An entity-identity-only reading is
-a possible explanation to investigate, not an observed implementer intent.
-This single corridor establishes neither that ambiguity nor its frequency.
-Close this wording question with no shared wording change at assessment
-closeout unless re-review demonstrates a specific ambiguity. A later,
-separately authorized corridor that again omits rendering for an
-appearance-bearing state name can reopen it with the new evidence; do not
-keep it open merely to wait for a recurrence.
+The bounded wording question was whether the existing visual-identity contract
+clearly covers an appearance-bearing **state name**. An entity-identity-only
+reading was a possible explanation to investigate, not an observed implementer
+intent.
+The disposition below uses the same pass's player-state rendering and existing
+guidance to distinguish a missed state family from a missing shared rule.
 
 | Observation from the review | Interpretation and disposition |
 |---|---|
-| An appearance-based state name lacked the required enemy-state render. Blank canonical graphics, no PPU update in the relevant paths and the manual contradicted it; the entry-frame image still showed the previous display. | Existing-rule miss first. Apply the static/reference checks before runtime interpretation; evaluate state-name scope as the specific possible wording ambiguity. Display timing is a supporting check, not the primary diagnosis. |
+| An appearance-based state name lacked the required enemy-state render. Blank canonical graphics, no PPU update in the relevant paths and the manual contradicted it; the entry-frame image still showed the previous display. | Existing-rule miss first. Apply the static/reference checks before runtime interpretation; the state-name wording question is closed below without a shared change. Display timing is a supporting check, not the primary diagnosis. |
 | A summary said the actors stayed active, although the recorded interval contained a reset, entry state and return to active. The scene predicate never checked activity. | Map the written claim to the actual predicate. Add a project-local interval check if that property is claimed; ordinary scene acceptance cannot support it. |
 | Rename rationales attributed repeated runtime evidence to families that had only static proof; symmetric runtime dimensions could not distinguish their axes. | Scope evidence to each family and the exact property tested. Static proof can stand on its own; an agreeing but non-discriminating capture does not add proof of that property. |
 | Current aliases, readers and prose were missed despite existing obligations. | Repair through the existing self-review and independent review cycle. No additional general checklist or semantic gate is justified by those omissions alone. |
@@ -1008,11 +1013,13 @@ below distinguishes completed checks from proposed general controls.
 1. In the existing evidence record, map each contested claim to its named
    project-local predicate or milestone, relevant actor and frame interval,
    input artifacts, actual output and limitations. Identify the static and
-   reference evidence separately. The analyzer consumes scenario data and
-   explicit predicate parameters; it does not parse prose or decide an
-   arbitrary semantic claim. The reviewer checks that the mapped predicate
-   measures the property asserted. Unmeasured properties stay unsupported
-   even when the capture is accepted. Scope rename rationales to each family.
+   reference evidence separately. The analyzer consumes scenario data against
+   hardcoded route constants: delay, actor type, selected tiles and an exact
+   state sequence. It does not parse prose or decide an arbitrary semantic
+   claim. These predicates are not general reusable validators. The reviewer
+   checks that the mapped predicate measures the property asserted.
+   Unmeasured properties stay unsupported even when the capture is accepted.
+   Scope rename rationales to each family.
    This adds no document or per-symbol checklist; the
    [semantic-claims ledger's maturity boundary](agent_playbook/QUALITY_REVIEW.md#semantic-claims)
    remains unchanged.
@@ -1063,26 +1070,23 @@ fixtures and preserve real captures locally.
 The generic controls above are proposed acceptance criteria for a possible
 shared change, not a claim that those exact fixtures were implemented.
 The project-specific evaluation and its limits follow.
-If later ingestion introduces the original visual-claim learning candidate,
-preserve its text and review provenance in a triage receipt pointing to this
-follow-up once the destination is integrated; do not open a duplicate item.
-The original candidate is preserved in the committed review meanwhile.
-Reuse existing captures when they contain the required display phase and
-interval; authorize no extra
-pass or all-project capture campaign through this plan.
 
 **Recorded outcome — 2026-10-20.** Independent review confirmed the local
 corrections and approved the corridor after two rework rounds. The final
 label/prose correction preserved the executable bytes and runtime tools, so
 the reviewer reused earlier captures rather than replaying unchanged behavior.
-Final verification, documentation and process checks passed; eight synthetic
-fixtures also passed.
+Final verification, documentation and process checks passed. Eight existing
+axis, origin and completeness fixtures also passed; they invoke neither new
+contract.
+The new contracts have no synthetic fixture. Their 12 built-in and nine
+reviewer controls modify copies of real captures; they do not satisfy the
+requirement for synthetic public fixtures before a shared change.
 
 | Evaluation target | Observed result and limit |
 |---|---|
 | Map claims to predicates | The reviewer inspected the new hidden-state and transition-sequence contracts and confirmed that their predicates measure the properties asserted. Static/reference interpretation and image inspection remain separate evidence. |
 | Align a visual state with owned graphics | The local contract checks the selected blank graphics, emitting object's sprite data and frame-end shadow, stable display timing, timer and return path. A reviewer-inspected stable screenshot matched the implementer's image. Visible tiles, mismatched shadow data, ambiguous ownership, wrong delay and a skipped return state were refused in disposable controls. Coverage remains one actor type and route. |
-| Preserve the full transition | The local contract checks each participating actor's complete entry/reset/return sequence, scene and round bounds, hatch flags and stable screenshot. Skipped intermediate states, an entry-frame image, an uncleared flag and a regressing scene were refused. One disclosed setup write remains; natural completion is not established. |
+| Preserve the full transition | The local contract checks the complete entry/reset/return sequence, scene and round bounds, owning status flags and the screenshot's timing window. The reviewer inspected the image itself; the predicate does not validate its visual content. Skipped intermediate states, an entry-frame image, an uncleared flag and a regressing scene were refused. The contract hardcodes exactly two actors on one route. One disclosed setup write remains; natural completion is not established. |
 | Distinguish structural from semantic rejection | The reviewer reproduced 39 missing-evidence refusals and 12 semantic controls, plus nine additional semantic controls in disposable copies, alongside three fresh accepted replays. Missing-file rejection alone was not counted as semantic proof. |
 | Keep unsupported properties explicit | Symmetric captured dimensions cannot distinguish their axes; that result remains static-only. Later types, additional scenes and audible identity remain outside the evaluated scope. |
 
@@ -1098,12 +1102,30 @@ required a new shared rule. The visual claim was already contradicted by static
 and reference evidence; a later false scope exemption was also an implementation
 miss under existing localization rules.
 
-Close the state-name wording question with **no shared wording change**: review
-did not demonstrate a specific ambiguity in the existing contract. Retain the
-project-local predicates, their limits and the existing visual/reference and
-self-review requirements. No shared gate, helper or checklist is selected from
-this evaluation. The separate operational candidates remain untriaged in their
-project queue; routing this semantic observation must not imply they are fixed.
+Close the state-name wording question with **no shared wording change**.
+The same pass applied the render contract to player pose states but omitted
+the enemy-state family, supporting a coverage miss rather than an entity-only
+reading. [RUNTIME_EVIDENCE](agent_playbook/RUNTIME_EVIDENCE.md) already explains
+that its checks do not prove prose true and requires independent inspection of
+the producer/consumer contract. Retain the project-local predicates, their
+limits and the existing visual/reference and self-review requirements.
+No shared gate, helper or checklist is selected from this bounded evaluation.
+This does not close the parent evidence-methods wording candidate or triage the
+separate policy-baseline/xref and operational candidates.
+
+The review also identified a possible existing-rule coverage gap: the new
+contract paths have no synthetic fixture despite the
+[analyzer-validation rule](agent_playbook/PASS_WORKFLOW.md#runtime-evidence-workflow).
+That observation is recorded for later project-queue triage, not resolved by
+the real-capture controls or this plan's approval.
+
+The original visual-claim candidate is preserved in the committed review.
+If later ingestion introduces it, preserve its text and review provenance in
+a triage receipt pointing to this follow-up once the destination is integrated;
+do not open a duplicate item. Routing that observation must not imply the other
+candidates are fixed. Reuse existing captures when they contain the required
+display phase and interval; authorize no extra pass or all-project capture
+campaign through this plan.
 
 Promote only a demonstrated reusable gap. A shared template/helper change
 would need separate master-based implementation and independent review,
