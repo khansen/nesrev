@@ -92,9 +92,10 @@ remains debt.
 The native policy probe used `codex-cli 0.163.0`. Supplying the entire
 `/bin/zsh -lc ...` argv directly to `execpolicy check` yields no match for
 both a simple and a multiline command, whereas their inner argv match.
-The offline checker does not split shell wrappers. These rows establish that
-checker limitation, not how the live parser handles wrappers or multiline
-quoting.
+External review additionally confirmed the lack of offline wrapper splitting
+using bare `bash`, `zsh` and `sh` with plain single-line scripts. The package's
+recorded wrapper rows cover only `/bin/zsh`. Together these establish a checker
+limitation, not how the live parser handles wrappers or multiline quoting.
 
 The documented live parser splits simple shell commands; complex syntax such
 as redirection or substitution is evaluated as a whole invocation. Project-local

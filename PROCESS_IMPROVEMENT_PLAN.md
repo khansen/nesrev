@@ -799,9 +799,8 @@ adds no wrapper invocation or gate during the observation period.
 <a id="friction-triage-2026-10-21"></a>
 ## Friction triage — 2026-10-21
 
-Status: investigation completed; external review approved `5808d4a61`.
-Subsequent documentation clarifications have not been separately reviewed;
-recommendations await selection.
+Status: investigation and documentation clarifications externally approved
+at `408503a78`; recommendations await selection.
 No fixes, permission changes, queue pruning or new project passes are part of
 this round. The four-project inventory contains nine substantive observations
 plus three source headings counted as candidates. Two queues have no untriaged
@@ -822,9 +821,10 @@ Recommended next work, if separately authorized:
    and shared-tool identity, the reviewed SHA, cache isolation, required gates,
    state transitions and concurrent-change refusals. Cover `start-pass`,
    `ready`, `reready`, `archive`, the gold path of `approve`, and the packet
-   wrapper's separate guard. Do not simply remove the repository-wide guard
-   or require another operator-managed reviewer session/worktree. No replacement
-   design is selected by this triage.
+   wrapper's separate guard. Pair acceptance of unrelated tracked edits with
+   refusals for edits in the selected project and shared tools. Do not simply
+   remove the repository-wide guard or require another operator-managed reviewer
+   session/worktree. No replacement design is selected by this triage.
 2. **Bound repeated reviewer inspection needs (FT-2).** Two reviews needed
    approval for receipt reduction or artifact listing outside the operation
    helpers from the delivered
@@ -839,17 +839,19 @@ Recommended next work, if separately authorized:
 3. **Diagnose the qualified handoff prompt (FT-3).** The exact recovered argv
    matches the installed project rule and the project-plus-global rules
    offline. This does not reconstruct the historical active policy or live
-   shell parsing. Whole-wrapper no-match rows reflect the offline checker's
-   lack of shell splitting, not a control for the live parser. The documented
-   live parser splits simple shell commands but evaluates complex syntax as a
-   whole invocation; project-local rules also require a trusted configuration
-   layer. Test loading/trust and dispatch separately. The historical `--learning`
+   shell parsing. Whole-wrapper no-match rows, together with external review's
+   additional shell controls, establish an offline-checker limitation, not a
+   control for the live parser. The documented live parser splits simple shell
+   commands but evaluates complex syntax as a whole invocation; project-local
+   rules also require a trusted configuration layer. Test loading/trust and
+   dispatch separately. The historical `--learning`
    value spans 29 single-quoted lines and contains backticks; how the live parser
    classified it remains unknown. Preserve submitted/executed commands, rule and
    configuration hashes, launcher invocation, visible prompt and approval source
-   in any separately authorized live diagnostic. Neither `require_escalated`
-   nor elapsed command time proves human approval or approval latency. See the
-   report's official-source link; no grant change is selected.
+   in any separately authorized live diagnostic. Compare simple and multiline
+   forms against a harmless fixture at that live boundary. Neither
+   `require_escalated` nor elapsed command time proves human approval or approval
+   latency. See the report's official-source link; no grant change is selected.
 
 The remaining observations have narrower proposed dispositions:
 
@@ -865,7 +867,7 @@ The remaining observations have narrower proposed dispositions:
 - **FT-6: project-local synthetic coverage.** All eight existing fixtures pass
   with zero calls to either newer semantic contract, even with both replaced
   by failing stubs. This confirms missing coverage of those paths. The
-  [existing synthetic-fixture rule](agent_playbook/TOOLING.md#trace-helper-roms)
+  [existing synthetic-fixture rule](agent_playbook/TOOLING.md#runtime-trace-tooling)
   requires a fixture for each analyzer, which this analyzer has; the coverage
   gap misses that rule's purpose, rather than its literal per-analyzer minimum.
   The [runtime-claim evaluation](#runtime-claim-validation) remains bounded: real
@@ -878,8 +880,8 @@ The remaining observations have narrower proposed dispositions:
   possible advisory evaluation alongside the existing
   [localization-guidance candidate](#triage-review-accounting). Retain the
   [owner-attribution boundary](#triage-owner-attribution): indirect attribution
-  cannot establish a hard mismatch or safe localization. A new semantic hard
-  gate is unsupported.
+  cannot justify a hard mismatch. Localization safety still requires whole-scope
+  review. A new semantic hard gate is unsupported.
 - **FT-8: provenance headings.** The queue reader intentionally recognizes
   headings as candidate boundaries. Source headings therefore inflate counts.
   Indented source text avoids that split in a fixture. Reconciliation should
