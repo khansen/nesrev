@@ -50,7 +50,11 @@ A retrospective review records a completed
 Its project rework is independently approved and archived; the bounded
 evaluation supports project-local checks and existing rules. No shared gate
 or new playbook requirement is selected.
-Updated 2026-10-20.
+The [2026-10-21 friction triage](#friction-triage-2026-10-21) separates
+reproduced or confirmed workflow limits, missed existing rules and command-usage
+errors from one unresolved qualified-command prompt. It proposes next work without
+implementing fixes, changing grants or starting a pass.
+Updated 2026-10-21.
 
 This plan prioritizes reproducible tooling gaps found during friction-queue
 review over repeated reports of already-fixed problems. It describes shared
@@ -117,6 +121,12 @@ intervention; its committed corpus record summarizes the operations, modes,
 provenance and limits. The exact-command audit remains untracked. The earlier
 smoke remains failed. This bounded result does not establish unattended
 operation for arbitrary analysis commands, normal-speed playback or listening.
+
+The [2026-10-21 friction triage](#friction-triage-2026-10-21) recommends
+evaluating the formal-handoff blocker first (FT-1), then the remaining reviewer
+inspection needs (FT-2), followed by a bounded diagnosis of the qualified
+handoff prompt (FT-3). Its findings and design boundaries below own these
+recommendations. No implementation or live diagnostic is selected yet.
 
 Each implementation should include a failing regression fixture, positive
 controls, and representative cross-project checks. Follow the existing
@@ -785,6 +795,105 @@ Prefer reusing existing validated artifacts; the cost of a general comparison
 is unmeasured. A future implementation spec must settle identity matching,
 eligibility, evidence freshness, exceptions, diagnostics and cost. This candidate
 adds no wrapper invocation or gate during the observation period.
+
+<a id="friction-triage-2026-10-21"></a>
+## Friction triage — 2026-10-21
+
+Status: investigation and documentation clarifications externally approved
+at `408503a78`; recommendations await selection.
+No fixes, permission changes, queue pruning or new project passes are part of
+this round. The four-project inventory contains nine substantive observations
+plus three source headings counted as candidates. Two queues have no untriaged
+items; their older receipts remain authoritative. This is not a claim that
+all previously routed work or platform limitations have disappeared.
+
+The [historical triage report and controls](docs/process_triage/2026-10-21/README.md)
+record selected input hashes, observed results and limits. Corpus-specific source
+excerpts and the complete candidate-ID mapping remain on the corpus branch.
+The generic probes run against unchanged shared tools at `a751d3378040`.
+
+Recommended next work, if separately authorized:
+
+1. **Preserve formal handoff when unrelated tracked edits exist (FT-1).**
+   Both staged and unstaged edits in another project reproduce the blocker;
+   unrelated untracked files do not. Evaluate dependency-aware validation or
+   a tool-owned committed export behind the existing session. Preserve target
+   and shared-tool identity, the reviewed SHA, cache isolation, required gates,
+   state transitions and concurrent-change refusals. Cover `start-pass`,
+   `ready`, `reready`, `archive`, the gold path of `approve`, and the packet
+   wrapper's separate guard. Pair acceptance of unrelated tracked edits with
+   refusals for edits in the selected project and shared tools. Do not simply
+   remove the repository-wide guard or require another operator-managed reviewer
+   session/worktree. No replacement design is selected by this triage.
+2. **Bound repeated reviewer inspection needs (FT-2).** Two reviews needed
+   approval for receipt reduction or artifact listing outside the operation
+   helpers from the delivered
+   [runtime/inspection follow-up](#runtime-inspection-permissions). Evaluate
+   existing standalone reads and a small read-only interface for the demonstrated
+   missing operations, with bounded inputs/outputs and refusals for malformed
+   data and escaped paths. Existing trace/analyzer grants already execute trusted
+   project code; widening them to arbitrary interpreters would not constitute a
+   read-only solution. Reviewer analysis must remain independent; invoking an
+   implementer-owned analyzer alone is insufficient. A later default-mode live
+   test must cover the selected commands.
+3. **Diagnose the qualified handoff prompt (FT-3).** The exact recovered argv
+   matches the installed project rule and the project-plus-global rules
+   offline. This does not reconstruct the historical active policy or live
+   shell parsing. Whole-wrapper no-match rows, together with external review's
+   additional shell controls, establish an offline-checker limitation, not a
+   control for the live parser. The documented live parser splits simple shell
+   commands but evaluates complex syntax as a whole invocation; project-local
+   rules also require a trusted configuration layer. Test loading/trust and
+   dispatch separately. The historical `--learning`
+   value spans 29 single-quoted lines and contains backticks; how the live parser
+   classified it remains unknown. Preserve submitted/executed commands, rule and
+   configuration hashes, launcher invocation, visible prompt and approval source
+   in any separately authorized live diagnostic. Compare simple and multiline
+   forms against a harmless fixture at that live boundary. Neither
+   `require_escalated` nor elapsed command time proves human approval or approval
+   latency. See the report's official-source link; no grant change is selected.
+
+The remaining observations have narrower proposed dispositions:
+
+- **FT-4: command usage.** Project-qualified help matches the scoped rule;
+  bare help does not. Queue inspection works without escalation. Evaluate
+  command guidance, rather than treating these as evidence for broad grants.
+- **FT-5: corrected attribution.** Original submitted and executed command
+  records show a missing helper path and `--repo` token. The successful retry
+  restored them; it was not unchanged. A synthetic directory-as-program probe
+  reproduces the error, while 20 valid stub dispatches succeed. No intermittent
+  launcher defect is demonstrated by this incident. Preserve original archives
+  and place the correction in dated corpus evidence.
+- **FT-6: project-local synthetic coverage.** All eight existing fixtures pass
+  with zero calls to either newer semantic contract, even with both replaced
+  by failing stubs. This confirms missing coverage of those paths. The
+  [existing synthetic-fixture rule](agent_playbook/TOOLING.md#runtime-trace-tooling)
+  requires a fixture for each analyzer, which this analyzer has; the coverage
+  gap misses that rule's purpose, rather than its literal per-analyzer minimum.
+  The [runtime-claim evaluation](#runtime-claim-validation) remains bounded: real
+  capture perturbations supported its conclusions but did not close this gap.
+  Project-local cases should cover those paths before further contract changes;
+  no shared gate is selected here.
+- **FT-7: unsupported localization rationale.** The accounting validator
+  accepts nonempty rationales without proving them, as its documented contract
+  states. The whole-scope xref review was missed. Preserve this candidate for
+  possible advisory evaluation alongside the existing
+  [localization-guidance candidate](#triage-review-accounting). Retain the
+  [owner-attribution boundary](#triage-owner-attribution): indirect attribution
+  cannot justify a hard mismatch. Localization safety still requires whole-scope
+  review. A new semantic hard gate is unsupported.
+- **FT-8: provenance headings.** The queue reader intentionally recognizes
+  headings as candidate boundaries. Source headings therefore inflate counts.
+  Indented source text avoids that split in a fixture. Reconciliation should
+  retain provenance and original candidate content; dropping every heading
+  would lose genuine observations. No parser or queue change was made.
+
+The supplied probes are triage artifacts, not production regression fixes.
+Packet controls stub quality gates; policy probes exercise supplied files, not
+live consent. No FCEUX capture, agent smoke, Linux run or full suite was needed
+or performed for this documentation-only assessment. The implementation and
+external-review requirements above still apply to any subsequently selected
+change. Queues and receipts are unchanged pending a routing decision.
 
 <a id="friction-triage-followups"></a>
 ## Follow-ups from queue triage — 2026-10-07
