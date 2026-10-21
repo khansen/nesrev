@@ -111,8 +111,10 @@ build must time out before `frame=1`, with its emulator thread sampled in
 Exclude this diagnostic delay from the executable selected for real captures.
 
 A separate normal-speed probe stopped after one frame in `SpeedThrottle()` on
-both unpatched and patched local builds. It remains unresolved; the maximum-
-speed tests do not validate normal-speed playback or listening. Existing
+both unpatched and patched local builds. The cause is the base's per-thread
+timestamp normalization; [LOCAL_BUILD.md](LOCAL_BUILD.md) applies upstream's fix as
+a third patch. These maximum-speed tests still do not validate normal-speed
+playback or listening. Existing
 shutdown crashes also remain outside the backport. The supervisor continues
 to distinguish its deliberate post-completion stop from an unexpected crash.
 Never reclassify a failed historical smoke from later diagnostic successes.
