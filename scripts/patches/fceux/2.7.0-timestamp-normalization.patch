@@ -1,0 +1,16 @@
+--- a/src/utils/timeStamp.cpp
++++ b/src/utils/timeStamp.cpp
+@@ -61,2 +60,0 @@ uint64_t timeStampRecord::qpcFreq = 0;
+-static thread_local timeStampRecord tscStart;
+-
+@@ -74,10 +71,0 @@ void timeStampRecord::readNew(void)
+-
+-	if (tscStart.isZero())
+-	{
+-		tscStart = *this;
+-	}
+-	else
+-	{
+-		*this = *this - tscStart;
+-	}
+-

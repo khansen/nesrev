@@ -29,7 +29,7 @@ The [tracked upstream handoff](upstream/README.md) contains the patches, drafts
 and shareable reproducer evidence for a future contributor.
 
 Pin upstream commit `a6d03e7968bd77a8156a7c9b628a673753f2f4c6`, then apply these
-two patches in order:
+three patches in order:
 
 1. [Static mutex backport](2.7.0-static-mutex.patch): fixes the reproduced
    frame-zero null-window-pointer spin. This patch passed independent review
@@ -39,18 +39,26 @@ two patches in order:
    `--no-config 1` suppresses writes; stale saved flags do not disable saving
    on later ordinary launches. The parser and header are byte-identical in
    this base and the newer base used for the independent config review.
+3. [Timestamp normalization fix](2.7.0-timestamp-normalization.patch): the
+   `src/utils/timeStamp.cpp` hunk of upstream
+   [`169bacea3138bb442bd4f2540728df03da2a8835`](https://github.com/TASEmulators/fceux/commit/169bacea3138bb442bd4f2540728df03da2a8835)
+   (2026-10-13). The pinned base's per-thread timestamp normalization makes
+   `SpeedThrottle()` wait indefinitely at normal speed: the window stays blank
+   after the first frame. Maximum-speed automation bypasses the throttle, so
+   the startup checks did not expose it. The commit's mutex-counter hunks in
+   `fceuWrapper.cpp` are not applied; this patch has no separate review.
 
 The corrected 2.7.0 release at `8cdbeeb248f5a13aa97a58b4a0437ae13fb6aea8`
 contains a separate frame-one startup race in its `reqEmuLock` preemption code.
 That code is absent from the pinned base. The local build avoids that regression
-by retaining the older source plus the two reviewed fixes; it does not claim
-to repair the newer release's preemption implementation.
+by retaining the older source plus these fixes; it does not claim to repair
+the newer release's preemption implementation.
 
 To reproduce this particular workaround, use the exact commit rather than the
 moving `fceux-2.7.0` tag. Newer releases are welcome: evaluate them separately
 using the [upgrade and retirement procedure](#retire-local-workaround), rather
 than applying these version-specific patches blindly. The combined build needs
-its own runtime checks even though both constituent patches were reviewed. No
+its own runtime checks even though the first two patches were reviewed. No
 new independent review or agent smoke is implied by coordinator-run checks.
 
 <a id="select-local-build"></a>
@@ -119,7 +127,7 @@ cd "$FCEUX_SOURCE"
 ```
 
 With those paths set, check out the pinned commit,
-verify the input hashes in the [backport README](README.md), and apply both
+verify the input hashes in the [backport README](README.md), and apply all three
 patches with a successful dry-run before each application:
 
 ```sh
@@ -128,6 +136,8 @@ patch --dry-run -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-static-mutex.pa
 patch -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-static-mutex.patch"
 patch --dry-run -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-no-config.patch"
 patch -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-no-config.patch"
+patch --dry-run -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-timestamp-normalization.patch"
+patch -p1 -i "$NESREV_ROOT/scripts/patches/fceux/2.7.0-timestamp-normalization.patch"
 cmake -S tests -B config-tests
 cmake --build config-tests
 ctest --test-dir config-tests --output-on-failure
@@ -149,10 +159,12 @@ Expected config-patch SHA-256:
 `0ac7d1f5da0e4a553d8e13fb582dbdd1a7fd9b8aed9ed62c22c7c59102b7a67c`.
 Expected patched `configSys.cpp` SHA-256:
 `1410e35c6c10fb9bc33d33be46aa3a1272398925d15978df7d443d51bb410de9`.
+Expected timestamp-patch SHA-256:
+`83083e0130ec09766966e8f482883317f6d2e8c6f91fc7d0c1499d0a9139be74`.
 
 The executable is `build/src/fceux.app/Contents/MacOS/fceux`. A maintained release
 contains it at `bin/fceux`, the executable `tmux-local-fceux` adapter beside it,
-upstream Lua scripts under `share/luaScripts`, the license, both patches,
+upstream Lua scripts under `share/luaScripts`, the license, all three patches,
 source/build provenance and `SHA256SUMS`. Keep source and
 validation records outside the executable directory so active files remain
 unchanged. Generate checksums after final copying, and verify them before
@@ -168,7 +180,7 @@ the initial `test` prevents overwriting an existing release.
 
 ```sh
 export NESREV_FCEUX_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/nesrev/fceux"
-FCEUX_RELEASE="$NESREV_FCEUX_ROOT/releases/2.7.0-nesrev1"
+FCEUX_RELEASE="$NESREV_FCEUX_ROOT/releases/2.7.0-nesrev2"
 test ! -e "$FCEUX_RELEASE" || exit 1
 mkdir -p "$FCEUX_RELEASE/bin" "$FCEUX_RELEASE/share" "$FCEUX_RELEASE/patches"
 cp "$FCEUX_SOURCE/build/src/fceux.app/Contents/MacOS/fceux" "$FCEUX_RELEASE/bin/"
@@ -178,6 +190,7 @@ cp "$FCEUX_SOURCE/src/auxlib.lua" "$FCEUX_RELEASE/share/luaScripts/"
 cp "$FCEUX_SOURCE/COPYING" "$FCEUX_RELEASE/"
 cp "$NESREV_ROOT/scripts/patches/fceux/2.7.0-static-mutex.patch" "$FCEUX_RELEASE/patches/"
 cp "$NESREV_ROOT/scripts/patches/fceux/2.7.0-no-config.patch" "$FCEUX_RELEASE/patches/"
+cp "$NESREV_ROOT/scripts/patches/fceux/2.7.0-timestamp-normalization.patch" "$FCEUX_RELEASE/patches/"
 git -C "$FCEUX_SOURCE" rev-parse HEAD > "$FCEUX_RELEASE/UPSTREAM_COMMIT"
 cp "$NESREV_ROOT/scripts/patches/fceux/activate.sh" "$NESREV_FCEUX_ROOT/"
 mkdir -p "$NESREV_FCEUX_ROOT/config"
@@ -243,6 +256,10 @@ Before selecting a rebuilt or upgraded emulator:
   project ROMs/scenarios yet, record synthetic-startup-only qualification; require
   project-specific gameplay acceptance before relying on semantic conclusions.
   A startup probe does not establish gameplay semantics or listening quality.
+- Probe normal speed with [normal_speed.lua](normal_speed.lua), which requires
+  120 frames under the supervisor. Run it first against the previous release
+  or another known-stalling build as a control; it must time out there.
+  Maximum-speed probes skip the frame throttle and cannot show this failure.
 - Verify config and ROM hashes stayed unchanged. Record executable and
   supervisor hashes, requested/observed frame counts, timeout and child exit
   separately. The config patch protects `fceux.cfg`, not every file FCEUX writes.
@@ -253,8 +270,9 @@ Before selecting a rebuilt or upgraded emulator:
   already-running disposable server. Record any agent smoke separately from
   direct coordinator captures.
 
-The tested scope is macOS ARM64 with Qt 6.12 and maximum-speed supervised
-automation. Normal-speed playback/listening remains unvalidated. Existing
+The tested scope is macOS ARM64 with Qt 6.12, maximum-speed supervised
+automation and normal-speed frame advance. Audio and listening quality remain
+unvalidated. Existing
 post-completion shutdown crashes or forced kills remain visible in
 `result.json`; they are not clean emulator exits. A timeout before completion
 is always a failure. Do not promise that pinning eliminates every FCEUX bug.
@@ -304,6 +322,22 @@ Record each reassessment alongside the installation's build records with
 `date | candidate/platform | evidence | decision | remaining gap | next trigger`.
 Update this document when a reusable platform-level conclusion is established.
 Retiring the runtime workaround does not require deleting the upstream handoff.
+
+<a id="normal-speed-validation"></a>
+## Timestamp-fix validation — 2026-10-21
+
+Executable SHA-256 with all three patches:
+`eabb15f91b26d5b098269775742596bb68d5abc5010f9b4f5660d38419254840`.
+
+The 2026-10-18 build, used as the control, completed one normal-speed frame and
+then timed out. The new build completed all 120 frames in five of five runs on
+two user-supplied ROMs, including one with the native macOS window. It also
+passed five fresh-copy synthetic startups, 23 user-supplied ROM startups, an
+accepted gameplay replay matching its baseline trace and six screenshots, the
+config tests with their failing unpatched control, and activation checks.
+Configs and ROMs were unchanged. Evidence stays in the installation's local
+build records; it is not tracked. These are coordinator checks, not an
+independent review or live agent smoke.
 
 <a id="local-validation"></a>
 ## Bundled validation — 2026-10-18
