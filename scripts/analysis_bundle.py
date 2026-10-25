@@ -37,6 +37,12 @@ PROFILES = {
 STRICT_PROFILES = {PROFILE, "ci-instructions-v1"}
 SOURCE_PROFILES = {"instructions-v1", "data-listing-v1"}
 ROLES = {"source", "binary", "charmap", "analysis_source", "comparison", "producer"}
+HEX_BYTES = frozenset(f"{value:02X}" for value in range(256))
+LISTING_FIELDS = {"file": str, "line": int, "column": int, "source_text": str,
+                  "cpu_address_start": str, "cpu_address_end": str,
+                  "bytes_hex": list, "directive_or_opcode": str,
+                  "continuation_of_record": bool, "byte_count": int,
+                  "emits_bytes": bool, "binary_generated": bool, "segment": str}
 
 
 def require(condition, message):
@@ -164,9 +170,11 @@ def check_dependencies(manifest, source, argv=None):
 
 
 def fields(row, types, name):
-    require(isinstance(row, dict), f"invalid {name} record")
+    if not isinstance(row, dict):
+        raise BundleError(f"invalid {name} record")
     for field, kind in types.items():
-        require(type(row.get(field)) is kind, f"invalid {name}.{field}")
+        if type(row.get(field)) is not kind:
+            raise BundleError(f"invalid {name}.{field}")
 
 
 def check_instructions(payload, dependencies, binary):
@@ -202,16 +210,29 @@ def check_schema(name, payload):
                 and payload["build"].get("pure_binary") is True, "non-binary xref")
         require("instruction_records" not in payload, "instruction records must use the separate output")
     elif name == "listing":
-        require(isinstance(payload, dict) and payload.get("version") == "1"
-                and isinstance(payload.get("records"), list), "listing version 1 required")
+        require(isinstance(payload, dict) and payload.get("version") == "2"
+                and payload.get("binary_generated") is True
+                and isinstance(payload.get("records"), list), "successful listing version 2 required")
         for row in payload["records"]:
-            fields(row, {"file": str, "line": int, "column": int, "source_text": str,
-                         "cpu_address_start": str, "cpu_address_end": str,
-                         "output_offset_start": int, "output_offset_end": int,
-                         "bytes_hex": list, "directive_or_opcode": str,
-                         "continuation_of_record": bool}, name)
-            require(all(isinstance(b, str) and re.fullmatch(r"[0-9A-F]{2}", b)
+            fields(row, LISTING_FIELDS, name)
+            require(row.get("version") == "2" and row["binary_generated"] is True
+                    and row["segment"] in ("code", "data") and row["byte_count"] >= 0,
+                    "invalid listing row metadata")
+            require(all(isinstance(b, str) and b in HEX_BYTES
                         for b in row["bytes_hex"]), "invalid listing bytes")
+            require(all(key in row for key in ("output_offset_start", "output_offset_end", "fill_byte")),
+                    "incomplete listing extent")
+            start, end, fill = row["output_offset_start"], row["output_offset_end"], row["fill_byte"]
+            if row["emits_bytes"]:
+                require(row["segment"] == "code" and row["byte_count"] > 0
+                        and type(start) is int and type(end) is int and start >= 0
+                        and end == start + row["byte_count"] - 1, "invalid listing emission extent")
+                require((fill is None and len(row["bytes_hex"]) == row["byte_count"])
+                        or (isinstance(fill, str) and fill in HEX_BYTES
+                            and not row["bytes_hex"]), "invalid listing fill or byte count")
+            else:
+                require(start is None and end is None and fill is None and not row["bytes_hex"],
+                        "non-emitting listing row has output bytes or offsets")
     else:
         require(isinstance(payload, list), f"{name} array required")
         for row in payload:
@@ -346,7 +367,7 @@ def expected_argv(context, outputs, manifest, producer):
         argv += ["--xref=" + outputs["xref"]["path"], "--xref-format=json",
                  "--xref-include-owner=true", "--xref-data=true"]
     if "listing" in outputs:
-        argv += ["--listing=" + outputs["listing"]["path"], "--listing-format=json"]
+        argv += ["--listing=" + outputs["listing"]["path"], "--listing-format=json", "--listing-version=2"]
     if "index_patterns" in outputs:
         argv += ["--analyze-index-patterns", "--index-patterns-output=" + outputs["index_patterns"]["path"],
                  "--index-patterns-format=json"]

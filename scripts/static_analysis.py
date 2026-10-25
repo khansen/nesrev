@@ -149,7 +149,7 @@ def sem(op, mode):
     elif op in ('INC', 'DEC'):
         d |= NZ; se = True
     elif op in ('ASL', 'LSR', 'ROL', 'ROR'):
-        if mode == 'implied':  # accumulator
+        if mode == 'accumulator':
             u |= A; d |= A | C | NZ
             if op in ('ROL', 'ROR'):
                 u |= C
@@ -193,7 +193,7 @@ def run_xasm_listing(asm_file):
         listing = os.path.join(tmp, 'listing.json')
         xasm = os.environ.get('XASM_BIN', 'xasm')
         cmd = [xasm, '--pure-binary', '-o', os.path.join(tmp, 'out.bin'),
-               '--listing=' + listing, '--listing-format=json', asm_file]
+               '--listing=' + listing, '--listing-format=json', '--listing-version=2', asm_file]
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, text=True)
@@ -441,7 +441,7 @@ def carry_discarded_by_shift(prog, i):
                 or t['off'] != ins[j - 1]['off'] + ins[j - 1]['nbytes']):
             return None  # not a clean fall-through chain
         op = t['op']
-        if op in ('ASL', 'LSR') and t['mode'] == 'implied':
+        if op in ('ASL', 'LSR') and t['mode'] == 'accumulator':
             return t  # accumulator shift discards the carry it was handed
         if op in CARRY_CONSUMERS:
             return None  # carry is genuinely used -- no confusion
@@ -471,7 +471,7 @@ def reload_producer_jsr(prog, sta_i):
         if op == 'JSR':
             parts = t['src'].split()
             return parts[1] if len(parts) > 1 else 'a subroutine'
-        if op in a_local or (op in ('ASL', 'LSR', 'ROL', 'ROR') and t['mode'] == 'implied'):
+        if op in a_local or (op in ('ASL', 'LSR', 'ROL', 'ROR') and t['mode'] == 'accumulator'):
             return None  # a local instruction set A -> local optimization
         # A branch target that is itself the producer (JSR / local load) is handled
         # above; but to keep walking *past* t we need t to have a single entry.

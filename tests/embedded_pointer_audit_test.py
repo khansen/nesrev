@@ -126,6 +126,21 @@ class AdvisoryTests(unittest.TestCase):
                 self.assertEqual((reused.returncode, reused.stdout, reused.stderr),
                                  (result.returncode, result.stdout, result.stderr))
 
+    def test_standalone_labels_use_xref_offsets_with_listing_v2(self):
+        self.source.write_text(PAIR.replace("RawAddresses: .DB", "RawAddresses:\n.DB")
+                               .replace("Payload: .DB", "Payload:\n.DB"))
+        descriptor = self.produce("separate-labels")
+        data = json.loads(descriptor.read_text())
+        records = json.loads(Path(data["outputs"]["listing"]["path"]).read_text())["records"]
+        label = next(r for r in records if r["directive_or_opcode"] == "RawAddresses")
+        self.assertIsNone(label["output_offset_start"])
+        self.assertFalse(label["emits_bytes"])
+        plain = self.run_audit()
+        self.assert_advisory(plain)
+        reused = self.run_audit(descriptor)
+        self.assertEqual((reused.returncode, reused.stdout, reused.stderr),
+                         (plain.returncode, plain.stdout, plain.stderr))
+
     def test_noninteger_min_run_is_an_analysis_refusal(self):
         self.source.write_text(PAIR)
         result = subprocess.run(

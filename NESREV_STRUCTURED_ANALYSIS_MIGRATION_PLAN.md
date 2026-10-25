@@ -22,6 +22,34 @@ follow-up makes legacy heuristic matches explicitly advisory; it is merged in
 gates are retained. Instruction-record v4 remains deferred.
 Other Phase 2 consumer migrations and Phase 3 remain planned.
 
+## XORcyst shared-backend integration
+
+The owner approved this migration on 2026-10-25 after independent local review
+reported no blockers. Publication and CI use a tooling branch based on master.
+
+The local I5 migration uses listing version 2 throughout current bundle and
+standalone producers. Its null non-emission offsets and compact fills are
+validated by the bundle reader. Label locations used by pointer consumers
+come from xref definitions; no replacement assembly parser is introduced.
+Xref version 2 and instruction records version 3 remain unchanged. Existing
+profile policies, hash checks and fail-closed handling remain in force.
+Project-specific trace readers and fixtures are migrated separately in local
+project history. Shared-tooling branches start from master and do not publish
+those sources or their history. Regenerated fixtures must account for addressing
+modes derived from the final opcode; narrower modes can improve memory-operand
+classification without changing binary bytes. The pre-existing index-mode
+omission of `zeropage_y` remains separate follow-up work.
+
+The format boundary is specified in [the bundle contract](ANALYSIS_BUNDLE_SPEC.md#listing-contract).
+CI pins released XORcyst 1.9.12, which supports listing version 2; the prototype
+assembler remains a separate integration gate until the coordinated cutover.
+
+Historical generated evidence is not rewritten as if produced by the new
+assembler. Current synthetic tests and project checks generate fresh artifacts.
+The installed assembler is not replaced by this consumer change; coordinated
+cutover and removal of prototype selectors belong to XORcyst I6, after local
+review and owner approval.
+
 ## Purpose
 
 Move process checks away from reparsing assembly text when they are trying to

@@ -217,6 +217,19 @@ class PointerTables(unittest.TestCase):
         self.assertEqual(run.returncode,65,run.stderr)
         self.assertIn('lacks required artifact',run.stderr)
 
+    def test_label_positions_come_from_xref_with_listing_v2(self):
+        shared = self.bundle('.org $C000\nImagePtrByX: .db $00,$90,$20,$90\n')
+        listing, xref = shared.load('listing'), shared.load('xref')
+        binary = analysis.read_bytes(shared.data['outputs']['binary']['path'])
+        label = next(r for r in listing['records'] if r['directive_or_opcode'] == 'ImagePtrByX')
+        self.assertIsNone(label['output_offset_start'])
+        tables = checker.table_bodies(xref, listing, binary)
+        self.assertEqual(tables['ImagePtrByX'].start, 0)
+        self.assertEqual(tables['ImagePtrByX'].values, [0, 0x90, 0x20, 0x90])
+        label['cpu_address_start'] = '0xC001'
+        with self.assertRaisesRegex(analysis.BundleError, 'ambiguous or redefined'):
+            checker.table_bodies(xref, listing, binary)
+
     def test_malformed_listing_and_data_reference_refuse(self):
         shared = self.bundle('.ORG $C000\nImagePtrByX: .DB $00,$90,$20,$90\n'
                              'Other: .DB <Target,>Target\nTarget: RTS\n')

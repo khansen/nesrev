@@ -71,6 +71,43 @@ class BundleTests(unittest.TestCase):
                              (plain.returncode, plain.stdout, plain.stderr))
             self.assertEqual(reused.returncode, 0, reused.stderr)
 
+    def test_listing_v2_null_offsets_and_compact_fills(self):
+        self.source.write_text('.org $C000\nTable: .db 1\n.dsb 20\n.dataseg\nR .byte[3]\n')
+        listing = self.produce().load('listing')
+        label = next(r for r in listing['records'] if r['directive_or_opcode'] == 'Table')
+        fill = next(r for r in listing['records'] if r['fill_byte'] is not None)
+        ram = next(r for r in listing['records'] if r['segment'] == 'data' and r['byte_count'])
+        self.assertIsNone(label['output_offset_start'])
+        self.assertEqual((fill['byte_count'], fill['fill_byte'], fill['bytes_hex']), (20, '00', []))
+        self.assertFalse(ram['emits_bytes'])
+        self.assertIsNone(ram['output_offset_start'])
+        mutations = (
+            lambda d: d.update(version='1'),
+            lambda d: d.update(binary_generated=False),
+            lambda d: next(r for r in d['records'] if r['directive_or_opcode'] == 'Table').update(output_offset_start=0),
+            lambda d: next(r for r in d['records'] if r['fill_byte'] is not None).update(fill_byte=None),
+            lambda d: next(r for r in d['records'] if r['emits_bytes']).update(output_offset_end=999),
+            lambda d: next(r for r in d['records'] if r['emits_bytes']).update(binary_generated=False),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                invalid = copy.deepcopy(listing)
+                mutation(invalid)
+                with self.assertRaises(bundle.BundleError):
+                    bundle.check_schema('listing', invalid)
+        for value in ('ff', '100', '0G', '0A\n', 3, None, []):
+            for field in ('bytes_hex', 'fill_byte'):
+                with self.subTest(field=field, value=value):
+                    invalid = copy.deepcopy(listing)
+                    if field == 'bytes_hex':
+                        row = next(r for r in invalid['records'] if r['bytes_hex'])
+                        row['bytes_hex'][0] = value
+                    else:
+                        row = next(r for r in invalid['records'] if r['fill_byte'] is not None)
+                        row['fill_byte'] = value
+                    with self.assertRaises(bundle.BundleError):
+                        bundle.check_schema('listing', invalid)
+
     def test_independent_same_size_timestamp_mutations(self):
         shared = self.produce()
         for path in (self.source, self.include, self.payload, self.config, self.policy):

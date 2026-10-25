@@ -157,7 +157,7 @@ def assemble(source, *, cwd=None, assembler="xasm"):
         binary, xref, listing = (base / name for name in ("image.bin", "xref.json", "listing.json"))
         command = [executable, "--pure-binary", "-o", str(binary),
                    f"--xref={xref}", "--xref-format=json", "--xref-include-locals=true",
-                   f"--listing={listing}", "--listing-format=json", str(source)]
+                   f"--listing={listing}", "--listing-format=json", "--listing-version=2", str(source)]
         result = subprocess.run(command, cwd=directory, capture_output=True, text=True)
         if result.returncode:
             raise AuditError(f"assembler exit {result.returncode}: {result.stderr.strip() or result.stdout.strip()}")

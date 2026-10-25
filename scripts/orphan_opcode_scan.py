@@ -159,7 +159,7 @@ def run_xasm_listing(asm_file: Path) -> list[dict[str, Any]]:
             "-o",
             out_bin,
             "--listing=" + listing,
-            "--listing-format=json",
+            "--listing-format=json", "--listing-version=2",
             str(asm_file),
         ]
         try:

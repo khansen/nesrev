@@ -26,8 +26,8 @@ jobs:
       run:
         shell: bash
     env:
-      # xorcyst v1.8.1; keep the assembler fixed when runner images change.
-      XORCYST_REVISION: 383bdbcf793282ad13b183c76f73e6a937911728
+      # xorcyst v1.9.12 supports listing v2; keep it fixed across runner images.
+      XORCYST_REVISION: 86c1a43d1dfa237facf40d75085e9112e8617a13
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
