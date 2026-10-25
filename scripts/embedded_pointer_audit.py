@@ -61,11 +61,6 @@ def split_operands(payload: str) -> list[str]:
     return operands
 
 
-def line_label(source_text: str) -> str:
-    match = LABEL_RE.match((source_text or "").strip())
-    return match.group(1) if match else ""
-
-
 def strip_label(source_text: str) -> str:
     return LABEL_RE.sub("", source_text or "", count=1)
 
@@ -88,9 +83,10 @@ def is_raw_db_record(record: dict) -> bool:
     return bool(operands) and all(RAW_BYTE_RE.match(op) for op in operands)
 
 
-def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dict]]:
+def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dict], dict]:
     listing = os.path.join(workdir, "listing.json")
     index_patterns = os.path.join(workdir, "index_patterns.json")
+    xref = os.path.join(workdir, "xref.json")
     out_bin = os.path.join(workdir, "out.bin")
     cmd = [
         os.environ.get("XASM_BIN", "xasm"),
@@ -98,7 +94,9 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
         "-o",
         out_bin,
         "--listing=" + listing,
-        "--listing-format=json",
+        "--listing-format=json", "--listing-version=2",
+        "--xref=" + xref,
+        "--xref-format=json",
         "--analyze-index-patterns",
         "--index-patterns-output=" + index_patterns,
         "--index-patterns-format=json",
@@ -122,7 +120,9 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
         records = json.load(f)["records"]
     with open(index_patterns, encoding="utf-8") as f:
         patterns = json.load(f)
-    return records, patterns
+    with open(xref, encoding="utf-8") as f:
+        symbols = json.load(f)
+    return records, patterns, symbols
 
 
 def prg_bank_count(records: list[dict]) -> int:
@@ -134,24 +134,33 @@ def prg_bank_count(records: list[dict]) -> int:
     return max(banks) + 1 if banks else 0
 
 
-def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict[str, int], dict[tuple[int, int], str]]:
-    records = [r for r in records if r.get("output_offset_start") is not None]
-    records.sort(key=lambda r: r["output_offset_start"])
-
+def build_raw_spans(records: list[dict], min_run: int, xref: dict) -> tuple[list[dict], dict[str, int], dict[tuple[int, int], str]]:
+    definitions = {s["name"]: s["definition"] for s in xref["symbols"]
+                   if s["defined"] and s["definition"].get("output_offset") is not None}
+    positioned = []
     label_cpu: dict[str, int] = {}
     labels_by_offset: dict[int, str] = {}
     label_by_bank_cpu: dict[tuple[int, int], str] = {}
     for record in records:
-        label = line_label(record.get("source_text") or "")
-        if not label:
-            continue
-        off = record["output_offset_start"]
-        cpu = parse_int(record["cpu_address_start"])
-        bank = off // BANK_SIZE
-        if label not in label_cpu:
-            label_cpu[label] = cpu
-            labels_by_offset[off] = label
-            label_by_bank_cpu[(bank, cpu)] = label
+        off = record.get("output_offset_start")
+        label = record["directive_or_opcode"] if not record["bytes_hex"] else None
+        definition = definitions.get(label)
+        if definition is not None:
+            # A label has no listing emission offset; its xref definition owns it.
+            if (record["file"], record["line"], record["column"]) != (
+                    definition["file"], definition["line"], definition["column"]):
+                continue
+            off = definition["output_offset"]
+            cpu = parse_int(definition["cpu_address"])
+            if label not in label_cpu:
+                label_cpu[label] = cpu
+                labels_by_offset[off] = label
+                label_by_bank_cpu[(off // BANK_SIZE, cpu)] = label
+        else:
+            label = None
+        if off is not None:
+            positioned.append((off, label, record))
+    positioned.sort(key=lambda item: item[0])
 
     spans: list[dict] = []
     cur: dict | None = None
@@ -163,9 +172,7 @@ def build_raw_spans(records: list[dict], min_run: int) -> tuple[list[dict], dict
             spans.append(cur)
         cur = None
 
-    for record in records:
-        off = record["output_offset_start"]
-        label = line_label(record.get("source_text") or "")
+    for off, label, record in positioned:
         raw_db = is_raw_db_record(record)
         if label and not raw_db:
             if cur is not None:
@@ -526,13 +533,14 @@ def main() -> int:
     if bundle is not None:
         records = bundle.load("listing")["records"]
         patterns = bundle.load("index_patterns")
+        xref = bundle.load("xref")
     else:
         with tempfile.TemporaryDirectory(prefix="nesrev_embedded_ptr.") as workdir:
-            records, patterns = run_xasm_analysis(str(asm_path), workdir)
+            records, patterns, xref = run_xasm_analysis(str(asm_path), workdir)
 
     fixed_bank = prg_bank_count(records) - 1
     bank_windows = compute_bank_windows(records)
-    spans, label_cpu, label_by_bank_cpu = build_raw_spans(records, min_run)
+    spans, label_cpu, label_by_bank_cpu = build_raw_spans(records, min_run, xref)
     hits = find_monotonic_runs(spans, label_by_bank_cpu, min_run, bank_windows, fixed_bank)
     strong = [
         h for h in hits

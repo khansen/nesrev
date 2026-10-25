@@ -32,6 +32,37 @@ Source-only context explicitly has no project/config/address-domain identity;
 it cannot stand in for project verification. A branch leaf accepts any of the
 instruction-bearing profiles, but never the old data-only profile.
 
+## Listing contract
+
+Listing artifacts use XORcyst listing version 2. The producer requests it
+explicitly; both the existing assembler and the v2 prototype support it.
+A bundle requires `binary_generated: true`, including on every row. Offsets
+are null on labels, origins and other non-emitting rows, and on RAM rows.
+They are never interpreted as zero. Emitting rows retain inclusive end offsets
+and carry either `bytes_hex` or a compact `fill_byte` with `byte_count`.
+Diagnostic listings cannot certify a successful bundle.
+
+Addressing modes describe the final opcode. In particular, both bare `ASL`
+and `ASL A` report `accumulator` (likewise LSR/ROL/ROR). Consumers that model
+register use must treat these as reads/writes of A; the old listing's `implied`
+classification is not the listing-v2 value for these opcodes. Some 6502
+references group accumulator addressing under implied addressing; that naming
+convention does not change the schema's distinct `accumulator` value.
+
+The named pointer-table checker and embedded-pointer advisory obtain label
+positions from xref definitions, matching their source identity to listing
+rows. Instruction/data rows keep their own emission offsets. The physical
+16 KiB PRG page remains separate from CPU addresses and linker banks.
+Xref stays at version 2 and instruction records at version 3; profile names
+and the bundle's version 1 identify a different contract from listing versions.
+
+Old version-1 listing bundles must be regenerated. The producer build and exact
+arguments remain part of bundle identity, so a prior producer cannot satisfy a
+new invocation. Dated committed audit evidence remains historical evidence,
+not input to current successful bundle validation. Synthetic consumer tests
+regenerate their fixtures with the selected producer and assert null-offset,
+fill-span and refusal behavior explicitly.
+
 ## Lifecycle
 
 `project_ci.sh` owns a fresh temporary directory and removes it on exit. Before

@@ -112,6 +112,9 @@ def table_bodies(xref, listing, binary):
             if definition['output_offset'] is None:
                 current = None
                 continue
+            # Listing v2 labels do not emit bytes and have null offsets. The
+            # xref definition supplies the physical position of the label.
+            start = definition['output_offset']
             if named_table(kind) or (current is not None and current.named and not current.values):
                 analysis.require(kind not in seen
                                  and (definition['file'], definition['line'], definition['column'],
