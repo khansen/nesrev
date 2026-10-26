@@ -999,13 +999,13 @@ test_agent_review_watch_loop_handles_multiple_turns() {
     python3 scripts/agent_review.py ready \
       --note ".agents/runs/${run_id}/implementation.md" \
       --packet ".agents/runs/${run_id}/packet.md"
-    python3 scripts/agent_review.py watch --role reviewer \
+    exec python3 scripts/agent_review.py watch --role reviewer \
       --notify "${notify}" --timeout 10 --interval 0.1 \
       >"${NESREV_TEST_TMPDIR}/watcher.stdout" \
-      2>"${NESREV_TEST_TMPDIR}/watcher.stderr" &
-    echo "$!" > "${NESREV_TEST_TMPDIR}/watcher.pid"
-  )
-  watcher_pid="$(<"${NESREV_TEST_TMPDIR}/watcher.pid")"
+      2>"${NESREV_TEST_TMPDIR}/watcher.stderr"
+  ) &
+  # Keep a direct child so wait completes before the runner removes its files.
+  watcher_pid=$!
 
   _wait_for_log "${log}" "reviewer\\|READY_FOR_REVIEW\\|" "initial reviewer turn"
 
@@ -1028,7 +1028,9 @@ test_agent_review_watch_loop_handles_multiple_turns() {
 
   _wait_for_log "${log}" "reviewer\\|READY_FOR_REREVIEW\\|" "rereview turn"
   kill "${watcher_pid}" 2>/dev/null || true
-  wait "${watcher_pid}" 2>/dev/null || true
+  local wait_status=0
+  wait "${watcher_pid}" 2>/dev/null || wait_status=$?
+  [[ "${wait_status}" != 127 ]] || fail "watcher is not a child; cleanup cannot wait for it"
 }
 
 test_agent_review_watch_waits_for_state_when_started_before_init() {
@@ -1045,13 +1047,12 @@ test_agent_review_watch_waits_for_state_when_started_before_init() {
 
   (
     cd "${repo}"
-    python3 scripts/agent_review.py watch --role reviewer \
+    exec python3 scripts/agent_review.py watch --role reviewer \
       --notify "${notify}" --timeout 5 --interval 0.1 \
       >"${NESREV_TEST_TMPDIR}/preinit-watcher.stdout" \
-      2>"${NESREV_TEST_TMPDIR}/preinit-watcher.stderr" &
-    echo "$!" > "${NESREV_TEST_TMPDIR}/preinit-watcher.pid"
-  )
-  watcher_pid="$(<"${NESREV_TEST_TMPDIR}/preinit-watcher.pid")"
+      2>"${NESREV_TEST_TMPDIR}/preinit-watcher.stderr"
+  ) &
+  watcher_pid=$!
 
   (
     cd "${repo}"
@@ -1067,7 +1068,9 @@ test_agent_review_watch_waits_for_state_when_started_before_init() {
 
   _wait_for_log "${log}" "reviewer\\|READY_FOR_REVIEW\\|" "pre-init watcher turn"
   kill "${watcher_pid}" 2>/dev/null || true
-  wait "${watcher_pid}" 2>/dev/null || true
+  local wait_status=0
+  wait "${watcher_pid}" 2>/dev/null || wait_status=$?
+  [[ "${wait_status}" != 127 ]] || fail "watcher is not a child; cleanup cannot wait for it"
 }
 
 test_agent_review_watch_does_not_repeat_same_turn() {
