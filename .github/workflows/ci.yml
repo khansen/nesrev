@@ -27,7 +27,7 @@ jobs:
         shell: bash
     env:
       # XORcyst 2.0 cutover: normal xasm emits listing schema 2 by default.
-      XORCYST_REVISION: 8e354892d4915d2861872b3d06ab43ebdf235d56
+      XORCYST_REVISION: 9a273fa081524e3d55d608b3c9587ad55261aca4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
