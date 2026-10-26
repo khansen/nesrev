@@ -193,7 +193,7 @@ def run_xasm_listing(asm_file):
         listing = os.path.join(tmp, 'listing.json')
         xasm = os.environ.get('XASM_BIN', 'xasm')
         cmd = [xasm, '--pure-binary', '-o', os.path.join(tmp, 'out.bin'),
-               '--listing=' + listing, '--listing-format=json', '--listing-version=2', asm_file]
+               '--listing=' + listing, '--listing-format=json', asm_file]
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE, text=True)

@@ -367,7 +367,7 @@ def expected_argv(context, outputs, manifest, producer):
         argv += ["--xref=" + outputs["xref"]["path"], "--xref-format=json",
                  "--xref-include-owner=true", "--xref-data=true"]
     if "listing" in outputs:
-        argv += ["--listing=" + outputs["listing"]["path"], "--listing-format=json", "--listing-version=2"]
+        argv += ["--listing=" + outputs["listing"]["path"], "--listing-format=json"]
     if "index_patterns" in outputs:
         argv += ["--analyze-index-patterns", "--index-patterns-output=" + outputs["index_patterns"]["path"],
                  "--index-patterns-format=json"]

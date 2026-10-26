@@ -34,8 +34,8 @@ instruction-bearing profiles, but never the old data-only profile.
 
 ## Listing contract
 
-Listing artifacts use XORcyst listing version 2. The producer requests it
-explicitly; both the existing assembler and the v2 prototype support it.
+Listing artifacts use XORcyst listing schema 2, the default in XORcyst 2.0.
+The producer no longer passes the removed `--listing-version` option.
 A bundle requires `binary_generated: true`, including on every row. Offsets
 are null on labels, origins and other non-emitting rows, and on RAM rows.
 They are never interpreted as zero. Emitting rows retain inclusive end offsets

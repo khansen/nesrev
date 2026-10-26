@@ -26,8 +26,8 @@ jobs:
       run:
         shell: bash
     env:
-      # xorcyst v1.9.12 supports listing v2; keep it fixed across runner images.
-      XORCYST_REVISION: 86c1a43d1dfa237facf40d75085e9112e8617a13
+      # XORcyst 2.0 cutover: normal xasm emits listing schema 2 by default.
+      XORCYST_REVISION: 8e354892d4915d2861872b3d06ab43ebdf235d56
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

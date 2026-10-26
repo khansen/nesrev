@@ -63,7 +63,7 @@ listings. Process JSON continuation rows with `jq`/Python; reserve
 explicit fills; obtain label positions from xref definitions.
 ```sh
 # Preferred: machine-readable listing
-xasm --pure-binary --listing=Game.lst.json --listing-format=json --listing-version=2 Game.asm
+xasm --pure-binary --listing=Game.lst.json --listing-format=json Game.asm
 
 # Fallback: human-readable plaintext
 xasm --pure-binary --listing=Game.lst Game.asm
@@ -324,7 +324,7 @@ record boundaries, directives/opcodes, continuation records, and source-line
 coordinates, then open only the source ranges identified by those records.
 ```sh
 xasm --pure-binary -o "${TMPDIR:-/tmp}/<slug>-analysis.o" \
-  --listing="${TMPDIR:-/tmp}/<slug>-listing.json" --listing-format=json --listing-version=2 \
+  --listing="${TMPDIR:-/tmp}/<slug>-listing.json" --listing-format=json \
   projects/<slug>/asm/<slug>.asm
 ```
 
@@ -1162,7 +1162,7 @@ in-place edit script checklist.
 ### Debugging Commands
 
 ```sh
-xasm --pure-binary --listing=Game.lst.json --listing-format=json --listing-version=2 Game.asm
+xasm --pure-binary --listing=Game.lst.json --listing-format=json Game.asm
 xasm --pure-binary --xref=Game.xref.json --xref-format=json --xref-include-owner=true Game.asm
 xasm --pure-binary --audit-raw-addresses '--audit-rom-range=$C000-$FFFF' --audit-output-format=json Game.asm > Game.audit.json
 xasm --pure-binary --Werror=unused-equ Game.asm

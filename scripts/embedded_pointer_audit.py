@@ -94,7 +94,7 @@ def run_xasm_analysis(asm_file: str, workdir: str) -> tuple[list[dict], list[dic
         "-o",
         out_bin,
         "--listing=" + listing,
-        "--listing-format=json", "--listing-version=2",
+        "--listing-format=json",
         "--xref=" + xref,
         "--xref-format=json",
         "--analyze-index-patterns",
