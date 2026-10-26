@@ -463,6 +463,10 @@ manually from the Actions tab. The workflow pins its action revisions, Python,
 Java, and xorcyst source revision; update those pins deliberately when changing
 the supported toolchain. Both platforms exercise Bash and zsh.
 
+Shared analysis tooling requires XORcyst 2.0.0: normal `xasm` emits listing
+schema 2 without a selector. Rebuild bundles with the pinned producer and
+reader; producer/reader hashes and exact arguments remain part of their identity.
+
 The tests use synthetic fixtures and fake agent/emulator processes. No private
 ROMs, manuals, agent accounts, or FCEUX installation are needed. The native
 Codex execution-policy test runs only when the Codex CLI is installed; CI
