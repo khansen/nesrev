@@ -460,8 +460,10 @@ a case with `python3 tests/analysis_bundle_test.py BundleTests.test_schema_refus
 [GitHub CI](.github/workflows/ci.yml) runs the same command on Ubuntu 24.04 and
 macOS 15 for every pull request and push to `master`. It can also be started
 manually from the Actions tab. The workflow pins its action revisions, Python,
-Java, and xorcyst source revision; update those pins deliberately when changing
-the supported toolchain. Both platforms exercise Bash and zsh.
+Java, and the official XORcyst 2.0.0 source archive with its SHA-256 checksum;
+update those pins deliberately when changing the supported toolchain. The
+checksum is verified before extraction, and both installed tools must report
+the pinned version. Both platforms exercise Bash and zsh.
 
 Shared analysis tooling requires XORcyst 2.0.0: normal `xasm` emits listing
 schema 2 without a selector. Rebuild bundles with the pinned producer and

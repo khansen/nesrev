@@ -26,8 +26,9 @@ jobs:
       run:
         shell: bash
     env:
-      # XORcyst 2.0 cutover: normal xasm emits listing schema 2 by default.
-      XORCYST_REVISION: 9a273fa081524e3d55d608b3c9587ad55261aca4
+      # Official release archive; pin its digest independently of the download.
+      XORCYST_VERSION: '2.0.0'
+      XORCYST_SHA256: a4d2fbcf9ca035beef4808a74beaae34e7a6522dcaedd6776477d3992440b313
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -50,20 +51,23 @@ jobs:
       - name: Install macOS build and test dependencies
         if: runner.os == 'macOS'
         run: brew install autoconf automake ripgrep
-      - name: Build pinned xorcyst
+      - name: Build official XORcyst release
         run: |
           {
-            git init "$RUNNER_TEMP/xorcyst-src"
-            git -C "$RUNNER_TEMP/xorcyst-src" fetch --depth=1 \
-              https://github.com/khansen/xorcyst.git "$XORCYST_REVISION"
-            git -C "$RUNNER_TEMP/xorcyst-src" checkout --detach FETCH_HEAD
-            test "$(git -C "$RUNNER_TEMP/xorcyst-src" rev-parse HEAD)" = "$XORCYST_REVISION"
+            archive="$RUNNER_TEMP/xorcyst-$XORCYST_VERSION.tar.gz"
+            curl --fail --location --retry 3 --output "$archive" \
+              "https://github.com/khansen/xorcyst/releases/download/v$XORCYST_VERSION/xorcyst-$XORCYST_VERSION.tar.gz"
+            printf '%s  %s\n' "$XORCYST_SHA256" "$archive" | shasum -a 256 -c -
+            mkdir -p "$RUNNER_TEMP/xorcyst-src"
+            tar -xzf "$archive" -C "$RUNNER_TEMP/xorcyst-src" --strip-components=1
             cd "$RUNNER_TEMP/xorcyst-src"
             ./configure --disable-maintainer-mode \
               --prefix="$RUNNER_TEMP/xorcyst-install" \
               YACC=: LEX=: HELP2MAN=: CFLAGS='-g -O2 -Werror'
             make -j2
             make install
+            test "$("$RUNNER_TEMP/xorcyst-install/bin/xasm" --version)" = "xasm $XORCYST_VERSION"
+            test "$("$RUNNER_TEMP/xorcyst-install/bin/xlnk" --version)" = "xlnk $XORCYST_VERSION"
           } 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/xorcyst-build.log"
           echo "$RUNNER_TEMP/xorcyst-install/bin" >> "$GITHUB_PATH"
       - name: Report toolchain and optional coverage
@@ -76,7 +80,7 @@ jobs:
             zsh --version
             xasm --version
             locale
-            printf 'xorcyst revision: %s\n' "$XORCYST_REVISION"
+            printf 'XORcyst release: %s; archive SHA-256: %s\n' "$XORCYST_VERSION" "$XORCYST_SHA256"
             make project-doctor
             if command -v codex >/dev/null 2>&1; then
               codex --version
