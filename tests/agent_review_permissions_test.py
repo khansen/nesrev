@@ -91,6 +91,22 @@ class PermissionTests(unittest.TestCase):
             with self.subTest(options=options), self.assertRaises(review.UserError):
                 permissions.build_plan(self.root, "demo", {"implementer": ["codex", *options]})
 
+    def test_start_pass_project_cannot_override_granted_project(self):
+        for project in ("demo", "legacy_demo"):
+            grant, = [argv for argv in permissions.grants(self.root, project, "implementer")
+                      if "start-pass" in argv]
+            args = review.build_parser().parse_args([
+                *grant[len(review.script_argv(self.root)):], "--pass-id", "1",
+            ])
+            self.assertEqual(args.project, project)
+            for override in (("--project", "other"), ("--project=other",), ("--pro=other",)):
+                with self.subTest(project=project, override=override):
+                    result = subprocess.run([*grant, *override, "--pass-id", "1"],
+                                            cwd=self.root, text=True, capture_output=True)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertIn("--project must be supplied exactly once", result.stderr)
+                    self.assertFalse((self.root / ".agents").exists())
+
     def test_decline_and_eof_do_not_install_anything(self):
         for answer in ("", "no", "y"):
             with self.assertRaisesRegex(review.UserError, "declined"):

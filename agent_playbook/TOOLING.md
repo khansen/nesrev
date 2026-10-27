@@ -215,15 +215,14 @@ use dated amendments in existing review/evidence artifacts under the
 [historical-record contract](DOCUMENTATION.md#historical-records).
 
 After approval, `archive --pass-id <id>` writes the durable judgement record to
-`projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`. It archives
-only review verdict/findings and implementer responses. The archive records
+`projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`. It preserves
+reviews, responses, and coordinator observations, recording
 project, pass id, scorecard row, path, and review-time SHA range; the durable
 key is project plus pass archive path because rebases may orphan SHAs. Packets,
 prompts, `.seen` files, and `current.json` stay ignored under `.agents/`;
 regenerate packets from the review-time range only while those SHAs remain
-reachable. The archive command requires a clean tracked tree, then creates the
-tracked follow-up review artifact; commit that artifact before starting the
-next handoff, because `ready` and `reready` also refuse tracked dirty state.
+reachable. Archive requires a clean tracked tree. Commit its output before the
+next handoff: `ready` and `reready` also refuse tracked dirty state.
 When artifacts contain non-empty `## Learning Candidates` sections, `archive`
 also appends or updates a generated block in
 `projects/<slug>/PROCESS_FRICTION.md`. `_None._` is the explicit no-op marker.
@@ -244,6 +243,8 @@ The launcher defaults to Codex implementation and Claude review (Codex fallback)
 Both roles accept overrides; unavailable choices fail. It creates `agents` and
 `watchers` windows in `nesrev-review`, then attaches/switches tmux. Repeating the
 command reconnects without changing agents or task; conflicting sessions are refused.
+[Session operations](AGENT_SESSION_OPERATIONS.md) covers evidence reconciliation
+and authorized continuation.
 Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
 and optional FAQs, or explicitly waive the manual after the quality warning.
 Enter cannot skip missing files. `.agents/reference_intake/<slug>.json` persists the choice;

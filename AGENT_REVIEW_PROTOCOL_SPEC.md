@@ -319,13 +319,13 @@ required to reproduce the codebase; Git history and committed project artifacts
 remain canonical.
 
 Durable review judgements are not stored under `.agents/`. After approval,
-`archive --pass-id <id>` writes the review and response history to
-`projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`, keyed by pass
-id rather than SHA so routine project rebases do not orphan the record. The
-archive still records review-time SHAs as provenance, but labels them as
-review-time identifiers that may become unreachable after a rebase.
+`archive --pass-id <id>` writes review, response, and coordinator observation
+history to `projects/<slug>/docs/reverse_engineering/reviews/pass-<id>.md`,
+keyed by pass id rather than SHA so routine project rebases do not orphan the
+record. The archive still records review-time SHAs as provenance, but labels
+them as review-time identifiers that may become unreachable after a rebase.
 Non-empty `## Learning Candidates` sections from the implementation note,
-review artifacts, and response artifacts are copied to
+review artifacts, response artifacts, and coordinator observations are copied to
 `projects/<slug>/PROCESS_FRICTION.md` as raw process-learning candidates for
 later triage. `_None._` is the explicit no-op marker. Promotion from that queue
 to playbooks or scripts uses process review, not the project-pass review round.
@@ -535,7 +535,14 @@ Implemented subcommands:
   point the implementation agent at the next prompt.
 - `approve` - validate a review file, set `APPROVED`, and notify the
   implementation agent through state.
-- `archive` - after approval, write durable review and response artifacts to
+- `import-artifact` - publish a project-tmp Markdown draft. Reviews and responses
+  remain scoped to their active round and role. Coordinator observations require
+  an explicit matching `--run-id`, can be imported in any run status, and are
+  sequenced in import order with a content hash. Identical imports are idempotent;
+  importing a correction preserves earlier observations.
+  Importing observations changes neither state nor verdict; it grants no agent
+  additional permissions. See [session operations](agent_playbook/AGENT_SESSION_OPERATIONS.md).
+- `archive` - after approval, write durable reviews, responses, and observations to
   the project docs tree, keyed by project/pass id while preserving review-time
   SHAs as non-durable provenance. It also copies non-empty learning candidates
   to the project's process-friction queue.

@@ -9,6 +9,7 @@ manually started worker loop when state changes.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -160,9 +161,12 @@ def checkout_status_guidance(root: Path) -> str:
 def project_operations_guidance(root: Path, project: str) -> str:
     command = script_command(root)
     return (
-        "For source inspection, prefer native Read/Grep tools or "
+        "For source inspection, use native read/search tools only when available in this session. "
+        "For literal symbol searches, use "
         f"`{command} find-project-symbols {project} projects/{project}/asm/<file>.asm SymbolA SymbolB` "
-        "as one standalone command instead of a shell loop. This searches whole symbol tokens read-only. "
+        "as one standalone command instead of a shell loop. This searches whole symbol tokens read-only "
+        "and works without a native Grep tool. For other text searches, use available rg or grep "
+        "under the existing permission policy. "
         "Both roles run existing project analyzers through "
         f"`{command} analyze-project {project} analyze_<scenario>.py -- <analyzer arguments>` "
         "and bounded desktop captures through "
@@ -537,6 +541,16 @@ def render_prompt(root: Path, state: dict[str, Any], role: str) -> str:
             ]
     if role == "implementer" and status == "APPROVED":
         body.extend(["```sh", f"{command} archive --pass-id <reviewed-pass-id>", "```", ""])
+    observations = [path for path in observation_paths(root, state) if path.is_file()]
+    if observations:
+        body.extend([
+            "## Coordinator observations", "",
+            "Read these observations in order before reporting operational friction or archiving:", "",
+            *(f"- `{rel(root, path)}`" for path in observations), "",
+            "Reconcile them with the submitted reports; preserve disagreements and evidence limits. "
+            "Launcher settings describe the requested mode, not proof of the mode used throughout "
+            "the run. These observations do not change turn ownership or the review verdict.", "",
+        ])
     body.extend([
         "Preserve any operator-defined pass limit from the task and handoff instructions",
         "in the review or response. No command enforces a pass count; max_rounds limits",
@@ -911,7 +925,13 @@ def command_reready(args: argparse.Namespace) -> int:
 def command_import_artifact(args: argparse.Namespace) -> int:
     root = repo_root()
     state = read_state(root)
-    allowed = REVIEW_READY_STATUSES if args.kind == "review" else {"CHANGES_REQUESTED"}
+    observation = args.kind == "observation"
+    if observation and args.run_id != state["run_id"]:
+        raise UserError("observation requires --run-id matching the current run")
+    if not observation and args.run_id is not None:
+        raise UserError("--run-id is only used when importing an observation")
+    allowed = (VALID_STATUSES if observation else
+               REVIEW_READY_STATUSES if args.kind == "review" else {"CHANGES_REQUESTED"})
     if state["status"] not in allowed:
         raise UserError(f"cannot import {args.kind} in {state['status']}")
     if not state.get("project"):
@@ -927,12 +947,34 @@ def command_import_artifact(args: argparse.Namespace) -> int:
     text = source.read_text()
     if not text.strip():
         raise UserError("draft is empty")
-    destination = run_dir(root, state) / f"{args.kind}-{int(state['round']):02d}.md"
+    if observation:
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        existing = observation_paths(root, state)
+        for path in existing:
+            if path.resolve() != path:
+                raise UserError("artifact destination must not use symlinks")
+            if not path.is_file():
+                raise UserError("observation artifact must be a regular file")
+            saved = path.read_text()
+            if saved == text:
+                print(f"Imported observation: {rel(root, path)}")
+                return 0
+            if path.name.endswith(f"-{digest}.md"):
+                raise UserError("existing observation differs; preserve it and investigate")
+        sequence = max((observation_sequence(path) for path in existing), default=0) + 1
+        name = f"observation-{sequence:02d}-{digest}.md"
+    else:
+        name = f"{args.kind}-{int(state['round']):02d}.md"
+    destination = run_dir(root, state) / name
     if destination.resolve() != destination:
         raise UserError("artifact destination must not use symlinks")
     ensure_repo_contained(root, destination, "artifact")
     ensure_repo_contained(root / ".agents" / "runs", destination, "artifact")
-    atomic_write(destination, text)
+    if observation and destination.exists():
+        if destination.read_text() != text:
+            raise UserError("existing observation differs; preserve it and investigate")
+    else:
+        atomic_write(destination, text)
     print(f"Imported {args.kind}: {rel(root, destination)}")
     return 0
 
@@ -1009,9 +1051,22 @@ def run_notify(root: Path, args: argparse.Namespace, state: dict[str, Any], role
         raise UserError(f"notify command failed with exit {result.returncode}")
 
 
+def observation_sequence(path: Path) -> int:
+    match = re.fullmatch(r"observation-(\d+)-[0-9a-f]{64}\.md", path.name)
+    # Legacy hash-only notes predate sequenced imports; their chronology is unknown.
+    return int(match[1]) if match else 0
+
+
+def observation_paths(root: Path, state: dict[str, Any]) -> list[Path]:
+    return sorted(run_dir(root, state).glob("observation-*.md"),
+                  key=lambda path: (observation_sequence(path), path.name))
+
+
 def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[tuple[str, str]]:
     artifacts: list[tuple[str, str]] = []
-    for path in sorted(run_dir(root, state).glob(pattern)):
+    paths = (observation_paths(root, state) if pattern == "observation-*.md"
+             else sorted(run_dir(root, state).glob(pattern)))
+    for path in paths:
         if path.is_file():
             artifacts.append((rel(root, path), path.read_text().rstrip()))
     return artifacts
@@ -1057,6 +1112,7 @@ def learning_artifacts(root: Path, state: dict[str, Any]) -> list[tuple[str, str
             artifacts.append((rel(root, note_path), note_path.read_text().rstrip()))
     artifacts.extend(read_run_artifacts(root, state, "review-*.md"))
     artifacts.extend(read_run_artifacts(root, state, "response-*.md"))
+    artifacts.extend(read_run_artifacts(root, state, "observation-*.md"))
     return artifacts
 
 
@@ -1204,6 +1260,16 @@ def render_archive(state: dict[str, Any], pass_id: str, archive_path: str) -> st
             lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
     else:
         lines.extend(["_None._", ""])
+
+    observations = read_run_artifacts(root, state, "observation-*.md")
+    if observations:
+        lines.extend([
+            "## Coordinator Observations", "",
+            "These evidence notes supplement the original reports without changing their",
+            "verdicts. Their stated limits apply; unobserved interventions remain unknown.", "",
+        ])
+        for source, text in observations:
+            lines.extend([f"### {Path(source).name}", "", f"Source: `{source}`", "", text, ""])
 
     return "\n".join(lines).rstrip() + "\n"
 
@@ -1404,6 +1470,14 @@ def command_watch(args: argparse.Namespace) -> int:
         time.sleep(args.interval)
 
 
+class SingleUseAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        # Permission prefixes name this option's value; later flags must not override it.
+        if getattr(namespace, self.dest, None) is not None:
+            raise argparse.ArgumentError(self, f"{self.option_strings[0]} must be supplied exactly once")
+        setattr(namespace, self.dest, values)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, help="anchor the handoff to this checkout")
@@ -1422,7 +1496,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.set_defaults(func=command_init)
 
     start = sub.add_parser("start-pass", help="initialize and ready a committed pass")
-    start.add_argument("--project", required=True)
+    start.add_argument("--project", action=SingleUseAction, required=True)
     start.add_argument("--pass-id", required=True)
     start.add_argument(
         "--base",
@@ -1495,9 +1569,11 @@ def build_parser() -> argparse.ArgumentParser:
     analysis.add_argument("arguments", nargs=argparse.REMAINDER)
     analysis.set_defaults(func=command_trace_project)
 
-    artifact = sub.add_parser("import-artifact", help="copy a project tmp draft into the current review round")
-    artifact.add_argument("--kind", choices=("review", "response"), required=True)
+    artifact = sub.add_parser("import-artifact", help="copy a project tmp review, response or coordinator observation into the current run")
+    artifact.add_argument("--kind", choices=("review", "response", "observation"),
+                          action=SingleUseAction, required=True)
     artifact.add_argument("--source", required=True)
+    artifact.add_argument("--run-id", help="required for observations; must match the current run")
     artifact.set_defaults(func=command_import_artifact)
 
     stage = sub.add_parser("stage-project", help="stage only explicit files in one project")

@@ -149,6 +149,12 @@ it keeps the running agents and their current task. Detaching does not stop
 agent work or usage. Avoid **Ctrl+c** or closing individual panes unless you
 intend to interrupt an agent.
 
+For another authorized pass with the same pair, follow
+[session continuation](agent_playbook/AGENT_SESSION_OPERATIONS.md#continue-agent-pair).
+Reconnecting with a different `--task` does not update their assignment. Before
+archiving, preserve observed prompts or mode changes using
+[coordinator observations](agent_playbook/AGENT_SESSION_OPERATIONS.md#coordinator-observations).
+
 ### Know when your help is needed
 
 The implementer attempts runtime analysis itself before asking you to play or

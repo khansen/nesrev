@@ -74,13 +74,15 @@ read-only forms: a narrower allow cannot override a matching Codex prompt rule.
 Use the approved inspection command from the outset; it accepts no arbitrary
 Git options, paths or command suffixes.
 
-Use native Read/Grep tools for ordinary inspection. For repeated symbol-use
-searches, use the guide's `find-project-symbols <slug> <project-file> <symbol>…`
+Use native read/search tools only when available in the current session. For
+literal symbol searches without a native Grep tool, use the guide's
+`find-project-symbols <slug> <project-file> <symbol>…`
 command instead of a compound shell loop. It accepts 1–64 literal whole-symbol
 tokens and one explicit UTF-8 project file, prints matching lines as JSON,
 and writes nothing. Paths outside the selected project, symlinks, directories,
 and shell/regex expressions are refused. No matches is a successful empty
-result. Other analysis commands can still require approval.
+result. For other text searches, use available `rg` or `grep` under the existing
+permission policy. Other analysis commands can still require approval.
 
 Both roles use `trace-project <slug> run_<scenario>.py -- <arguments>`
 for desktop captures and `analyze-project <slug> analyze_<scenario>.py -- <arguments>`
