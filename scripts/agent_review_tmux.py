@@ -56,6 +56,8 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
         if value == "codex":
             print("Claude is not installed; using a separate Codex session as reviewer.")
     command = agent_command(value)
+    if Path(command[0]).name == "agy":
+        validate_agy_options(command[1:])
     model = getattr(args, f"{role}_model", None)
     effort = getattr(args, f"{role}_effort", None)
     if model is None and effort is None:
@@ -78,6 +80,8 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
         native = [f"--{setting}"]
         if agent == "codex" and setting == "model":
             native.append("-m")
+        elif agent == "agy":
+            native.append(f"-{setting}")
         key = "model" if setting == "model" else "model_reasoning_effort"
         if any(
             token == flag or token.startswith(flag + "=")
@@ -98,6 +102,34 @@ def role_command(args: argparse.Namespace, role: str) -> list[str]:
     return command
 
 
+def validate_agy_options(options: list[str]) -> None:
+    """Keep the launcher in charge of the initial prompt and conversation."""
+    reserved = {
+        "p", "print", "prompt", "i", "prompt-interactive", "c", "continue",
+        "conversation", "input-format", "output-format", "json-schema",
+        "print-timeout", "disable-slash-commands", "h", "help", "version",
+    }
+    value_options = {"model", "effort", "agent", "add-dir", "mode", "project", "log-file"}
+    remaining = iter(options)
+    for option in remaining:
+        name, equal, _ = option.lstrip("-").partition("=")
+        if option == "--" or name in reserved or not option.startswith("-"):
+            raise review.UserError(
+                "agy requires a fresh interactive session; remove prompt, print, resume, "
+                "help/version options, subcommands and argument terminators from the agent command"
+            )
+        if name in value_options and not equal:
+            value = next(remaining, None)
+            if value is None or value.startswith("-") or not value.strip():
+                raise review.UserError(f"agy {option} requires a nonempty value, not an option")
+
+
+def interactive_command(command: list[str], prompt: str) -> list[str]:
+    if Path(command[0]).name == "agy":
+        return [*command, "--prompt-interactive", prompt]
+    return [*command, prompt]
+
+
 def launch_commands(args: argparse.Namespace) -> dict[str, list[str]]:
     commands = {role: role_command(args, role) for role in ROLES}
     if args.permissions == "bypass":
@@ -105,7 +137,7 @@ def launch_commands(args: argparse.Namespace) -> dict[str, list[str]]:
             agent = permissions.native_agent(command, profile="bypass")
             command.append(BYPASS_OPTIONS[agent])
         print("Permission bypass selected for both agents; no scoped profile will be installed.")
-        print("Codex runs without its approval/sandbox controls; Claude skips its permission checks.")
+        print("Codex runs without its approval/sandbox controls; Claude and agy skip permission checks.")
         print("Existing policy, login/trust, and reference-input requirements still apply.")
     return commands
 
@@ -524,9 +556,9 @@ def launch(args: argparse.Namespace) -> int:
         review.atomic_write(config_path, json.dumps(config, indent=2) + "\n")
         for role, pane in panes.items():
             tmux("select-pane", "-t", pane, "-T", role)
-            command = "exec " + shlex.join([
-                *commands[role], bootstrap(role, args.project, root, run / "task.md", args.permissions),
-            ])
+            command = "exec " + shlex.join(interactive_command(
+                commands[role], bootstrap(role, args.project, root, run / "task.md", args.permissions),
+            ))
             tmux("respawn-pane", "-k", "-t", pane, "-c", str(root), command)
 
         def worker_command(role: str) -> str:

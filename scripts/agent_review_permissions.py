@@ -192,6 +192,12 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
     codex_grants = []
     for role, command in commands.items():
         agent = native_agent(command)
+        if agent == "agy":
+            raise review.UserError(
+                "agy has no managed pass-cycle permission profile; use --permissions inherit "
+                "with your agy settings, or explicitly select --permissions bypass. "
+                "--sandbox alone does not install scoped grants."
+            )
         allowed = grants(root, project, role)
         if agent == "codex":
             codex_grants.extend(allowed)
@@ -218,8 +224,6 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
             configured[role] = command + ["--permission-mode", "default", "--settings", str(root / settings)]
-        elif agent == "agy":
-            configured[role] = command + ["--sandbox"]
     if codex_grants:
         entries = [(argv, "allow") for argv in codex_grants] + restrictions(root)
         files[RULES] = "# Managed by the NESrev launcher after explicit user consent.\n" + "".join(dict.fromkeys(

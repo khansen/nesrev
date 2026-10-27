@@ -221,7 +221,7 @@ the launcher cannot identify those untagged sessions as smoke-only.
 ## Recovery and custom setups
 
 `--permissions bypass` explicitly selects native bypass for both roles:
-Codex gets `--dangerously-bypass-approvals-and-sandbox`; Claude gets
+Codex gets `--dangerously-bypass-approvals-and-sandbox`; Claude and agy get
 `--dangerously-skip-permissions`. This is broad execution access, not the scoped
 profile. No profile consent is requested and no managed permission files are
 created, removed, or rewritten. `--check` prints the selected native commands.
@@ -263,3 +263,24 @@ Changing settings or relaunching does not update a running matching tmux
 session: reconnect preserves its agents. Use the README's restart procedure
 at a safe handoff point. A trust prompt or organizational policy is never
 automatically bypassed by the launcher.
+
+<a id="antigravity"></a>
+## Antigravity CLI
+
+Antigravity (`agy`) supports `inherit` and explicit `bypass` in either role.
+The launcher has no managed agy `pass-cycle` profile and refuses that selection
+before scaffolding, consent, or agent startup. Adding `--sandbox` alone does not
+install the helper grants or Git restrictions described above. The profile's
+`--smoke-only` mode therefore does not support agy either.
+
+With `inherit`, choose agy's native settings in `--*-cmd`, such as `agy --sandbox`,
+and check the effective policy in its `/permissions` UI. This applies to both
+roles; existing profiles remain untouched. The launcher writes no global or
+Antigravity project settings. Its [settings documentation](https://antigravity.google/docs/settings?tab=cli)
+describes the global settings file and the additional permission scopes.
+Sandbox availability and saved settings can affect approval behavior; verify
+the live session before treating a run as unattended.
+
+With `bypass`, supply only model/effort agent options; the launcher adds
+`--dangerously-skip-permissions`. Authentication, trust, administrator policy,
+review ownership, verification, and the no-push rule still apply.

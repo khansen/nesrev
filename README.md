@@ -15,7 +15,8 @@ that need your help. This is not a guarantee of unattended completion.
 You need this repository and its [toolchain](agent_playbook/NEW_PROJECT.md#prerequisites), Python 3, tmux,
 and your chosen agent apps installed and signed in. The default implementer is
 Codex. The default reviewer is Claude if installed, otherwise a separate Codex
-session. You can choose either app for either role; examples are below.
+session. You can choose Codex, Claude, or Antigravity CLI (`agy`) for either
+role; examples are below.
 Their normal usage charges and limits
 apply. Git must have your name and email configured so the implementer can
 save commits. Bring your own reference ROM and game manual; FAQs and guides
@@ -133,7 +134,7 @@ agents:
 python3 scripts/agent_review_tmux.py --project my_game --permissions bypass
 ```
 
-This uses Codex's `--dangerously-bypass-approvals-and-sandbox` or Claude's
+This uses Codex's `--dangerously-bypass-approvals-and-sandbox` or Claude/agy's
 `--dangerously-skip-permissions`, according to the agent chosen for each role.
 Selecting bypass authorizes it; there is no additional profile-consent prompt.
 It grants broad command access, creates no scoped permission profile, and leaves
@@ -196,6 +197,7 @@ come from your existing agent configuration. Advanced command overrides and
 the handoff protocol are in
 [TOOLING.md](agent_playbook/TOOLING.md#agent-review-handoff).
 
+<a id="choose-your-agents"></a>
 ### Choose your agents
 
 To have Claude implement and Codex review:
@@ -216,6 +218,30 @@ To use Claude for both roles:
 python3 scripts/agent_review_tmux.py --project my_game --implementer-cmd claude --reviewer-cmd claude
 ```
 
+To use Antigravity CLI as reviewer with its saved model and permission settings,
+plus its terminal sandbox:
+
+```sh
+python3 scripts/agent_review_tmux.py --project my_game \
+  --reviewer-cmd 'agy --sandbox' --permissions inherit
+```
+
+Use `--implementer-cmd 'agy --sandbox'` for Antigravity implementation, or both
+options for two Antigravity sessions. `inherit` applies to both roles and installs
+no permission profile. The launcher does not manage scoped `pass-cycle` grants
+for agy, so that combination is refused before creating a workspace. Explicit
+`--permissions bypass` is also supported with plain `--reviewer-cmd agy` (and/or
+`--implementer-cmd agy`); it selects bypass for both roles. See the
+[permission details](agent_playbook/AGENT_PERMISSIONS.md#antigravity).
+
+The launcher supplies agy's `--prompt-interactive` startup prompt; omit prompt,
+print, help/version, and resume options from `--*-cmd`. Each role needs its own
+fresh conversation for subsequent tmux handoffs. Authenticate with `agy` first.
+Run `agy models` to list available model IDs, then use `--reviewer-model` or
+`--implementer-model` if you want to override the saved model. The integration
+uses the [documented interactive CLI interface](https://antigravity.google/docs/cli/reference)
+and has been checked against agy 1.4.8.
+
 Each role always gets its own session. Add `--check` to any command to check
 that selection without launching it. Choices apply when creating a workspace;
 reconnecting keeps the agents already running. An explicitly chosen app that
@@ -225,8 +251,8 @@ is missing produces an error, rather than silently choosing another app.
 ### Choose models and reasoning levels
 
 **No options are needed to use each agent's default model and effort.** The
-launcher leaves those choices to Codex or Claude, including their saved settings.
-It does not pin a model, force a reasoning level, or edit either app's configuration.
+launcher leaves those choices to Codex, Claude, or agy, including their saved settings.
+It does not pin a model, force a reasoning level, or edit the apps' configuration.
 
 Choose independently for each role:
 
@@ -254,12 +280,12 @@ python3 scripts/agent_review_tmux.py --project my_game \
   --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort medium
 ```
 
-The same options work with Claude implementing, Codex reviewing, or the same
-app in both roles. Any omitted choice stays with that agent. Supported models
+The same options work with any supported app in either or both roles.
+Any omitted choice stays with that agent. Supported models
 and effort levels depend on the agent version, model, and account; the launcher
 passes your choices through without substituting another model or level.
 Codex effort uses its [model_reasoning_effort setting](https://developers.openai.com/codex/config-reference);
-Claude effort uses `--effort`.
+Claude and agy effort use `--effort`.
 Add `--check` to see the resulting commands without starting agents. Availability
 is checked by the agents at startup. `--implementer-reasoning-effort` and
 `--reviewer-reasoning-effort` are longer aliases for the effort options.
