@@ -2,6 +2,7 @@
 """Protected review artifact publication from writable project drafts."""
 
 import contextlib
+import hashlib
 import io
 import json
 import re
@@ -120,6 +121,118 @@ class ArtifactTests(unittest.TestCase):
                 prompt = review.render_prompt(self.root, self.state, role)
                 self.assertIn("write exactly `_None._` alone in the section, without an explanation", prompt)
                 self.assertIn("record a recurrence only when it adds new evidence", prompt)
+
+    def observe(self, run_id="demo-pass-2", source=None, expected=0):
+        args = ["import-artifact", "--kind", "observation", "--source", str(source or self.draft)]
+        if run_id is not None:
+            args.extend(["--run-id", run_id])
+        return self.command(*args, expected=expected)
+
+    def test_observations_preserve_state_and_original_evidence_in_every_status(self):
+        self.publish()
+        original_review = self.destination.read_bytes()
+        self.draft.write_text("Observed: permission prompt. Approver unknown.\n")
+        for status in sorted(review.VALID_STATUSES):
+            with self.subTest(status=status):
+                self.state["status"] = status
+                review.write_state(self.root, self.state)
+                before = review.state_path(self.root).read_bytes()
+                self.observe()
+                self.assertEqual(review.state_path(self.root).read_bytes(), before)
+                self.assertEqual(self.destination.read_bytes(), original_review)
+        notes = list(self.destination.parent.glob("observation-*.md"))
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(notes[0].read_bytes(), self.draft.read_bytes())
+        original = notes[0].read_bytes()
+        self.draft.write_text("Later observation: Auto mode visible; actor unknown.\n")
+        self.observe()
+        self.assertEqual(len(list(self.destination.parent.glob("observation-*.md"))), 2)
+        self.assertEqual(notes[0].read_bytes(), original)
+
+    def test_observations_require_current_run_and_current_project(self):
+        for run_id in (None, "demo-pass-1", "other-pass-2"):
+            with self.subTest(run_id=run_id):
+                result = self.observe(run_id=run_id, expected=2)
+                self.assertIn("matching the current run", result.stderr)
+        unrelated = self.root / "projects/other/tmp/observation.md"
+        unrelated.parent.mkdir(parents=True)
+        unrelated.write_text("Evidence from another project.\n")
+        self.observe(source=unrelated, expected=2)
+        self.assertEqual(list(self.destination.parent.glob("observation-*.md")), [])
+        self.command("import-artifact", "--kind", "review", "--run-id", "demo-pass-2",
+                     "--source", str(self.draft), expected=2)
+
+    def test_observation_destination_cannot_replace_existing_evidence_or_follow_symlink(self):
+        self.observe()
+        note, = self.destination.parent.glob("observation-*.md")
+        note.write_text("Externally modified evidence.\n")
+        self.observe(expected=2)
+        self.assertEqual(note.read_text(), "Externally modified evidence.\n")
+        outside = Path(self.temp.name) / "outside.md"
+        outside.write_text("Unrelated evidence.\n")
+        note.unlink()
+        note.symlink_to(outside)
+        self.observe(expected=2)
+        self.assertEqual(outside.read_text(), "Unrelated evidence.\n")
+
+    def test_kind_cannot_override_an_existing_role_permission_prefix(self):
+        for kind in ("review", "response"):
+            for override in (("--kind", "observation"), ("--kind=observation",), ("--ki=observation",)):
+                with self.subTest(kind=kind, override=override):
+                    result = self.command("import-artifact", "--kind", kind, *override,
+                                          "--run-id", "demo-pass-2", "--source", str(self.draft), expected=2)
+                    self.assertIn("--kind must be supplied exactly once", result.stderr)
+        self.assertEqual(list(self.destination.parent.glob("observation-*.md")), [])
+
+    def test_observations_sort_numerically_and_continue_after_highest_sequence(self):
+        self.destination.parent.mkdir(parents=True)
+        notes = ["Earlier observation.\n", "Later observation.\n"]
+        for sequence, note in zip((99, 100), notes):
+            digest = hashlib.sha256(note.encode()).hexdigest()
+            (self.destination.parent / f"observation-{sequence}-{digest}.md").write_text(note)
+        self.draft.write_text("Newest observation.\n")
+        self.observe()
+        paths = review.observation_paths(self.root, self.state)
+        self.assertEqual([path.name.split("-")[1] for path in paths], ["99", "100", "101"])
+        self.assertEqual([text for _, text in review.read_run_artifacts(self.root, self.state, "observation-*.md")],
+                         [note.rstrip() for note in (*notes, self.draft.read_text())])
+
+    def test_hash_only_observation_is_reused_and_precedes_new_imports(self):
+        self.destination.parent.mkdir(parents=True)
+        note = "Legacy observation with no recorded import order.\n"
+        digest = hashlib.sha256(note.encode()).hexdigest()
+        legacy = self.destination.parent / f"observation-{digest}.md"
+        legacy.write_text(note)
+        self.draft.write_text(note)
+        self.observe()
+        self.assertEqual(review.observation_paths(self.root, self.state), [legacy])
+        self.draft.write_text("New observation.\n")
+        self.observe()
+        paths = review.observation_paths(self.root, self.state)
+        self.assertEqual(paths[0], legacy)
+        self.assertTrue(paths[1].name.startswith("observation-01-"))
+        self.assertEqual(legacy.read_text(), note)
+
+    def test_prompts_list_existing_observations_and_omit_empty_instruction(self):
+        turns = (("reviewer", "READY_FOR_REVIEW"), ("reviewer", "READY_FOR_REREVIEW"),
+                 ("implementer", "CHANGES_REQUESTED"), ("implementer", "APPROVED"))
+        for role, status in turns:
+            self.state["status"] = status
+            prompt = review.render_prompt(self.root, self.state, role)
+            self.assertNotIn("Coordinator observations", prompt)
+            self.assertNotIn("observation-", prompt)
+        for note in ("First observation.\n", "Second observation.\n"):
+            self.draft.write_text(note)
+            self.observe()
+        names = [review.rel(self.root, path) for path in review.observation_paths(self.root, self.state)]
+        for role, status in turns:
+            with self.subTest(role=role, status=status):
+                self.state["status"] = status
+                prompt = review.render_prompt(self.root, self.state, role)
+                self.assertIn("## Coordinator observations", prompt)
+                self.assertNotIn("observation-*.md", prompt)
+                self.assertLess(prompt.index(names[0]), prompt.index(names[1]))
+                self.assertIn("preserve disagreements and evidence limits", prompt)
 
 
 class CheckpointTests(unittest.TestCase):
@@ -277,6 +390,75 @@ class CheckpointTests(unittest.TestCase):
                 self.assertEqual(review.state_path(self.root).read_bytes(), state_before)
                 if round_number == 1:
                     self.reready()
+
+    def test_archive_preserves_conflicting_observations_without_rewriting_review(self):
+        self.publish_checkpoint_from_prompt()
+        original = "Verdict: APPROVED\nNo permission-mode change was made.\n\n## Learning Candidates\n_None._\n"
+        self.draft.write_text(original)
+        self.command("import-artifact", "--kind", "review", "--source", str(self.draft))
+        self.command("approve", "--review", str(self.saved))
+        before = review.state_path(self.root).read_bytes()
+        observations = (
+            "Observed: 2026-10-27, reviewer, demo-pass-1.\n"
+            "A CSV inspection prompted for permission; later Auto mode was visible.\n"
+            "Who approved or switched modes is unknown.\n\n## Learning Candidates\n_None._\n",
+            "Observed: 2026-10-27, reviewer, demo-pass-1.\n"
+            "Native Grep was unavailable.\n\n## Learning Candidates\n"
+            "F1: missing Grep caused a failed call before the literal-symbol helper was used.\n",
+        )
+        for text in observations:
+            self.draft.write_text(text)
+            for _ in range(2):
+                self.command("import-artifact", "--kind", "observation", "--run-id", "demo-pass-1",
+                             "--source", str(self.draft))
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+        self.assertEqual(self.saved.read_text(), original)
+        self.command("archive", "--pass-id", "1")
+        archive = (self.root / "projects/demo/docs/reverse_engineering/reviews/pass-1.md").read_text()
+        self.assertIn(original.rstrip(), archive)
+        self.assertIn("## Coordinator Observations", archive)
+        for text in observations:
+            self.assertEqual(archive.count(text.rstrip()), 1)
+        queue_path = self.root / "projects/demo/PROCESS_FRICTION.md"
+        self.assertTrue(queue_path.is_file(), "observation learning candidate was not queued")
+        queue = queue_path.read_text()
+        self.assertEqual(queue.count("F1: missing Grep"), 1)
+        self.assertNotIn("Who approved", queue)
+        self.assertEqual(review.state_path(self.root).read_bytes(), before)
+
+    def test_no_candidate_observation_is_archived_without_creating_friction_queue(self):
+        self.publish_checkpoint_from_prompt()
+        self.draft.write_text("Verdict: APPROVED\n\n## Learning Candidates\n_None._\n")
+        self.command("import-artifact", "--kind", "review", "--source", str(self.draft))
+        self.command("approve", "--review", str(self.saved))
+        note = "Observed: bounded inspection only; unattended coverage unknown.\n\n## Learning Candidates\n_None._\n"
+        self.draft.write_text(note)
+        self.command("import-artifact", "--kind", "observation", "--run-id", "demo-pass-1",
+                     "--source", str(self.draft))
+        self.command("archive", "--pass-id", "1")
+        archive = (self.root / "projects/demo/docs/reverse_engineering/reviews/pass-1.md").read_text()
+        self.assertIn(note.rstrip(), archive)
+        self.assertFalse((self.root / "projects/demo/PROCESS_FRICTION.md").exists())
+
+    def test_archive_and_queue_keep_import_order_even_when_hashes_sort_backwards(self):
+        self.publish_checkpoint_from_prompt()
+        self.draft.write_text("Verdict: APPROVED\n\n## Learning Candidates\n_None._\n")
+        self.command("import-artifact", "--kind", "review", "--source", str(self.draft))
+        self.command("approve", "--review", str(self.saved))
+        original = "Original observation.\n\n## Learning Candidates\nFirst candidate.\n"
+        correction = "Correction to original observation.\n\n## Learning Candidates\nSecond candidate.\n"
+        self.assertGreater(hashlib.sha256(original.encode()).hexdigest(),
+                           hashlib.sha256(correction.encode()).hexdigest())
+        for note in (original, correction, original):
+            self.draft.write_text(note)
+            self.command("import-artifact", "--kind", "observation", "--run-id", "demo-pass-1",
+                         "--source", str(self.draft))
+        self.assertEqual(len(list(self.run.glob("observation-*.md"))), 2)
+        self.command("archive", "--pass-id", "1")
+        archive = (self.root / "projects/demo/docs/reverse_engineering/reviews/pass-1.md").read_text()
+        self.assertLess(archive.index(original.rstrip()), archive.index(correction.rstrip()))
+        queue = (self.root / "projects/demo/PROCESS_FRICTION.md").read_text()
+        self.assertLess(queue.index("First candidate."), queue.index("Second candidate."))
 
 
 if __name__ == "__main__":

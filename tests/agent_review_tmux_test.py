@@ -45,6 +45,8 @@ class LauncherTests(unittest.TestCase):
             prompts.append(review.render_prompt(self.root, state, role))
         self.assertIn("reviewers may independently replay bounded evidence scenarios", prompts[0])
         for prompt in prompts:
+            self.assertIn("native read/search tools only when available in this session", prompt)
+            self.assertIn("works without a native Grep tool", prompt)
             self.assertIn("find-project-symbols demo", prompt)
             self.assertIn("trace-project demo", prompt)
             self.assertIn("analyze-project demo", prompt)
