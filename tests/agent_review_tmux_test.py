@@ -224,7 +224,12 @@ class LauncherTests(unittest.TestCase):
 
     def test_bypass_reaches_both_agents_without_installing_or_changing_profiles(self):
         self.permission_agents()
-        binaries = {name: shlex.quote(str(Path(self.temp.name) / name)) for name in ("codex", "claude")}
+        binaries = {}
+        for name in ("codex", "claude", "agy"):
+            binary = Path(self.temp.name) / name
+            binary.write_bytes(self.agent.read_bytes())
+            binary.chmod(0o755)
+            binaries[name] = shlex.quote(str(binary))
         saved = self.root / ".agents/permissions/commands.md"
         saved.parent.mkdir(parents=True)
         saved.write_text("Existing guide for another project; preserve me.\n")
@@ -234,8 +239,8 @@ class LauncherTests(unittest.TestCase):
         self.args.permissions = "bypass"
         self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
-        for implementer in ("codex", "claude"):
-            for reviewer in ("codex", "claude"):
+        for implementer in ("codex", "claude", "agy"):
+            for reviewer in ("codex", "claude", "agy"):
                 with self.subTest(implementer=implementer, reviewer=reviewer):
                     self.log.write_text("")
                     old_configs = set((self.root / ".agents/logs").glob("*/workspace.json"))
@@ -256,8 +261,9 @@ class LauncherTests(unittest.TestCase):
                         actual = json.loads(self.agent_log.read_text())
                         expected_effort = ["--config", f'model_reasoning_effort="{effort}"'] if agent == "codex" else ["--effort", effort]
                         flag = "--dangerously-bypass-approvals-and-sandbox" if agent == "codex" else "--dangerously-skip-permissions"
-                        self.assertEqual(actual[:-1], ["--model", model, *expected_effort, flag])
-                        self.assertEqual(config["commands"][role][1:], actual[:-1])
+                        prompt_flag = ["--prompt-interactive"] if agent == "agy" else []
+                        self.assertEqual(actual[:-1], ["--model", model, *expected_effort, flag, *prompt_flag])
+                        self.assertEqual(config["commands"][role][1:], ["--model", model, *expected_effort, flag])
                         self.assertIn("not this run's permission setup", actual[-1])
                         self.assertIn("Reply READY and end your turn", actual[-1])
                     self.assertIn("not this run's permission setup", config_path.with_name("task.md").read_text())
@@ -276,7 +282,7 @@ class LauncherTests(unittest.TestCase):
 
     def test_bypass_rejects_unknown_agents_before_creating_project_or_workspace(self):
         self.args.permissions, self.args.project = "bypass", "new_project"
-        with self.assertRaisesRegex(review.UserError, "bypass permissions require codex or claude"):
+        with self.assertRaisesRegex(review.UserError, "bypass permissions require codex, claude, or agy"):
             self.launch()
         self.assertFalse((self.root / "projects/new_project").exists())
         self.assertFalse((self.root / ".agents").exists())
@@ -528,7 +534,7 @@ class LauncherTests(unittest.TestCase):
         self.args.reviewer_cmd = "codex --model chosen-reviewer"
         which = launcher.shutil.which
         def installed(value):
-            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+            return f"/agents/{value}" if value in ("claude", "codex", "agy") else which(value)
         with patch.object(launcher.shutil, "which", side_effect=installed):
             self.launch()
         commands = [shlex.split(c[-1]) for c in self.calls() if c[0] == "respawn-pane"]
@@ -561,11 +567,11 @@ class LauncherTests(unittest.TestCase):
     def test_independent_models_and_effort_reach_each_tmux_agent(self):
         which = launcher.shutil.which
         def installed(value):
-            return f"/agents/{value}" if value in ("claude", "codex") else which(value)
+            return f"/agents/{value}" if value in ("claude", "codex", "agy") else which(value)
         self.args.implementer_model, self.args.implementer_effort = "first-model", "high"
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
-        for implementer in ("codex", "claude"):
-            for reviewer in ("codex", "claude"):
+        for implementer in ("codex", "claude", "agy"):
+            for reviewer in ("codex", "claude", "agy"):
                 with self.subTest(implementer=implementer, reviewer=reviewer):
                     self.log.write_text("")
                     self.args.implementer_cmd, self.args.reviewer_cmd = implementer, reviewer
@@ -578,11 +584,12 @@ class LauncherTests(unittest.TestCase):
                         ("first-model", "second-model"), ("high", "medium"),
                     ):
                         expected = ["--config", f'model_reasoning_effort="{effort}"'] if agent == "codex" else ["--effort", effort]
-                        self.assertEqual(command[:-1], ["exec", f"/agents/{agent}", "--model", model, *expected])
+                        prompt_flag = ["--prompt-interactive"] if agent == "agy" else []
+                        self.assertEqual(command[:-1], ["exec", f"/agents/{agent}", "--model", model, *expected, *prompt_flag])
                         self.assertIn(f"You are the {role}", command[-1])
 
     def test_model_and_effort_can_be_selected_separately(self):
-        for agent in ("codex", "claude"):
+        for agent in ("codex", "claude", "agy"):
             self.args.implementer_cmd = agent
             with self.subTest(agent=agent), patch.object(launcher.shutil, "which", return_value=f"/agents/{agent}"):
                 self.args.implementer_model, self.args.implementer_effort = "chosen-model", None
@@ -602,7 +609,7 @@ class LauncherTests(unittest.TestCase):
     def test_model_option_survives_shell_transport_without_expansion(self):
         marker = Path(self.temp.name) / "must-not-exist"
         model = f"chosen 'model' $(touch {shlex.quote(str(marker))}) `touch {shlex.quote(str(marker))}` $HOME"
-        for agent in ("codex", "claude"):
+        for agent in ("codex", "claude", "agy"):
             with self.subTest(agent=agent):
                 executable = Path(self.temp.name) / agent
                 executable.symlink_to(self.agent)
@@ -615,7 +622,9 @@ class LauncherTests(unittest.TestCase):
                 actual = json.loads(self.agent_log.read_text())
                 self.assertEqual(actual[:2], ["--model", model])
                 self.assertEqual(actual[2:4], ["--config", 'model_reasoning_effort="high"'] if agent == "codex" else ["--effort", "high"])
-                self.assertIn("You are the implementer", actual[4])
+                if agent == "agy":
+                    self.assertEqual(actual[4], "--prompt-interactive")
+                self.assertIn("You are the implementer", actual[-1])
                 self.assertFalse(marker.exists())
 
     def test_custom_wrapper_overrides_fail_before_scaffolding_or_launch(self):
@@ -632,6 +641,9 @@ class LauncherTests(unittest.TestCase):
             ("codex --model native", "model"), ("codex -mnative", "model"),
             ("claude --model=native", "model"), ("claude --effort high", "effort"),
             ("claude --effort=high", "effort"),
+            ("agy --model=native", "model"), ("agy --effort high", "effort"),
+            ("agy --effort=high", "effort"),
+            ("agy -model=native", "model"), ("agy -effort high", "effort"),
             ('codex -c model="native"', "model"),
             ('codex -cmodel_reasoning_effort="high"', "effort"),
             ('codex --config=model_reasoning_effort="high"', "effort"),
@@ -664,7 +676,7 @@ class LauncherTests(unittest.TestCase):
         self.args.reviewer_model, self.args.reviewer_effort = "second-model", "medium"
         which = launcher.shutil.which
         output = io.StringIO()
-        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}" if name in ("codex", "claude") else which(name)), contextlib.redirect_stdout(output):
+        with patch.object(launcher.shutil, "which", side_effect=lambda name: f"/agents/{name}" if name in ("codex", "claude", "agy") else which(name)), contextlib.redirect_stdout(output):
             self.assertEqual(launcher.launch(self.args), 0)
         self.assertIn('implementer: /agents/codex --model first-model --config', output.getvalue())
         self.assertIn('model_reasoning_effort="high"', output.getvalue())
@@ -1137,6 +1149,95 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(review.command_watch(args), 3)
             self.assertEqual(notify.call_count, 2)
         self.assertTrue((review.run_dir(self.root, state) / "workers/launch-1-reviewer.seen").exists())
+
+
+    def test_agy_inherits_settings_and_uses_interactive_prompt_for_both_roles(self):
+        binary = Path(self.temp.name) / "agy"
+        binary.write_bytes(self.agent.read_bytes())
+        binary.chmod(0o755)
+        for role in launcher.ROLES:
+            setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)) + " --sandbox --mode accept-edits")
+        self.launch()
+        for role, call in zip(launcher.ROLES, [c for c in self.calls() if c[0] == "respawn-pane"]):
+            subprocess.run(["/bin/sh", "-c", call[-1]], cwd=self.root, check=True)
+            actual = json.loads(self.agent_log.read_text())
+            self.assertEqual(actual[:-1], ["--sandbox", "--mode", "accept-edits", "--prompt-interactive"])
+            self.assertIn(f"You are the {role}", actual[-1])
+            self.assertIn("Reply READY and end your turn", actual[-1])
+        self.assertFalse((self.root / ".agents/permissions").exists())
+
+    def test_agy_pass_cycle_refuses_before_mutating_checkout_or_launching(self):
+        binary = Path(self.temp.name) / "agy"
+        binary.write_bytes(self.agent.read_bytes())
+        binary.chmod(0o755)
+        for role in launcher.ROLES:
+            for project in ("demo", "new_project"):
+                for check in (False, True):
+                    for options in ("", " --sandbox", " --mode auto"):
+                        with self.subTest(role=role, project=project, check=check, options=options):
+                            self.permission_agents()
+                            self.args.project, self.args.check = project, check
+                            setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)) + options)
+                            output = io.StringIO()
+                            with patch("builtins.input", side_effect=AssertionError("must not request consent")), \
+                                 contextlib.redirect_stdout(output):
+                                with self.assertRaisesRegex(review.UserError, "agy has no managed pass-cycle.*inherit.*bypass"):
+                                    launcher.launch(self.args)
+                            self.assertNotIn("implementer:", output.getvalue())
+                            self.assertNotIn("reviewer:", output.getvalue())
+                            self.assertFalse((self.root / ".agents").exists())
+                            self.assertFalse((self.root / ".codex").exists())
+                            self.assertFalse((self.root / "projects/new_project").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_agy_noninteractive_and_resume_options_fail_before_launch(self):
+        for option in ("--print task", "-p task", "--prompt=task", "-print=task",
+                       "--prompt-interactive=task", "-i task", "--continue", "-c",
+                       "--conversation=old", "--output-format=json", "--help", "--version", "--",
+                       "-", "--=value", "models", "a positional prompt"):
+            with self.subTest(option=option), patch.object(launcher.shutil, "which", return_value="/agents/agy"):
+                self.args.reviewer_cmd = "agy " + option
+                with self.assertRaisesRegex(review.UserError, "fresh interactive session"):
+                    launcher.role_command(self.args, "reviewer")
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_agy_option_values_do_not_mask_launch_modes(self):
+        for options in ("--model", "--model --print", "--effort ''", "--agent --continue",
+                        "--model=", "--effort=", "--effort='   '", "--model=--print",
+                        "-model=", "-effort=--print"):
+            with self.subTest(options=options), patch.object(launcher.shutil, "which", return_value="/agents/agy"):
+                self.args.reviewer_cmd = "agy " + options
+                with self.assertRaisesRegex(review.UserError, "requires a nonempty value"):
+                    launcher.role_command(self.args, "reviewer")
+        with patch.object(launcher.shutil, "which", return_value="/agents/agy"):
+            self.args.reviewer_cmd = "agy --model models --agent default --log-file '/tmp/log with spaces'"
+            self.assertEqual(launcher.role_command(self.args, "reviewer"),
+                             ["/agents/agy", "--model", "models", "--agent", "default", "--log-file", "/tmp/log with spaces"])
+
+    def test_agy_bypass_preserves_single_dash_model_and_effort_options(self):
+        binary = Path(self.temp.name) / "agy"
+        binary.write_bytes(self.agent.read_bytes())
+        binary.chmod(0o755)
+        self.args.permissions = "bypass"
+        self.args.implementer_cmd = shlex.quote(str(binary)) + " -model chosen -effort high"
+        self.args.reviewer_cmd = shlex.quote(str(binary)) + " -model=other -effort=medium"
+        self.launch()
+        for call, expected in zip([c for c in self.calls() if c[0] == "respawn-pane"], (
+            ["-model", "chosen", "-effort", "high"], ["-model=other", "-effort=medium"],
+        )):
+            subprocess.run(["/bin/sh", "-c", call[-1]], cwd=self.root, check=True)
+            actual = json.loads(self.agent_log.read_text())
+            self.assertEqual(actual[:-1], [*expected, "--dangerously-skip-permissions", "--prompt-interactive"])
+        self.assertFalse((self.root / ".agents/permissions").exists())
+
+    def test_agy_bypass_refuses_competing_permissions(self):
+        self.args.permissions = "bypass"
+        self.args.implementer_cmd = "agy"
+        for option in ("--sandbox", "--mode auto", "--mode=plan", "--dangerously-skip-permissions=false"):
+            with self.subTest(option=option), patch.object(launcher.shutil, "which", return_value="/agents/agy"):
+                self.args.reviewer_cmd = "agy " + option
+                with self.assertRaisesRegex(review.UserError, "bypass permissions accept only"):
+                    launcher.launch_commands(self.args)
 
 
 if __name__ == "__main__":

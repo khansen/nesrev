@@ -91,6 +91,26 @@ class PermissionTests(unittest.TestCase):
             with self.subTest(options=options), self.assertRaises(review.UserError):
                 permissions.build_plan(self.root, "demo", {"implementer": ["codex", *options]})
 
+    def test_native_agent_errors_name_only_supported_profile_agents(self):
+        for profile, supported in (("pass-cycle", "codex or claude"), ("bypass", "codex, claude, or agy")):
+            with self.subTest(profile=profile), self.assertRaises(review.UserError) as error:
+                permissions.native_agent(["custom-wrapper"], profile)
+            self.assertEqual(str(error.exception),
+                             f"{profile} permissions require {supported}; use --permissions inherit for wrappers")
+
+    def test_native_model_and_effort_values_must_be_nonempty_and_not_options(self):
+        for agent in ("codex", "claude", "agy"):
+            flags = ("--model",) if agent == "codex" else ("--model", "--effort")
+            if agent == "agy":
+                flags += ("-model", "-effort")
+            for flag in flags:
+                for value in ("", "   ", "--print"):
+                    for options in ([flag, value], [f"{flag}={value}"]):
+                        with self.subTest(agent=agent, options=options), self.assertRaisesRegex(review.UserError, "nonempty value"):
+                            permissions.native_agent([agent, *options], "bypass")
+                for options in ([flag, "chosen"], [f"{flag}=chosen"]):
+                    self.assertEqual(permissions.native_agent([agent, *options], "bypass"), agent)
+
     def test_start_pass_project_cannot_override_granted_project(self):
         for project in ("demo", "legacy_demo"):
             grant, = [argv for argv in permissions.grants(self.root, project, "implementer")

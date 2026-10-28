@@ -240,9 +240,9 @@ surface. Review and response prompts ask for a `## Learning Candidates` section
 so repeated friction can be triaged outside the individual pass.
 
 The launcher defaults to Codex implementation and Claude review (Codex fallback).
-Both roles accept overrides; unavailable choices fail. It creates `agents` and
-`watchers` windows in `nesrev-review`, then attaches/switches tmux. Repeating the
-command reconnects without changing agents or task; conflicting sessions are refused.
+Both roles accept [agy and other overrides](../README.md#choose-your-agents).
+Unavailable choices fail. New sessions open `agents` and `watchers` windows,
+then attach/switch tmux. Repeated launches reconnect unchanged; conflicts fail.
 [Session operations](AGENT_SESSION_OPERATIONS.md) covers evidence reconciliation
 and authorized continuation.
 Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
