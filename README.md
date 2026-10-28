@@ -286,6 +286,8 @@ and effort levels depend on the agent version, model, and account; the launcher
 passes your choices through without substituting another model or level.
 Codex effort uses its [model_reasoning_effort setting](https://developers.openai.com/codex/config-reference);
 Claude and agy effort use `--effort`.
+agy also accepts native `-model` and `-effort` spellings in `--*-cmd`, including
+with `--permissions bypass`.
 Add `--check` to see the resulting commands without starting agents. Availability
 is checked by the agents at startup. `--implementer-reasoning-effort` and
 `--reviewer-reasoning-effort` are longer aliases for the effort options.

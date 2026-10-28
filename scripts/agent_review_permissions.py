@@ -24,18 +24,31 @@ def digest(text: str) -> str:
 
 def native_agent(command: list[str], profile: str = "pass-cycle") -> str:
     agent = Path(command[0]).name
+    if agent == "agy" and profile == "pass-cycle":
+        raise review.UserError(
+            "agy has no managed pass-cycle permission profile; use --permissions inherit "
+            "with your agy settings, or explicitly select --permissions bypass. "
+            "--sandbox alone does not install scoped grants."
+        )
     if agent not in {"codex", "claude", "agy"}:
-        raise review.UserError(f"{profile} permissions require codex, claude, or agy; use --permissions inherit for wrappers")
+        supported = "codex or claude" if profile == "pass-cycle" else "codex, claude, or agy"
+        raise review.UserError(f"{profile} permissions require {supported}; use --permissions inherit for wrappers")
     # Permission options must come from this profile. Model/effort are independent.
+    allowed = {
+        "codex": {"--model", "-m", "--config", "-c"},
+        "claude": {"--model", "--effort"},
+        "agy": {"--model", "-model", "--effort", "-effort"},
+    }[agent]
     options = command[1:]
     while options:
         option = options.pop(0)
         flag, equal, value = option.partition("=")
-        allowed = {"--model", "-m", "--config", "-c"} if agent == "codex" else {"--model", "--effort"}
         if flag not in allowed or (not equal and not options):
             raise review.UserError(f"{profile} permissions accept only model/effort agent options; use --permissions inherit for custom options")
         if not equal:
             value = options.pop(0)
+        if not value.strip() or value.startswith("-"):
+            raise review.UserError("agent options require a nonempty value, not an option")
         if flag in {"--config", "-c"} and not value.startswith("model_reasoning_effort="):
             raise review.UserError(f"{profile} permissions accept only model_reasoning_effort config overrides")
         if "\n" in value or "\r" in value:
@@ -192,12 +205,6 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
     codex_grants = []
     for role, command in commands.items():
         agent = native_agent(command)
-        if agent == "agy":
-            raise review.UserError(
-                "agy has no managed pass-cycle permission profile; use --permissions inherit "
-                "with your agy settings, or explicitly select --permissions bypass. "
-                "--sandbox alone does not install scoped grants."
-            )
         allowed = grants(root, project, role)
         if agent == "codex":
             codex_grants.extend(allowed)

@@ -112,14 +112,15 @@ def validate_agy_options(options: list[str]) -> None:
     value_options = {"model", "effort", "agent", "add-dir", "mode", "project", "log-file"}
     remaining = iter(options)
     for option in remaining:
-        name, equal, _ = option.lstrip("-").partition("=")
-        if option == "--" or name in reserved or not option.startswith("-"):
+        name, equal, value = option.lstrip("-").partition("=")
+        if not name or name in reserved or not option.startswith("-"):
             raise review.UserError(
                 "agy requires a fresh interactive session; remove prompt, print, resume, "
                 "help/version options, subcommands and argument terminators from the agent command"
             )
-        if name in value_options and not equal:
-            value = next(remaining, None)
+        if name in value_options:
+            if not equal:
+                value = next(remaining, None)
             if value is None or value.startswith("-") or not value.strip():
                 raise review.UserError(f"agy {option} requires a nonempty value, not an option")
 
@@ -458,11 +459,12 @@ def launch(args: argparse.Namespace) -> int:
         raise review.UserError("tmux executable not found")
     if args.check:
         commands = launch_commands(args)
+        plan = permissions.build_plan(root, args.project, commands) if args.permissions == "pass-cycle" else None
+        if plan:
+            plan.previous()
         for role, command in commands.items():
             print(f"{role}: {shlex.join(command)}")
-        if args.permissions == "pass-cycle":
-            plan = permissions.build_plan(root, args.project, commands)
-            plan.previous()
+        if plan:
             plan.preview()
         subprocess.run(["make", "project-doctor", f"PROJECT={args.project}"], cwd=root, check=True)
         issues = reference_tool_issues(project_reference_files(root, args.project))

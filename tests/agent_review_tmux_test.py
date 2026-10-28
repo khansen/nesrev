@@ -1173,23 +1173,28 @@ class LauncherTests(unittest.TestCase):
         for role in launcher.ROLES:
             for project in ("demo", "new_project"):
                 for check in (False, True):
-                    with self.subTest(role=role, project=project, check=check):
-                        self.permission_agents()
-                        self.args.project, self.args.check = project, check
-                        setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)))
-                        with patch("builtins.input", side_effect=AssertionError("must not request consent")):
-                            with self.assertRaisesRegex(review.UserError, "agy has no managed pass-cycle.*inherit.*bypass"):
-                                self.launch()
-                        self.assertFalse((self.root / ".agents").exists())
-                        self.assertFalse((self.root / ".codex").exists())
-                        self.assertFalse((self.root / "projects/new_project").exists())
+                    for options in ("", " --sandbox", " --mode auto"):
+                        with self.subTest(role=role, project=project, check=check, options=options):
+                            self.permission_agents()
+                            self.args.project, self.args.check = project, check
+                            setattr(self.args, f"{role}_cmd", shlex.quote(str(binary)) + options)
+                            output = io.StringIO()
+                            with patch("builtins.input", side_effect=AssertionError("must not request consent")), \
+                                 contextlib.redirect_stdout(output):
+                                with self.assertRaisesRegex(review.UserError, "agy has no managed pass-cycle.*inherit.*bypass"):
+                                    launcher.launch(self.args)
+                            self.assertNotIn("implementer:", output.getvalue())
+                            self.assertNotIn("reviewer:", output.getvalue())
+                            self.assertFalse((self.root / ".agents").exists())
+                            self.assertFalse((self.root / ".codex").exists())
+                            self.assertFalse((self.root / "projects/new_project").exists())
         self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
 
     def test_agy_noninteractive_and_resume_options_fail_before_launch(self):
         for option in ("--print task", "-p task", "--prompt=task", "-print=task",
                        "--prompt-interactive=task", "-i task", "--continue", "-c",
                        "--conversation=old", "--output-format=json", "--help", "--version", "--",
-                       "models", "a positional prompt"):
+                       "-", "--=value", "models", "a positional prompt"):
             with self.subTest(option=option), patch.object(launcher.shutil, "which", return_value="/agents/agy"):
                 self.args.reviewer_cmd = "agy " + option
                 with self.assertRaisesRegex(review.UserError, "fresh interactive session"):
@@ -1197,7 +1202,9 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse((self.root / ".agents").exists())
 
     def test_agy_option_values_do_not_mask_launch_modes(self):
-        for options in ("--model", "--model --print", "--effort ''", "--agent --continue"):
+        for options in ("--model", "--model --print", "--effort ''", "--agent --continue",
+                        "--model=", "--effort=", "--effort='   '", "--model=--print",
+                        "-model=", "-effort=--print"):
             with self.subTest(options=options), patch.object(launcher.shutil, "which", return_value="/agents/agy"):
                 self.args.reviewer_cmd = "agy " + options
                 with self.assertRaisesRegex(review.UserError, "requires a nonempty value"):
@@ -1206,6 +1213,22 @@ class LauncherTests(unittest.TestCase):
             self.args.reviewer_cmd = "agy --model models --agent default --log-file '/tmp/log with spaces'"
             self.assertEqual(launcher.role_command(self.args, "reviewer"),
                              ["/agents/agy", "--model", "models", "--agent", "default", "--log-file", "/tmp/log with spaces"])
+
+    def test_agy_bypass_preserves_single_dash_model_and_effort_options(self):
+        binary = Path(self.temp.name) / "agy"
+        binary.write_bytes(self.agent.read_bytes())
+        binary.chmod(0o755)
+        self.args.permissions = "bypass"
+        self.args.implementer_cmd = shlex.quote(str(binary)) + " -model chosen -effort high"
+        self.args.reviewer_cmd = shlex.quote(str(binary)) + " -model=other -effort=medium"
+        self.launch()
+        for call, expected in zip([c for c in self.calls() if c[0] == "respawn-pane"], (
+            ["-model", "chosen", "-effort", "high"], ["-model=other", "-effort=medium"],
+        )):
+            subprocess.run(["/bin/sh", "-c", call[-1]], cwd=self.root, check=True)
+            actual = json.loads(self.agent_log.read_text())
+            self.assertEqual(actual[:-1], [*expected, "--dangerously-skip-permissions", "--prompt-interactive"])
+        self.assertFalse((self.root / ".agents/permissions").exists())
 
     def test_agy_bypass_refuses_competing_permissions(self):
         self.args.permissions = "bypass"
