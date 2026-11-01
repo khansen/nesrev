@@ -5,6 +5,10 @@ instead of opening assembly files. It is a migration of the exercised prototype
 to the published XORcyst source-model contract. The ordinary project commands
 remain available and retain their existing behavior.
 
+The [rollout plan](ROLLOUT_PLAN.md) defines the three delivery steps and their
+completion gates: promote this service, complete normal-pass operation coverage,
+then make structured passes the enforced default. Opt-in is transitional.
+
 The producer is pinned in [producer.json](producer.json). This is a commit pin,
 not a requirement to install or release a new stable assembler. The schema is
 vendored unchanged in `scripts/structured_pass/source-model.schema.json`.
