@@ -95,6 +95,26 @@ jobs:
       - name: Run playbook, hygiene, shell, and Java checks
         # Explicit bash above enables pipefail, preserving make's failure through tee.
         run: make test 2>&1 | tee "$RUNNER_TEMP/nesrev-ci/test.log"
+      - name: Build pinned source-model producer and test structured passes
+        env:
+          PYTHONPATH: scripts
+        run: |
+          store="$GITHUB_WORKSPACE/tmp/structured-pass-ci"
+          lock="$GITHUB_WORKSPACE/tmp/structured-pass-ci-coordinator/heavy.lock"
+          mkdir -p "$store"
+          commit="$(python3 -c 'import json; print(json.load(open("docs/structured-pass/producer.json"))["commit"])')"
+          git init -q "$RUNNER_TEMP/source-model-producer"
+          git -C "$RUNNER_TEMP/source-model-producer" fetch --depth=1 \
+            https://github.com/khansen/xorcyst.git "$commit"
+          python3 -B scripts/structured_pass_heavy_run.py \
+            --lock "$lock" --agent ci --session producer-build --estimate-mib 128 \
+            --reserve-mib 2048 --volume "$store" -- \
+            python3 -B -m structured_pass.toolchain \
+              --repo "$RUNNER_TEMP/source-model-producer" --store "$store" \
+            | tee "$RUNNER_TEMP/nesrev-ci/source-model-build.log"
+          producer="$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readlines()[-1])["producer"])' "$RUNNER_TEMP/nesrev-ci/source-model-build.log")"
+          make test-structured-pass STRUCTURED_PASS_LOCK="$lock" STRUCTURED_PASS_XASM="$producer" \
+            2>&1 | tee "$RUNNER_TEMP/nesrev-ci/structured-pass-test.log"
       - name: Upload build and test logs
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

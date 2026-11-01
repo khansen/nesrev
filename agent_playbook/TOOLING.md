@@ -1,6 +1,6 @@
 # TOOLING Playbook
 
-This playbook is the canonical home for xasm, NESrev, and project-wrapper tooling — listing/xref options, structured analysis workflow, NESrev regeneration controls, inventory commands, parity-drift diagnostics, the consolidated command reference, exit-code interpretation, and auxiliary-script hygiene. The root `AGENTS.md` keeps only the Mandatory Routing Table entry that names this file.
+This playbook owns xasm, NESrev and wrapper tooling: structured analysis, regeneration, inventories, parity diagnostics, commands, exit codes and script hygiene. Root `AGENTS.md` routes tooling tasks here.
 
 <a id="rule-one-structured-output"></a>
 ## Rule One: Consume Structured Assembler Output
@@ -30,7 +30,7 @@ describes.
 
 ## Ownership
 
-This playbook owns commands, tool options, and diagnostic procedures:
+This playbook owns commands and diagnostics, including the opt-in [structured pass service](../docs/structured-pass/README.md):
 
 - xasm listings and xref options
 - data-consumer, data-coverage, and index-pattern analysis

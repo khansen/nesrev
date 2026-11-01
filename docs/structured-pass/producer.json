@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/khansen/xorcyst",
+  "commit": "6e088540f43a24b9698c06beae8b2d07b7dd2c9b",
+  "schema": "xasm-source-model",
+  "version": 1,
+  "profile": "asm-edit-v1",
+  "schema_sha256": "3320b891299407ad97aded88545a4bc9e2fc1e7c73fa546b8c22c981ee6a861e"
+}

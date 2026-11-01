@@ -1478,10 +1478,27 @@ class SingleUseAction(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
+def structured_module():
+    # Older isolated handoff installations copy this script and its ordinary
+    # dependencies. They may keep ordinary reviews, but cannot open structured
+    # state without the complete service package.
+    try:
+        from structured_pass import structured_handoff
+        return structured_handoff
+    except ModuleNotFoundError as exc:
+        if exc.name != "structured_pass":
+            raise
+        return None
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, help="anchor the handoff to this checkout")
+    parser.add_argument("--expected-run-id", help="structured bridge run binding")
     sub = parser.add_subparsers(dest="command", required=True)
+    structured_handoff = structured_module()
+    if structured_handoff is not None:
+        structured_handoff.register(sub)
 
     init = sub.add_parser("init", help="create a review run")
     init.add_argument("--project", required=True)
@@ -1524,10 +1541,12 @@ def build_parser() -> argparse.ArgumentParser:
     ready.set_defaults(func=command_ready)
 
     request = sub.add_parser("request-changes", help="record requested changes")
+    request.add_argument("--window", help="structured review ticket artifact")
     request.add_argument("--review", required=True)
     request.set_defaults(func=command_request_changes)
 
     approve = sub.add_parser("approve", help="record approval")
+    approve.add_argument("--window", help="structured review ticket artifact")
     approve.add_argument("--review", required=True)
     approve.set_defaults(func=command_approve)
 
@@ -1608,6 +1627,23 @@ def main(argv: list[str] | None = None) -> int:
             if root != args.repo.resolve():
                 raise UserError("--repo must name the checkout root")
             os.chdir(root)
+        structured_handoff = structured_module()
+        if structured_handoff is None:
+            root = repo_root()
+            try:
+                header = json.loads(state_path(root).read_text())
+            except (OSError, ValueError):
+                header = {}
+            if (getattr(args, "window", None) or args.expected_run_id or
+                    isinstance(header, dict) and "structured_review" in header):
+                raise UserError("STRUCTURED_TOOLING_UNAVAILABLE")
+        else:
+            try:
+                outcome = structured_handoff.dispatch(sys.modules[__name__], args)
+            except ValueError as exc:
+                raise UserError(str(exc)) from None
+            if outcome is not None:
+                return outcome
         return args.func(args)
     except UserError as exc:
         print(f"error: {exc}", file=sys.stderr)
