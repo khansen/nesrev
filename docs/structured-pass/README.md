@@ -28,16 +28,24 @@ document edit. Scorecard-only repairs also need no dummy edit. Preview and revie
 results are paginated, with a 24 KiB ceiling on each serialized bridge response.
 Review page zero contains Q09, changed files and the change/page totals, without
 any change payload. Subsequent pages show one declaration, use or other change.
+Ledger additions use pages of at most 16 rows (fewer if needed to fit), with
+`row_offset` and `total_added_rows`; every row retains its reason and confidence.
+The unchanged ledger prefix is checked. Review-code hashes appear on page zero,
+with their digest on every page.
 Oversized declaration/use pages omit only neighbours (`neighbors_omitted: true`);
 the changed records and IDs remain. Document comparisons keep path, reason, hashes
-and line counts, with excerpts bounded by encoded bytes and `truncated: true` when
-shortened. Read the before/after generations with `document` for omitted lines.
+and line counts. Common leading/trailing lines are omitted; `first_changed_line`
+is one-based on each side, and `changed_line_count` counts its changed region.
+Changed-line excerpts are bounded by encoded bytes, with `truncated: true` when
+shortened. Read the page's before/after `E-` generations with `document` for omitted
+lines, in either corridor or retained sessions. Corridor reads also accept `G-` IDs.
 Closeout views carry a digest of the wrapper hash list and the original receipt
 hash; the complete list remains in the retained receipt. An individually oversized
 changed record still refuses with `RESPONSE_TOO_LARGE`, but includes `offset`,
 `total_changes` and `next_offset` so other changes remain reachable.
 Inspect returns a declaration and use count; use `navigate` to page references.
-For paginated query/navigation results, reduce `limit` if a response is too large.
+For paginated document/query/navigation results, reduce `limit` and retry the same
+offset if a response is too large; those refusals never give a skipping `next_offset`.
 Standalone Q09 remains unpaged; use smaller name batches when its result is large.
 Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.

@@ -93,10 +93,18 @@ def prepare(checkout,manifest,operations,project,source,ownership):
 
 
 def describe(item):
+    before=item['before'].decode().splitlines() if item['before'] is not None else []
+    after=item['after'].decode().splitlines() if item['after'] is not None else []
+    start=0
+    while start<min(len(before),len(after)) and before[start]==after[start]:start+=1
+    end=0
+    while end<min(len(before),len(after))-start and before[-end-1]==after[-end-1]:end+=1
     def view(data):
         if data is None:return None
         lines=data.decode().splitlines()
-        return {'sha256':sha(data),'line_count':len(lines),'lines':lines[:80],'truncated':len(lines)>80}
+        changed=lines[start:len(lines)-end]
+        return {'sha256':sha(data),'line_count':len(lines),'first_changed_line':start+1,
+                'changed_line_count':len(changed),'lines':changed,'truncated':False}
     return {'kind':'authored_document','path':item['path'],'reason':item['reason'],
             'before':view(item['before']),'after':view(item['after']),
             'complete_view':'document operation with generation, path, offset and limit'}

@@ -448,6 +448,16 @@ class RenameService(common.Service):
         # page, so reviewing N uses does not rebuild all N comparisons N times.
         items=[]
         for op in record['provenance']:
+            if op['kind']=='ledger_append':
+                with (Path(old_record['checkout'])/self.ledger).open() as f:before=list(csv.DictReader(f))
+                with (Path(record['checkout'])/self.ledger).open() as f:after=list(csv.DictReader(f))
+                if after[:len(before)]!=before:raise ValueError('UNCHANGED_LEDGER_REQUIRED')
+                added=after[len(before):]
+                if added!=op['rows']:raise ValueError('LEDGER_RENAME_MISMATCH')
+                items.extend({'kind':'authored_ledger','path':self.ledger,'unchanged_prefix_rows':len(before),
+                              'row_offset':row_offset,'total_added_rows':len(added),'added_rows':rows}
+                             for row_offset,rows in review_pages.ledger_pages(added))
+                continue
             items.append(op)
             if op['kind']=='rename':
                 items.extend({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref}
@@ -479,12 +489,8 @@ class RenameService(common.Service):
                 edits,_=edits_for(older,all_ops,self.project);position=translated(before['start'],edits,True)
                 after=next(c for c in comments(newer) if c['start']==position)
                 changes.append({'kind':'comment','before':before,'after':after,'reason':op['reason']})
-            elif op['kind']=='ledger_append':
-                with (Path(old_record['checkout'])/self.ledger).open() as f:before=list(csv.DictReader(f))
-                with (Path(record['checkout'])/self.ledger).open() as f:after=list(csv.DictReader(f))
-                if after[:len(before)]!=before:raise ValueError('UNCHANGED_LEDGER_REQUIRED')
-                changes.append({'kind':'authored_ledger','path':self.ledger,'unchanged_prefix_rows':len(before),
-                                'added_rows':after[len(before):]})
+            elif op['kind']=='authored_ledger':
+                changes.append(op)
             elif op['kind'] in authored.KINDS:
                 before=authored.read(old_record['checkout'],old_record['manifest'],op['path'])
                 after=authored.read(record['checkout'],record['manifest'],op['path'])
@@ -503,13 +509,15 @@ class RenameService(common.Service):
                 receipt['wrapper_code_files']=len(hashes)
                 changes.append({'kind':'wrapper_closeout','receipt_sha256':digest(receipt_bytes),'receipt':receipt})
         files=common.changed_file_views(old_record['manifest'],record['manifest'],self.project,self.source)
+        readers=self.readers()
         result={'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
-                'review_code_hashes':self.readers(),
+                'review_code_sha256':digest(json.dumps(readers,sort_keys=True,separators=(',',':')).encode()),
                 'changes':changes,'total_changes':len(items),'total_pages':len(items)+1,'offset':offset,
                 'page_kind':'metadata' if offset==0 else 'change',
                 'next_offset':offset+limit if offset+limit<=len(items) else None,
                 'limits':['Shows stored edit provenance for supported operations; arbitrary history alignment is not implemented.']}
         if offset==0:
+            result['review_code_hashes']=readers
             result['changed_files']=files
             result['q09']=self.q09(generation,[o['old_name'] for o in record['provenance'] if o['kind']=='rename'])
         return review_pages.fit(result)

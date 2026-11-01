@@ -29,7 +29,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
         raise ValueError('REQUEST_SCHEMA')
     instance=(Corridor if profile=='corridor' else RetainedReviewService)(root)
     for line in input_stream or sys.stdin:
-        identifier=None
+        identifier=None;operation=None
         try:
             request=json.loads(line)
         except ValueError:
@@ -59,6 +59,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         if params['name']!='operation':raise ValueError('REQUEST_SCHEMA')
                         args=params['arguments'];service.schema(args,('operation','arguments'))
                         if not isinstance(args['operation'],str) or not isinstance(args['arguments'],dict):raise ValueError('REQUEST_SCHEMA')
+                        operation=args['operation']
                         candidate=args['arguments'].get('cid')
                         answer=instance.dispatch(args['operation'],args['arguments'],role)
                         result={'content':[{'type':'text','text':json.dumps(answer)}]}
@@ -71,21 +72,24 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     code=service.public_error_code(error);value={'error':code}
                     if isinstance(error,service.ServiceError):
                         value['details']=error.details
-                        if code=='RESPONSE_TOO_LARGE':value.update(review_pages.continuation(error.details))
+                        if code=='RESPONSE_TOO_LARGE' and operation=='review':value.update(review_pages.continuation(error.details))
                     value['retryable']=code in ('VALIDATION_IN_PROGRESS','REVIEW_STATE_BUSY','REVIEW_RESTORE_IN_PROGRESS')
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
                     response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
-        emit(instance,identifier,response,output_stream or sys.stdout)
+        emit(instance,identifier,response,output_stream or sys.stdout,operation)
 
 
-def emit(instance,identifier,response,output):
+def emit(instance,identifier,response,output,operation=None):
     encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
     if len(encoded.encode())+1>paging.MAX_BYTES:
         value={'error':'RESPONSE_TOO_LARGE','retryable':False}
         try:
             answer=json.loads(response['result']['content'][0]['text'])
-            value.update(review_pages.continuation(answer))
+            if operation=='review':value.update(review_pages.continuation(answer))
+            else:
+                value['action']='Reduce limit and retry the same offset; no records were delivered.'
+                if type(answer.get('offset')) is int:value['offset']=answer['offset']
         except (KeyError,IndexError,TypeError,ValueError):pass
         try:value['generation']=instance.error_context(None)['generation']
         except Exception:pass

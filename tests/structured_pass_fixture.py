@@ -25,9 +25,9 @@ def git(repo,*args):
         '-c','user.name=Fixture','-c','user.email=fixture@example.invalid',*args],text=True).strip()
 
 
-def prepare(root, *, uses=1, gate_extra=""):
+def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project.\n', gate_extra=""):
     root=Path(root);repo=root/'repo';repo.mkdir(parents=True)
-    source,reference=fixture(root/'inputs',uses=uses)
+    source,reference=fixture(root/'inputs',uses=uses,declarations=declarations)
     for path,original in ((SOURCE,source),(REFERENCE,reference)):
         target=repo/path;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(original,target)
     docs=repo/PROJECT/'docs/reverse_engineering';(docs/'inventory/pass').mkdir(parents=True)
@@ -35,7 +35,7 @@ def prepare(root, *, uses=1, gate_extra=""):
     (docs/'PROGRESS_SCORECARD.md').write_text('| '+' | '.join(fields)+' |\n| '+' | '.join(['---']*len(fields))+' |\n')
     (docs/'inventory/renames.csv').write_text('old_name,new_name,reason,confidence,pass_id\n')
     (docs/'inventory/deferrals.csv').write_text(','.join(mixed.DEFERRAL_FIELDS)+'\n')
-    (docs/'WORKING_NOTES.md').write_text('# Notes\n\nSynthetic project.\n')
+    (docs/'WORKING_NOTES.md').write_text(notes)
     (docs/'inventory/pass/current_pass_plan.json').write_text(json.dumps({'intended_pass_id':1,'warning_baseline_count_at_start':0}))
     (docs/'inventory/pass/next_pass.json').write_text('{}\n')
     (repo/'AGENTS.md').write_text('Synthetic lifecycle fixture.\n')

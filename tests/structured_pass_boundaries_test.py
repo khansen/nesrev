@@ -36,6 +36,22 @@ class Documents(unittest.TestCase):
         self.assertIsNone(self.prepare([delete])[0]['after'])
         with self.assertRaisesRegex(ValueError,'DOCUMENT_PREIMAGE_MISMATCH'):self.prepare([self.op(preimage=None)])
 
+    def test_document_comparison_trims_only_common_lines(self):
+        for before,after,old,new,start in (
+                (b'prefix\nold\ntail\n',b'prefix\nnew\ntail\n',['old'],['new'],2),
+                (b'prefix\nremoved\ntail\n',b'prefix\ntail\n',['removed'],[],2),
+                (None,b'added\n',None,['added'],1),
+                (b'deleted\n',None,['deleted'],None,1)):
+            with self.subTest(before=before,after=after):
+                value=docs.describe({'before':before,'after':after,'path':self.path,'reason':'Fixture'})
+                for side,lines,data in (('before',old,before),('after',new,after)):
+                    if lines is None:self.assertIsNone(value[side]);continue
+                    self.assertEqual(value[side]['lines'],lines)
+                    self.assertEqual(value[side]['first_changed_line'],start)
+                    self.assertEqual(value[side]['changed_line_count'],len(lines))
+                    self.assertEqual(value[side]['sha256'],docs.sha(data))
+                    self.assertFalse(value[side]['truncated'])
+
     def test_protected_paths_and_schema(self):
         for path in (self.source,self.project+'project.conf',self.project+'tools/trace/run.py',
                      self.project+'reference/manual.md',self.project+'docs/../project.conf',

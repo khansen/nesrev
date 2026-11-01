@@ -13,11 +13,14 @@ from structured_pass import producer
 from structured_pass.model import Model, certify, digest
 
 
-def fixture(root, uses=1):
+def fixture(root, uses=1, declarations=1):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     source=root/'sample.asm';reference=root/'sample.nes'
     prefix=b'.ORG $8000\nCell .EQU 16\nEntry: '+b'LDA #Cell\n'*uses+b'RTS\n.DW Entry\n; Private source comment\n'
     body=b'\xa9\x10'*uses+b'\x60\x00\x80'
+    for index in range(1,declarations):
+        prefix+=f'Cell{index} .EQU 16\nLDA #Cell{index}\n'.encode()
+        body+=b'\xa9\x10'
     source.write_bytes(prefix+b'.DB "'+b'A'*(16384-len(body))+b'"\n.END\n')
     reference.write_bytes(b'NES\x1a'+bytes([1])+bytes(11)+body+b'A'*(16384-len(body)))
     return source,reference

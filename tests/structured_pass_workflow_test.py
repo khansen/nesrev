@@ -237,20 +237,114 @@ class WorkflowTests(unittest.TestCase):
     def test_every_bridge_operation_has_a_wire_size_guard(self):
         from structured_pass.launcher import Corridor
         requests=[]
-        for i,op in enumerate(('review','inspect','q09','query','navigate')):
+        for i,op in enumerate(('review','inspect','q09','query','navigate','document')):
             requests.append({'jsonrpc':'2.0','id':i,'method':'tools/call','params':{'name':'operation',
                 'arguments':{'operation':op,'arguments':{}}}})
         output=io.StringIO()
         # Quotes exercise the second encoding layer: the inner object fits, its wire representation does not.
         with patch.object(Corridor,'dispatch',return_value={'text':'"'*8000,'offset':3,'total_changes':7,'next_offset':4}):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(''.join(json.dumps(r)+'\n' for r in requests)),output_stream=output)
-        lines=output.getvalue().splitlines();self.assertEqual(len(lines),5)
-        for line in lines:
+        lines=output.getvalue().splitlines();self.assertEqual(len(lines),6)
+        for index,line in enumerate(lines):
             self.assertLessEqual(len(line.encode())+1,paging.MAX_BYTES)
             reply=json.loads(line)['result'];self.assertTrue(reply['isError'])
             value=json.loads(reply['content'][0]['text'])
             self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
-            self.assertEqual((value['offset'],value['total_changes'],value['next_offset']),(3,7,4))
+            if index==0:self.assertEqual((value['offset'],value['total_changes'],value['next_offset']),(3,7,4))
+            else:
+                self.assertNotIn('next_offset',value)
+                self.assertEqual(value['offset'],3)
+                self.assertIn('retry the same offset',value['action'])
+
+    def bridge_request(self,root,profile,operation=None,arguments=None):
+        request={'jsonrpc':'2.0','id':1,'method':'tools/call' if operation else 'tools/list'}
+        if operation:request['params']={'name':'operation','arguments':{'operation':operation,'arguments':arguments}}
+        output=io.StringIO()
+        mcp(root,'reviewer',profile,input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
+        self.assertLessEqual(len(output.getvalue().encode()),paging.MAX_BYTES)
+        result=json.loads(output.getvalue())['result']
+        self.assertFalse(result.get('isError'),result)
+        return json.loads(result['content'][0]['text']) if operation else result
+
+    def test_long_ledger_pages_cover_all_64_rows(self):
+        self.controller=prepare(self.root/'large-ledger',declarations=64)
+        c=self.controller;g=c.editor.state['current'];m=c.editor.model(g);ops=[];rows=[]
+        for name in ['Cell']+['Cell'+str(i) for i in range(1,64)]:
+            n=m.declarations[name];new=name+'Capacity'
+            ops.append({'kind':'rename','declaration_id':m.ids[n],'old_name':name,'new_name':new,
+                        'preimage':m.statement(n)['preimage_sha256']})
+            rows.append({'old_name':name,'new_name':new,'reason':('Long fixture rationale for '+name+'. ').ljust(632,'x'),
+                         'confidence':'high','pass_id':'1'})
+        ops.append({'kind':'ledger_append','path':c.editor.ledger,
+                    'preimage':c.editor.state['generations'][g]['manifest'][c.editor.ledger],'rows':rows})
+        published=self.edit(ops+closeout_ops(c,g))
+        reader=RetainedReviewService.from_publication(self.root/'ledger-review',self.root/'large-ledger/store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts']
+        for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
+            offset=0;pages=[];seen=[];refs=[];ledger_offsets=[]
+            while offset is not None:
+                args={'generation':head,'base_generation':base,'offset':offset}
+                if profile=='corridor':args['ticket']=published['review']['artifact_id']
+                page=self.bridge_request(root,profile,'review',args);pages.append(page)
+                self.assertEqual('review_code_hashes' in page,offset==0)
+                self.assertEqual(page['review_code_sha256'],pages[0]['review_code_sha256'])
+                for item in page['changes']:
+                    if item['kind']=='authored_ledger':
+                        self.assertEqual(item['row_offset'],len(seen));self.assertEqual(item['total_added_rows'],64)
+                        self.assertEqual(item['unchanged_prefix_rows'],0);self.assertLessEqual(len(item['added_rows']),16)
+                        ledger_offsets.append(item['row_offset']);seen.extend(item['added_rows'])
+                    elif item['kind']=='rename_use':refs.append(item['reference_id'])
+                offset=page['next_offset']
+            self.assertEqual(seen,rows);self.assertEqual(ledger_offsets,[0,16,32,48])
+            self.assertEqual(len(refs),64);self.assertEqual(len(set(refs)),64)
+            self.assertEqual(pages[0]['total_changes'],134);self.assertEqual(pages[0]['total_pages'],135)
+            self.assertEqual(len(pages),135)
+
+    def test_appended_document_is_visible_and_page_ids_read_in_both_bridges(self):
+        text=''.join('Unchanged line '+str(i)+' '+('x'*160)+'\n' for i in range(180))
+        self.controller=prepare(self.root/'append-document',notes=text)
+        c=self.controller;g=c.editor.state['current'];path=c.editor.project+'docs/reverse_engineering/WORKING_NOTES.md'
+        appended='This appended change must be visible.\n'
+        published=self.edit([{'kind':'document_write','path':path,'reason':'Expose the actual appended edit.',
+            'preimage':c.editor.state['generations'][g]['manifest'][path],'text':text+appended},*closeout_ops(c,g)])
+        reader=RetainedReviewService.from_publication(self.root/'append-review',self.root/'append-document/store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts']
+        for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
+            listing=self.bridge_request(root,profile)
+            self.assertIn('document',listing['tools'][0]['inputSchema']['properties']['operation']['enum'])
+            args={'generation':head,'base_generation':base,'offset':1}
+            if profile=='corridor':args['ticket']=published['review']['artifact_id']
+            page=self.bridge_request(root,profile,'review',args);document=page['changes'][0]
+            self.assertEqual(document['before']['lines'],[])
+            self.assertEqual(document['after']['lines'],[appended.rstrip()])
+            for side in ('before','after'):
+                self.assertEqual(document[side]['first_changed_line'],181)
+                self.assertFalse(document[side]['truncated'])
+            self.assertEqual(document['before']['changed_line_count'],0)
+            self.assertEqual(document['after']['changed_line_count'],1)
+            for generation,expected in ((page['base_generation'],text),(page['generation'],text+appended)):
+                offset=0;lines=[]
+                while offset is not None:
+                    view=self.bridge_request(root,profile,'document',{'generation':generation,'path':path,'offset':offset,'limit':20})
+                    self.assertEqual(view['generation'],generation)
+                    lines.extend(view['lines']);offset=view['next_offset']
+                self.assertEqual(lines,expected.splitlines())
+        with self.assertRaisesRegex(ValueError,'UNKNOWN_GENERATION'):
+            c.document({'generation':'E-'+'0'*64,'path':path})
+        self.assertEqual(c.document({'generation':g,'path':path,'limit':1})['lines'],text.splitlines()[:1])
+
+    def test_service_review_refusal_keeps_continuation_on_bridge(self):
+        from structured_pass.launcher import Corridor
+        details={'offset':3,'total_changes':7,'total_pages':8,'next_offset':4}
+        request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation',
+            'arguments':{'operation':'review','arguments':{}}}}
+        output=io.StringIO()
+        with patch.object(Corridor,'dispatch',side_effect=service.ServiceError('RESPONSE_TOO_LARGE',**details)):
+            mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
+        result=json.loads(output.getvalue())['result'];self.assertTrue(result['isError'])
+        value=json.loads(result['content'][0]['text'])
+        self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
+        for key,val in details.items():self.assertEqual(value[key],val)
 
     def test_application_refuses_overlap_and_dirty_selected_path(self):
         from structured_pass.application import apply

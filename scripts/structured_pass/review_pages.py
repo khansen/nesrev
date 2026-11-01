@@ -16,6 +16,18 @@ def continuation(result):
             if key in result and (result[key] is None or type(result[key]) is int)}
 
 
+def ledger_pages(rows):
+    """At most 16 rows, with byte headroom for identities and review metadata."""
+    offset=0
+    while offset<len(rows):
+        chunk=[]
+        for row in rows[offset:offset+16]:
+            if chunk and wire_size({'added_rows':chunk+[row]})>BUDGET-8192:break
+            chunk.append(row)
+        yield offset,chunk
+        offset+=len(chunk)
+
+
 def fit(result):
     """Optional context/excerpts may shrink; assembler facts never do."""
     if wire_size(result)<=BUDGET:return result
