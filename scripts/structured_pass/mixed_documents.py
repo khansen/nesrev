@@ -58,7 +58,7 @@ class Scorecard:
                 continue
             cells = [c.strip() for c in stripped[1:-1].split('|')]
             if {'pass_id',*AUTHORED,*GATE_FIELDS} <= set(cells):
-                require(self.header is None and len(cells) == len(set(cells)))
+                require((self.header is None or cells == self.header) and len(cells) == len(set(cells)))
                 require(set(cells)<=PROTECTED|AUTHORED|{'pass_id'})
                 self.header = cells;self.header_line = index
                 continue

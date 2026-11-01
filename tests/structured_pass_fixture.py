@@ -25,9 +25,9 @@ def git(repo,*args):
         '-c','user.name=Fixture','-c','user.email=fixture@example.invalid',*args],text=True).strip()
 
 
-def prepare(root):
-    root=Path(root);repo=root/'repo';repo.mkdir()
-    source,reference=fixture(root/'inputs')
+def prepare(root, *, uses=1, gate_extra=""):
+    root=Path(root);repo=root/'repo';repo.mkdir(parents=True)
+    source,reference=fixture(root/'inputs',uses=uses)
     for path,original in ((SOURCE,source),(REFERENCE,reference)):
         target=repo/path;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(original,target)
     docs=repo/PROJECT/'docs/reverse_engineering';(docs/'inventory/pass').mkdir(parents=True)
@@ -59,6 +59,8 @@ for i,line in enumerate(lines[2:],2):
         lines[i]='| '+' | '.join(row[k] for k in fields)+' |'
 p.write_text('\\n'.join(lines)+'\\n')
 ''')
+    if gate_extra:
+        with (scripts/'fixture_closeout.py').open('a') as stream:stream.write(gate_extra)
     (repo/'.gitignore').write_text('projects/*/reference/\n')
     git(repo,'init','-q');git(repo,'add','.');git(repo,'commit','-qm','Synthetic project')
     baseline=root/'baseline.json';baseline.write_text(json.dumps({'checks':[

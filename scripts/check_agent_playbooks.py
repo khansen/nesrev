@@ -356,11 +356,14 @@ ROOT_WORD_CEILING = 6000
 # Embedded-pointer advisories replace the unsupported consumer-proof rule with
 # explicit evidence limits and failure semantics. TOOLING grows by 6 lines and
 # 58 words; affected ceilings retain prior maximum-route headroom.
+# The structured-service ownership link adds 3 words and no lines to TOOLING
+# relative to the pre-service text. Preserve that introduction and raise only
+# TOOLING-bearing route budgets by the addition, retaining their headroom.
 ROUTE_BUDGETS = {
-    "default": (3632, 26674),
-    "data-recovery": (3270, 24642),
+    "default": (3632, 26677),
+    "data-recovery": (3270, 24645),
     "new-project": (4309, 31832),
-    "project-pass-review": (4690, 33599),
+    "project-pass-review": (4690, 33602),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

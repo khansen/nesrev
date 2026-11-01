@@ -34,7 +34,7 @@ this step.
   and local application. The historical replay passes real project gates; simulated
   gates are labelled as such.
 - The four real-pass follow-ups work: comment-only repairs, bounded complete
-  previews, observed-response accounting across resumes, and actionable forbidden
+  previews and review pages, observed-response accounting across resumes, and actionable forbidden
   path diagnostics. Lost or uncertain usage blocks automatic continuation.
 - Restricted-client probes preserve reference-media viewing while denying ordinary
   source, shell, edit and Git paths. Reviewer verdicts remain protected. These
@@ -71,7 +71,7 @@ The following are the minimum areas to resolve, not claims of current support:
 | Localization | A typed operation checks every use against the target scope, including repeated local names; an out-of-scope use refuses. |
 | Data and layout | Reflow uses producer operand ranges, widths and segment identities. Byte order, operand identity and bindings survive. No consumer assembly parser or evaluator is introduced. |
 | Comments and formatting | Create, replace and remove the comment/layout units required by real work; unrelated bytes remain identical. |
-| Docs and ledgers | Cover all required authored project artifacts, named shared documents and typed authored columns in mixed ledgers. Generated values, wrapper-owned fields and review history remain protected; newly created rows cannot fabricate results. |
+| Docs and ledgers | Cover all required authored project artifacts, named shared documents and typed authored columns in mixed ledgers, including `data_blob_dispositions.csv`, `policy_baseline.csv` and `raw_ram_review.csv`. Generated values, wrapper-owned fields and review history remain protected; newly created rows cannot fabricate results. |
 | Project tools and runtime evidence | Provide required trace-tool edits and fixed capture/decoding operations. Agent-authored code/data runs only in a sandbox without bulk source, source-bearing host access or service credentials. Symbols and evidence come from the model and identify their generation. |
 | Navigation and quality checks | Support the required scope, use, control/data-flow, value-in-context, prose and unused-symbol checks. Keep bank/segment identity in address queries. Queries surface evidence for judgment; they do not turn a plausible name into a proven fact. |
 | Wrapper obligations | Map next-pass, pass-start, verify/process/docs, inventory, prior reuse, comment audit, data recovery/decoding, tracing, review packet and closeout to service results. Diagnostics permit repair without an operator reading a private log. No unattached assembly excerpts or mixed-generation evidence reach the agent. |

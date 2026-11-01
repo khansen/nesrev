@@ -13,11 +13,11 @@ from structured_pass import producer
 from structured_pass.model import Model, certify, digest
 
 
-def fixture(root):
+def fixture(root, uses=1):
     root=Path(root);root.mkdir(parents=True,exist_ok=True)
     source=root/'sample.asm';reference=root/'sample.nes'
-    prefix=b'.ORG $8000\nCell .EQU 16\nEntry: LDA #Cell\nRTS\n.DW Entry\n; Private source comment\n'
-    body=b'\xa9\x10\x60\x00\x80'
+    prefix=b'.ORG $8000\nCell .EQU 16\nEntry: '+b'LDA #Cell\n'*uses+b'RTS\n.DW Entry\n; Private source comment\n'
+    body=b'\xa9\x10'*uses+b'\x60\x00\x80'
     source.write_bytes(prefix+b'.DB "'+b'A'*(16384-len(body))+b'"\n.END\n')
     reference.write_bytes(b'NES\x1a'+bytes([1])+bytes(11)+body+b'A'*(16384-len(body)))
     return source,reference
@@ -57,6 +57,24 @@ class ProducerModelTests(unittest.TestCase):
         self.source.write_bytes(data)
         final,_=certify(self.source,self.root/'repair',self.reference,changed,edits)
         self.assertEqual(len(final.bindings),2)
+
+    def test_surviving_old_name_comment_fails_semantics(self):
+        from structured_pass.rename_service import edits_for, RenameService
+        m=self.model;n=m.declarations['Cell']
+        op={'kind':'rename','declaration_id':m.ids[n],'old_name':'Cell','new_name':'Capacity',
+            'preimage':m.statement(n)['preimage_sha256']}
+        edits,data=edits_for(m,[op],'projects/sample/')
+        # A real parity-preserving bad edit, deliberately bypassing preview.
+        at=m.source.index(b'; Private source comment')
+        edits.append((at,at+len(b'; Private source comment'),b'; Cell remains mentioned.'))
+        edits.sort();data=m.source
+        for lo,hi,value in reversed(edits):data=data[:lo]+value+data[hi:]
+        self.source.write_bytes(data)
+        changed,receipt=certify(self.source,self.root/'stale-comment',self.reference,m,edits)
+        self.assertTrue(receipt['reference_prg_parity'])
+        properties=RenameService.properties(None,m,changed,[op])
+        self.assertFalse(properties['no_stale_source_prose'])
+        self.assertFalse(properties['passed'])
 
     def test_partition_and_binding_tampering_refuse(self):
         import copy

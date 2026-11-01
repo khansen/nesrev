@@ -1,4 +1,7 @@
-"""Bounded preview records. Full typed statements remain available by record ID."""
+"""Response ceiling and bounded previews. Reviews page declarations and uses separately.
+
+The bridge also checks serialized MCP bytes so escaping cannot cause a spill.
+"""
 import json
 
 MAX_BYTES = 24576

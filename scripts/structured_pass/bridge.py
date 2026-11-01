@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from . import service
+from . import service, paging
 
 TOOL='mcp__facts__operation'
 
@@ -47,7 +47,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                             'serverInfo':{'name':'structured-pass','version':'1'}}
                     elif method=='tools/list':
                         operations=['status','query','navigate','inspect','q09','documents','document','review','candidate_status','guidance']
-                        if profile=='retained':operations=['status','query','review','reassemble','inspect','q09']
+                        if profile=='retained':operations=['status','query','review','reassemble','inspect','navigate','q09']
                         elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
                         else:operations+=['approve','request-changes']
                         result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.',
@@ -64,7 +64,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         result={'content':[{'type':'text','text':json.dumps(answer)}]}
                     else:
                         response={'error':{'code':-32601,'message':'Unknown method'}}
-                        print(json.dumps({'jsonrpc':'2.0','id':identifier,**response}),file=output_stream or sys.stdout,flush=True)
+                        emit(instance,identifier,response,output_stream or sys.stdout)
                         continue
                     response={'result':result}
                 except Exception as error:
@@ -74,4 +74,17 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
                     response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
-        print(json.dumps({'jsonrpc':'2.0','id':identifier,**response}),file=output_stream or sys.stdout,flush=True)
+        emit(instance,identifier,response,output_stream or sys.stdout)
+
+
+def emit(instance,identifier,response,output):
+    encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
+    if len(encoded.encode())+1>paging.MAX_BYTES:
+        value={'error':'RESPONSE_TOO_LARGE','retryable':False}
+        try:value['generation']=instance.error_context(None)['generation']
+        except Exception:pass
+        response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
+        encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
+        if len(encoded.encode())+1>paging.MAX_BYTES:
+            encoded=json.dumps({'jsonrpc':'2.0','id':None,**response})
+    print(encoded,file=output,flush=True)

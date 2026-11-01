@@ -94,6 +94,19 @@ class MixedDocuments(unittest.TestCase):
             with self.subTest(key=key),self.assertRaisesRegex(ValueError,'^DEFERRAL_ROW_CONFLICT$'):
                 mixed.prepare(SCORECARD,data,bad,'2')
 
+    def test_identical_repeated_header_and_new_row(self):
+        lines=SCORECARD.splitlines(keepends=True)
+        header=next(i for i,line in enumerate(lines) if line.startswith(b'| pass_id'))
+        repeated=SCORECARD+b'\n## Continuation\n\n'+b''.join(lines[header:header+2])+lines[-1].replace(b'| 1 |',b'| 2 |')
+        parsed=mixed.Scorecard(repeated)
+        data,_,_=parsed.update('3',{'focus':'New corridor','notes':'New finding.'})
+        after=mixed.Scorecard(data)
+        self.assertEqual(set(after.rows),{'1','2','3'})
+        for pid in ('1','2'):self.assertEqual(after.rows[pid],parsed.rows[pid])
+        tail=b''.join(lines[header:header+2]).replace(b'| focus |',b'| notes |').replace(b'| notes |\n',b'| focus |\n')
+        with self.assertRaisesRegex(ValueError,'MIXED_DOCUMENT_SCHEMA'):
+            mixed.Scorecard(SCORECARD+tail)
+
     def test_ambiguous_headers_rows_and_payloads_refuse(self):
         for data in [SCORECARD+SCORECARD,SCORECARD.replace(b'| 1 |',b'| 01 |'),
                      SCORECARD.replace(b'| notes |',b'| notes | notes |')]:

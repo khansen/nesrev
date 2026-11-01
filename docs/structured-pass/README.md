@@ -24,7 +24,12 @@ historical scorecard rows and the old-name ledger column remain history.
 
 Comment-only repair batches are supported. In a corridor they still include the
 scorecard and closeout operations, but need neither a rename nor an unrelated
-document edit. Preview results are paginated, with a 24 KiB response ceiling.
+document edit. Scorecard-only repairs also need no dummy edit. Preview and review
+results are paginated, with a 24 KiB ceiling on each serialized bridge response.
+Review pages separate the declaration from each changed use; only the first page
+carries Q09 and the changed-file list. Inspect returns a declaration and use count;
+use `navigate` to page through references. Reduce the requested page size if a
+query returns `RESPONSE_TOO_LARGE`.
 Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.
 
@@ -35,7 +40,12 @@ correct. Addresses retain their producer segment identity.
 
 Operand replacement, adding declarations, localization, data reflow, general
 project-tool edits, mixed raw-RAM row editing and runtime capture are not exposed
-by this corridor profile. A pass requiring one of these operations must stop and
+by this corridor profile. Authored inventory updates to
+`data_blob_dispositions.csv` and `policy_baseline.csv`, and mixed
+`raw_ram_review.csv` rows, have no edit route yet. A rename whose spelling occurs
+in these files can fail closed during closeout after validation work; the service
+cannot complete that rename until the required ledger operation exists.
+A pass requiring one of these operations must stop and
 report the missing operation. The earlier instruction-correction experiment is
 not an editing API in this extraction. No agent worker or arbitrary-code endpoint
 is provided.

@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import time
 
-from . import gate_environment, producer, service as common
+from . import gate_environment, producer, service as common, mixed_documents as mixed
 from .launcher import Corridor
 from .model import certify, digest
 from .publication import configuration
@@ -49,6 +49,9 @@ def prepare(repo, output, selection, executable, store):
     producer.require(len(values)==3 and values[-1]=='','PROJECT_PROFILE_INVALID')
     source,reference=values[:2]
     producer.require(all(v.startswith(prefix) and '..' not in Path(v).parts for v in values[:2]),'PROJECT_PROFILE_INVALID')
+    # Refuse unsupported mixed documents before expensive preparation or creating a session.
+    mixed.Scorecard((checkout/prefix/mixed.SCORECARD).read_bytes())
+    mixed.deferral_rows((checkout/prefix/mixed.DEFERRALS).read_bytes())
     destination=checkout/reference;destination.parent.mkdir(parents=True,exist_ok=True)
     shutil.copy2(repo/reference,destination)
     preparation=[run([tools['executables']['make'],'project-next-pass','PROJECT='+slug],checkout,env,logs/'next-pass.log')]

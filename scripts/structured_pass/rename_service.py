@@ -4,6 +4,7 @@ Review selection is derived from edit provenance, never acceptance-fixture IDs.
 Global/local declaration names and all reference bindings come from xasm.
 """
 import csv
+from bisect import bisect_left
 import io
 import json
 from pathlib import Path
@@ -68,7 +69,7 @@ def selected_renames(model, operations):
         name_range(model,n)
         seen.add(n);new_names.add(new)
         result.append((op,n,[ref for ref,decl in model.bindings.items() if decl==n]))
-    if not 0 <= len(result) <= 64 or not any(o.get('kind') in authored.KINDS | {'rename','comment_replace'} for o in operations):
+    if not 0 <= len(result) <= 64 or not any(o.get('kind') in authored.KINDS | mixed.KINDS | {'rename','comment_replace'} for o in operations):
         raise ValueError('INVALID_RENAME')
     return result
 
@@ -120,7 +121,7 @@ def ledger_operation(operations, project):
     if not isinstance(operations,list) or not all(isinstance(op,dict) and isinstance(op.get('kind'),str) for op in operations):
         raise ValueError('REQUEST_SCHEMA')
     found = [op for op in operations if op.get('kind')=='ledger_append']
-    if not found and not any(o.get('kind')=='rename' for o in operations) and any(o.get('kind') in authored.KINDS | {'comment_replace'} for o in operations):
+    if not found and not any(o.get('kind')=='rename' for o in operations) and any(o.get('kind') in authored.KINDS | mixed.KINDS | {'comment_replace'} for o in operations):
         return None
     if len(found)!=1:
         raise ValueError('LEDGER_SCHEMA')
@@ -129,7 +130,7 @@ def ledger_operation(operations, project):
     if not isinstance(op['path'],str):raise ValueError('REQUEST_SCHEMA')
     if op['path']!=ledger:
         raise ValueError('GENERATED_PATH_SERVICE_OWNED' if op['path'] in generated else 'FORBIDDEN_PATH')
-    if not isinstance(op['rows'],list):
+    if not isinstance(op['rows'],list) or not op['rows']:
         raise ValueError('LEDGER_SCHEMA')
     for row in op['rows']:
         common.schema(row,FIELDS)
@@ -143,10 +144,13 @@ def ledger_operation(operations, project):
 
 def neighbor_view(model,node):
     lo,hi = model.ranges[node]
-    statements = sorted((model.ranges[n][0],n) for n,f in model.facts.items()
-                        if f['kind'] in producer.CONTEXTS or f['kind'] in ('LABEL_NODE','LOCAL_LABEL_NODE'))
-    before = [n for offset,n in statements if offset<lo][-2:]
-    after = [n for offset,n in statements if offset>=hi][:2]
+    if not hasattr(model,'_review_statements'):
+        statements=sorted((model.ranges[n][0],n) for n,f in model.facts.items()
+                          if f['kind'] in producer.CONTEXTS or f['kind'] in ('LABEL_NODE','LOCAL_LABEL_NODE'))
+        model._review_statements=([offset for offset,n in statements],[n for offset,n in statements])
+    offsets,nodes=model._review_statements
+    left=bisect_left(offsets,lo);right=bisect_left(offsets,hi)
+    before=nodes[max(0,left-2):left];after=nodes[right:right+2]
     return {'record':model.statement(node),'before':[model.statement(n) for n in before],
             'after':[model.statement(n) for n in after]}
 
@@ -217,9 +221,7 @@ class RenameService(common.Service):
             raise ValueError('unknown constant')
         n = m.declarations[symbol]
         return {'generation':generation,'declaration':neighbor_view(m,n),
-            'uses':[{'reference_id':m.ids[r],'binding_id':m.ids[d],
-                     'context':neighbor_view(m,m.context(r))} for r,d in m.bindings.items() if d==n],
-            'comments':[c for c in comments(m) if mentions(c['text'],[symbol])],
+            'use_count':sum(d==n for d in m.bindings.values()),
             'ledger':{'path':self.ledger,'sha256':self.state['generations'][generation]['manifest'][self.ledger]}}
 
     @common.state_operation()
@@ -257,15 +259,15 @@ class RenameService(common.Service):
             if hit['kind']=='authored_prose' and hit['path'] not in self.generated:
                 if hit['path'].casefold()==(self.project+mixed.SCORECARD).casefold() and documents is not None:
                     if any(mentions(line,names) for _,line in mixed.current_prose_lines(documents['data'],self.document_pass_id())):
-                        raise ValueError('UNDISPOSED_STALE_PROSE')
+                        raise common.ServiceError('UNDISPOSED_STALE_PROSE',paths=[hit['path']])
                     continue
                 replacement=doc_ops.get(hit['path'])
                 if replacement is None or mentions(replacement.get('text',''),names):
-                    raise ValueError('UNDISPOSED_STALE_PROSE')
+                    raise common.ServiceError('UNDISPOSED_STALE_PROSE',paths=[hit['path']])
         record=self.state['generations'][generation]
         doc_changes=authored.prepare(record['checkout'],record['manifest'],operations,self.project,self.source,common.file_ownership)
-        if any(mentions(item['after'].decode(),names) for item in doc_changes if item['after'] is not None):
-            raise ValueError('UNDISPOSED_STALE_PROSE')
+        stale_paths=[item['path'] for item in doc_changes if item['after'] is not None and mentions(item['after'].decode(),names)]
+        if stale_paths:raise common.ServiceError('UNDISPOSED_STALE_PROSE',paths=stale_paths)
         revision = None
         if cid is not None:
             c = self.candidate(cid)
@@ -417,7 +419,7 @@ class RenameService(common.Service):
             lines=(mixed.current_prose_lines(data,self.document_pass_id())
                    if p.casefold()==(self.project+mixed.SCORECARD).casefold()
                    else enumerate(data.decode().splitlines(),1))
-            if any(mentions(line,names) for _,line in lines):raise ValueError('UNDISPOSED_STALE_PROSE')
+            if any(mentions(line,names) for _,line in lines):raise common.ServiceError('UNDISPOSED_STALE_PROSE',paths=[p])
         return {'authored_ledger_rows':len(op['rows']) if op else 0,'inventory_gates':'refreshed and verified'}
 
     @common.state_operation()
@@ -442,16 +444,27 @@ class RenameService(common.Service):
         newer=self.model(generation);older=self.model(base_generation);record=self.state['generations'][generation]
         old_record=self.state['generations'][base_generation]
         if record['base']!=base_generation:raise ValueError('MIXED_GENERATION_COMPARISON')
-        changes=[]
+        # Flatten only identities up front. Materialize context for the requested
+        # page, so reviewing N uses does not rebuild all N comparisons N times.
+        items=[]
         for op in record['provenance']:
+            items.append(op)
+            if op['kind']=='rename':
+                items.extend({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref}
+                             for ref in op['reference_ids'])
+        changes=[]
+        for op in items[offset:offset+limit]:
             if op['kind']=='rename':
                 decl=op['declaration_id']
                 changes.append({'kind':'rename','declaration_id':decl,
                     'before':neighbor_view(older,older.node(decl)),'after':neighbor_view(newer,newer.node(decl)),
-                    'uses':[{'reference_id':ref,'before':neighbor_view(older,older.context(older.node(ref))),
-                             'after':neighbor_view(newer,newer.context(newer.node(ref))),
-                             'bound_declaration':newer.statement(newer.bindings[newer.node(ref)])}
-                            for ref in op['reference_ids']]})
+                    'use_count':len(op['reference_ids'])})
+            elif op['kind']=='rename_use':
+                ref=op['reference_id']
+                changes.append({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref,
+                    'before':neighbor_view(older,older.context(older.node(ref))),
+                    'after':neighbor_view(newer,newer.context(newer.node(ref))),
+                    'bound_declaration':newer.statement(newer.bindings[newer.node(ref)])})
             elif op['kind']=='comment_replace':
                 before=next(c for c in comments(older) if c['record_id']==op['record_id'])
                 # The stored operations provide the origin; find the changed
@@ -486,12 +499,15 @@ class RenameService(common.Service):
                 receipt=json.loads((Path(record['capture'])/'closeout.json').read_text())
                 changes.append({'kind':'wrapper_closeout','receipt':receipt})
         files=common.changed_file_views(old_record['manifest'],record['manifest'],self.project,self.source)
-        return {'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
+        result={'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
                 'review_code_hashes':self.readers(),
-                'changes':changes[offset:offset+limit],'total_changes':len(changes),'offset':offset,
-                'next_offset':offset+limit if offset+limit<len(changes) else None,'changed_files':files,
-                'q09':self.q09(generation,[o['old_name'] for o in record['provenance'] if o['kind']=='rename']),
+                'changes':changes,'total_changes':len(items),'offset':offset,
+                'next_offset':offset+limit if offset+limit<len(items) else None,
                 'limits':['Shows stored edit provenance for supported operations; arbitrary history alignment is not implemented.']}
+        if offset==0:
+            result['changed_files']=files
+            result['q09']=self.q09(generation,[o['old_name'] for o in record['provenance'] if o['kind']=='rename'])
+        return result
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
