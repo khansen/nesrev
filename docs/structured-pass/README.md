@@ -34,10 +34,17 @@ The unchanged ledger prefix is checked. Review-code hashes appear on page zero,
 with their digest on every page.
 Oversized declaration/use pages omit only neighbours (`neighbors_omitted: true`);
 the changed records and IDs remain. Document comparisons keep path, reason, hashes
-and line counts. Common leading/trailing lines are omitted; `first_changed_line`
-is one-based on each side, and `changed_line_count` counts its changed region.
-Changed-line excerpts are bounded by encoded bytes, with `truncated: true` when
-shortened. Read the page's before/after `E-` generations with `document` for omitted
+and line counts. `hunks` show each changed area with one-based `before_line` and
+`after_line` positions and their `before_lines`/`after_lines`; unchanged lines are
+not repeated. A zero-line side names its insertion position, possibly past EOF.
+`total_hunks` counts all changed areas, and each side counts those with its lines.
+When the wire budget requires trimming, lines are removed from the last hunk first.
+`omitted_hunks` counts areas with any omitted lines, including partially shown ones;
+each side reports its own count, `truncated` and one-based `first_omitted_line`.
+Partial hunks also mark the affected side with `before_truncated`/`after_truncated`.
+Use `first_omitted_line - 1` as the document read offset. A terminator-only change
+has no hunks and sets `line_terminators_changed: true` instead of inventing a line.
+Read the page's before/after `E-` generations with `document` for omitted
 lines, in either corridor or retained sessions. Corridor reads also accept `G-` IDs.
 Closeout views carry a digest of the wrapper hash list and the original receipt
 hash; the complete list remains in the retained receipt. An individually oversized

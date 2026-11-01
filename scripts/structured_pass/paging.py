@@ -21,7 +21,7 @@ def preview_records(details):
     for row in details['authored_ledger_rows']:records.append({'kind':'ledger_row','row':row})
     for item in details['authored_documents']:
         # Document text is paginated through document(); preview supplies identity.
-        records.append({k:v for k,v in item.items() if k not in ('before','after','before_text','after_text')} |
+        records.append({k:v for k,v in item.items() if k not in ('before','after','before_text','after_text','hunks')} |
                        {'kind':'document'})
     for op in details['comment_dispositions']:records.append(op)
     if details['mixed_documents'] is not None:

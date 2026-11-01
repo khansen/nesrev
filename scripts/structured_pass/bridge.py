@@ -87,9 +87,9 @@ def emit(instance,identifier,response,output,operation=None):
         try:
             answer=json.loads(response['result']['content'][0]['text'])
             if operation=='review':value.update(review_pages.continuation(answer))
-            else:
+            elif type(answer.get('offset')) is int:
                 value['action']='Reduce limit and retry the same offset; no records were delivered.'
-                if type(answer.get('offset')) is int:value['offset']=answer['offset']
+                value['offset']=answer['offset']
         except (KeyError,IndexError,TypeError,ValueError):pass
         try:value['generation']=instance.error_context(None)['generation']
         except Exception:pass

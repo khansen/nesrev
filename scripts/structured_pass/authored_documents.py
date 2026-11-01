@@ -1,5 +1,6 @@
 """Generation-bound Markdown operations; no source, executable or mixed-file writes."""
 from pathlib import Path, PurePosixPath
+from difflib import SequenceMatcher
 import re
 import hashlib
 
@@ -95,16 +96,19 @@ def prepare(checkout,manifest,operations,project,source,ownership):
 def describe(item):
     before=item['before'].decode().splitlines() if item['before'] is not None else []
     after=item['after'].decode().splitlines() if item['after'] is not None else []
-    start=0
-    while start<min(len(before),len(after)) and before[start]==after[start]:start+=1
-    end=0
-    while end<min(len(before),len(after))-start and before[-end-1]==after[-end-1]:end+=1
-    def view(data):
+    hunks=[{'before_line':i+1,'after_line':j+1,'before_lines':before[i:end_i],'after_lines':after[j:end_j]}
+           for tag,i,end_i,j,end_j in SequenceMatcher(None,before,after,autojunk=False).get_opcodes()
+           if tag!='equal']
+    def view(data,side):
         if data is None:return None
         lines=data.decode().splitlines()
-        changed=lines[start:len(lines)-end]
-        return {'sha256':sha(data),'line_count':len(lines),'first_changed_line':start+1,
-                'changed_line_count':len(changed),'lines':changed,'truncated':False}
+        return {'sha256':sha(data),'line_count':len(lines),
+                'changed_line_count':sum(len(h[side+'_lines']) for h in hunks),
+                'total_hunks':sum(bool(h[side+'_lines']) for h in hunks),
+                'omitted_hunks':0,'first_omitted_line':None,'truncated':False}
     return {'kind':'authored_document','path':item['path'],'reason':item['reason'],
-            'before':view(item['before']),'after':view(item['after']),
+            'before':view(item['before'],'before'),'after':view(item['after'],'after'),
+            'hunks':hunks,'total_hunks':len(hunks),'omitted_hunks':0,
+            'line_terminators_changed':item['before'] is not None and item['after'] is not None
+                and before==after and item['before']!=item['after'],
             'complete_view':'document operation with generation, path, offset and limit'}

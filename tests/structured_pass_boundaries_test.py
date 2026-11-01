@@ -1,4 +1,6 @@
 """Boundary, transaction and ownership controls without producer runs."""
+import copy
+import csv
 import json
 from pathlib import Path
 import sys
@@ -11,6 +13,7 @@ HERE=Path(__file__).resolve().parent
 sys.path.insert(0,str(HERE.parent/'scripts'))
 from structured_pass import service
 from structured_pass import authored_documents as docs
+from structured_pass import review_pages
 
 
 class Documents(unittest.TestCase):
@@ -36,7 +39,7 @@ class Documents(unittest.TestCase):
         self.assertIsNone(self.prepare([delete])[0]['after'])
         with self.assertRaisesRegex(ValueError,'DOCUMENT_PREIMAGE_MISMATCH'):self.prepare([self.op(preimage=None)])
 
-    def test_document_comparison_trims_only_common_lines(self):
+    def test_document_hunks_preserve_edits_and_absent_sides(self):
         for before,after,old,new,start in (
                 (b'prefix\nold\ntail\n',b'prefix\nnew\ntail\n',['old'],['new'],2),
                 (b'prefix\nremoved\ntail\n',b'prefix\ntail\n',['removed'],[],2),
@@ -44,13 +47,116 @@ class Documents(unittest.TestCase):
                 (b'deleted\n',None,['deleted'],None,1)):
             with self.subTest(before=before,after=after):
                 value=docs.describe({'before':before,'after':after,'path':self.path,'reason':'Fixture'})
+                self.assertEqual(value['total_hunks'],1);self.assertEqual(value['omitted_hunks'],0)
                 for side,lines,data in (('before',old,before),('after',new,after)):
                     if lines is None:self.assertIsNone(value[side]);continue
-                    self.assertEqual(value[side]['lines'],lines)
-                    self.assertEqual(value[side]['first_changed_line'],start)
+                    self.assertEqual(value['hunks'][0][side+'_lines'],lines)
+                    self.assertEqual(value['hunks'][0][side+'_line'],start)
                     self.assertEqual(value[side]['changed_line_count'],len(lines))
                     self.assertEqual(value[side]['sha256'],docs.sha(data))
                     self.assertFalse(value[side]['truncated'])
+                    self.assertIsNone(value[side]['first_omitted_line'])
+
+    def test_repeated_lines_are_inserted_once(self):
+        value=docs.describe({'before':b'a\na\n','after':b'a\na\na\n','path':self.path,'reason':'Repeat'})
+        self.assertEqual(value['hunks'],[{'before_line':3,'after_line':3,'before_lines':[],'after_lines':['a']}])
+        self.assertEqual(value['before']['changed_line_count'],0)
+        self.assertEqual(value['after']['changed_line_count'],1)
+        self.assertEqual(value['before']['total_hunks'],0);self.assertEqual(value['after']['total_hunks'],1)
+
+    def test_line_terminator_changes_have_no_invented_line(self):
+        before=b'a\nb\nc\n'
+        for after in (b'a\r\nb\r\nc\r\n',b'a\nb\nc',b'a\fb\nc\n'):
+            with self.subTest(after=after):
+                value=docs.describe({'before':before,'after':after,'path':self.path,'reason':'Terminators'})
+                self.assertTrue(value['line_terminators_changed']);self.assertEqual(value['hunks'],[])
+                self.assertEqual(value['total_hunks'],0)
+                for side in ('before','after'):
+                    self.assertEqual(value[side]['line_count'],3)
+                    self.assertEqual(value[side]['changed_line_count'],0)
+                    self.assertIsNone(value[side]['first_omitted_line']);self.assertFalse(value[side]['truncated'])
+                    self.assertNotIn('first_changed_line',value[side])
+        for old,new in ((before,before),(None,b'')):
+            value=docs.describe({'before':old,'after':new,'path':self.path,'reason':'Control'})
+            self.assertFalse(value['line_terminators_changed'])
+
+    def test_hunk_truncation_locates_every_omitted_side(self):
+        before=('old first\nshared\n'+'old middle\n'*12+'anchor\nold last\n').encode()
+        after=('new first\nshared\n'+'new middle\n'*12+'anchor\nnew last\n').encode()
+        original=docs.describe({'before':before,'after':after,'path':self.path,'reason':'Partial hunks'})
+        self.assertEqual(original['total_hunks'],3)
+        def check(value):
+            affected=set()
+            for side in ('before','after'):
+                source=before if side=='before' else after
+                expected={h[side+'_line']+i:line for h in original['hunks'] for i,line in enumerate(h[side+'_lines'])}
+                shown={h[side+'_line']+i:line for h in value['hunks'] for i,line in enumerate(h[side+'_lines'])}
+                self.assertTrue(shown.items()<=expected.items())
+                self.assertEqual(sorted(shown),sorted(expected)[:len(shown)])
+                missing=expected.keys()-shown.keys();hunks=set()
+                for index,hunk in enumerate(original['hunks']):
+                    if any(hunk[side+'_line']+i in missing for i in range(len(hunk[side+'_lines']))):hunks.add(index)
+                self.assertEqual(value[side]['first_omitted_line'],min(missing) if missing else None)
+                self.assertEqual(value[side]['omitted_hunks'],len(hunks))
+                self.assertEqual(value[side]['truncated'],bool(missing))
+                self.assertEqual(value[side]['sha256'],docs.sha(source))
+                self.assertEqual(value[side]['line_count'],len(source.splitlines()))
+                self.assertEqual(value[side]['total_hunks'],original[side]['total_hunks'])
+                affected |= hunks
+            self.assertEqual(value['total_hunks'],3)
+            self.assertEqual(value['omitted_hunks'],len(affected))
+        # Force both a partial last hunk and complete removal of trailing hunks.
+        # Re-fitting the same page must not double-count an already partial hunk.
+        result={'changes':[copy.deepcopy(original)]};empty=copy.deepcopy(result)
+        empty['changes'][0]['hunks']=[]
+        lower=review_pages.wire_size(empty)+100
+        partial_seen=False;removed_seen=False
+        for budget in range(review_pages.wire_size(result)-1,lower,-40):
+            page=copy.deepcopy(result)
+            with patch.object(review_pages,'BUDGET',budget):
+                try:review_pages.fit(page)
+                except service.ServiceError:continue
+                check(page['changes'][0]);self.assertLessEqual(review_pages.wire_size(page),budget)
+                partial_seen |= any(h.get('before_truncated') or h.get('after_truncated') for h in page['changes'][0]['hunks'])
+                removed_seen |= len(page['changes'][0]['hunks'])<3
+                saved=copy.deepcopy(page);review_pages.fit(page);self.assertEqual(page,saved)
+            page['extra']='Force another fit' * 8
+            with patch.object(review_pages,'BUDGET',budget):
+                try:review_pages.fit(page)
+                except service.ServiceError:continue
+                check(page['changes'][0])
+        self.assertTrue(partial_seen);self.assertTrue(removed_seen)
+
+    def test_ledger_chunks_obey_encoded_byte_budget(self):
+        rows=[{'old_name':str(i),'reason':'quoted " \u2603 '*120} for i in range(32)]
+        chunks=list(review_pages.ledger_pages(rows))
+        self.assertEqual([r for offset,chunk in chunks for r in chunk],rows)
+        self.assertGreater(len(chunks),2)
+        for offset,chunk in chunks:
+            page={'padding':'x'*4096,'changes':[{'kind':'authored_ledger','row_offset':offset,'added_rows':chunk}]}
+            self.assertLessEqual(review_pages.wire_size(page),review_pages.BUDGET)
+
+    def test_ledger_review_refuses_changed_prefix_and_wrong_provenance(self):
+        from structured_pass.rename_service import RenameService
+        old=self.root/'before';new=self.root/'after';old.mkdir();new.mkdir()
+        path='renames.csv';row={'old_name':'Old','new_name':'New','reason':'History','confidence':'high','pass_id':'1'}
+        added={**row,'old_name':'Other','new_name':'Better','pass_id':'2'}
+        def write(root,rows):
+            with (root/path).open('w') as f:
+                writer=csv.DictWriter(f,fieldnames=list(row));writer.writeheader();writer.writerows(rows)
+        write(old,[row]);write(new,[row,added])
+        # Actual review code and CSV reads; assembler views are irrelevant to a ledger-only page.
+        fake=SimpleNamespace(model=lambda g:None,ledger=path,project=self.project,source=self.source,readers=lambda:{},
+            state={'generations':{'base':{'checkout':str(old),'manifest':{}},'head':{'checkout':str(new),'manifest':{},
+                'base':'base','provenance':[{'kind':'ledger_append','rows':[added]}]}}})
+        page=RenameService.review.__wrapped__(fake,'head','base',1)
+        self.assertEqual(page['changes'][0]['unchanged_prefix_rows'],1)
+        self.assertEqual(page['changes'][0]['added_rows'],[added])
+        for rows,code in (([{**row,'reason':'Tampered'},added],'UNCHANGED_LEDGER_REQUIRED'),
+                          ([row,{**added,'reason':'Not in provenance'}],'LEDGER_RENAME_MISMATCH')):
+            write(new,rows)
+            with self.subTest(code=code),self.assertRaisesRegex(ValueError,code):
+                RenameService.review.__wrapped__(fake,'head','base',1)
 
     def test_protected_paths_and_schema(self):
         for path in (self.source,self.project+'project.conf',self.project+'tools/trace/run.py',

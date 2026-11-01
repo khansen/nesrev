@@ -33,6 +33,8 @@ class WorkflowTests(unittest.TestCase):
         c=self.controller;g=c.editor.state['current']
         p=c.dispatch('preview',{'generation':g,'operations':operations},'implementer')
         self.assertLessEqual(len(json.dumps(p).encode()),paging.MAX_BYTES)
+        for record in p['records']:
+            if record['kind']=='document':self.assertNotIn('hunks',record)
         cid=c.dispatch('confirm',{'generation':g,'preview_digest':p['preview_digest']},'implementer')['candidate']
         v=c.dispatch('validate',{'cid':cid},'implementer')
         self.assertEqual(v['status'],'validated',v)
@@ -195,7 +197,9 @@ class WorkflowTests(unittest.TestCase):
         document=next(ch for ch in changes if ch['kind']=='authored_document')
         self.assertEqual(document['path'],path);self.assertEqual(document['reason'],reason)
         self.assertEqual(document['after']['sha256'],authored_documents.sha(text.encode()))
-        self.assertTrue(document['after']['truncated']);self.assertLess(len(document['after']['lines']),71)
+        self.assertTrue(document['after']['truncated'])
+        self.assertLess(sum(len(h['after_lines']) for h in document['hunks']),71)
+        self.assertIsNotNone(document['after']['first_omitted_line'])
         use=next(ch for ch in changes if ch['kind']=='rename_use')
         self.assertTrue(use['neighbors_omitted'])
         self.assertEqual(use['before']['record']['record_id'],use['after']['record']['record_id'])
@@ -305,8 +309,10 @@ class WorkflowTests(unittest.TestCase):
         self.controller=prepare(self.root/'append-document',notes=text)
         c=self.controller;g=c.editor.state['current'];path=c.editor.project+'docs/reverse_engineering/WORKING_NOTES.md'
         appended='This appended change must be visible.\n'
+        changed=text.splitlines(keepends=True);changed[4]='Changed near the beginning.\n'
+        changed=''.join(changed)+appended
         published=self.edit([{'kind':'document_write','path':path,'reason':'Expose the actual appended edit.',
-            'preimage':c.editor.state['generations'][g]['manifest'][path],'text':text+appended},*closeout_ops(c,g)])
+            'preimage':c.editor.state['generations'][g]['manifest'][path],'text':changed},*closeout_ops(c,g)])
         reader=RetainedReviewService.from_publication(self.root/'append-review',self.root/'append-document/store',published['review']['artifact_id'])
         base,head=reader.config['artifacts']
         for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
@@ -315,14 +321,16 @@ class WorkflowTests(unittest.TestCase):
             args={'generation':head,'base_generation':base,'offset':1}
             if profile=='corridor':args['ticket']=published['review']['artifact_id']
             page=self.bridge_request(root,profile,'review',args);document=page['changes'][0]
-            self.assertEqual(document['before']['lines'],[])
-            self.assertEqual(document['after']['lines'],[appended.rstrip()])
+            self.assertEqual(document['hunks'],[
+                {'before_line':5,'after_line':5,'before_lines':[text.splitlines()[4]],'after_lines':['Changed near the beginning.']},
+                {'before_line':181,'after_line':181,'before_lines':[],'after_lines':[appended.rstrip()]}])
+            self.assertEqual(document['total_hunks'],2);self.assertEqual(document['omitted_hunks'],0)
             for side in ('before','after'):
-                self.assertEqual(document[side]['first_changed_line'],181)
                 self.assertFalse(document[side]['truncated'])
-            self.assertEqual(document['before']['changed_line_count'],0)
-            self.assertEqual(document['after']['changed_line_count'],1)
-            for generation,expected in ((page['base_generation'],text),(page['generation'],text+appended)):
+                self.assertIsNone(document[side]['first_omitted_line'])
+            self.assertEqual(document['before']['changed_line_count'],1)
+            self.assertEqual(document['after']['changed_line_count'],2)
+            for generation,expected in ((page['base_generation'],text),(page['generation'],changed)):
                 offset=0;lines=[]
                 while offset is not None:
                     view=self.bridge_request(root,profile,'document',{'generation':generation,'path':path,'offset':offset,'limit':20})
@@ -345,6 +353,22 @@ class WorkflowTests(unittest.TestCase):
         value=json.loads(result['content'][0]['text'])
         self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
         for key,val in details.items():self.assertEqual(value[key],val)
+        request['params']['arguments']['operation']='navigate';output=io.StringIO()
+        with patch.object(Corridor,'dispatch',side_effect=service.ServiceError('RESPONSE_TOO_LARGE',**details)):
+            mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
+        value=json.loads(json.loads(output.getvalue())['result']['content'][0]['text'])
+        self.assertNotIn('next_offset',value)
+
+    def test_unpaged_overflow_does_not_suggest_nonexistent_limit(self):
+        from structured_pass.launcher import Corridor
+        request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation',
+            'arguments':{'operation':'q09','arguments':{}}}}
+        output=io.StringIO()
+        with patch.object(Corridor,'dispatch',return_value={'mentions':['"'*8000]}):
+            mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
+        value=json.loads(json.loads(output.getvalue())['result']['content'][0]['text'])
+        self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
+        self.assertNotIn('action',value);self.assertNotIn('offset',value);self.assertNotIn('next_offset',value)
 
     def test_application_refuses_overlap_and_dirty_selected_path(self):
         from structured_pass.application import apply

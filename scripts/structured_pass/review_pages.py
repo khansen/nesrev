@@ -40,15 +40,22 @@ def fit(result):
                 view.pop('before',None);view.pop('after',None)
         if omitted:change['neighbors_omitted']=True
     if wire_size(result)<=BUDGET:return result
-    # Remove whole lines from the larger document side until the encoded page
-    # fits. Hashes, total line counts, path, reason and the comparison remain.
-    excerpts=[change[key] for change in result.get('changes',[]) if change.get('kind')=='authored_document'
-              for key in ('before','after') if change.get(key) is not None]
+    # Trim the last hunk first, preserving exact locations for document() reads.
+    documents=[change for change in result.get('changes',[]) if change.get('kind')=='authored_document']
     while wire_size(result)>BUDGET:
-        nonempty=[view for view in excerpts if view['lines']]
+        nonempty=[change for change in documents if change['hunks']]
         if not nonempty:break
-        largest=max(nonempty,key=lambda view:len(json.dumps(view['lines']).encode()))
-        largest['lines'].pop();largest['truncated']=True
+        change=nonempty[-1];hunk=change['hunks'][-1]
+        sides=[side for side in ('before','after') if hunk[side+'_lines']]
+        side=max(sides,key=lambda key:len(json.dumps(hunk[key+'_lines']).encode()))
+        if not any(hunk.get(key+'_truncated') for key in ('before','after')):change['omitted_hunks']+=1
+        view=change[side]
+        if not hunk.get(side+'_truncated'):view['omitted_hunks']+=1
+        hunk[side+'_truncated']=True;view['truncated']=True
+        hunk[side+'_lines'].pop()
+        line=hunk[side+'_line']+len(hunk[side+'_lines'])
+        view['first_omitted_line']=min(view['first_omitted_line'] or line,line)
+        if not hunk['before_lines'] and not hunk['after_lines']:change['hunks'].pop()
     if wire_size(result)>BUDGET:
         from .service import ServiceError
         raise ServiceError('RESPONSE_TOO_LARGE',**continuation(result))
