@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from . import service, paging
+from . import service, paging, review_pages
 
 TOOL='mcp__facts__operation'
 
@@ -47,7 +47,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                             'serverInfo':{'name':'structured-pass','version':'1'}}
                     elif method=='tools/list':
                         operations=['status','query','navigate','inspect','q09','documents','document','review','candidate_status','guidance']
-                        if profile=='retained':operations=['status','query','review','reassemble','inspect','navigate','q09']
+                        if profile=='retained':operations=['status','query','review','reassemble','inspect','navigate','q09','document']
                         elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
                         else:operations+=['approve','request-changes']
                         result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.',
@@ -69,7 +69,9 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     response={'result':result}
                 except Exception as error:
                     code=service.public_error_code(error);value={'error':code}
-                    if isinstance(error,service.ServiceError):value['details']=error.details
+                    if isinstance(error,service.ServiceError):
+                        value['details']=error.details
+                        if code=='RESPONSE_TOO_LARGE':value.update(review_pages.continuation(error.details))
                     value['retryable']=code in ('VALIDATION_IN_PROGRESS','REVIEW_STATE_BUSY','REVIEW_RESTORE_IN_PROGRESS')
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
@@ -81,6 +83,10 @@ def emit(instance,identifier,response,output):
     encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
     if len(encoded.encode())+1>paging.MAX_BYTES:
         value={'error':'RESPONSE_TOO_LARGE','retryable':False}
+        try:
+            answer=json.loads(response['result']['content'][0]['text'])
+            value.update(review_pages.continuation(answer))
+        except (KeyError,IndexError,TypeError,ValueError):pass
         try:value['generation']=instance.error_context(None)['generation']
         except Exception:pass
         response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}

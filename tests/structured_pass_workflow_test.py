@@ -162,6 +162,78 @@ class WorkflowTests(unittest.TestCase):
                 offset=page['next_offset'];pages+=1
             self.assertEqual(set(seen),expected);self.assertEqual(len(seen),35);self.assertGreater(pages,35)
 
+    def test_oversized_first_document_and_use_remain_reviewable(self):
+        from structured_pass import authored_documents, review_pages
+        from structured_pass_fixture import PROJECT
+        c=self.controller;g=c.editor.state['current'];m=c.editor.model(g)
+        n=m.declarations['Entry'];path=PROJECT+'docs/reverse_engineering/WORKING_NOTES.md'
+        text='Long document line: '+('quoted " text \u2603 '*100)+'\n'
+        text=text*70+'Actual new final line.\n'
+        reason='Oversized document is the first authored change.'
+        ops=[{'kind':'document_write','path':path,'preimage':c.editor.state['generations'][g]['manifest'][path],
+              'text':text,'reason':reason},
+             {'kind':'rename','declaration_id':m.ids[n],'old_name':'Entry','new_name':'Start',
+              'preimage':m.statement(n)['preimage_sha256']},
+             {'kind':'ledger_append','path':c.editor.ledger,'preimage':c.editor.state['generations'][g]['manifest'][c.editor.ledger],
+              'rows':[{'old_name':'Entry','new_name':'Start','reason':'Fixture','confidence':'high','pass_id':'1'}]},
+             *closeout_ops(c,g)]
+        published=self.edit(ops)
+        reader=RetainedReviewService.from_publication(self.root/'oversized-review',self.root/'store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts'];offset=0;changes=[];pages=[]
+        while offset is not None:
+            request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation','arguments':{
+                'operation':'review','arguments':{'ticket':published['review']['artifact_id'],
+                'generation':head,'base_generation':base,'offset':offset}}}}
+            out=io.StringIO();mcp(c.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=out)
+            wire=out.getvalue();self.assertLessEqual(len(wire.encode()),paging.MAX_BYTES)
+            response=json.loads(wire)['result'];self.assertFalse(response.get('isError'),wire)
+            page=json.loads(response['content'][0]['text']);pages.append(page);changes.extend(page['changes']);offset=page['next_offset']
+        self.assertEqual(pages[0]['page_kind'],'metadata');self.assertEqual(pages[0]['changes'],[])
+        self.assertIn('changed_files',pages[0]);self.assertIn('q09',pages[0])
+        self.assertEqual(len(changes),pages[0]['total_changes'])
+        self.assertEqual(len(pages),pages[0]['total_pages'])
+        document=next(ch for ch in changes if ch['kind']=='authored_document')
+        self.assertEqual(document['path'],path);self.assertEqual(document['reason'],reason)
+        self.assertEqual(document['after']['sha256'],authored_documents.sha(text.encode()))
+        self.assertTrue(document['after']['truncated']);self.assertLess(len(document['after']['lines']),71)
+        use=next(ch for ch in changes if ch['kind']=='rename_use')
+        self.assertTrue(use['neighbors_omitted'])
+        self.assertEqual(use['before']['record']['record_id'],use['after']['record']['record_id'])
+        self.assertEqual(use['reference_id'],next(m.ids[r] for r,d in m.bindings.items() if d==n))
+        receipt=next(ch for ch in changes if ch['kind']=='wrapper_closeout')
+        self.assertNotIn('wrapper_code_hashes',receipt['receipt'])
+        original=Path(c.editor.state['generations'][published['generation']]['capture'])/'closeout.json'
+        original_hashes=json.loads(original.read_text())['wrapper_code_hashes']
+        self.assertEqual(receipt['receipt_sha256'],producer.sha(original))
+        self.assertEqual(receipt['receipt']['wrapper_code_sha256'],service.digest(json.dumps(original_hashes,sort_keys=True,separators=(',',':')).encode()))
+        # A large changed record itself cannot be discarded as context. The last
+        # resort is a typed refusal with an explicit continuation, never a spill.
+        oversized={'changes':[{'kind':'rename_use','before':{'record':{'record_id':'r1','value':'x'*paging.MAX_BYTES}}}],
+                   'offset':3,'total_changes':5,'total_pages':6,'next_offset':4}
+        with self.assertRaisesRegex(service.ServiceError,'RESPONSE_TOO_LARGE') as caught:review_pages.fit(oversized)
+        self.assertEqual(caught.exception.details,{'offset':3,'total_changes':5,'total_pages':6,'next_offset':4})
+
+    def test_oversized_document_first_change_keeps_metadata_readable(self):
+        c=self.controller;g=c.editor.state['current']
+        path=c.editor.project+'docs/reverse_engineering/WORKING_NOTES.md'
+        op={'kind':'document_write','path':path,'preimage':c.editor.state['generations'][g]['manifest'][path],
+            'text':('Long line '+('x'*3000)+'\n')*60,'reason':'First and oversized change.'}
+        published=self.edit([op,*closeout_ops(c,g)])
+        reader=RetainedReviewService.from_publication(self.root/'doc-review',self.root/'store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts'];pages=[];offset=0
+        while offset is not None:
+            request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation','arguments':{
+                'operation':'review','arguments':{'generation':head,'base_generation':base,'offset':offset}}}}
+            out=io.StringIO();mcp(reader.root,'reviewer','retained',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=out)
+            self.assertLessEqual(len(out.getvalue().encode()),paging.MAX_BYTES)
+            response=json.loads(out.getvalue())['result'];self.assertFalse(response.get('isError'),response)
+            page=json.loads(response['content'][0]['text']);pages.append(page);offset=page['next_offset']
+        self.assertEqual(pages[0]['changes'],[]);self.assertEqual(pages[0]['total_changes'],3)
+        self.assertIn('q09',pages[0]);self.assertIn('changed_files',pages[0])
+        first=pages[1]['changes'][0];self.assertEqual(first['kind'],'authored_document')
+        self.assertEqual(first['reason'],op['reason']);self.assertTrue(first['after']['truncated'])
+        self.assertEqual(sum(len(p['changes']) for p in pages),3)
+
     def test_every_bridge_operation_has_a_wire_size_guard(self):
         from structured_pass.launcher import Corridor
         requests=[]
@@ -170,13 +242,15 @@ class WorkflowTests(unittest.TestCase):
                 'arguments':{'operation':op,'arguments':{}}}})
         output=io.StringIO()
         # Quotes exercise the second encoding layer: the inner object fits, its wire representation does not.
-        with patch.object(Corridor,'dispatch',return_value={'text':'"'*8000}):
+        with patch.object(Corridor,'dispatch',return_value={'text':'"'*8000,'offset':3,'total_changes':7,'next_offset':4}):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(''.join(json.dumps(r)+'\n' for r in requests)),output_stream=output)
         lines=output.getvalue().splitlines();self.assertEqual(len(lines),5)
         for line in lines:
             self.assertLessEqual(len(line.encode())+1,paging.MAX_BYTES)
             reply=json.loads(line)['result'];self.assertTrue(reply['isError'])
-            self.assertEqual(json.loads(reply['content'][0]['text'])['error'],'RESPONSE_TOO_LARGE')
+            value=json.loads(reply['content'][0]['text'])
+            self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
+            self.assertEqual((value['offset'],value['total_changes'],value['next_offset']),(3,7,4))
 
     def test_application_refuses_overlap_and_dirty_selected_path(self):
         from structured_pass.application import apply

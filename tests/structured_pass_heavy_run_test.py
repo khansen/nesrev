@@ -1,5 +1,9 @@
 """Small real-process controls; no project checkouts, captures or model calls."""
 import json
+import importlib.util
+import select
+from contextlib import closing
+from unittest.mock import Mock, patch
 import os
 from pathlib import Path
 import shutil
@@ -77,6 +81,44 @@ class HeavyRunTests(unittest.TestCase):
     def running(self):
         return next((v for v in self.receipts() if v["status"] == "running"
                      and v.get("command_pgid")), None)
+
+    def runner_module(self):
+        spec=importlib.util.spec_from_file_location('runner_under_test',RUNNER)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        return module
+
+    def test_unreaped_group_before_and_after_poll(self):
+        runner=self.runner_module()
+        child=subprocess.Popen([sys.executable,'-c','import sys;sys.stdin.read()'],
+                               stdin=subprocess.PIPE,start_new_session=True)
+        try:
+            # Wait for kernel exit notification without wait()/poll() reaping the
+            # child. kqueue covers macOS; WNOWAIT covers other POSIX platforms.
+            if hasattr(select,'kqueue'):
+                with closing(select.kqueue()) as queue:
+                    queue.control([select.kevent(child.pid,filter=select.KQ_FILTER_PROC,
+                        flags=select.KQ_EV_ADD|select.KQ_EV_ONESHOT,fflags=select.KQ_NOTE_EXIT)],0,0)
+                    child.stdin.close()
+                    self.assertTrue(queue.control(None,1,5),'No process-exit notification')
+            else:
+                child.stdin.close()
+                os.waitid(os.P_PID,child.pid,os.WEXITED|os.WNOWAIT)
+            self.assertIsNone(child.returncode)
+            self.assertTrue(runner.group_alive(child.pid))
+            self.assertEqual(child.poll(),0)
+            self.assertFalse(runner.group_alive(child.pid))
+        finally:
+            if child.stdin and not child.stdin.closed:child.stdin.close()
+            child.wait(timeout=5)
+
+    def test_permission_error_keeps_group_live_until_reaped(self):
+        runner=self.runner_module()
+        with patch.object(runner.os,'killpg',side_effect=PermissionError):
+            self.assertTrue(runner.group_alive(123))
+        process=Mock(pid=123)
+        with patch.object(runner.os,'killpg',side_effect=[PermissionError,ProcessLookupError]):
+            runner.stop_group(process)
+        process.poll.assert_called_once_with()
 
     def test_exit_status_and_space_measurements(self):
         result = self.run_code("import os;print(os.environ['NESREV_HEAVY_RUN_ID']);raise SystemExit(7)")

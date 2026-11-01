@@ -30,7 +30,7 @@ describes.
 
 ## Ownership
 
-This playbook owns commands and diagnostics, including the opt-in [structured pass service](../docs/structured-pass/README.md):
+This playbook owns commands, tool options, and diagnostic procedures, including the opt-in [structured pass service](../docs/structured-pass/README.md):
 
 - xasm listings and xref options
 - data-consumer, data-coverage, and index-pattern analysis

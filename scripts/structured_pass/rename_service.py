@@ -16,7 +16,7 @@ from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
 from . import authored_documents as authored
-from . import navigation
+from . import navigation, review_pages
 FIELDS = ('old_name','new_name','reason','confidence','pass_id')
 ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMATCH
     WRONG_DECLARATION_SCOPE INVALID_RENAME DUPLICATE_RENAME INVALID_COMMENT
@@ -453,7 +453,7 @@ class RenameService(common.Service):
                 items.extend({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref}
                              for ref in op['reference_ids'])
         changes=[]
-        for op in items[offset:offset+limit]:
+        for op in (items[offset-1:offset-1+limit] if offset else []):
             if op['kind']=='rename':
                 decl=op['declaration_id']
                 changes.append({'kind':'rename','declaration_id':decl,
@@ -496,18 +496,23 @@ class RenameService(common.Service):
                     'authored_fields':op['fields'],'before':before.rows.get(op['pass_id']),
                     'after':after.rows[op['pass_id']],'wrapper_owned_fields':sorted(mixed.PROTECTED)})
             elif op['kind']=='closeout':
-                receipt=json.loads((Path(record['capture'])/'closeout.json').read_text())
-                changes.append({'kind':'wrapper_closeout','receipt':receipt})
+                receipt_bytes=(Path(record['capture'])/'closeout.json').read_bytes()
+                receipt=json.loads(receipt_bytes)
+                hashes=receipt.pop('wrapper_code_hashes')
+                receipt['wrapper_code_sha256']=digest(json.dumps(hashes,sort_keys=True,separators=(',',':')).encode())
+                receipt['wrapper_code_files']=len(hashes)
+                changes.append({'kind':'wrapper_closeout','receipt_sha256':digest(receipt_bytes),'receipt':receipt})
         files=common.changed_file_views(old_record['manifest'],record['manifest'],self.project,self.source)
         result={'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
                 'review_code_hashes':self.readers(),
-                'changes':changes,'total_changes':len(items),'offset':offset,
-                'next_offset':offset+limit if offset+limit<len(items) else None,
+                'changes':changes,'total_changes':len(items),'total_pages':len(items)+1,'offset':offset,
+                'page_kind':'metadata' if offset==0 else 'change',
+                'next_offset':offset+limit if offset+limit<=len(items) else None,
                 'limits':['Shows stored edit provenance for supported operations; arbitrary history alignment is not implemented.']}
         if offset==0:
             result['changed_files']=files
             result['q09']=self.q09(generation,[o['old_name'] for o in record['provenance'] if o['kind']=='rename'])
-        return result
+        return review_pages.fit(result)
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')

@@ -58,6 +58,10 @@ def group_alive(pgid):
         return True
     except ProcessLookupError:
         return False
+    except PermissionError:
+        # macOS may report EPERM for a group containing only our unreaped child.
+        # Keep it live until stop_group polls/reaps it; never admit another writer.
+        return True
 
 
 def stop_group(process):
@@ -65,8 +69,8 @@ def stop_group(process):
     for signum, duration in ((signal.SIGTERM, 2.0), (signal.SIGKILL, 2.0)):
         try:
             os.killpg(process.pid, signum)
-        except ProcessLookupError:
-            pass
+        except (ProcessLookupError, PermissionError):
+            pass  # Poll below can reap a leader that exited before this signal.
         deadline = time.monotonic() + duration
         while time.monotonic() < deadline:
             process.poll()  # Reap our child, including a terminated group leader.

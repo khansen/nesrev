@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from . import service as common
+from . import service as common, review_pages
 from .publication import MAX_REVIEW_STATES
 from .durable_artifact import Store, canonical, digest, require, running_tooling, UNSPECIFIED_BASE
 
@@ -181,7 +181,7 @@ class RetainedReviewService(RenameService):
         else:result=self.instruction_review(generation,base_generation,offset,limit)
         result['evidence']={'before':self.evidence(base_generation),'after':self.evidence(generation)}
         if self.anchor:result['review_window']=self.review_window()
-        return result
+        return review_pages.fit(result)
 
     def instruction_review(self,generation,base_generation,offset,limit):
         newer=self.model(generation);older=self.model(base_generation)

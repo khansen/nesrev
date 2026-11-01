@@ -126,8 +126,9 @@ class Documents(unittest.TestCase):
         with patch.object(rename_service,'ledger_operation',return_value=None),\
              patch.object(rename_service.authored,'selected',return_value=[]),\
              patch.object(rename_service.mixed,'document_operations',return_value=None):
-            with self.assertRaisesRegex(ValueError,'UNDISPOSED_STALE_PROSE'):
+            with self.assertRaisesRegex(ValueError,'UNDISPOSED_STALE_PROSE') as caught:
                 rename_service.RenameService.inventory_result(subject,self.root,None,[{'kind':'rename','old_name':'OldName'}])
+            self.assertIn(caught.exception.details['paths'][0],paths[1:])
 
     def test_symlink_and_untracked_file_refuse(self):
         path=self.root/self.path;path.unlink();outside=self.root/'outside';outside.write_text('Before\n');path.symlink_to(outside)

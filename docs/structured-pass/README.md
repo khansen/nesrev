@@ -26,10 +26,19 @@ Comment-only repair batches are supported. In a corridor they still include the
 scorecard and closeout operations, but need neither a rename nor an unrelated
 document edit. Scorecard-only repairs also need no dummy edit. Preview and review
 results are paginated, with a 24 KiB ceiling on each serialized bridge response.
-Review pages separate the declaration from each changed use; only the first page
-carries Q09 and the changed-file list. Inspect returns a declaration and use count;
-use `navigate` to page through references. Reduce the requested page size if a
-query returns `RESPONSE_TOO_LARGE`.
+Review page zero contains Q09, changed files and the change/page totals, without
+any change payload. Subsequent pages show one declaration, use or other change.
+Oversized declaration/use pages omit only neighbours (`neighbors_omitted: true`);
+the changed records and IDs remain. Document comparisons keep path, reason, hashes
+and line counts, with excerpts bounded by encoded bytes and `truncated: true` when
+shortened. Read the before/after generations with `document` for omitted lines.
+Closeout views carry a digest of the wrapper hash list and the original receipt
+hash; the complete list remains in the retained receipt. An individually oversized
+changed record still refuses with `RESPONSE_TOO_LARGE`, but includes `offset`,
+`total_changes` and `next_offset` so other changes remain reachable.
+Inspect returns a declaration and use count; use `navigate` to page references.
+For paginated query/navigation results, reduce `limit` if a response is too large.
+Standalone Q09 remains unpaged; use smaller name batches when its result is large.
 Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.
 
