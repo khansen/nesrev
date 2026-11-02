@@ -2,15 +2,16 @@
 import json
 from pathlib import Path
 import re
+from .review_pages import wire_size
 
 TAIL_BYTES=256*1024
 MAX_LINES=40
 MAX_ITEMS=80
 MAX_STRING=2048
-MAX_OUTPUT=32768
+MAX_OUTPUT=12288
 
 
-def explanation(path,checkout,source,model):
+def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
     path=Path(path)
     with path.open('rb') as stream:
         stream.seek(0,2);size=stream.tell();stream.seek(max(0,size-TAIL_BYTES))
@@ -62,14 +63,48 @@ def explanation(path,checkout,source,model):
     else:
         lines=text.splitlines();truncated |= len(lines)>MAX_LINES
         result={'format':'text','lines':[clean_string(line) for line in lines[-MAX_LINES:]]}
-    if len(json.dumps(result).encode())>MAX_OUTPUT:
+    # Closeout can finish with a successful subcheck's JSON after an earlier
+    # failure. Keep the failure lines independently of that trailing report.
+    log_lines=text.splitlines()
+    failures=[i for i,line in enumerate(log_lines) if re.search(r'\b(?:FAIL|ERROR|FATAL):',line,re.I)]
+    result['failure_lines']=[];result['failure_context']=[]
+    snippets=sorted(source_lines,key=len,reverse=True)
+    def failure_text(line):
+        # A diagnostic prefix must not expose a raw source line appended to it.
+        for snippet in snippets:
+            if snippet in line:
+                line=re.sub(r'(?<![A-Za-z0-9_@])'+re.escape(snippet)+r'(?![A-Za-z0-9_@])',
+                            '[source text omitted; use structured records]',line)
+        return clean_string(line)
+    for index,i in enumerate(failures[:MAX_LINES]):
+        result['failure_lines'].append(failure_text(log_lines[i]))
+        context=[]
+        for j in range(i+1,min(i+4,len(log_lines))):
+            line=log_lines[j]
+            if not line.strip() or line.lstrip().startswith(('{','[')) or j in failures:break
+            context.append(failure_text(line))
+        if context:result['failure_context'].append({'failure_index':index,'lines':context})
+    result['failure_line_count_in_tail']=len(failures)
+    result['failure_lines_truncated']=len(failures)>MAX_LINES
+    result['log_tail_truncated']=size>TAIL_BYTES
+    truncated |= result['failure_lines_truncated']
+    result['origin']='gate diagnostic, not an additional source view'
+    if wire_size(result)>max_output:
         # Preserve a valid, explicitly partial JSON response, never a cut JSON string.
         truncated=True
         if report is not None:
-            result={'format':'json','report':{k:clean(v) for k,v in report.items() if not isinstance(v,(dict,list))},
-                    'detail_notice':'Detailed report exceeds response budget; ask for the named symbols/files through navigation.'}
+            result['report']={k:clean(v) for k,v in report.items() if not isinstance(v,(dict,list))}
+            result['detail_notice']='Detailed report exceeds response budget; use the named symbols/files through navigation.'
         else:result['lines']=result['lines'][-10:]
-    while len(json.dumps(result).encode())>MAX_OUTPUT and result.get('report'):
-        result['report'].pop(next(reversed(result['report'])))
+    while wire_size(result)+32>max_output:
+        if result.get('report'):result['report'].pop(next(reversed(result['report'])))
+        elif result.get('lines'):result['lines'].pop(0)
+        elif result['failure_context']:result['failure_context'].pop()
+        elif len(result['failure_lines'])>1:
+            result['failure_lines'].pop();result['failure_lines_truncated']=True
+        elif result['failure_lines'] and len(result['failure_lines'][0])>80:
+            result['failure_lines'][0]=result['failure_lines'][0][:len(result['failure_lines'][0])//2]+'…'
+            result['failure_lines_truncated']=True
+        else:break
         truncated=True
-    return {**result,'truncated':truncated,'origin':'gate diagnostic, not an additional source view'}
+    return {**result,'truncated':truncated}

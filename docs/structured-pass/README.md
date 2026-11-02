@@ -26,8 +26,16 @@ Comment-only repair batches are supported. In a corridor they still include the
 scorecard and closeout operations, but need neither a rename nor an unrelated
 document edit. Scorecard-only repairs also need no dummy edit. Preview and review
 results are paginated, with a 24 KiB ceiling on each serialized bridge response.
-Review page zero contains Q09, changed files and the change/page totals, without
-any change payload. Subsequent pages show one declaration, use or other change.
+Review page zero contains the Q09 count and paginated read request, changed files
+and the change/page totals, without any change payload. Subsequent pages show one
+declaration or other change, or up to eight consecutive uses of one declaration
+(fewer when the encoded bytes require it). `offset` addresses review pages;
+`total_changes` counts the individual changes across those pages.
+Use rows retain the full before/after statement and the exact reference leaf,
+including its binding, plus the lexical owner's record ID. They omit neighbouring
+statements and the repeated declaration body. To read context, call `navigate`
+with `view: records`, the side's statement or lexical-owner `record_id`, and the
+page's generation. Corridor and retained sessions both accept those `E-` IDs.
 Ledger additions use pages of at most 16 rows (fewer if needed to fit), with
 `row_offset` and `total_added_rows`; every row retains its reason and confidence.
 The unchanged ledger prefix is checked. Review-code hashes appear on page zero,
@@ -53,7 +61,11 @@ changed record still refuses with `RESPONSE_TOO_LARGE`, but includes `offset`,
 Inspect returns a declaration and use count; use `navigate` to page references.
 For paginated document/query/navigation results, reduce `limit` and retry the same
 offset if a response is too large; those refusals never give a skipping `next_offset`.
-Standalone Q09 remains unpaged; use smaller name batches when its result is large.
+Q09 accepts `offset` (default 0) and `limit` (default 12, maximum 40). It returns
+`mentions`, `total_mentions` and `next_offset`, stopping earlier when the encoded
+byte budget requires it. Follow `next_offset` until null; no match is discarded.
+An individually oversized match refuses with its location. Preview still checks
+the complete prose inventory, independently of the public page limit.
 Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.
 
@@ -95,6 +107,16 @@ is provided.
   and closeout deferral rows belong to the trusted wrapper. Gates use one pinned,
   allowlisted environment and record it. A forbidden generated write names its
   project-relative path in the rejection.
+  Failed gates include sanitized `failure_lines` for `FAIL:`, `ERROR:` and `FATAL:`
+  messages, even when a later subcheck prints a successful JSON summary. The
+  bounded `failure_context` includes up to three following lines per message,
+  such as an offending symbol or file, keyed by `failure_index`.
+  trailing structured report (including residue entries) remains available when
+  it fits. Diagnostics prioritize failures within a shared encoded-byte allowance;
+  truncation flags and the failure-line count describe omitted detail. Log scanning
+  covers the last 256 KiB and explicitly reports when earlier output was omitted.
+  Full logs and their hashes remain service-owned; raw source excerpts and host
+  paths are sanitized in the response.
 * Publication exports immutable content before moving the current generation.
   A ticket can reopen the complete review window after the editor is deleted.
   The retained producer can reassemble the restored tree; dependency checks

@@ -155,6 +155,35 @@ def neighbor_view(model,node):
             'after':[model.statement(n) for n in after]}
 
 
+def use_view(older,newer,reference_id,declaration_id):
+    """Full changed statements and bound leaves; neighbours are an explicit read."""
+    sides={}
+    for side,model in (('before',older),('after',newer)):
+        ref=model.node(reference_id);node=model.context(ref);owner=model.owners[node]
+        sides[side]={'record':model.statement(node),'reference':model.expression(ref),
+                     'lexical_owner_id':model.ids[owner] if owner is not None else None}
+    return {'kind':'rename_use','declaration_id':declaration_id,'reference_id':reference_id,
+            **sides,'neighbors_omitted':True}
+
+
+def use_pages(older,newer,op,base_generation):
+    # Cache only page boundaries on the already integrity-checked model. No
+    # persisted facts/IDs or provenance change when the review layout changes.
+    key=(base_generation,op['declaration_id'],tuple(op['reference_ids']))
+    cache=getattr(newer,'_review_use_pages',None)
+    if cache is None:newer._review_use_pages=cache={}
+    if key not in cache:
+        pages=[];rows=[];refs=[]
+        for ref in op['reference_ids']:
+            row=use_view(older,newer,ref,op['declaration_id'])
+            if refs and (len(refs)==8 or review_pages.wire_size({'changes':rows+[row]})>review_pages.BUDGET-4096):
+                pages.append(refs);rows=[];refs=[]
+            rows.append(row);refs.append(ref)
+        if refs:pages.append(refs)
+        cache[key]=pages
+    return cache[key]
+
+
 class RenameService(common.Service):
     review_profile='rename'
     @classmethod
@@ -224,12 +253,14 @@ class RenameService(common.Service):
             'use_count':sum(d==n for d in m.bindings.values()),
             'ledger':{'path':self.ledger,'sha256':self.state['generations'][generation]['manifest'][self.ledger]}}
 
-    @common.state_operation()
-    def q09(self, generation, names):
+    def q09_report(self, generation, names):
+        # Complete internal inventory: preview must never check only a read page.
+        if not isinstance(names,list) or len(names)>64 or any(not isinstance(n,str) or not n for n in names):
+            raise ValueError('REQUEST_SCHEMA')
         model = self.model(generation);record=self.state['generations'][generation]
         result = [{'kind':'comment','record':c,'mentions':mentions(c['text'],names)}
                   for c in comments(model) if mentions(c['text'],names)]
-        for path in record['manifest']:
+        for path in sorted(record['manifest']):
             if not path.casefold().endswith('.md') or common.file_ownership(path,self.project,self.source)=='handoff-owned':
                 continue
             data=(Path(record['checkout'])/path).read_bytes()
@@ -243,6 +274,25 @@ class RenameService(common.Service):
                 'exclusions':['Historical review archives, prior scorecard rows and rename-ledger old_name entries remain history.'],
                 'scope':'Source comment units and current tracked project Markdown; current scorecard row and non-row prose remain checked.'}
 
+    @common.state_operation()
+    def q09(self,generation,names,offset=0,limit=12):
+        if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=40:
+            raise ValueError('REQUEST_SCHEMA')
+        report=self.q09_report(generation,names);hits=report.pop('mentions')
+        result={**report,'mentions':[],'offset':offset,'limit':limit,'total_mentions':len(hits),'next_offset':None}
+        for hit in hits[offset:offset+limit]:
+            trial={**result,'mentions':result['mentions']+[hit]}
+            if review_pages.wire_size(trial)>review_pages.BUDGET-4096:
+                if result['mentions']:break
+                raise common.ServiceError('RESPONSE_TOO_LARGE',offset=offset,total_mentions=len(hits),
+                    action='One prose match exceeds the response budget; inspect its document or comment record.',
+                    match={k:hit[k] for k in ('kind','path','line') if k in hit} |
+                          ({'record_id':hit['record']['record_id']} if 'record' in hit else {}))
+            result['mentions'].append(hit)
+        end=offset+len(result['mentions'])
+        result['next_offset']=end if end<len(hits) else None
+        return result
+
     @common.state_operation(write=True)
     def preview(self, generation, operations, cid=None, role='implementer'):
         if role!='implementer':raise ValueError('REVIEWER_MUTATION_DENIED')
@@ -253,7 +303,7 @@ class RenameService(common.Service):
             raise ValueError('LEDGER_PREIMAGE_MISMATCH')
         documents=self.check_authored(generation,operations)
         names=[o['old_name'] for o in operations if o['kind']=='rename']
-        prose=self.q09(generation,names)
+        prose=self.q09_report(generation,names)
         doc_ops={o['path']:o for o in authored.selected(operations,self.project,self.source,common.file_ownership)}
         for hit in prose['mentions']:
             if hit['kind']=='authored_prose' and hit['path'] not in self.generated:
@@ -460,8 +510,8 @@ class RenameService(common.Service):
                 continue
             items.append(op)
             if op['kind']=='rename':
-                items.extend({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref}
-                             for ref in op['reference_ids'])
+                items.extend({'kind':'rename_uses','declaration_id':op['declaration_id'],'reference_ids':refs}
+                             for refs in use_pages(older,newer,op,base_generation))
         changes=[]
         for op in (items[offset-1:offset-1+limit] if offset else []):
             if op['kind']=='rename':
@@ -469,12 +519,8 @@ class RenameService(common.Service):
                 changes.append({'kind':'rename','declaration_id':decl,
                     'before':neighbor_view(older,older.node(decl)),'after':neighbor_view(newer,newer.node(decl)),
                     'use_count':len(op['reference_ids'])})
-            elif op['kind']=='rename_use':
-                ref=op['reference_id']
-                changes.append({'kind':'rename_use','declaration_id':op['declaration_id'],'reference_id':ref,
-                    'before':neighbor_view(older,older.context(older.node(ref))),
-                    'after':neighbor_view(newer,newer.context(newer.node(ref))),
-                    'bound_declaration':newer.statement(newer.bindings[newer.node(ref)])})
+            elif op['kind']=='rename_uses':
+                changes.extend(use_view(older,newer,ref,op['declaration_id']) for ref in op['reference_ids'])
             elif op['kind']=='comment_replace':
                 before=next(c for c in comments(older) if c['record_id']==op['record_id'])
                 # The stored operations provide the origin; find the changed
@@ -512,20 +558,25 @@ class RenameService(common.Service):
         readers=self.readers()
         result={'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
                 'review_code_sha256':digest(json.dumps(readers,sort_keys=True,separators=(',',':')).encode()),
-                'changes':changes,'total_changes':len(items),'total_pages':len(items)+1,'offset':offset,
+                'changes':changes,'total_changes':sum(len(op['reference_ids']) if op['kind']=='rename_uses' else 1 for op in items),
+                'total_pages':len(items)+1,'offset':offset,
                 'page_kind':'metadata' if offset==0 else 'change',
                 'next_offset':offset+limit if offset+limit<=len(items) else None,
                 'limits':['Shows stored edit provenance for supported operations; arbitrary history alignment is not implemented.']}
         if offset==0:
             result['review_code_hashes']=readers
             result['changed_files']=files
-            result['q09']=self.q09(generation,[o['old_name'] for o in record['provenance'] if o['kind']=='rename'])
+            names=[o['old_name'] for o in record['provenance'] if o['kind']=='rename']
+            prose=self.q09_report(generation,names)
+            result['q09']={k:v for k,v in prose.items() if k!='mentions'} | {
+                'total_mentions':len(prose['mentions']),
+                'read':{'operation':'q09','arguments':{'generation':generation,'names':names,'offset':0,'limit':12}}}
         return review_pages.fit(result)
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
         spec={'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit')),
-              'inspect':(('generation','symbol'),()),'q09':(('generation','names'),()),
+              'inspect':(('generation','symbol'),()),'q09':(('generation','names'),('offset','limit')),
               'documents':(('generation',),()),'document':(('generation','path'),('offset','limit')),
               'review':(('generation','base_generation'),('offset','limit')),
               'preview':(('generation','operations'),('cid',)),'confirm':(('generation','preview_digest'),())}

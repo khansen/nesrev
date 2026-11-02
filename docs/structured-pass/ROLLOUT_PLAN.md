@@ -57,9 +57,9 @@ regressions. Independent implementation review approved `bde6f80d2`, including
 from the historical workflow replay required above. Partial document views give
 the first omitted line on each side, not a list of every omitted location.
 
-Before requesting publication or another real model run, close the known readiness
-items: compact use views, gate diagnostics that include the failing `FAIL:` lines,
-and standalone Q09 paging. Optional document-diff performance and mixed
+The next local readiness slice implements compact use views, gate diagnostics
+that include the failing `FAIL:` lines, and standalone Q09 paging. Its validation
+and independent review remain separate from the approval above. Optional document-diff performance and mixed
 line-terminator reporting improvements remain separate follow-ups. Remote CI has
 never run for this branch; CI and merge remain open completion criteria. Push, PR
 and any real inference still require explicit owner authorization.

@@ -260,7 +260,7 @@ class RetainedReviewService(RenameService):
                'review':(('generation','base_generation'),('offset','limit')),
                'reassemble':(('generation',),())}
         if self.config['profile']=='rename':
-            specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit')),inspect=(('generation','symbol'),()),q09=(('generation','names'),()),
+            specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit')),inspect=(('generation','symbol'),()),q09=(('generation','names'),('offset','limit')),
                          document=(('generation','path'),('offset','limit')))
         if operation not in specs:raise ValueError('UNKNOWN_OPERATION')
         common.schema(arguments,*specs[operation])

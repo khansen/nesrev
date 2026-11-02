@@ -411,9 +411,11 @@ class Service:
             if not properties['passed']:
                 raise ValueError('SEMANTIC_CONTRACT')
             gates = self.run_gates(checkout,c['operations'],folder,env)
+            failure_count=sum(bool(gate['exit_code']) for gate in gates)
             for gate in gates:
                 if gate['exit_code']:
-                    gate['diagnostic']=gate_diagnostics.explanation(folder/(gate['target']+'.log'),checkout,self.source,changed)
+                    gate['diagnostic']=gate_diagnostics.explanation(folder/(gate['target']+'.log'),checkout,self.source,changed,
+                        max_output=gate_diagnostics.MAX_OUTPUT//failure_count)
             c['gates'] = gates
             # The baseline gates must be green. Never turn a nonzero baseline
             # into a blanket allowance for different or masked downstream errors.

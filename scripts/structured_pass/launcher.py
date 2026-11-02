@@ -150,14 +150,20 @@ class Corridor:
         return session.review(args['generation'],args['base_generation'],args.get('offset',0),args.get('limit',1))
 
     def document(self,args):
-        common.schema(args,('generation','path'),('offset','limit'))
+        return self.generation_read('document',args)
+
+    def generation_read(self,operation,args):
+        specs={'document':(('generation','path'),('offset','limit')),
+               'q09':(('generation','names'),('offset','limit')),
+               'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit'))}
+        common.schema(args,*specs[operation])
         generation=args['generation']
         require(isinstance(generation,str),'REQUEST_SCHEMA')
         with self.editor.transaction():
             state=self.checked_editor()
             if generation.startswith('E-'):
                 # Accept only artifacts on this pass's published ancestry. Do not
-                # turn a document request into arbitrary retained-store access.
+                # turn a read request into arbitrary retained-store access.
                 current=state['current']
                 while current is not None:
                     record=state['generations'][current]
@@ -166,7 +172,7 @@ class Corridor:
                     current=record['base']
                 require(current is not None,'UNKNOWN_GENERATION')
             else:current=generation
-            result=self.editor.document(current,args['path'],args.get('offset',0),args.get('limit',80))
+            result=self.editor.dispatch(operation,{**args,'generation':current},'reviewer')
             return {**result,'generation':generation}
 
     def closeout(self):
@@ -221,6 +227,7 @@ class Corridor:
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
+        if operation in ('q09','navigate'):return self.generation_read(operation,arguments)
         if operation=='closeout':
             common.schema(arguments,());return self.closeout()
         if operation=='reready':

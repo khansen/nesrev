@@ -243,7 +243,7 @@ class Documents(unittest.TestCase):
             state={'current':'G','generations':{'G':{'checkout':str(self.root),'manifest':manifest}}},
             model=lambda _:None,manifest_paths=lambda base,ops:list(manifest))
         with patch.object(rename_service,'comments',return_value=[]):
-            result=rename_service.RenameService.q09.__wrapped__(subject,'G',['OldName'])
+            result=rename_service.RenameService.q09_report(subject,'G',['OldName'])
         self.assertEqual({hit['path'] for hit in result['mentions']},set(paths[1:]))
         with patch.object(rename_service,'ledger_operation',return_value=None),\
              patch.object(rename_service.authored,'selected',return_value=[]),\

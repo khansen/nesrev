@@ -160,9 +160,97 @@ class WorkflowTests(unittest.TestCase):
                 if profile=='corridor':args['ticket']=published['review']['artifact_id']
                 page=call(root,profile,'review',args)
                 self.assertEqual('q09' in page,offset==0);self.assertEqual('changed_files' in page,offset==0)
+                for item in page['changes']:
+                    if item['kind']!='rename_use':continue
+                    for side,model in (('before',m),('after',c.editor.model(head))):
+                        ref=model.node(item['reference_id']);context=model.context(ref)
+                        self.assertEqual(item[side]['record'],model.statement(context))
+                        self.assertEqual(item[side]['reference'],model.expression(ref))
+                        self.assertEqual(item[side]['reference']['declaration_id'],item['declaration_id'])
+                        self.assertNotIn('before',item[side]);self.assertNotIn('after',item[side])
+                    if not seen:
+                        context=call(root,profile,'navigate',{'generation':new,'view':'records',
+                            'record_id':item['after']['record']['record_id'],'limit':1})
+                        self.assertEqual(context['records'][0]['record_id'],item['after']['record']['record_id'])
                 seen.extend(item['reference_id'] for item in page['changes'] if item['kind']=='rename_use')
                 offset=page['next_offset'];pages+=1
-            self.assertEqual(set(seen),expected);self.assertEqual(len(seen),35);self.assertGreater(pages,35)
+            self.assertEqual(set(seen),expected);self.assertEqual(len(seen),35)
+            self.assertEqual(pages,page['total_pages']);self.assertLess(pages,15)
+
+    def test_q09_pages_complete_inventory_in_both_sessions_and_preview_checks_all(self):
+        from structured_pass.rename_service import RenameService
+        from structured_pass_fixture import PROJECT
+        notes=''.join('Cell prose '+str(i)+' '+('quoted " snow \u2603 '*35)+'\n' for i in range(83))
+        c=prepare(self.root/'prose-pages',notes=notes);self.controller=c;g=c.editor.state['current']
+        # The mutation guard must use the whole inventory, even if its public
+        # read is replaced with an empty page.
+        with patch.object(RenameService,'q09',return_value={'mentions':[]}):
+            with self.assertRaisesRegex(service.ServiceError,'UNDISPOSED_STALE_PROSE') as caught:
+                c.editor.preview(g,rename_ops(c,g))
+            self.assertIn(PROJECT+'docs/reverse_engineering/WORKING_NOTES.md',caught.exception.details['paths'])
+        published=self.edit(closeout_ops(c,g))
+        reader=RetainedReviewService.from_publication(self.root/'prose-review',self.root/'prose-pages/store',published['review']['artifact_id'])
+        head=reader.config['artifacts'][-1]
+        for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
+            offered=self.bridge_request(root,profile)
+            self.assertIn('q09',offered['tools'][0]['inputSchema']['properties']['operation']['enum'])
+            offset=0;seen=[];page_count=0
+            while offset is not None:
+                page=self.bridge_request(root,profile,'q09',{'generation':head,'names':['Cell'],'offset':offset,'limit':40})
+                self.assertEqual(page['total_mentions'],83);self.assertEqual(page['offset'],offset)
+                seen.extend(page['mentions']);page_count+=1;offset=page['next_offset']
+            self.assertGreater(page_count,3)
+            self.assertEqual([hit['line'] for hit in seen],list(range(1,84)))
+            self.assertEqual([hit['text'] for hit in seen],notes.splitlines())
+            for bad in ({'offset':-1},{'offset':True},{'limit':0},{'limit':41},{'names':'Cell'}):
+                with self.assertRaisesRegex(ValueError,'REQUEST_SCHEMA'):
+                    (c if profile=='corridor' else reader).dispatch('q09',{'generation':head,'names':['Cell'],**bad},'reviewer')
+        metadata=self.bridge_request(c.root,'corridor','review',{'ticket':published['review']['artifact_id'],
+            'generation':head,'base_generation':reader.config['artifacts'][0]})
+        query=metadata['q09']['read']
+        self.assertEqual(query['operation'],'q09')
+        # This scorecard-only publication has no old names, so its Q09 is empty.
+        self.assertEqual(self.bridge_request(c.root,'corridor',query['operation'],query['arguments'])['total_mentions'],0)
+        with self.assertRaisesRegex(ValueError,'UNKNOWN_GENERATION'):
+            c.dispatch('q09',{'generation':'E-foreign','names':['Cell']},'reviewer')
+
+    def test_failed_closeout_exposes_failures_before_success_summary_over_bridge(self):
+        extra="import json\nprint('FAIL: '+str(Path.cwd())+'/projects/sample/docs/reverse_engineering/WORKING_NOTES.md: fix the required evidence')\nprint(json.dumps({'summary':'No stale old-symbol references found','residue':[]}))\nsys.exit(4)\n"
+        c=prepare(self.root/'failing-closeout',gate_extra=extra);g=c.editor.state['current']
+        preview=c.editor.preview(g,rename_ops(c,g));cid=c.editor.confirm(g,preview['preview_digest'])['candidate']
+        request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation','arguments':{
+            'operation':'validate','arguments':{'cid':cid}}}}
+        output=io.StringIO();mcp(c.root,'implementer','corridor',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
+        self.assertLessEqual(len(output.getvalue().encode()),paging.MAX_BYTES)
+        response=json.loads(output.getvalue())['result'];self.assertFalse(response.get('isError'),response)
+        value=json.loads(response['content'][0]['text'])
+        self.assertEqual(value['error'],'NEW_GATE_FAILURE');self.assertTrue(value['reference_prg_parity'])
+        diag=next(gate['diagnostic'] for gate in value['gates'] if gate['exit_code'])
+        self.assertEqual(diag['report']['summary'],'No stale old-symbol references found')
+        self.assertEqual(diag['failure_lines'],['FAIL: projects/sample/docs/reverse_engineering/WORKING_NOTES.md: fix the required evidence'])
+        self.assertEqual(diag['failure_line_count_in_tail'],1);self.assertFalse(diag['failure_lines_truncated'])
+        self.assertNotIn(str(self.root),json.dumps(diag))
+        with self.assertRaisesRegex(ValueError,'CANDIDATE_NOT_PUBLISHABLE'):c.editor.publish(cid)
+
+    def test_multiple_failing_gate_diagnostics_share_response_budget(self):
+        c=self.controller;g=c.editor.state['current']
+        preview=c.editor.preview(g,rename_ops(c,g));cid=c.editor.confirm(g,preview['preview_digest'])['candidate']
+        def failing_gates(checkout,operations,folder,env):
+            result=[]
+            for target in ('project-inventory','project-verify','project-process-check','project-docs-check'):
+                log=folder/(target+'.log')
+                log.write_text(''.join('FAIL: '+target+' '+str(i)+' '+('"\u2603'*1000)+'\n' for i in range(12)))
+                result.append({'target':target,'exit_code':4,'seconds':0,'log_sha256':producer.sha(log),'environment':dict(env)})
+            return result
+        with patch.object(c.editor,'run_gates',side_effect=failing_gates):value=c.editor.validate(cid)
+        self.assertEqual(value['error'],'NEW_GATE_FAILURE')
+        response=self.bridge_request(c.root,'corridor','candidate_status',{'cid':cid})
+        self.assertEqual(response['error'],'NEW_GATE_FAILURE')
+        self.assertEqual(len(response['gates']),4)
+        for gate in response['gates']:
+            self.assertTrue(gate['diagnostic']['failure_lines'])
+            self.assertIn(gate['target'],gate['diagnostic']['failure_lines'][0])
+            self.assertTrue(gate['diagnostic']['truncated'])
 
     def test_oversized_first_document_and_use_remain_reviewable(self):
         from structured_pass import authored_documents, review_pages
