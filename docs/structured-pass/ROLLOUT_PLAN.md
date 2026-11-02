@@ -1,7 +1,8 @@
 # Structured pass rollout plan
 
-Status: proposed three-PR delivery sequence. Step 1 is implemented locally at
-`c084d2fa9` and awaits independent review; steps 2 and 3 are not complete.
+Status: proposed three-PR delivery sequence. Step 1's implementation is approved
+at `bde6f80d2`; remote CI has not run, and publication and merge remain pending.
+Steps 2 and 3 are not complete.
 The numbers below identify delivery steps, not existing GitHub PR numbers.
 
 The destination is ordinary full-scale project passes in which implementers and
@@ -48,10 +49,20 @@ this step.
 - After publication is authorized, the PR is merged. Local implementation or a
   green test run alone does not complete this step.
 
-**Current evidence:** the implementation commit has a 23-source corpus check,
-neutral service tests, native loopback probes, real wrapper replay and repository
-regressions. Its external review, remote CI and merge are pending. No new real
-agent pass is authorized by this plan.
+**Current evidence:** the implementation has a 23-source corpus check, neutral
+service tests, native loopback probes, real wrapper replay and repository
+regressions. Independent implementation review approved `bde6f80d2`, including
+96 focused tests, the optimized suite, full repository tests and a disposable
+64-rename corridor. The document-history replay covered 983 edits; it is distinct
+from the historical workflow replay required above. Partial document views give
+the first omitted line on each side, not a list of every omitted location.
+
+Before requesting publication or another real model run, close the known readiness
+items: compact use views, gate diagnostics that include the failing `FAIL:` lines,
+and standalone Q09 paging. Optional document-diff performance and mixed
+line-terminator reporting improvements remain separate follow-ups. Remote CI has
+never run for this branch; CI and merge remain open completion criteria. Push, PR
+and any real inference still require explicit owner authorization.
 
 ## Step 2 — Complete the normal-pass operation coverage
 
