@@ -64,7 +64,9 @@ offset if a response is too large; those refusals never give a skipping `next_of
 Q09 accepts `offset` (default 0) and `limit` (default 12, maximum 40). It returns
 `mentions`, `total_mentions` and `next_offset`, stopping earlier when the encoded
 byte budget requires it. Follow `next_offset` until null; no match is discarded.
-An individually oversized match refuses with its location. Preview still checks
+An individually oversized match refuses with its location and an action naming
+the offset after that undelivered match; continuing there does not mean the match
+was reviewed. Preview still checks
 the complete prose inventory, independently of the public page limit.
 Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.
@@ -109,10 +111,14 @@ is provided.
   project-relative path in the rejection.
   Failed gates include sanitized `failure_lines` for `FAIL:`, `ERROR:` and `FATAL:`
   messages, even when a later subcheck prints a successful JSON summary. The
-  bounded `failure_context` includes up to three following lines per message,
-  such as an offending symbol or file, keyed by `failure_index`.
-  trailing structured report (including residue entries) remains available when
-  it fits. Diagnostics prioritize failures within a shared encoded-byte allowance;
+  bounded `failure_context` includes up to 120 following lines per message,
+  stopping at a blank line, a JSON/progress block or the next failure. Entries are
+  keyed by `failure_index`; `context_truncated` and the overall `truncated` flag
+  mark any detail lost to the line, string or byte limits. Byte trimming removes
+  lines from the end of the last context first. An empty, flagged entry remains
+  while its failure message is visible. The trailing structured report (including
+  residue entries) remains available when it fits. Diagnostics prioritize failures
+  within a shared encoded-byte allowance;
   truncation flags and the failure-line count describe omitted detail. Log scanning
   covers the last 256 KiB and explicitly reports when earlier output was omitted.
   Full logs and their hashes remain service-owned; raw source excerpts and host

@@ -232,6 +232,35 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn(str(self.root),json.dumps(diag))
         with self.assertRaisesRegex(ValueError,'CANDIDATE_NOT_PUBLISHABLE'):c.editor.publish(cid)
 
+    def test_oversized_q09_match_refuses_with_explicit_resume_in_both_sessions(self):
+        notes='Cell first\nCell '+('quoted " text '*2500)+'\nCell last\n'
+        c=prepare(self.root/'oversized-prose',notes=notes);self.controller=c;g=c.editor.state['current']
+        published=self.edit(closeout_ops(c,g))
+        reader=RetainedReviewService.from_publication(self.root/'large-prose-review',self.root/'oversized-prose/store',published['review']['artifact_id'])
+        head=reader.config['artifacts'][-1]
+        for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
+            first=self.bridge_request(root,profile,'q09',{'generation':head,'names':['Cell']})
+            self.assertEqual(first['total_mentions'],3);self.assertEqual(first['next_offset'],1)
+            self.assertEqual([hit['text'] for hit in first['mentions']],['Cell first'])
+            requests=[{'jsonrpc':'2.0','id':i,'method':'tools/call','params':{'name':'operation','arguments':{
+                'operation':op,'arguments':args}}} for i,(op,args) in enumerate([
+                    ('q09',{'generation':head,'names':['Cell'],'offset':1}),('status',{}),
+                    ('q09',{'generation':head,'names':['Cell'],'offset':2})])]
+            out=io.StringIO();mcp(root,'reviewer',profile,input_stream=io.StringIO(''.join(json.dumps(r)+'\n' for r in requests)),output_stream=out)
+            wires=out.getvalue().splitlines();self.assertEqual(len(wires),3)
+            for wire in wires:self.assertLessEqual(len(wire.encode())+1,paging.MAX_BYTES)
+            replies=[json.loads(wire)['result'] for wire in wires]
+            self.assertTrue(replies[0].get('isError'));error=json.loads(replies[0]['content'][0]['text'])
+            self.assertEqual(error['error'],'RESPONSE_TOO_LARGE')
+            self.assertEqual(error['details']['offset'],1);self.assertEqual(error['details']['total_mentions'],3)
+            self.assertEqual(error['details']['match'],{'kind':'authored_prose','path':c.editor.project+'docs/reverse_engineering/WORKING_NOTES.md','line':2})
+            self.assertIn('offset 2',error['details']['action']);self.assertIn('not delivered',error['details']['action'])
+            self.assertNotIn('next_offset',error)
+            self.assertFalse(replies[1].get('isError'));self.assertFalse(replies[2].get('isError'))
+            last=json.loads(replies[2]['content'][0]['text'])
+            self.assertEqual([hit['text'] for hit in last['mentions']],['Cell last'])
+            self.assertIsNone(last['next_offset'])
+
     def test_multiple_failing_gate_diagnostics_share_response_budget(self):
         c=self.controller;g=c.editor.state['current']
         preview=c.editor.preview(g,rename_ops(c,g));cid=c.editor.confirm(g,preview['preview_digest'])['candidate']

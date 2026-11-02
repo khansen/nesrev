@@ -285,7 +285,7 @@ class RenameService(common.Service):
             if review_pages.wire_size(trial)>review_pages.BUDGET-4096:
                 if result['mentions']:break
                 raise common.ServiceError('RESPONSE_TOO_LARGE',offset=offset,total_mentions=len(hits),
-                    action='One prose match exceeds the response budget; inspect its document or comment record.',
+                    action=f'One prose match exceeds the response budget and was not delivered. Inspect its document or comment record; read Q09 at offset {offset+1} to continue past it.',
                     match={k:hit[k] for k in ('kind','path','line') if k in hit} |
                           ({'record_id':hit['record']['record_id']} if 'record' in hit else {}))
             result['mentions'].append(hit)

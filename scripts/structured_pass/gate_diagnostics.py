@@ -6,6 +6,7 @@ from .review_pages import wire_size
 
 TAIL_BYTES=256*1024
 MAX_LINES=40
+MAX_CONTEXT_LINES=120
 MAX_ITEMS=80
 MAX_STRING=2048
 MAX_OUTPUT=12288
@@ -78,12 +79,17 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
         return clean_string(line)
     for index,i in enumerate(failures[:MAX_LINES]):
         result['failure_lines'].append(failure_text(log_lines[i]))
-        context=[]
-        for j in range(i+1,min(i+4,len(log_lines))):
+        context=[];context_truncated=False
+        for j in range(i+1,len(log_lines)):
             line=log_lines[j]
             if not line.strip() or line.lstrip().startswith(('{','[')) or j in failures:break
-            context.append(failure_text(line))
-        if context:result['failure_context'].append({'failure_index':index,'lines':context})
+            if len(context)==MAX_CONTEXT_LINES:
+                context_truncated=True;break
+            rendered=failure_text(line);context.append(rendered)
+            context_truncated |= len(rendered)>MAX_STRING
+        truncated |= context_truncated
+        if context:result['failure_context'].append({'failure_index':index,'lines':context,
+                                                     'context_truncated':context_truncated})
     result['failure_line_count_in_tail']=len(failures)
     result['failure_lines_truncated']=len(failures)>MAX_LINES
     result['log_tail_truncated']=size>TAIL_BYTES
@@ -99,9 +105,14 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
     while wire_size(result)+32>max_output:
         if result.get('report'):result['report'].pop(next(reversed(result['report'])))
         elif result.get('lines'):result['lines'].pop(0)
-        elif result['failure_context']:result['failure_context'].pop()
+        elif any(entry['lines'] for entry in result['failure_context']):
+            entry=next(entry for entry in reversed(result['failure_context']) if entry['lines'])
+            entry['lines'].pop();entry['context_truncated']=True
         elif len(result['failure_lines'])>1:
+            index=len(result['failure_lines'])-1
             result['failure_lines'].pop();result['failure_lines_truncated']=True
+            # Keep empty, flagged context entries for every visible failure.
+            result['failure_context']=[entry for entry in result['failure_context'] if entry['failure_index']!=index]
         elif result['failure_lines'] and len(result['failure_lines'][0])>80:
             result['failure_lines'][0]=result['failure_lines'][0][:len(result['failure_lines'][0])//2]+'…'
             result['failure_lines_truncated']=True

@@ -45,10 +45,60 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn('projects/sample/docs/note.md',result['failure_lines'][0])
         self.assertEqual(result['report']['residue'],[])
         self.assertTrue(result['failure_context'])
-        self.assertEqual(result['failure_context'][0],{'failure_index':0,'lines':['PORTS_MISSING']})
+        self.assertEqual(result['failure_context'][0],{'failure_index':0,'lines':['PORTS_MISSING'],'context_truncated':False})
         encoded=json.dumps(result)
         for private in ('/private/checkouts','/secret','LDA #Cell'):self.assertNotIn(private,encoded)
         self.assertIn('[source text omitted',encoded)
+
+    def test_failure_context_lists_are_complete_or_flagged(self):
+        for count in (5,120,121):
+            with self.subTest(count=count):
+                lines=['UnknownSymbol'+str(i) for i in range(count)]
+                result=self.diagnostic('FAIL: docs reference unknown symbols:\n'+'\n'.join(lines)+
+                    '\n{"summary":"No stale old-symbol references found","residue":[]}\n')
+                self.assertEqual(len(result['failure_context']),1)
+                context=result['failure_context'][0]
+                self.assertEqual(context['lines'],lines[:120])
+                self.assertEqual(context['context_truncated'],count>120)
+                self.assertEqual(result['truncated'],count>120)
+                self.assertFalse(result['failure_lines_truncated'])
+                self.assertLessEqual(review_pages.wire_size(result),gate_diagnostics.MAX_OUTPUT)
+        for stop in ('\n','  {"summary":"end"}\n','  [next check]\n','FAIL: another failure\n'):
+            with self.subTest(stop=stop):
+                result=self.diagnostic('FAIL: first\nOne\nTwo\nThree\nFour\nFive\n'+stop+'Not part of first\n')
+                self.assertEqual(result['failure_context'][0]['lines'],['One','Two','Three','Four','Five'])
+                self.assertFalse(result['failure_context'][0]['context_truncated'])
+        result=self.diagnostic('FAIL: long item\n'+('x'*3000)+'\n{}\n')
+        self.assertTrue(result['failure_context'][0]['context_truncated'])
+        self.assertTrue(result['truncated'])
+
+    def test_failure_context_budget_keeps_prefix_and_marks_every_drop(self):
+        first=['EarlySymbol'+str(i) for i in range(5)]
+        last=['LaterSymbol'+str(i)+' '+('quoted " \u2603 '*10) for i in range(20)]
+        text='FAIL: first list\n'+'\n'.join(first)+'\nFAIL: second list\n'+'\n'.join(last)+'\n{}\n'
+        full=self.diagnostic(text)
+        self.assertEqual(full['failure_context'][1]['lines'],last)
+        self.assertFalse(full['truncated'])
+        result=self.diagnostic(text,max_output=2500)
+        self.assertLessEqual(review_pages.wire_size(result),2500)
+        self.assertEqual(result['failure_lines'],['FAIL: first list','FAIL: second list'])
+        self.assertEqual(len(result['failure_context']),2)
+        self.assertEqual(result['failure_context'][0]['lines'],first)
+        self.assertFalse(result['failure_context'][0]['context_truncated'])
+        context=result['failure_context'][1]
+        self.assertGreater(len(context['lines']),0);self.assertLess(len(context['lines']),len(last))
+        self.assertEqual(context['lines'],last[:len(context['lines'])])
+        self.assertTrue(context['context_truncated']);self.assertTrue(result['truncated'])
+
+    def test_empty_context_keeps_omission_flag_for_visible_failures(self):
+        text=''.join('FAIL: list '+str(i)+'\nDetail'+str(i)+'\n' for i in range(30))+'{}\n'
+        result=self.diagnostic(text,max_output=1800)
+        self.assertLessEqual(review_pages.wire_size(result),1800)
+        self.assertTrue(result['failure_lines']);self.assertTrue(result['failure_lines_truncated'])
+        self.assertEqual([c['failure_index'] for c in result['failure_context']],list(range(len(result['failure_lines']))))
+        for context in result['failure_context']:
+            self.assertEqual(context['lines'],[]);self.assertTrue(context['context_truncated'])
+        self.assertTrue(result['truncated'])
 
     def test_diagnostics_fit_wire_budget_with_failure_priority(self):
         text=''.join('FAIL: problem '+str(i)+' '+('"\u2603'*900)+'\n' for i in range(100))
