@@ -89,10 +89,12 @@ def read_ticket(store,artifact):
     return ticket
 
 
-def export_chain(state,generation,source,reference,profile):
+def export_chain(state,generation,source,reference,profile,*,review_pass_id=None):
     config=state.get('retention')
     require(isinstance(config,dict) and config.get('schema')=='publication-retention-v1','RETENTION_NOT_CONFIGURED')
     require(profile in ('rename','instruction'),'PUBLICATION_RECEIPT_MISMATCH')
+    require(review_pass_id is None or isinstance(review_pass_id,str) and review_pass_id.isdigit(),
+            'PUBLICATION_RECEIPT_MISMATCH')
     store=Store(persistent_root(config['root']))
     executable,recipe=toolchain(store,config,state['producer_sha256'])
     runtime=running_tooling(executable)
@@ -115,11 +117,13 @@ def export_chain(state,generation,source,reference,profile):
         saved=record.get('artifact')
         if saved:
             body=store.open(saved['artifact_id'],runtime,base)
-            require(body['legacy_generation']==gen and body['manifest']==record['manifest'],
+            require(body['legacy_generation']==gen and body['manifest']==record['manifest']
+                    and body.get('review_pass_id')==review_pass_id,
                     'PUBLICATION_RECEIPT_MISMATCH')
             item=saved
         else:
-            item=store.export(state,gen,source,reference,[HERE,HERE.parent],executable,recipe,base)
+            item=store.export(state,gen,source,reference,[HERE,HERE.parent],executable,recipe,base,
+                              review_pass_id=review_pass_id)
             # A portable receipt is enough; do not expose server filesystem paths.
             item={k:v for k,v in item.items() if k!='receipt'}
             record['artifact']=item

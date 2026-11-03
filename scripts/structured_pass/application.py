@@ -1,5 +1,6 @@
 """Trusted coordinator application of a closed, approved generation; never an agent tool."""
 import argparse
+from contextlib import contextmanager
 import fcntl
 import json
 from pathlib import Path
@@ -8,6 +9,31 @@ import tempfile
 
 from .launcher import Corridor,common,require
 from . import gate_environment
+from . import structured_handoff
+import agent_review
+
+
+@contextmanager
+def approved_application(controller):
+    closed=controller.closeout()
+    root=controller.root/'handoff'
+    # Use the verdict command's lock order. Closeout runs before this transaction
+    # because its subprocess also acquires the handoff lock.
+    with structured_handoff.transaction(root):
+        state=agent_review.read_state(root)
+        config=state['structured_review']
+        require(state['run_id']==controller.config['run_id'] and
+                Path(config['editor_state']).resolve()==controller.editor.state_path.resolve(),
+                'APPLICATION_APPROVAL_CHANGED')
+        with structured_handoff.published_head(config) as head:
+            approval=structured_handoff.result(agent_review,root,state)
+            require(approval['status']=='APPROVED' and approval['coverage']['coverage_complete']
+                    and head==approval['coverage']['pass_head']
+                    and all(closed.get(k)==v for k,v in approval.items()),
+                    'APPLICATION_APPROVAL_CHANGED')
+            yield closed
+
+
 def git(root,*args):
     return subprocess.check_output(['/usr/bin/git','-C',str(root),*args])
 
@@ -27,11 +53,8 @@ def apply(session,target,*,commit=False):
     controller=Corridor(session);target=Path(target).resolve()
     with (controller.root/'application.lock').open('a+b') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        # Prevent publication from changing the approved head during application.
-        with (controller.editor.root/'validation.lock').open('rb') as editor_lock:
-            try:fcntl.flock(editor_lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
-            except BlockingIOError:raise ValueError('VALIDATION_IN_PROGRESS') from None
-            closed=controller._closeout()
+        # Keep both the published head and its verdict fixed through the commit.
+        with approved_application(controller) as closed:
             state=controller.checked_editor();head=state['current']
             require(common.producer.sha(target/controller.editor.reference)==state['reference_sha256'],
                     'APPLICATION_REFERENCE_CHANGED')

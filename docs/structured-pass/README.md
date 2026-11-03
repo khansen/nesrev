@@ -74,7 +74,9 @@ Read subsequent pages with `preview_page` before confirming the preview digest.
 An individual oversized item is refused explicitly, never silently truncated.
 
 Navigation includes declarations, complete direct uses, lexical blocks and
-comments. The constant-context query also follows EQU dependencies. These views
+comments, including anonymous forward/backward declarations. Repeated anonymous
+names require a `record_id` to select a particular declaration and its bound uses.
+The constant-context query also follows EQU dependencies. These views
 present evidence; they do not decide whether a name or constant is semantically
 correct. Addresses retain their producer segment identity.
 
@@ -127,6 +129,8 @@ is provided.
   paths are sanitized in the response.
 * Publication exports immutable content before moving the current generation.
   A ticket can reopen the complete review window after the editor is deleted.
+  Rename receipts retain the original pass ID, so Q09 keeps checking the current
+  scorecard row even when earlier generations are outside the restored window.
   The retained producer can reassemble the restored tree; dependency checks
   refuse inputs outside it.
 * Content identity is independent of installation path and service code. Fact
@@ -201,6 +205,16 @@ session are not request arguments. Review verdicts use the existing
 pass exceeds one eight-state review window. A new publication invalidates
 complete coverage until reviewed. Closeout recomputes live coverage, then writes
 the archive; reading a stored `APPROVED` field alone is insufficient.
+Application rechecks that archived approval under the handoff lock, then holds
+both the verdict lock and the editor's shared lock through gates and the local
+commit. An intervening revocation refuses application; concurrent verdicts and
+publication must retry after application releases those locks.
+
+Status and verdict responses include at most 1,024 characters of `latest_review.report`.
+For a partial report, both roles can call `review_report` with its `sequence`
+and follow `next_offset` until null. Offsets count Unicode characters; `limit`
+defaults to 1,024 and cannot exceed it. Each page includes the full report's hash
+and total character count. The checked canonical report and archive remain complete.
 
 The permission boundary is the restricted client's configuration, not Unix user
 separation. Both services run as the operator and own source, Git and evidence.

@@ -477,7 +477,8 @@ class Service:
         # candidate without a review. Repeating export is safe.
         from .publication import export_chain
         try:
-            review=export_chain(staged,generation,self.source,self.reference,self.review_profile)
+            review=export_chain(staged,generation,self.source,self.reference,self.review_profile,
+                                review_pass_id=self.publication_pass_id())
         except OSError:
             raise ValueError('ARTIFACT_EXPORT_FAILED') from None
         staged['current']=generation
@@ -490,6 +491,9 @@ class Service:
         return self.published_response(cid,self.state['candidates'][cid])
 
     review_profile='instruction'
+
+    def publication_pass_id(self):
+        return None
 
     @state_operation(write=True)
     def start_chain(self,generation,role='implementer'):

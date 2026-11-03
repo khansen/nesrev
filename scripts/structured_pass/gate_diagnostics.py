@@ -27,13 +27,19 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
         if isinstance(value,dict):report=value;break
     roots=sorted({str(Path(checkout)),str(Path(checkout).resolve())},key=len,reverse=True)
     source_lines={s.strip() for s in model.source.decode('utf-8','replace').splitlines() if s.strip()}
+    snippets=sorted(source_lines,key=len,reverse=True)
 
     def clean_string(value):
         nonlocal truncated
+        # Apply snippet redaction to every channel, including prefixed plain
+        # lines and scalar JSON fields, before removing filesystem prefixes.
+        for snippet in snippets:
+            if snippet in value:
+                value=re.sub(r'(?<![A-Za-z0-9_@])'+re.escape(snippet)+r'(?![A-Za-z0-9_@])',
+                             '[source text omitted; use structured records]',value)
         for root in roots:value=value.replace(root+'/', '')
         # Keep project-relative paths and remove other host filesystem paths.
         value=re.sub(r'(?<![\w:/])/(?:[^\s\"\'<>:,;]+/)*[^\s\"\'<>:,;]*','[host-path]',value)
-        if value.strip() in source_lines:value='[source text omitted; use structured records]'
         if len(value)>MAX_STRING:truncated=True;value=value[:MAX_STRING]+'…'
         return value
 
@@ -69,13 +75,7 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
     log_lines=text.splitlines()
     failures=[i for i,line in enumerate(log_lines) if re.search(r'\b(?:FAIL|ERROR|FATAL):',line,re.I)]
     result['failure_lines']=[];result['failure_context']=[]
-    snippets=sorted(source_lines,key=len,reverse=True)
     def failure_text(line):
-        # A diagnostic prefix must not expose a raw source line appended to it.
-        for snippet in snippets:
-            if snippet in line:
-                line=re.sub(r'(?<![A-Za-z0-9_@])'+re.escape(snippet)+r'(?![A-Za-z0-9_@])',
-                            '[source text omitted; use structured records]',line)
         return clean_string(line)
     for index,i in enumerate(failures[:MAX_LINES]):
         result['failure_lines'].append(failure_text(log_lines[i]))

@@ -36,8 +36,14 @@ class Bridge:
         # Authenticate the route via trusted startup configuration, never a request field.
         if op in ('approve', 'request-changes'):
             require(self.config['role'] == 'reviewer', 'REVIEWER_ONLY')
-        elif op != 'status':
+        elif op not in ('status','review_report'):
             raise ValueError('OPERATION_NOT_AVAILABLE')
+        if op=='review_report':
+            require(set(args)>={'sequence'} and set(args)<={'sequence','offset','limit'}
+                    and all(type(v) is int for v in args.values()), 'REQUEST_SCHEMA')
+            return self.command('structured-report','--sequence',str(args['sequence']),
+                                '--offset',str(args.get('offset',0)),
+                                '--limit',str(args.get('limit',1024)))
         expected = set() if op == 'status' else {'ticket', 'report'}
         require(set(args) == expected, 'REQUEST_SCHEMA')
         state = self.command('status', '--json')
@@ -71,7 +77,7 @@ def mcp(config):
             result = {'protocolVersion': request['params']['protocolVersion'], 'capabilities': {'tools': {}},
                       'serverInfo': {'name': 'handoff-verdicts', 'version': 'prototype-1'}}
         elif method == 'tools/list':
-            operations = ['status'] + (['approve', 'request-changes'] if bridge.config['role'] == 'reviewer' else [])
+            operations = ['status','review_report'] + (['approve', 'request-changes'] if bridge.config['role'] == 'reviewer' else [])
             result = {'tools': [{'name': 'operation', 'description': 'Existing handoff status and window verdicts.',
                 'inputSchema': {'type': 'object', 'properties': {'operation': {'type': 'string', 'enum': operations},
                     'arguments': {'type': 'object'}}, 'required': ['operation', 'arguments'], 'additionalProperties': False}}]}

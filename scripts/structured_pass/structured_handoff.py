@@ -11,6 +11,7 @@ import sys
 
 from .durable_artifact import canonical, digest
 from . import window_coverage as windows
+REPORT_PAGE_CHARS = 1024
 def require(ok, code):
     if not ok:
         raise ValueError(code)
@@ -26,6 +27,11 @@ def register(sub):
     advance = sub.add_parser('advance-structured', help='coordinator: register a published pass head')
     advance.add_argument('--head-artifact', required=True)
     advance.set_defaults(func=None)
+    report = sub.add_parser('structured-report', help='read a checked verdict report in character pages')
+    report.add_argument('--sequence', type=int, required=True)
+    report.add_argument('--offset', type=int, default=0)
+    report.add_argument('--limit', type=int, default=REPORT_PAGE_CHARS)
+    report.set_defaults(func=None)
 
 
 @contextmanager
@@ -112,15 +118,35 @@ def result(api, root, state):
     coverage = checked_coverage(api, root, state)
     history = state['structured_review']['verdict_history']
     latest = history[-1] if history else None
+    text = (root / latest['review_file']).read_bytes().decode('utf-8') if latest else ''
     return {'status': state['status'], 'run_id': state['run_id'], 'round': state['round'],
             'reviewer': state['review_agent'], 'coverage': coverage,
             # Read only the report whose location and digest were checked above,
             # while the handoff lock is held. The implementer has no file access.
             'latest_review': ({'sequence': latest['sequence'], 'verdict': latest['verdict'],
-                'sha256': latest['review_sha256'], 'report': (root / latest['review_file']).read_text()}
+                'sha256': latest['review_sha256'], 'report': text[:REPORT_PAGE_CHARS],
+                'total_characters': len(text), 'truncated': len(text)>REPORT_PAGE_CHARS,
+                'next_offset': REPORT_PAGE_CHARS if len(text)>REPORT_PAGE_CHARS else None,
+                'operation': 'review_report'}
                 if latest else None),
             'range_source': 'live-publisher' if state['structured_review'].get('editor_state') else 'frozen-artifacts',
             'verdict_count': len(state['structured_review']['verdict_history'])}
+
+
+def report_page(api, root, state, sequence, offset, limit):
+    checked_coverage(api, root, state)
+    history=state['structured_review']['verdict_history']
+    require(type(sequence) is int and 1<=sequence<=len(history)
+            and type(offset) is int and offset>=0
+            and type(limit) is int and 1<=limit<=REPORT_PAGE_CHARS, 'REQUEST_SCHEMA')
+    event=history[sequence-1]
+    text=(root/event['review_file']).read_bytes().decode('utf-8')
+    require(offset<=len(text), 'REQUEST_SCHEMA')
+    return {'run_id':state['run_id'], 'sequence':sequence, 'verdict':event['verdict'],
+            'sha256':event['review_sha256'], 'offset':offset, 'limit':limit,
+            'offset_unit':'Unicode characters', 'total_characters':len(text),
+            'report':text[offset:offset+limit],
+            'next_offset':offset+limit if offset+limit<len(text) else None}
 
 
 def save(api, root, state):
@@ -224,7 +250,7 @@ def dispatch(api, args):
     except (OSError, ValueError):
         header = {}
     active = isinstance(header, dict) and 'structured_review' in header
-    if not active and args.command not in ('init-structured', 'advance-structured'):
+    if not active and args.command not in ('init-structured', 'advance-structured', 'structured-report'):
         require(not getattr(args, 'window', None), 'STRUCTURED_MODE_REQUIRED')
         return None
     with transaction(root), ExitStack() as locks:
@@ -244,6 +270,8 @@ def dispatch(api, args):
                 answer = verdict(api, root, state, args)
             elif args.command == 'status':
                 answer = result(api, root, state)
+            elif args.command == 'structured-report':
+                answer = report_page(api, root, state, args.sequence, args.offset, args.limit)
             elif args.command == 'advance-structured':
                 require(live is None, 'HEAD_OWNED_BY_PUBLISHER')
                 answer = advance(api, root, state, args.head_artifact)

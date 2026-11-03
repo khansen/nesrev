@@ -224,6 +224,9 @@ class Corridor:
             require(role=='implementer','REVIEWER_MUTATION_DENIED')
         if operation=='status':
             common.schema(arguments,());return self.status(role)
+        if operation=='review_report':
+            require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
+            return self.verdicts(role).dispatch({'operation':operation,'arguments':arguments})
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)

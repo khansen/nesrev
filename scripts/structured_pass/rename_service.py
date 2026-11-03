@@ -186,6 +186,9 @@ def use_pages(older,newer,op,base_generation):
 
 class RenameService(common.Service):
     review_profile='rename'
+
+    def publication_pass_id(self):
+        return self.document_pass_id()
     @classmethod
     def readers(cls):
         return common.reader_hashes()

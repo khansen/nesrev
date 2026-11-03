@@ -23,7 +23,7 @@ ERRORS='''REVIEW_SESSION_CHANGED REVIEW_PROFILE_INVALID REVIEW_RESTORE_IN_PROGRE
     ARTIFACT_UNIT_MISMATCH ARTIFACT_FILE_MISMATCH ARTIFACT_PROVENANCE_MISMATCH
     ARTIFACT_CAPTURE_MISMATCH ARTIFACT_BLOB_MISMATCH ARTIFACT_PATH_INVALID
     BASE_ARTIFACT_MISMATCH TOOLCHAIN_UNAVAILABLE DESTINATION_EXISTS
-    REASSEMBLY_DEPENDENCY_INVALID REASSEMBLY_INPUT_OUTSIDE_TREE'''.split()
+    REASSEMBLY_DEPENDENCY_INVALID REASSEMBLY_INPUT_OUTSIDE_TREE REVIEW_PASS_CONTEXT_MISSING'''.split()
 common.PUBLIC_ERROR_CODES |= frozenset(ERRORS)
 
 
@@ -108,6 +108,11 @@ class RetainedReviewService(RenameService):
             prior_ticket=read_ticket(self.store.root,self.anchor)
             require(prior_ticket['profile']==self.config['profile'],'REVIEW_PROFILE_INVALID')
         first=next(iter(self.bodies.values()))
+        self.review_pass_id=first.get('review_pass_id')
+        if self.config['profile']=='rename':
+            require(isinstance(self.review_pass_id,str) and self.review_pass_id.isdigit()
+                    and all(b.get('review_pass_id')==self.review_pass_id for b in self.bodies.values()),
+                    'REVIEW_PASS_CONTEXT_MISSING')
         self.source=first['source_path'];self.reference=first['reference_path']
         self.project='/'.join(Path(self.source).parts[:2])+'/'
         self.slug=Path(self.source).parts[1]
@@ -138,6 +143,12 @@ class RetainedReviewService(RenameService):
     def provenance(self,body):
         try:return json.loads(self.store.get(body['provenance'],'ARTIFACT_PROVENANCE_MISMATCH'))
         except (ValueError,TypeError):raise ValueError('ARTIFACT_PROVENANCE_MISMATCH') from None
+
+    def document_pass_id(self):
+        # A continued window has no restored ancestry before its anchor. The
+        # publication receipt carries the original pass's scorecard scope.
+        require(self.review_pass_id is not None,'REVIEW_PASS_CONTEXT_MISSING')
+        return self.review_pass_id
 
     def reload(self):
         require(json.loads((self.root/'session.json').read_text())==self.config,'REVIEW_SESSION_CHANGED')

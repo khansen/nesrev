@@ -99,7 +99,7 @@ class Store:
         return data
 
     def export(self,state,generation,source_path,reference_path,reader_roots,
-               producer_path,producer_recipe,base_artifact=None):
+               producer_path,producer_recipe,base_artifact=None,*,review_pass_id=None):
         record=state['generations'][generation];manifest=record['manifest']
         source_path=safe_path(source_path);reference_path=safe_path(reference_path)
         require(source_path in manifest,'ARTIFACT_MANIFEST_MISMATCH')
@@ -171,6 +171,9 @@ class Store:
               'commit_scope':'Carried project bytes are authoritative; no claim that a candidate was committed.'}
         if record.get('review_anchor') is not None:
             body['review_anchor']=record['review_anchor']
+        if review_pass_id is not None:
+            require(isinstance(review_pass_id,str) and review_pass_id.isdigit(),'ARTIFACT_MANIFEST_MISMATCH')
+            body['review_pass_id']=review_pass_id
         eid='E-'+digest(canonical(body));out=self.root/'artifacts'/eid/'receipt.json'
         out.parent.mkdir(parents=True,exist_ok=True)
         if out.exists():require(out.read_bytes()==canonical(body),'ARTIFACT_MANIFEST_MISMATCH')
