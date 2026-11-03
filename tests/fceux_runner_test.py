@@ -30,6 +30,9 @@ directory = Path(os.environ['TRACE_DIR'])
     'cwd': os.getcwd(), 'max_frames': os.environ['TRACE_MAX_FRAMES'],
 }))
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
+if mode == 'complete-late-failure':
+    # Synchronize failure with supervised shutdown instead of racing sleeps on CI.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(7))
 if mode in ('hang-child', 'orphan'):
     child = subprocess.Popen([sys.executable, '-c',
         'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)'])
@@ -53,8 +56,7 @@ if mode == 'nonzero':
 if mode == 'complete-hang':
     time.sleep(60)
 if mode == 'complete-late-failure':
-    time.sleep(0.04)
-    sys.exit(7)
+    time.sleep(60)
 if mode == 'complete-then-invalid':
     time.sleep(0.2)
     with out.open('a') as stream: stream.write('FAIL\n')
@@ -157,6 +159,8 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("status 7", result.stderr)
                 self.assertEqual(self.result["emulator_exit"], 7)
+                if mode == "complete-late-failure":
+                    self.assertTrue(self.result["stopped_after_completion"])
 
     def test_completed_lua_does_not_wait_for_gui_to_exit(self):
         result = self.run_capture("complete-hang")
