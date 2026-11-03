@@ -9,9 +9,11 @@ The [rollout plan](ROLLOUT_PLAN.md) defines the three delivery steps and their
 completion gates: promote this service, complete normal-pass operation coverage,
 then make structured passes the enforced default. Opt-in is transitional.
 
-The producer is pinned in [producer.json](producer.json). This is a commit pin,
-not a requirement to install or release a new stable assembler. The schema is
-vendored unchanged in `scripts/structured_pass/source-model.schema.json`.
+The producer is pinned to the official XORcyst 2.1.0 release in
+[producer.json](producer.json), including its immutable release commit, download
+URL, archive checksum and source-model schema hash. Ordinary CI and structured
+passes build from that same checked archive. The schema is vendored unchanged in
+`scripts/structured_pass/source-model.schema.json`.
 
 ## Supported work
 
@@ -152,17 +154,24 @@ export PYTHONPATH="$PWD/scripts"
 export STRUCTURED_PASS_LOCK=/absolute/shared/nesrev/heavy.lock
 export STRUCTURED_PASS_STORE=/absolute/retained/nesrev/structured-pass
 
+mkdir -p "$STRUCTURED_PASS_STORE"
+curl --fail --location --retry 3 --output "$STRUCTURED_PASS_STORE/xorcyst-source.tar.gz" \
+  "$(python3 -c 'import json; print(json.load(open("docs/structured-pass/producer.json"))["archive_url"])')"
+
 python3 -B scripts/structured_pass_heavy_run.py \
   --lock "$STRUCTURED_PASS_LOCK" --agent operator --session producer-build \
   --estimate-mib 128 --reserve-mib 2048 --volume "$STRUCTURED_PASS_STORE" -- \
   python3 -B -m structured_pass.toolchain \
-    --repo /absolute/path/to/xorcyst --store "$STRUCTURED_PASS_STORE"
+    --archive "$STRUCTURED_PASS_STORE/xorcyst-source.tar.gz" --store "$STRUCTURED_PASS_STORE"
 ```
 
-Create the store parent before running the volume check. The builder uses only
-the pinned local Git commit; it does not fetch code. It retains the executable,
-source archive, compiler identification and rebuild recipe under its binary hash.
-Set `STRUCTURED_PASS_XASM` to the returned executable path.
+The builder verifies the archive checksum before extraction, then checks the
+schema and both tool versions. It does not fetch code or use a Git checkout.
+It retains the executables, exact release archive, compiler identification and
+rebuild recipe under the assembler's binary hash. Set `STRUCTURED_PASS_XASM` to
+the returned producer path. `--archive` replaces the earlier commit-only `--repo`
+setup. Existing stores are not migrated: retain their pinned tools and start new
+sessions with the release build in a separate store.
 
 Write an operator selection JSON containing exactly these string fields:
 `project`, `target`, `objective`, `why_now`, `boundaries`, `evidence`,

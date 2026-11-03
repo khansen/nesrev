@@ -25,10 +25,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      # Official release archive; pin its digest independently of the download.
-      XORCYST_VERSION: '2.0.0'
-      XORCYST_SHA256: a4d2fbcf9ca035beef4808a74beaae34e7a6522dcaedd6776477d3992440b313
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -51,12 +47,23 @@ jobs:
       - name: Install macOS build and test dependencies
         if: runner.os == 'macOS'
         run: brew install autoconf automake ripgrep
+      - name: Read the shared official XORcyst release pin
+        run: |
+          python3 - <<'PY'
+          import json, os
+          pin = json.load(open('docs/structured-pass/producer.json'))
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              for key, field in [('XORCYST_VERSION', 'release'),
+                                 ('XORCYST_SHA256', 'archive_sha256'),
+                                 ('XORCYST_ARCHIVE_URL', 'archive_url')]:
+                  print(f'{key}={pin[field]}', file=output)
+          PY
       - name: Build official XORcyst release
         run: |
           {
             archive="$RUNNER_TEMP/xorcyst-$XORCYST_VERSION.tar.gz"
             curl --fail --location --retry 3 --output "$archive" \
-              "https://github.com/khansen/xorcyst/releases/download/v$XORCYST_VERSION/xorcyst-$XORCYST_VERSION.tar.gz"
+              "$XORCYST_ARCHIVE_URL"
             printf '%s  %s\n' "$XORCYST_SHA256" "$archive" | shasum -a 256 -c -
             mkdir -p "$RUNNER_TEMP/xorcyst-src"
             tar -xzf "$archive" -C "$RUNNER_TEMP/xorcyst-src" --strip-components=1
@@ -102,15 +109,11 @@ jobs:
           store="$GITHUB_WORKSPACE/tmp/structured-pass-ci"
           lock="$GITHUB_WORKSPACE/tmp/structured-pass-ci-coordinator/heavy.lock"
           mkdir -p "$store"
-          commit="$(python3 -c 'import json; print(json.load(open("docs/structured-pass/producer.json"))["commit"])')"
-          git init -q "$RUNNER_TEMP/source-model-producer"
-          git -C "$RUNNER_TEMP/source-model-producer" fetch --depth=1 \
-            https://github.com/khansen/xorcyst.git "$commit"
           python3 -B scripts/structured_pass_heavy_run.py \
             --lock "$lock" --agent ci --session producer-build --estimate-mib 128 \
             --reserve-mib 2048 --volume "$store" -- \
             python3 -B -m structured_pass.toolchain \
-              --repo "$RUNNER_TEMP/source-model-producer" --store "$store" \
+              --archive "$RUNNER_TEMP/xorcyst-$XORCYST_VERSION.tar.gz" --store "$store" \
             | tee "$RUNNER_TEMP/nesrev-ci/source-model-build.log"
           producer="$(python3 -c 'import json,sys; print(json.loads(open(sys.argv[1]).readlines()[-1])["producer"])' "$RUNNER_TEMP/nesrev-ci/source-model-build.log")"
           make test-structured-pass STRUCTURED_PASS_LOCK="$lock" STRUCTURED_PASS_XASM="$producer" \

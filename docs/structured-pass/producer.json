@@ -1,6 +1,9 @@
 {
   "repository": "https://github.com/khansen/xorcyst",
-  "commit": "6e088540f43a24b9698c06beae8b2d07b7dd2c9b",
+  "release": "2.1.0",
+  "commit": "fa35ca630c4fe10f0f7281e6d0988fbbe1b6f951",
+  "archive_url": "https://github.com/khansen/xorcyst/releases/download/v2.1.0/xorcyst-2.1.0.tar.gz",
+  "archive_sha256": "5a5c4ab6f7a25e729c0c4c552899b3d46a3a779fe85f23f677fc269b03c5c2aa",
   "schema": "xasm-source-model",
   "version": 1,
   "profile": "asm-edit-v1",

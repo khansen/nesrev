@@ -1,7 +1,7 @@
 # Structured pass rollout plan
 
 Status: proposed three-PR delivery sequence. Step 1's implementation is approved
-at `bde6f80d2`; remote CI has not run, and publication and merge remain pending.
+at `1d3e5acbf`; remote CI has not run, and publication and merge remain pending.
 Steps 2 and 3 are not complete.
 The numbers below identify delivery steps, not existing GitHub PR numbers.
 
@@ -51,15 +51,18 @@ this step.
 
 **Current evidence:** the implementation has a 23-source corpus check, neutral
 service tests, native loopback probes, real wrapper replay and repository
-regressions. Independent implementation review approved `bde6f80d2`, including
-96 focused tests, the optimized suite, full repository tests and a disposable
-64-rename corridor. The document-history replay covered 983 edits; it is distinct
+regressions. Independent implementation review approved `1d3e5acbf`, including
+107 focused tests; the optimized suite, ordinary review suite and full repository
+tests subsequently passed on that final head. The preceding readiness slice
+passed a disposable 64-rename corridor. The document-history replay covered 983 edits; it is distinct
 from the historical workflow replay required above. Partial document views give
 the first omitted line on each side, not a list of every omitted location.
 
-The next local readiness slice implements compact use views, gate diagnostics
-that include the failing `FAIL:` lines, and standalone Q09 paging. Its validation
-and independent review remain separate from the approval above. Optional document-diff performance and mixed
+Compact use views, gate diagnostics that include the failing `FAIL:` lines,
+and standalone Q09 paging are implemented and independently approved. Release
+acceptance uses the published XORcyst 2.1.0 archive for both ordinary gates
+and structured passes, pinned by release commit, archive checksum and schema hash.
+Optional document-diff performance and mixed
 line-terminator reporting improvements remain separate follow-ups. Remote CI has
 never run for this branch; CI and merge remain open completion criteria. Push, PR
 and any real inference still require explicit owner authorization.
@@ -166,7 +169,8 @@ This document records the delivery proposal and its gates; it does not authorize
 future implementation scope, inference, extensions, pushes, merges or releases.
 Only project-neutral promotion branches may be published when requested.
 `projects` is never pushed. XORcyst release/version decisions remain separate;
-the tested producer commit can stay pinned during migration.
+step 1 now targets the official XORcyst 2.1.0 release. Consumer acceptance uses
+that released archive before the NESrev PR is opened.
 
 Technical readiness is distinct from evidence that passes improve. The existing
 quality-evaluation contract remains: comparable frozen handoff states, fresh
