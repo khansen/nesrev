@@ -4,7 +4,7 @@ The coordinator and its fixed-role bridges run outside source-free native client
 workspaces. This controller uses an operator-pinned project and exposes only supported operations.
 """
 import json
-import fcntl
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import subprocess
@@ -16,9 +16,12 @@ from .rename_service import RenameService
 from . import service as common
 from . import mixed_documents as mixed
 from .structured_handoff import windows,require
+from . import structured_handoff
+from .publication import immutable_file
 from .verdict_bridge import Bridge
 from .retained_service import RetainedReviewService
 import process_friction
+import agent_review
 
 SCRIPTS=str(Path(process_friction.__file__).resolve().parent)
 RETRYABLE={'VALIDATION_IN_PROGRESS','REVIEW_STATE_BUSY','REVIEW_RESTORE_IN_PROGRESS','HEAVY_RUN_IN_PROGRESS'}
@@ -27,7 +30,8 @@ ERRORS=frozenset('''CORRIDOR_NOT_PUBLISHED CORRIDOR_NOT_STARTED CORRIDOR_CONFIG_
     REVIEW_COVERAGE_INCOMPLETE CLOSEOUT_EVIDENCE_UNAVAILABLE HEAD_OWNED_BY_PUBLISHER
     BRIDGE_RUN_CHANGED PUBLISHER_BASE_MISMATCH PUBLISHER_STATE_UNAVAILABLE
     PUBLISHER_STORE_MISMATCH PUBLISHER_HEAD_MISMATCH PASS_BASE_NOT_ANCESTOR
-    VERDICT_OUTSIDE_PASS CORRIDOR_OUTSIDE_PASS CORRIDOR_ROLE_INVALID REVIEW_ARCHIVE_EXISTS'''.split())
+    VERDICT_OUTSIDE_PASS CORRIDOR_OUTSIDE_PASS CORRIDOR_ROLE_INVALID REVIEW_ARCHIVE_EXISTS
+    APPLICATION_APPROVAL_CHANGED CLOSEOUT_ALREADY_APPLIED'''.split())
 common.PUBLIC_ERROR_CODES|=ERRORS|frozenset(RETRYABLE)
 
 
@@ -175,39 +179,65 @@ class Corridor:
             result=self.editor.dispatch(operation,{**args,'generation':current},'reviewer')
             return {**result,'generation':generation}
 
-    def closeout(self):
-        with (self.editor.root/'validation.lock').open('rb') as lock:
-            try:fcntl.flock(lock,fcntl.LOCK_SH|fcntl.LOCK_NB)
-            except BlockingIOError:raise ValueError('VALIDATION_IN_PROGRESS') from None
-            return self._closeout()
-
-    def _closeout(self):
+    @contextmanager
+    def approved_state(self):
         require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
-        # The archive operation itself refreshes live coverage under both locks.
-        # A later publication makes this exact-head receipt historical, not current approval.
+        root=self.root/'handoff'
+        # Verdicts use this same lock order. Application retains this context
+        # through the commit, including archive creation and retry preparation.
+        with structured_handoff.transaction(root):
+            review=agent_review.read_state(root);config=review['structured_review']
+            require(review['run_id']==self.config['run_id'] and
+                    Path(config['editor_state']).resolve()==self.editor.state_path.resolve(),
+                    'APPLICATION_APPROVAL_CHANGED')
+            with structured_handoff.published_head(config) as head:
+                if head!=config['pass_head']:structured_handoff.advance(agent_review,root,review,head)
+                status=structured_handoff.result(agent_review,root,review)
+                require(status['status']=='APPROVED' and status['coverage']['coverage_complete'],
+                        'REVIEW_COVERAGE_INCOMPLETE')
+                yield review,status
+
+    def closeout(self):
+        with self.approved_state() as (review,status):
+            return self._closeout(review,status)
+
+    def _closeout(self,review,status):
         state=self.checked_editor();record=state['generations'][state['current']]
         head=record['artifact']['artifact_id']
-        status=self.verdicts('implementer').command('status','--json')
         require(head==status['coverage']['pass_head'],'STALE_GENERATION')
-        require(status['coverage']['coverage_complete'],'REVIEW_COVERAGE_INCOMPLETE')
         self.editor.model(state['current'])
         receipt=Path(record['capture'])/'closeout.json'
         require(receipt.is_file(),'CLOSEOUT_EVIDENCE_UNAVAILABLE')
         writer=json.loads(receipt.read_text())
         require(writer['gate']['exit_code']==0 and writer['closed_row']['verify']=='pass'
                 and writer['closed_row']['docs_check']=='pass','CLOSEOUT_EVIDENCE_UNAVAILABLE')
-        archive_args=['archive','--pass-id',self.config['pass_id']]
-        relative='projects/'+self.config['project']+'/docs/reverse_engineering/reviews/pass-'+self.config['pass_id']+'.md'
-        archive=self.root/'handoff'/relative
-        if 'project_profile' in self.config and archive.exists():
-            try:archived=json.loads(archive.read_text().split('```json\n',1)[1].split('\n```',1)[0])
-            except (ValueError,IndexError):raise ValueError('REVIEW_ARCHIVE_EXISTS') from None
-            require(archived==status,'REVIEW_ARCHIVE_EXISTS')
-            answer={**status,'archive':relative}
-        else:answer=self.verdicts('implementer').command(*archive_args)
+        root=self.root/'handoff'
+        answer,data=structured_handoff.archive_document(agent_review,root,review,self.config['pass_id'])
+        archive=root/answer['archive'];history=agent_review.run_dir(root,review)/'closeouts'
+        journal=self.root/'application.json'
+        if journal.exists():
+            pending=json.loads(journal.read_text())
+            require(pending.get('paths',{}).get(answer['archive'])==common.digest(data),
+                    'CLOSEOUT_ALREADY_APPLIED')
+        if archive.exists() and archive.read_bytes()!=data:
+            # Once application starts, its exact archive is part of the approved
+            # write set. Earlier unapplied snapshots can be superseded safely.
+            old=archive.read_bytes();saved=history/(common.digest(old)+'.md')
+            require(saved.is_file() and saved.read_bytes()==old,'REVIEW_ARCHIVE_EXISTS')
+        snapshot=history/(common.digest(data)+'.md')
+        immutable_file(snapshot,data)
+        if not archive.exists() or archive.read_bytes()!=data:
+            archive.parent.mkdir(parents=True,exist_ok=True)
+            temporary=None
+            try:
+                with tempfile.NamedTemporaryFile(dir=archive.parent,delete=False) as stream:
+                    temporary=Path(stream.name);stream.write(data);stream.flush();os.fsync(stream.fileno())
+                temporary.replace(archive)
+            finally:
+                if temporary is not None and temporary.exists():temporary.unlink()
         require(head==answer['coverage']['pass_head'],'STALE_GENERATION')
         answer={**answer,'wrapper_receipt_sha256':common.digest(receipt.read_bytes()),
-                'archive_sha256':common.digest(archive.read_bytes()),
+                'archive_sha256':common.digest(data),'archive_snapshot':str(snapshot.relative_to(root)),
                 'closed_generation':state['current'],'application':'Not applied or committed to the user checkout'}
         common.write_json(self.root/'closed.json',answer)
         return answer
@@ -235,13 +265,14 @@ class Corridor:
             common.schema(arguments,());return self.closeout()
         if operation=='reready':
             common.schema(arguments,('response',))
-            require(isinstance(arguments['response'],str) and 0<len(arguments['response'])<=65536,'REQUEST_SCHEMA')
+            require(isinstance(arguments['response'],str) and bool(arguments['response'].strip())
+                    and len(arguments['response'].encode())<=65536,'REQUEST_SCHEMA')
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
             state=self.status(role);head=state['handoff']['coverage']['pass_head']
             folder=self.root/'handoff/.agents/runs'/self.config['run_id']
-            with tempfile.NamedTemporaryFile(prefix='response-',suffix='.md',dir=folder,delete=False) as source:
-                source.write(arguments['response'].encode());path=source.name
-            return self.verdicts(role).command('reready','--head',head,'--response',path)
+            with tempfile.NamedTemporaryFile(prefix='response-',suffix='.md',dir=folder) as source:
+                source.write(arguments['response'].encode());source.flush()
+                return self.verdicts(role).command('reready','--head',head,'--response',source.name)
         if operation=='preview':
             common.schema(arguments,('generation','operations'),('cid',))
             require(isinstance(arguments['operations'],list) and all(isinstance(o,dict) for o in arguments['operations']),'REQUEST_SCHEMA')

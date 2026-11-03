@@ -1,7 +1,8 @@
 # Structured pass rollout plan
 
-Status: proposed three-PR delivery sequence. Step 1's implementation is approved
-at `1d3e5acbf`; remote CI has not run, and publication and merge remain pending.
+Status: three-PR delivery sequence. Step 1 is open as
+[PR #175](https://github.com/khansen/nesrev/pull/175). Initial implementation review
+approved `1d3e5acbf`; subsequent fixes require PR review and green CI before merge.
 Steps 2 and 3 are not complete.
 The numbers below identify delivery steps, not existing GitHub PR numbers.
 
@@ -63,9 +64,12 @@ and standalone Q09 paging are implemented and independently approved. Release
 acceptance uses the published XORcyst 2.1.0 archive for both ordinary gates
 and structured passes, pinned by release commit, archive checksum and schema hash.
 Optional document-diff performance and mixed
-line-terminator reporting improvements remain separate follow-ups. Remote CI has
-never run for this branch; CI and merge remain open completion criteria. Push, PR
-and any real inference still require explicit owner authorization.
+line-terminator reporting improvements remain separate follow-ups. The test counts
+above describe the original approval, not the growing PR regression suite.
+Remote CI passed at `0b99a9180`. At `80140bf66`, Linux passed; macOS failed an
+ordinary FCEUX supervisor test before its structured-pass tests ran. CI must pass
+on the final submitted revision; merge remains open. Real inference and default
+rollout still require explicit owner authorization.
 
 ## Step 2 — Complete the normal-pass operation coverage
 

@@ -219,24 +219,31 @@ def verdict(api, root, state, args):
     return save(api, root, state)
 
 
-def archive(api, root, state, args):
+def archive_document(api, root, state, pass_id):
+    """Render checked evidence; the caller holds the review and publisher locks."""
     report = result(api, root, state)
     require(state['status'] == 'APPROVED' and report['coverage']['coverage_complete'],
             'REVIEW_COVERAGE_INCOMPLETE')
-    require(bool(api.PASS_ID_RE.fullmatch(args.pass_id)), 'INVALID_PASS_ID')
-    require(not args.out, 'STRUCTURED_ARCHIVE_CANONICAL_PATH_REQUIRED')
-    destination = api.project_review_archive_path(root, state, args.pass_id)
-    require(not destination.exists() or args.force, 'REVIEW_ARCHIVE_EXISTS')
-    text = ['# Structured pass review ' + args.pass_id, '',
+    require(bool(api.PASS_ID_RE.fullmatch(pass_id)), 'INVALID_PASS_ID')
+    destination = api.project_review_archive_path(root, state, pass_id)
+    text = ['# Structured pass review ' + pass_id, '',
             'Artifact coverage; the coordinator Git HEAD is not the reviewed source state.',
             '', '```json', json.dumps(report, indent=2), '```']
     for event in state['structured_review']['verdict_history']:
         text += ['', f"## Verdict {event['sequence']} — {event['verdict']}", '',
                  '```json', json.dumps(event, indent=2), '```', '',
                  (root / event['review_file']).read_text()]
+    return {**report, 'archive': api.rel(root, destination)}, ('\n'.join(text) + '\n').encode()
+
+
+def archive(api, root, state, args):
+    require(not args.out, 'STRUCTURED_ARCHIVE_CANONICAL_PATH_REQUIRED')
+    answer, data = archive_document(api, root, state, args.pass_id)
+    destination = root / answer['archive']
+    require(not destination.exists() or args.force, 'REVIEW_ARCHIVE_EXISTS')
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text('\n'.join(text) + '\n')
-    return {**report, 'archive': api.rel(root, destination)}
+    destination.write_bytes(data)
+    return answer
 
 
 def dispatch(api, args):
@@ -250,8 +257,9 @@ def dispatch(api, args):
     except (OSError, ValueError):
         header = {}
     active = isinstance(header, dict) and 'structured_review' in header
-    if not active and args.command not in ('init-structured', 'advance-structured', 'structured-report'):
-        require(not getattr(args, 'window', None), 'STRUCTURED_MODE_REQUIRED')
+    if (not active and not getattr(args, 'expected_run_id', None)
+            and not getattr(args, 'window', None)
+            and args.command not in ('init-structured', 'advance-structured', 'structured-report')):
         return None
     with transaction(root), ExitStack() as locks:
         if args.command == 'init-structured':
@@ -279,7 +287,15 @@ def dispatch(api, args):
                 require(state['status'] == 'CHANGES_REQUESTED', 'REVIEW_NOT_AWAITING_REPAIR')
                 require(args.head == config['pass_head'], 'MIXED_GENERATION_COMPARISON')
                 require(state['round'] < state['max_rounds'], 'REVIEW_ROUNDS_EXHAUSTED')
-                state['last_response'] = api.require_file(root, args.response, 'response file')
+                source = api.require_file(root, args.response, 'response file')
+                data = (root / source).read_bytes()
+                require(bool(data.strip()) and len(data) <= 65536, 'REQUEST_SCHEMA')
+                # The launcher input is temporary. Retain accepted bytes under
+                # the verdict lock before the state can reference them.
+                from .publication import immutable_file
+                response = api.run_dir(root, state) / 'responses' / (digest(data) + '.md')
+                immutable_file(response, data)
+                state['last_response'] = api.rel(root, response)
                 state['round'] += 1
                 state['status'] = 'READY_FOR_REREVIEW'
                 answer = save(api, root, state)

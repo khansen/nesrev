@@ -9,29 +9,12 @@ import tempfile
 
 from .launcher import Corridor,common,require
 from . import gate_environment
-from . import structured_handoff
-import agent_review
 
 
 @contextmanager
 def approved_application(controller):
-    closed=controller.closeout()
-    root=controller.root/'handoff'
-    # Use the verdict command's lock order. Closeout runs before this transaction
-    # because its subprocess also acquires the handoff lock.
-    with structured_handoff.transaction(root):
-        state=agent_review.read_state(root)
-        config=state['structured_review']
-        require(state['run_id']==controller.config['run_id'] and
-                Path(config['editor_state']).resolve()==controller.editor.state_path.resolve(),
-                'APPLICATION_APPROVAL_CHANGED')
-        with structured_handoff.published_head(config) as head:
-            approval=structured_handoff.result(agent_review,root,state)
-            require(approval['status']=='APPROVED' and approval['coverage']['coverage_complete']
-                    and head==approval['coverage']['pass_head']
-                    and all(closed.get(k)==v for k,v in approval.items()),
-                    'APPLICATION_APPROVAL_CHANGED')
-            yield closed
+    with controller.approved_state() as (review,status):
+        yield controller._closeout(review,status)
 
 
 def git(root,*args):

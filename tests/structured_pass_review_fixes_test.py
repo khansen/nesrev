@@ -1,6 +1,7 @@
 """Regression cases for independent review findings; simulated gates, real producer."""
 import io
 import json
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import shutil
@@ -106,20 +107,21 @@ class ReviewWorkflowTests(unittest.TestCase):
         git(target,'config','user.name','Fixture');git(target,'config','user.email','fixture@example.invalid')
         return p,target
 
-    def test_revocation_between_closeout_and_application_refuses_before_writes(self):
-        p,target=self.approved_target();original=Corridor.closeout
+    def test_revocation_before_application_locks_refuses_before_writes(self):
+        p,target=self.approved_target();original=Corridor.approved_state
         before=git(target,'rev-parse','HEAD')
+        @contextmanager
         def revoked(controller):
-            result=original(controller)
             self.c.dispatch('request-changes',{'ticket':p['review']['artifact_id'],
                 'report':'Verdict: CHANGES_REQUESTED\nRepair required.'},'reviewer')
-            return result
-        with patch.object(Corridor,'closeout',revoked):
-            with self.assertRaisesRegex(ValueError,'^APPLICATION_APPROVAL_CHANGED$'):
+            with original(controller) as approval:yield approval
+        with patch.object(Corridor,'approved_state',revoked):
+            with self.assertRaisesRegex(ValueError,'^REVIEW_COVERAGE_INCOMPLETE$'):
                 application.apply(self.c.root,target,commit=True)
         self.assertEqual(git(target,'rev-parse','HEAD'),before)
         self.assertEqual(git(target,'status','--porcelain'),'')
         self.assertFalse((self.c.root/'application.json').exists())
+        self.assertFalse(list((self.c.root/'handoff/projects').rglob('pass-*.md')))
 
     def test_revocation_is_locked_out_through_application_commit(self):
         p,target=self.approved_target();c=self.c;original=subprocess.run;attempts=[]

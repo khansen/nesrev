@@ -2,8 +2,6 @@
 
 The bridge also checks serialized MCP bytes so escaping cannot cause a spill.
 """
-import json
-
 MAX_BYTES = 24576
 
 
@@ -31,15 +29,16 @@ def preview_records(details):
 
 
 def page(records,offset=0,limit=12):
+    from .review_pages import wire_size
     if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=40:
         raise ValueError('REQUEST_SCHEMA')
     result=[]
     for record in records[offset:offset+limit]:
         # An exceptionally long comment/doc cell must be reduced by the caller;
         # never silently drop it or return a response the client will spill.
-        if len(json.dumps(record).encode())>MAX_BYTES-2048:
+        if wire_size({'records':[record]})>MAX_BYTES-2048:
             raise ValueError('PREVIEW_ITEM_TOO_LARGE')
-        if len(json.dumps(result+[record]).encode())>MAX_BYTES-2048:break
+        if wire_size({'records':result+[record]})>MAX_BYTES-2048:break
         result.append(record)
     end=offset+len(result)
     return {'records':result,'offset':offset,'total_records':len(records),

@@ -27,16 +27,28 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
         if isinstance(value,dict):report=value;break
     roots=sorted({str(Path(checkout)),str(Path(checkout).resolve())},key=len,reverse=True)
     source_lines={s.strip() for s in model.source.decode('utf-8','replace').splitlines() if s.strip()}
-    snippets=sorted(source_lines,key=len,reverse=True)
+    # Bare symbol names and punctuation are useful diagnostic vocabulary,
+    # not source excerpts. Match substantive snippets against the original text.
+    snippets=sorted((s for s in source_lines if any(c.isalnum() for c in s)
+                     and not re.fullmatch(r'[A-Za-z_@][A-Za-z0-9_@]*',s)),key=len,reverse=True)
 
     def clean_string(value):
         nonlocal truncated
         # Apply snippet redaction to every channel, including prefixed plain
         # lines and scalar JSON fields, before removing filesystem prefixes.
+        matches=[]
         for snippet in snippets:
             if snippet in value:
-                value=re.sub(r'(?<![A-Za-z0-9_@])'+re.escape(snippet)+r'(?![A-Za-z0-9_@])',
-                             '[source text omitted; use structured records]',value)
+                matches.extend((m.start(),m.end()) for m in re.finditer(
+                    r'(?<![A-Za-z0-9_@])'+re.escape(snippet)+r'(?![A-Za-z0-9_@])',value))
+        spans=[]
+        for start,end in sorted(matches):
+            if spans and start<=spans[-1][1]:spans[-1]=(spans[-1][0],max(end,spans[-1][1]))
+            else:spans.append((start,end))
+        parts=[];end=0
+        for start,stop in spans:
+            parts.extend((value[end:start],'[source text omitted; use structured records]'));end=stop
+        value=''.join(parts)+value[end:]
         for root in roots:value=value.replace(root+'/', '')
         # Keep project-relative paths and remove other host filesystem paths.
         value=re.sub(r'(?<![\w:/])/(?:[^\s\"\'<>:,;]+/)*[^\s\"\'<>:,;]*','[host-path]',value)
@@ -99,7 +111,7 @@ def explanation(path,checkout,source,model,*,max_output=MAX_OUTPUT):
         # Preserve a valid, explicitly partial JSON response, never a cut JSON string.
         truncated=True
         if report is not None:
-            result['report']={k:clean(v) for k,v in report.items() if not isinstance(v,(dict,list))}
+            result['report']=clean({k:v for k,v in report.items() if not isinstance(v,(dict,list))})
             result['detail_notice']='Detailed report exceeds response budget; use the named symbols/files through navigation.'
         else:result['lines']=result['lines'][-10:]
     while wire_size(result)+32>max_output:

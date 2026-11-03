@@ -71,7 +71,9 @@ the offset after that undelivered match; continuing there does not mean the matc
 was reviewed. Preview still checks
 the complete prose inventory, independently of the public page limit.
 Read subsequent pages with `preview_page` before confirming the preview digest.
-An individual oversized item is refused explicitly, never silently truncated.
+Preview pages measure the complete MCP encoding, including escaped text, with
+metadata headroom. An individual oversized item refuses before its confirmation
+digest is registered, rather than leaving an unreadable saved preview.
 
 Navigation includes declarations, complete direct uses, lexical blocks and
 comments, including anonymous forward/backward declarations. Repeated anonymous
@@ -205,10 +207,16 @@ session are not request arguments. Review verdicts use the existing
 pass exceeds one eight-state review window. A new publication invalidates
 complete coverage until reviewed. Closeout recomputes live coverage, then writes
 the archive; reading a stored `APPROVED` field alone is insufficient.
-Application rechecks that archived approval under the handoff lock, then holds
-both the verdict lock and the editor's shared lock through gates and the local
+Closeout checks approval and creates the archive under the handoff and shared
+editor locks. Application keeps those same locks through gates and the local
 commit. An intervening revocation refuses application; concurrent verdicts and
 publication must retry after application releases those locks.
+Each closeout preserves an immutable archive snapshot under the coordinator's
+run directory (`closeouts/<sha256>.md`). Reapproval may replace the canonical
+archive while no application journal exists; the prior snapshot remains intact.
+Once application begins, a different archive refuses with `CLOSEOUT_ALREADY_APPLIED`
+so retries retain the exact approved write set. Unknown or tampered prior archives
+are never overwritten. Keep these snapshots with the other coordinator evidence.
 
 Status and verdict responses include at most 1,024 characters of `latest_review.report`.
 For a partial report, both roles can call `review_report` with its `sequence`
