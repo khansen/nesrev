@@ -78,7 +78,14 @@ digest is registered, rather than leaving an unreadable saved preview.
 Navigation includes declarations, complete direct uses, lexical blocks and
 comments, including anonymous forward/backward declarations. Repeated anonymous
 names require a `record_id` to select a particular declaration and its bound uses.
-The constant-context query also follows EQU dependencies. These views
+The constant-context query also follows EQU dependencies. Its `owners` counts
+cover the full inventory for owners represented on the current use page;
+`owners_scope: current_page` and `total_owner_count` make that scope explicit.
+Following all use pages exposes every owner without repeating the full inventory.
+Comments with invalid UTF-8 bytes use replacement characters in `text`, marked
+by `text_encoding: utf-8-replacement`, and carry exact `bytes_hex`. Their preimage
+hash still covers the original bytes; `comment_replace` can repair them with
+UTF-8 text while leaving untouched comments byte-identical. These views
 present evidence; they do not decide whether a name or constant is semantically
 correct. Addresses retain their producer segment identity.
 
@@ -259,7 +266,10 @@ Run a role under the same heavy runner with `run implementer --message TEXT` or
 the shared allowance. Response IDs are persisted as they arrive and charged once
 across all invocations, including resumes; the client's `num_turns` is telemetry,
 not billing. Incomplete streams keep their observed charges, mark usage uncertain
-and block continuation until explicit owner recovery. `extend` is
+and block continuation until explicit owner recovery. The CLI exits nonzero for
+a failed client exit, a missing or duplicate final result, or an error result,
+after saving the observed charges and run receipt. A successful invocation needs
+exit 0 and exactly one successful final result. `extend` is
 operator-only, records each grant and never runs automatically. These are usage
 ceilings, not estimates of subscription quota or monetary cost.
 

@@ -31,9 +31,14 @@ def comments(model):
     for i,unit in enumerate(model.units):
         data = bytes.fromhex(unit['hex'])
         if unit['kind']=='comment':
+            encoding={}
+            try:text=data.decode('utf-8')
+            except UnicodeDecodeError:
+                text=data.decode('utf-8','replace')
+                encoding={'text_encoding':'utf-8-replacement','bytes_hex':data.hex()}
             result.append({'record_id':f'u{i}','kind':'comment','line':unit['line'],
                 'column':unit['column'],'start':offset,'end':offset+len(data),
-                'text':data.decode(),'preimage_sha256':digest(data)})
+                'text':text,'preimage_sha256':digest(data),**encoding})
         offset += len(data)
     return result
 

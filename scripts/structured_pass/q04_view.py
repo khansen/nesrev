@@ -41,10 +41,14 @@ def constant_uses(model, symbol, offset=0, limit=20):
                      'direct':bound==declaration,'via_declarations':dependent[bound],
                      'statement':statement,'context_instructions':neighbors})
     rows.sort(key=lambda row:(not row['direct'],row['statement']['span'],row['reference_id']))
-    owners = Counter(row['statement'].get('lexical_owner') or row['statement'].get('name') or row['statement']['kind'] for row in rows)
+    def owner(row):
+        return row['statement'].get('lexical_owner') or row['statement'].get('name') or row['statement']['kind']
+    owners = Counter(owner(row) for row in rows)
     page = rows[offset:offset+limit]
     return {'constant':model.statement(declaration),'direct_use_count':sum(r['direct'] for r in rows),
             'via_equ_use_count':sum(not r['direct'] for r in rows),'total':len(rows),
-            'owners':dict(owners),'offset':offset,'next_offset':offset+len(page) if offset+len(page)<len(rows) else None,
+            'owners':{name:owners[name] for name in dict.fromkeys(owner(row) for row in page)},
+            'owners_scope':'current_page','total_owner_count':len(owners),
+            'offset':offset,'next_offset':offset+len(page) if offset+len(page)<len(rows) else None,
             'uses':page,'limits':['Semantic owner/subsystem identity is not inferred from equal values.',
                 'Complete parsed references; implicit hardware, dynamic transfers and runtime state are not inferred.']}

@@ -146,7 +146,7 @@ def run_role(root,role,prompt):
             +'. Batch independent reads; keep mutations sequential. Only the owner can extend these limits.\n\n')
     folder=root/'runs'/reservation['id'];folder.mkdir(parents=True)
     common.write_json(folder/'auth.json',auth)
-    events=[];timed_out=False;failure=None
+    events=[];timed_out=False;failure=None;accounting=None
     try:
         with (folder/'stderr.log').open('wb') as stderr,(folder/'stdout.jsonl').open('w') as stdout:
             process=subprocess.Popen(command(config,role,reservation['reserved'],limits+prompt,continuation),
@@ -183,12 +183,17 @@ def run_role(root,role,prompt):
             try:process.wait(timeout=5)
             except subprocess.TimeoutExpired:process.kill();process.wait()
         budget.interrupt(reservation['id'])
-    else:budget.finish(reservation['id'],events,timeout=timed_out)
+    else:accounting=budget.finish(reservation['id'],events,timeout=timed_out)
+    final=next((e for e in reversed(events) if e.get('type')=='result'),None)
+    error=('CLIENT_RUN_FAILED' if failure is not None else 'RUN_TIME_LIMIT' if timed_out
+           else 'CLIENT_RUN_FAILED' if process.returncode!=0
+           else 'CLIENT_STREAM_INCOMPLETE' if accounting['status']!='finished'
+           else 'CLIENT_RUN_FAILED' if final.get('subtype')!='success' or final.get('is_error') is not False
+           else None)
     common.write_json(folder/'run.json',{'role':role,'reservation':reservation,'failure':failure,'timeout':timed_out,
-        'exit_code':process.returncode if 'process' in locals() else None})
-    require(failure is None,'CLIENT_RUN_FAILED')
-    require(not timed_out,'RUN_TIME_LIMIT')
-    return {'run_id':reservation['id'],'role':role,'exit_code':process.returncode,'result':next((e.get('result') for e in reversed(events) if e.get('type')=='result'),None)}
+        'exit_code':process.returncode if 'process' in locals() else None,'error':error,'accounting':accounting})
+    require(error is None,error)
+    return {'run_id':reservation['id'],'role':role,'exit_code':process.returncode,'result':final.get('result')}
 
 
 def main():
