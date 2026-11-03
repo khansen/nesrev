@@ -36,6 +36,12 @@ if mode == 'complete-late-failure':
 if mode == 'complete-segv-on-term':
     import resource
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if sys.platform.startswith('linux'):
+        # RLIMIT_CORE does not bypass a piped Linux core-pattern handler.
+        # Keep this synthetic crash out of the host's crash-report service.
+        import ctypes
+        if ctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), 'PR_SET_DUMPABLE')
     def crash_on_term(*_):
         signal.signal(signal.SIGSEGV, signal.SIG_DFL)
         os.kill(os.getpid(), signal.SIGSEGV)
@@ -177,7 +183,7 @@ class RunnerTests(unittest.TestCase):
         self.assert_capture_processes_dead()
 
     def test_signal_death_after_validated_completion_is_shutdown(self):
-        result = self.run_capture("complete-segv-on-term")
+        result = self.run_capture("complete-segv-on-term", extra=["--shutdown-grace", "1"])
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.result["status"], "complete")
         self.assertEqual(self.result["emulator_exit"], -signal.SIGSEGV)
