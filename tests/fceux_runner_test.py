@@ -33,6 +33,13 @@ signal.signal(signal.SIGTERM, signal.SIG_IGN)
 if mode == 'complete-late-failure':
     # Synchronize failure with supervised shutdown instead of racing sleeps on CI.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(7))
+if mode == 'complete-segv-on-term':
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    def crash_on_term(*_):
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGSEGV)
+    signal.signal(signal.SIGTERM, crash_on_term)
 if mode in ('hang-child', 'orphan'):
     child = subprocess.Popen([sys.executable, '-c',
         'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)'])
@@ -55,7 +62,7 @@ if mode == 'nonzero':
     sys.exit(7)
 if mode == 'complete-hang':
     time.sleep(60)
-if mode == 'complete-late-failure':
+if mode in ('complete-late-failure', 'complete-segv-on-term'):
     time.sleep(60)
 if mode == 'complete-then-invalid':
     time.sleep(0.2)
@@ -167,6 +174,14 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(self.result["stopped_after_completion"])
         self.assertEqual(self.result["emulator_exit"], -signal.SIGKILL)
+        self.assert_capture_processes_dead()
+
+    def test_signal_death_after_validated_completion_is_shutdown(self):
+        result = self.run_capture("complete-segv-on-term")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.result["status"], "complete")
+        self.assertEqual(self.result["emulator_exit"], -signal.SIGSEGV)
+        self.assertTrue(self.result["stopped_after_completion"])
         self.assert_capture_processes_dead()
 
     def test_completion_is_rechecked_after_shutdown(self):
