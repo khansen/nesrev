@@ -479,6 +479,17 @@ acceptance of the amendment/repair preview through confirmation, copying,
 certification, gates and the availability of every review page. Publication
 and reopened review are separately timed and included in disk measurements.
 
+For the 300-second amendment limit, review readiness ends when the validated,
+published generation's first metadata page is served and exposes the complete
+review-page inventory. Exclude the separately timed publication and base-export
+work. Sequential delivery of every page is a separate pagination measurement,
+not part of this readiness timer. Nevertheless, the sample is accepted only
+after every required page has been retrieved with complete coverage and within
+the response bounds: a metadata page alone never proves success, and an unreadable
+later page invalidates the sample. Report readiness, complete pagination and
+reopened review separately; do not hide partial pagination behind the readiness
+result.
+
 Read workloads edit zero bytes. On **each** B1-S, B1-R and B2-N source, enumerate
 all pages of the following fixed request sets. Keep the largest serialized page
 for every listed view/subtype, not just the largest page across all queries.
