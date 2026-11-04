@@ -1,10 +1,11 @@
 # Structured pass rollout plan
 
-Status: three-PR delivery sequence. Step 1 is open as
-[PR #175](https://github.com/khansen/nesrev/pull/175). Initial implementation review
-approved `1d3e5acbf`; subsequent fixes require PR review and green CI before merge.
-Steps 2 and 3 are not complete.
-The numbers below identify delivery steps, not existing GitHub PR numbers.
+Status: step 1 is complete: [PR #175](https://github.com/khansen/nesrev/pull/175)
+merged as `ea2fd0de2`, including service head `40203e10d`. Steps 2 and 3 are not
+complete. The [step-2 coverage baseline](STEP_2_COVERAGE.md) maps required
+operations, ownership, replays and proposed operating limits before implementation.
+It proposes splitting step 2 into three reviewable PRs; that split is pending plan
+agreement. The numbers below identify delivery stages, not GitHub PR numbers.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
@@ -67,9 +68,11 @@ Optional document-diff performance and mixed
 line-terminator reporting improvements remain separate follow-ups. The test counts
 above describe the original approval, not the growing PR regression suite.
 Remote CI passed at `0b99a9180`. At `80140bf66`, Linux passed; macOS failed an
-ordinary FCEUX supervisor test before its structured-pass tests ran. CI must pass
-on the final submitted revision; merge remains open. Real inference and default
-rollout still require explicit owner authorization.
+ordinary FCEUX supervisor test before its structured-pass tests ran. Subsequent
+fixes landed at `40203e10d`; both Linux and macOS passed on that head in
+[CI run 41718944736](https://github.com/khansen/nesrev/actions/runs/41718944736)
+before merge. Those are step-1 results, not tests of the proposed step-2 work.
+Real inference and default rollout still require explicit owner authorization.
 
 ## Step 2 — Complete the normal-pass operation coverage
 
@@ -80,6 +83,11 @@ obligation must name its read operation, mutation where applicable, owning write
 generation behavior, positive test and failing-direction test. Prioritize quality
 queries using classified historical findings; do not invent a new query suite
 merely to fill the checklist.
+
+[STEP_2_COVERAGE.md](STEP_2_COVERAGE.md) is the concrete baseline for this gate.
+It also records what to reuse from the earlier analysis-query branches and what
+remains unmeasured. Its proposed PR split keeps every obligation below; it does
+not authorize a narrower definition of normal passes.
 
 The following are the minimum areas to resolve, not claims of current support:
 
