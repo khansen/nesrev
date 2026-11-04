@@ -1,6 +1,6 @@
 # Step 2 operation coverage
 
-Status: scope baseline v3, revised after review of `69a852ae4`. No step-2
+Status: scope baseline v4, revised after review of `dac80f116`. No step-2
 operation is implemented by this document. The proposed PR split below needs
 agreement before implementation; it does not narrow the rollout's exit criteria.
 
@@ -217,7 +217,8 @@ ambiguous mappings refuse rather than rebinding by name/value or widening a set.
 Every legacy row receives a recorded migration disposition: one current site
 maps with its reason; multiple sites require an explicit reviewed selection and
 reason for each; zero sites require retirement with rationale, not a dormant
-wildcard. Until disposition, a legacy row cannot suppress anything. Version the
+wildcard. The migrated gate refuses undispositioned legacy rows; it must not
+silently treat them as an empty suppression set. Version the
 authored schema and update all gate callers/readers together; retain original
 rows and before/after match sets in migration evidence, without rewriting old
 receipts. Test repeated `@@local` names, global-key fanout and an S2/S7-added
@@ -225,6 +226,35 @@ same-key site that must increase the unsuppressed count. Also test no-match rows
 and stale mappings. Hardware allowlists must retain their actual declaration
 identity rather than borrowing the immediate-key rule. This migration is a D7
 completion prerequisite, not a conditional follow-up.
+
+**D7 project migration and activation.**
+
+The gate/schema change belongs on master; real legacy-row dispositions belong
+in a separately reviewed **local `projects` commit**, never in the tooling PR.
+Prepare that commit and its migration manifest against a pinned project base,
+and rehearse the combined tooling/data transition in a disposable checkout
+before activating the gate on local projects. The manifest enumerates every
+affected project, old row, reviewed occurrence set or retirement, schema version
+and gate revision. Project data is not migrated merely because the tooling PR
+merged.
+
+Bring in the migrated gate and apply the reviewed disposition commit in the
+**same coordinated rebase** of local `projects` onto the new master. No pass or
+measurement may start at an intermediate gate-only state. Preflight must check
+the gate/schema/disposition identities and refuse a missing or incomplete
+migration with `D7_MIGRATION_REQUIRED`, even when a project's KPI headroom would
+otherwise hide the missing suppressions. Include the failing-direction test:
+rebase onto the migrated gate without the disposition commit, then prove pass
+and measurement admission both refuse before running work.
+
+Require `project-verify` to pass for every affected project at the pinned
+pre-migration base with its legacy gate and at the combined rebased head with
+the migrated gate and data. Retain both results, reference-PRG parity and the
+suppressed/active occurrence counts. Suppressed sets and counts must be unchanged
+except for explicitly reviewed retirements; no threshold increase, fallback key
+matcher or cheaper workload may mask drift. A failed verification, unreviewed
+count change or incomplete disposition blocks activation. These are future D7
+acceptance checks, not a rebase or project edit authorized by this plan revision.
 
 D8 may create and update synthetic fixture data for an already registered tool
 profile, and delete it only when no question in the candidate still refers to
@@ -380,6 +410,18 @@ edits. Public tooling uses neutral workload IDs rather than game fixtures.
 Freeze the concrete request/selection manifest before the first timed run and
 reuse it unchanged; a failed selection is not permission to pick an easier case.
 
+Baselines measured before D7 use the pinned **legacy gate and legacy project
+rows**, and must be labelled that way. After the coordinated D7 rebase and
+verification above, re-pin B1-S, B1-R and B2-N to the combined migrated `projects`
+commit. Record this as a workload **re-pin**, with old/new commits, gate/schema
+identities and the reviewed disposition commit, not a new workload. Preserve
+source/reference hashes, selected declarations and use counts, edit sizes and
+B2-N's saved requests; map generation-qualified IDs to the same source sites
+without bypassing identity checks. Any unrelated input or selection change
+returns to workload review. Keep the original baseline receipts; the re-pin
+neither resets them nor increases the frozen `g`/`L8` allowance. Post-migration
+results identify the new gate/data pairing and the controlled schema differences.
+
 | Workload | Sources; operation and edit size |
 | --- | --- |
 | N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, a 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes mentions requiring an unsupported baseline writer; sort by `(-use_count, name, declaration_id)` and take 64, including the most-used eligible declaration. If fewer qualify or the selection exceeds operation/response bounds, stop and revise the workload before timing; do not substitute lower-use symbols. |
@@ -480,7 +522,9 @@ slices, preserving every row above and the rollout's original completion gates:
 2. **2B — remaining artifact and wrapper coverage:** remaining R4/D2, S6–S7,
    D1/D3/D4/D6–D9 and W1. Land typed recovery with in-place decode, registered
    shared documents, gate-policy writers and bounded jobs. D7 includes the gate
-   matcher/schema migration and every legacy-row disposition. D8 includes both
+   matcher/schema migration and every legacy-row disposition, with the reviewed
+   local-project commit, coordinated rebase, verification and workload re-pin
+   above as activation prerequisites. D8 includes both
    declarative questions and schema-checked fixture data, limited to pinned
    reviewed/committed tool profiles until W2. Runtime deferrals/dispositions,
    manifest/trace-plan references and tracked fixture data change atomically;
