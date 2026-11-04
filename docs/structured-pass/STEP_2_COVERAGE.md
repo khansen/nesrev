@@ -1,6 +1,6 @@
 # Step 2 operation coverage
 
-Status: scope baseline v2, revised after review of `6fd532436`. No step-2
+Status: scope baseline v3, revised after review of `69a852ae4`. No step-2
 operation is implemented by this document. The proposed PR split below needs
 agreement before implementation; it does not narrow the rollout's exit criteria.
 
@@ -141,11 +141,11 @@ source parsing or count the blocked row complete.
 | D1 — extend | R4; authored document create/update/delete; C | Cover canonical docs, working notes, current project-root docs, authored inventory Markdown and explicitly registered shared docs. Review scattered edits, additions and deletions in both sessions. | Reviews, tool configuration, source, generated files, symlinks, case aliases and canonical-document deletion remain protected; an unregistered shared path refuses. |
 | D2 — new | R4/R6; typed authored CSV row create/update/delete; C | Cover blob/format dispositions, policy baseline, extent assertions and proof-debt dispositions; key changes are explicit and duplicate/glob contracts are checked. | Wrong row preimage, duplicate key, wrong file schema, rename breaking a disposition glob or forged evidence/gate output refuses. |
 | D3 — new | R2/R4; typed raw-RAM judgments; C/W | Update authored status/name/notes, with address identity and pass context fixed; the existing refresh path regenerates factual columns. | Caller-supplied counts/owners/active flag, mirror conflation, row rekeying or fabricated pass IDs refuses. |
-| D4 — extend | R4; scorecard inputs and deferral lifecycle; C/W | Close an open row by changing only its status in place; reopen by appending a new current-pass row with the exact same subject, preserving all closed rows. Closing evidence lives in the receipt and closing-pass records below. | Editing a closed row, reopening by rewriting one, duplicate `(pass_id, subject)`, direct gate/KPI edits, whole-file mixed replacement or fabricated new-row greens refuses. |
-| D5 — new | R4/R5; typed `WARNING_BASELINE.txt` curation from fresh assembler diagnostics; C/W | Add only a current warning with specific rationale; remove only after that warning is absent in the same candidate; rename entries with their warning identity. | A baseline entry for a nonexistent warning, deletion while its warning persists or generic/empty rationale refuses. |
+| D4 — extend | R4; scorecard inputs and deferral lifecycle; C/W | Close every open row of the exact subject atomically, changing only status; reopen by appending a new current-pass row with the same subject, preserving all closed rows. Closing evidence lives in the receipt and closing-pass records below. | Closing only a subset of the subject's open rows, editing a closed row, reopening by rewriting one, duplicate `(pass_id, subject)`, direct gate/KPI edits, whole-file mixed replacement or fabricated new-row greens refuses. |
+| D5 — new | R4/R5; typed `WARNING_BASELINE.txt` curation from fresh assembler diagnostics; C/W | Add only a current warning with specific rationale; remove entries whose warnings disappear, including through another edit, in the same candidate; rename entries with their warning identity. | A baseline entry for a nonexistent warning, stale entry retained after another edit resolves it, deletion while its warning persists or generic/empty rationale refuses. |
 | D6 — new | R4/R5; measured `inventory/kpis.conf` ratchet updates; C/W | Tighten through a fixed calibration writer using current emitted metrics; an increase requires the matching reviewer-visible `intentional-kpi-regression:` or `kpi-measurement-change:` marker and measured basis. | Unmarked loosened `MAX_*`, fabricated count, stale metric basis, unknown key or injected shell text refuses. |
-| D7 — new | R1/R3/R4; typed `constant_magic_allowlist.csv` and `hardware_local_allowlist.txt` entries; C/W | Bind each reasoned entry to an actual current immediate occurrence or hardware-symbol declaration; review affected gate counts. | Allowlisting a nonexistent immediate/symbol, ambiguous same-name occurrence, wrong value, absent reason or row left stale by another edit refuses. |
-| D8 — new | R4; declarative `inventory/runtime_evidence.json` question writer under `runtime_evidence_check.py`; C/W | Match open runtime subjects, blob/family dispositions, trace-plan questions and required signals/check fixtures atomically; before W2 use only fixed reviewed/committed tool profiles. | Runtime deferral without a question, unmatched subject, fake successful result or new/edited executable/command admitted through a manifest field refuses. |
+| D7 — new | R1/R3/R4; typed allowlist entries plus unconditional migration of the constant gate to explicit scope-qualified occurrence sets; C/W | The writer and gate suppress exactly the same reviewed producer occurrences or hardware declarations. Disposition every legacy row and retain before/after counts; no spelled-key fallback. | A new same-key occurrence elsewhere must be counted; a nonexistent/stale site, ambiguous legacy match, wrong value, absent reason or unmigrated key must not suppress a warning/count. |
+| D8 — new | R4; declarative runtime questions and schema-checked fixture-data writer under `runtime_evidence_check.py`; C/W | Match subjects, dispositions, trace plans and tracked acceptance/single-signal refusal data atomically; before W2 use only fixed reviewed/committed tool profiles and their registered inert data schemas. | Missing acceptance data or a single-signal refusal for any required signal, untracked fixture, unsupported data schema, fake capture result or executable/command injection refuses. |
 | D9 — new | R4; fixed process-friction import/triage operation; W | Existing `process_friction.py` owns `process_friction_receipts.json` and receipt-backed queue blocks; retain source/destination identity and rationale. | Direct receipt edits, forged candidate hash or removal of receipt-backed queue content outside the wrapper refuses. |
 
 The ownership manifest is a write boundary, not merely a review label. Before
@@ -165,11 +165,12 @@ File and field ownership is:
 | `renames.csv` | Bound-rename transaction; pass ID and old/new names come from the selected edit, reason/confidence are authored |
 | `raw_ram_review.csv` | Judgment operation owns `status`, `proposed_symbol`, `notes`; service derives `last_pass_reviewed`; address is the immutable selector; trusted refresh owns `active`, counts and top readers/writers |
 | Scorecard | Direct authored cells are only `focus`/`notes`; service derives pass identity and pending/unmeasured seeds. Typed closeout also accepts author-supplied `REWORK_ITEMS`, which the wrapper records; it is not an independently measured count. Wrappers alone write gate/measurement/result cells |
-| `deferrals.csv` | Existing closeout writer appends; dedicated closing writer changes only `open` to `closed`; reopening appends a new row with the same subject. Closed rows and original keys are immutable |
-| `WARNING_BASELINE.txt` | D5 writer admits only current assembler warnings with rationale and removes only resolved warnings |
+| `deferrals.csv` | Existing closeout writer appends; dedicated subject-closing writer changes every matching `open` row to `closed` atomically, changing only status; reopening appends a new row with the same subject. Closed rows and original keys are immutable |
+| `WARNING_BASELINE.txt` | D5 writer admits only current assembler warnings with rationale and removes every resolved entry in the same candidate |
 | `inventory/kpis.conf` | D6 fixed measurement/calibration writer; no generic file edit or client-supplied measurement; increases require the specific current-row marker and reviewed justification |
-| `inventory/constant_magic_allowlist.csv`, `inventory/hardware_local_allowlist.txt` | D7 typed writer checks actual producer occurrences/declarations and reasons; no unrestricted suppression list |
+| `inventory/constant_magic_allowlist.csv`, `inventory/hardware_local_allowlist.txt` | D7 typed writer and migrated gate share explicit producer occurrence/declaration identity and reasons; legacy rows need migration disposition before use |
 | `inventory/runtime_evidence.json` | D8 declarative question writer under the existing validator; W2 supervisor supplies any new capture/result artifacts, never an authored success flag |
+| Registered runtime-question fixture data paths | D8 schema-checked data writer; typed create/update/delete with preimages, question references and retained bytes. Track fixtures in the isolated candidate before validation; executable or code-bearing fixtures require W2, never D1/D8 |
 | `inventory/process_friction_receipts.json` and receipt-backed blocks in `PROCESS_FRICTION.md` | Existing process-friction wrapper only; D1 cannot replace/remove those blocks |
 | Six generated inventories listed by `service.GENERATED_RELATIVE` and generated pass cache | Their existing fixed generators only; any added artifact needs an explicit writer entry |
 | `config/nesrev/` hints and approved declarative configuration | S6 typed service plus existing validators; execution/policy settings remain operator-owned |
@@ -202,18 +203,71 @@ Admission checks use producer facts, not assembly-text scans. If these writers
 touch a legacy KPI/allowlist parser's feature, its structured-consumer migration
 is part of that slice under Tooling Rule One, with wrapper non-regression tests.
 
-Deferral identity is the existing `(pass_id, subject)` key; the subject stays
-verbatim across passes. Closing preserves all other columns, including the
-original pass ID. Record the closing pass, selected key, before/after row hashes,
+D7 unconditionally includes migration of `constant_kpi.sh` suppression matching
+and its assembler-fact collection to producer records in 2B. Its existing
+`(label, mnemonic, immediate)` keys can match multiple sites, including bare
+local names across routines and global-label matches across local blocks.
+Keeping that matcher behind a more precise writer is not acceptable. The new
+gate and writer share a versioned explicit occurrence-set contract qualified by
+source, segment, owner scope and statement/operand identity. Generation-qualified
+record IDs and proven one-to-one successor mappings keep approved sites stable
+across edits; a new same-key site never joins the set automatically. Missing or
+ambiguous mappings refuse rather than rebinding by name/value or widening a set.
+
+Every legacy row receives a recorded migration disposition: one current site
+maps with its reason; multiple sites require an explicit reviewed selection and
+reason for each; zero sites require retirement with rationale, not a dormant
+wildcard. Until disposition, a legacy row cannot suppress anything. Version the
+authored schema and update all gate callers/readers together; retain original
+rows and before/after match sets in migration evidence, without rewriting old
+receipts. Test repeated `@@local` names, global-key fanout and an S2/S7-added
+same-key site that must increase the unsuppressed count. Also test no-match rows
+and stale mappings. Hardware allowlists must retain their actual declaration
+identity rather than borrowing the immediate-key rule. This migration is a D7
+completion prerequisite, not a conditional follow-up.
+
+D8 may create and update synthetic fixture data for an already registered tool
+profile, and delete it only when no question in the candidate still refers to
+it; older retained versions keep their referenced bytes. The profile pins an
+inert data schema and bounded formats/paths; extensions
+alone do not make a file safe. Reject code, imports, evaluation directives,
+command fields and executable deserialization. A profile without such a schema,
+or a new signal needing analyzer code changes, remains open until its separately
+reviewed profile/W2 prerequisite; no general file write is implied. Fixture data
+is not part of the immutable executable/import closure.
+
+Stage admitted new fixture files in the isolated candidate's Git index before
+running the existing tracked-file checks; never stage them in the main checkout
+as a validation workaround. Retain and review their hashes, bytes, schema and
+question links with the manifest/trace-plan edits. Each question needs acceptance
+fixtures plus at least one refusal check naming exactly each required signal as
+missing; multi-signal refusal alone cannot cover those signals. Require the
+existing validator's coverage checks and execute the registered analyzer's
+acceptance/refusal cases through the permitted tool path. Missing one signal's
+refusal must fail. Synthetic outcomes test the analyzer, never establish a real
+capture or close a runtime gap by themselves.
+
+Deferral row identity remains `(pass_id, subject)`, but the closing operation
+selects the exact subject and every currently open row with that subject under
+one lock/preimage check. Change only their status, preserving original pass IDs
+and all other fields; already-closed rows remain byte-identical. Reject a partial
+close or a stale row-set preimage that omits a newly added open row. Record the
+closing pass, subject, complete selected keys and before/after row hashes,
 resolution rationale and evidence references in the retained operation receipt;
-link that closure from the closing pass's scorecard/notes and review archive.
-No resolution column or new ledger schema is introduced. Reopening is a new
-`open` row for the current pass with the same subject and a revisit condition;
-it counts as another strike and changes the existing proof-debt fingerprint.
-If that key already exists, refuse rather than rewrite a closed row. Closed-row
-immutability and the [three-strikes contract](../../agent_playbook/PASS_WORKFLOW.md#proof-debt)
-remain mandatory. Closing/reopening runtime rows also updates D8 question coverage
-in the same candidate; it cannot leave the validator's subject sets inconsistent.
+link it from the closing pass's scorecard/notes and review archive. No resolution
+column or new ledger schema is introduced.
+
+Reopening appends a new current-pass `open` row with the identical subject and a
+revisit condition; an existing key refuses rather than rewriting a closed row.
+`deferral_repeat` counts only open rows: a full close reduces that count to zero,
+and reopening starts it at one, not at the lifetime number of deferrals. Further
+open rows count toward the existing three-strike threshold. The signal's scope
+fingerprint still covers the subject's rows, so ledger changes invalidate prior
+acknowledgements when the signal recurs. Preserve the existing
+[three-strikes contract](../../agent_playbook/PASS_WORKFLOW.md#proof-debt), with no
+change to the signal here. Closing/reopening runtime subjects also updates D8
+question coverage atomically; it cannot leave the validator's subject sets
+inconsistent.
 
 ## Wrappers, runtime evidence and completion
 
@@ -328,11 +382,19 @@ reuse it unchanged; a failed selection is not permission to pick an easier case.
 
 | Workload | Sources; operation and edit size |
 | --- | --- |
-| N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, a 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes mentions requiring an unsupported baseline writer; sort by `(unused, use_count, name)` and take 64. If fewer qualify, stop and revise the workload before timing. |
+| N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, a 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes mentions requiring an unsupported baseline writer; sort by `(-use_count, name, declaration_id)` and take 64, including the most-used eligible declaration. If fewer qualify or the selection exceeds operation/response bounds, stop and revise the workload before timing; do not substitute lower-use symbols. |
 | B2-N | Saved 64-name map, 66 uses, 64 reasoned ledger rows, two separated crosswalk edits, scorecard and closeout inputs; reproduce the saved requests rather than reselecting symbols on each run. |
 | A64 | On each N64 source and B2-N: prepare a rejected candidate by also adding a document line naming a nonexistent symbol, then amend by removing that line while retaining the complete intended edit batch. Time the repair transaction through fresh validation and review readiness; initial setup/failure is separately measured and its disk remains counted until cleanup. |
 | M8 | B2-M on each of the three sources: publication 1 repeats N64/B2-N; 2 inserts 8 declarations and replaces 16 expressions; 3 localizes 8 labels; 4 reflows 8 ranges of 16 operands; 5 changes representation of four 16-byte ranges with matching hints; 6 edits 4 comment/layout units and two 256-byte document regions; 7 updates 64 typed ledger/policy rows including a runtime-question/deferral pair using a fixed tool profile; 8 repairs one expression, one comment and one document region. Each includes necessary supporting artifact rows and scorecard/closeout inputs, enumerated separately in the frozen request manifest; the existing 64-rename cap is unchanged. Freeze valid parity-preserving mechanical selections before 2A; include a refused attempt/repair, window continuation and reopened application. An unrepresentable workload remains a plan issue, not a silently skipped operation. |
 | CAP | One fixed neutral ROM/capture fixture per supported real emulator/backend, with a pinned no-op 16-address watch logger for 3,600 frames and at most 512 MiB output; separate malicious analyzer/Lua canaries attempt source/credential reads. Repeat under the same supervisor on B1-S, B1-R and B2-N session roots to test isolation from each source tree. No gameplay or inference is implied. |
+
+For N64, derive `use_count` from all producer-bound references, and retain the
+eligible ranking, excluded declarations with concrete unsupported-writer reasons,
+selected IDs and each selected use count in the frozen request manifest. Assert
+that the highest-use eligible declaration is included and that no lower-ranked
+selection displaced a higher-ranked eligible one. Preview/readiness time,
+temporary disk and retained growth use this same high-use edit set. B2-N stays
+unchanged as the small existing review-volume regression.
 
 For A64, final verification includes `project-inventory`, `project-verify`,
 `project-process-check` and `project-docs-check`, each with its actual exit and
@@ -417,10 +479,12 @@ slices, preserving every row above and the rollout's original completion gates:
    explicitly open until D6/D7 in 2B; S2/S3 are not called complete for those cases.
 2. **2B — remaining artifact and wrapper coverage:** remaining R4/D2, S6–S7,
    D1/D3/D4/D6–D9 and W1. Land typed recovery with in-place decode, registered
-   shared documents, gate-policy writers and bounded jobs. D8 is a declarative
-   question writer limited to pinned reviewed/committed tool profiles until W2.
-   Runtime deferrals/dispositions and their manifest/trace-plan references change
-   atomically, so they can pass the existing validator without a new executable.
+   shared documents, gate-policy writers and bounded jobs. D7 includes the gate
+   matcher/schema migration and every legacy-row disposition. D8 includes both
+   declarative questions and schema-checked fixture data, limited to pinned
+   reviewed/committed tool profiles until W2. Runtime deferrals/dispositions,
+   manifest/trace-plan references and tracked fixture data change atomically;
+   unsupported fixture formats or new analyzer logic remain open.
 3. **2C — runtime evidence and integrated acceptance:** W2–W3 and all-row
    regression/rehearsal, with sandbox/capture acceptance and measured limits.
    W2's sandbox feasibility is checked before authored-code execution is enabled.
