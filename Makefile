@@ -20,6 +20,11 @@ test: check-agent-playbooks check-repo-hygiene test-shell
 	javac NESrev.java NESrevTest.java -Xlint:unchecked
 	java NESrevTest
 
+.PHONY: test-structured-pass
+test-structured-pass:
+	@test -n "$(STRUCTURED_PASS_LOCK)" -a -n "$(STRUCTURED_PASS_XASM)" || { echo 'Set STRUCTURED_PASS_LOCK and STRUCTURED_PASS_XASM'; exit 2; }
+	STRUCTURED_PASS_XASM=$(call shell_quote_raw,$(value STRUCTURED_PASS_XASM)) python3 -B scripts/structured_pass_heavy_run.py --lock $(call shell_quote_raw,$(value STRUCTURED_PASS_LOCK)) --agent test --session structured-pass --estimate-mib 256 --reserve-mib 2048 --volume . -- python3 -B -m unittest discover -s tests -p 'structured_pass*test.py'
+
 project-doctor:
 	bash scripts/project_doctor.sh $(call shell_quote_raw,$(value PROJECT))
 

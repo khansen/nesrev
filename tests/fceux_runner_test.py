@@ -30,6 +30,22 @@ directory = Path(os.environ['TRACE_DIR'])
     'cwd': os.getcwd(), 'max_frames': os.environ['TRACE_MAX_FRAMES'],
 }))
 signal.signal(signal.SIGTERM, signal.SIG_IGN)
+if mode == 'complete-late-failure':
+    # Synchronize failure with supervised shutdown instead of racing sleeps on CI.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(7))
+if mode == 'complete-segv-on-term':
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    if sys.platform.startswith('linux'):
+        # RLIMIT_CORE does not bypass a piped Linux core-pattern handler.
+        # Keep this synthetic crash out of the host's crash-report service.
+        import ctypes
+        if ctypes.CDLL(None, use_errno=True).prctl(4, 0, 0, 0, 0) != 0:
+            raise OSError(ctypes.get_errno(), 'PR_SET_DUMPABLE')
+    def crash_on_term(*_):
+        signal.signal(signal.SIGSEGV, signal.SIG_DFL)
+        os.kill(os.getpid(), signal.SIGSEGV)
+    signal.signal(signal.SIGTERM, crash_on_term)
 if mode in ('hang-child', 'orphan'):
     child = subprocess.Popen([sys.executable, '-c',
         'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)'])
@@ -52,9 +68,8 @@ if mode == 'nonzero':
     sys.exit(7)
 if mode == 'complete-hang':
     time.sleep(60)
-if mode == 'complete-late-failure':
-    time.sleep(0.04)
-    sys.exit(7)
+if mode in ('complete-late-failure', 'complete-segv-on-term'):
+    time.sleep(60)
 if mode == 'complete-then-invalid':
     time.sleep(0.2)
     with out.open('a') as stream: stream.write('FAIL\n')
@@ -157,12 +172,22 @@ class RunnerTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 1)
                 self.assertIn("status 7", result.stderr)
                 self.assertEqual(self.result["emulator_exit"], 7)
+                if mode == "complete-late-failure":
+                    self.assertTrue(self.result["stopped_after_completion"])
 
     def test_completed_lua_does_not_wait_for_gui_to_exit(self):
         result = self.run_capture("complete-hang")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(self.result["stopped_after_completion"])
         self.assertEqual(self.result["emulator_exit"], -signal.SIGKILL)
+        self.assert_capture_processes_dead()
+
+    def test_signal_death_after_validated_completion_is_shutdown(self):
+        result = self.run_capture("complete-segv-on-term", extra=["--shutdown-grace", "1"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.result["status"], "complete")
+        self.assertEqual(self.result["emulator_exit"], -signal.SIGSEGV)
+        self.assertTrue(self.result["stopped_after_completion"])
         self.assert_capture_processes_dead()
 
     def test_completion_is_rechecked_after_shutdown(self):

@@ -223,7 +223,10 @@ def capture(args):
             if interrupted:
                 exit_code = 128 + interrupted[0]
                 raise CaptureError(f"capture interrupted by signal {interrupted[0]}")
-            if process.returncode != 0 and not result["stopped_after_completion"]:
+            # FCEUX can fault during deliberate shutdown after capture validation.
+            # Retain its actual signal status; positive failure exits still fail.
+            stopped_by_signal = result["stopped_after_completion"] and process.returncode < 0
+            if process.returncode != 0 and not stopped_by_signal:
                 raise CaptureError(f"FCEUX exited with status {process.returncode}; see emulator.log")
             # Stop helpers before reading a log that they might still be writing.
             if not cleaned:

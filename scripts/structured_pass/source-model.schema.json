@@ -1,0 +1,1856 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xasm:source-model:1",
+  "title": "xasm source model 1, asm-edit-v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "xasm-source-model"
+    },
+    "version": {
+      "const": 1
+    },
+    "profile": {
+      "const": "asm-edit-v1"
+    },
+    "target": {
+      "const": "mos6502"
+    },
+    "status": {
+      "enum": [
+        "certified",
+        "diagnostic"
+      ]
+    },
+    "exit_status": {
+      "type": "integer"
+    },
+    "analysis_outcomes": {
+      "type": "object",
+      "properties": {
+        "comparison": {
+          "enum": [
+            "not_requested",
+            "not_run",
+            "equal",
+            "mismatch"
+          ]
+        },
+        "audit": {
+          "enum": [
+            "not_requested",
+            "not_run",
+            "clear",
+            "findings"
+          ]
+        }
+      },
+      "required": [
+        "comparison",
+        "audit"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "input_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "producer_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "model_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "schema_id": {
+          "const": "xasm-source-model:1"
+        },
+        "profile_id": {
+          "const": "asm-edit-v1"
+        }
+      },
+      "required": [
+        "input_id",
+        "producer_sha256",
+        "model_id",
+        "schema_id",
+        "profile_id"
+      ],
+      "additionalProperties": false
+    },
+    "semantic_options": {
+      "type": "object",
+      "properties": {
+        "case_insensitive": {
+          "type": "boolean"
+        },
+        "swap_parens": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "case_insensitive",
+        "swap_parens"
+      ],
+      "additionalProperties": false
+    },
+    "invocation": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": "string"
+        },
+        "argv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "cwd",
+        "argv"
+      ],
+      "additionalProperties": false
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "missing": {
+            "type": "boolean"
+          },
+          "byte_length": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "source",
+                "binary",
+                "charmap",
+                "analysis_source",
+                "comparison",
+                "producer"
+              ]
+            }
+          }
+        },
+        "required": [
+          "path",
+          "missing",
+          "byte_length",
+          "sha256",
+          "roles"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "syntax": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expressions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declarations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_references": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bound_references": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "instruction_statements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data_statements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expected_locations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "located_statements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "evaluated_expressions": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "units",
+        "syntax",
+        "expressions",
+        "declarations",
+        "expected_references",
+        "bound_references",
+        "instruction_statements",
+        "data_statements",
+        "expected_locations",
+        "located_statements",
+        "evaluated_expressions"
+      ],
+      "additionalProperties": false
+    },
+    "binary": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "byte_length": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "bytes_base64": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          "required": [
+            "byte_length",
+            "sha256",
+            "bytes_base64"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "units": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/unit"
+      }
+    },
+    "syntax": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/syntax"
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scope"
+      }
+    },
+    "declarations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/declaration"
+      }
+    },
+    "expressions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/expression"
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reference"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "evaluations": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/evaluation"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "segments": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/segment"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "locations": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/location"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "instructions": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/instruction"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "data": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/data"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "emissions": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/emission"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schema",
+    "version",
+    "profile",
+    "target",
+    "status",
+    "exit_status",
+    "analysis_outcomes",
+    "identity",
+    "semantic_options",
+    "invocation",
+    "dependencies",
+    "coverage",
+    "binary",
+    "files",
+    "units",
+    "syntax",
+    "scopes",
+    "declarations",
+    "expressions",
+    "references",
+    "diagnostics",
+    "evaluations",
+    "segments",
+    "locations",
+    "instructions",
+    "data",
+    "emissions"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "span": {
+      "type": "object",
+      "properties": {
+        "file_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "byte_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byte_end_exclusive": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "file_id",
+        "byte_start",
+        "byte_end_exclusive"
+      ],
+      "additionalProperties": false
+    },
+    "range": {
+      "type": "object",
+      "properties": {
+        "output_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_end_exclusive": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "output_start",
+        "output_end_exclusive"
+      ],
+      "additionalProperties": false
+    },
+    "value": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "integer"
+            },
+            "value": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "bytes"
+            },
+            "bytes_base64": {
+              "type": "string",
+              "contentEncoding": "base64"
+            }
+          },
+          "required": [
+            "kind",
+            "bytes_base64"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "file": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "path": {
+          "type": "string"
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes_base64": {
+          "type": "string",
+          "contentEncoding": "base64"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "byte_length",
+        "sha256",
+        "bytes_base64"
+      ],
+      "additionalProperties": false
+    },
+    "unit": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "file_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "byte_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byte_end_exclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "token",
+            "comment",
+            "whitespace",
+            "newline",
+            "unclassified"
+          ]
+        },
+        "token_kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "syntax_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "file_id",
+        "byte_start",
+        "byte_end_exclusive",
+        "kind",
+        "token_kind",
+        "syntax_id"
+      ],
+      "additionalProperties": false
+    },
+    "syntax": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "kind": {
+          "enum": [
+            "ALIGN_NODE",
+            "ARITHMETIC_NODE",
+            "ASSIGN_NODE",
+            "BACKWARD_BRANCH_DECL_NODE",
+            "BACKWARD_BRANCH_NODE",
+            "BINARY_NODE",
+            "BITFIELD_DECL_NODE",
+            "CASE_NODE",
+            "CHARMAP_NODE",
+            "CODESEG_NODE",
+            "CURRENT_PC_NODE",
+            "DATASEG_NODE",
+            "DATATYPE_NODE",
+            "DATA_NODE",
+            "DEFAULT_NODE",
+            "DOT_NODE",
+            "DO_NODE",
+            "END_NODE",
+            "ENUM_DECL_NODE",
+            "EQU_NODE",
+            "ERROR_NODE",
+            "EXITM_NODE",
+            "EXTRN_NODE",
+            "FIELD_PADDING_NODE",
+            "FILE_PATH_NODE",
+            "FORWARD_BRANCH_DECL_NODE",
+            "FORWARD_BRANCH_NODE",
+            "IDENTIFIER_NODE",
+            "IFDEF_NODE",
+            "IFNDEF_NODE",
+            "IF_NODE",
+            "INCBIN_NODE",
+            "INCSRC_NODE",
+            "INDEX_NODE",
+            "INSTRUCTION_NODE",
+            "INTEGER_NODE",
+            "IR_REFERENCE_NODE",
+            "LABEL_NODE",
+            "LIST_NODE",
+            "LOCAL_ID_NODE",
+            "LOCAL_LABEL_NODE",
+            "MACRO_DECL_NODE",
+            "MACRO_NODE",
+            "MASK_NODE",
+            "MESSAGE_NODE",
+            "NULL_NODE",
+            "ORG_NODE",
+            "POP_BRANCH_SCOPE_NODE",
+            "POP_MACRO_BODY_NODE",
+            "PROC_NODE",
+            "PUBLIC_NODE",
+            "PUSH_BRANCH_SCOPE_NODE",
+            "PUSH_MACRO_BODY_NODE",
+            "RECORD_DECL_NODE",
+            "REPT_NODE",
+            "SCOPE_NODE",
+            "SIZEOF_NODE",
+            "STORAGE_NODE",
+            "STRING_NODE",
+            "STRUC_DECL_NODE",
+            "STRUC_NODE",
+            "TOMBSTONE_NODE",
+            "UNDEF_NODE",
+            "UNION_DECL_NODE",
+            "VAR_DECL_NODE",
+            "WARNING_NODE",
+            "WHILE_NODE"
+          ]
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+          }
+        },
+        "scope_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "span",
+        "parent_id",
+        "children",
+        "scope_id"
+      ],
+      "additionalProperties": false
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "kind": {
+          "enum": [
+            "root",
+            "global"
+          ]
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "anchor_declaration_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "extent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "parent_id",
+        "anchor_declaration_id",
+        "extent"
+      ],
+      "additionalProperties": false
+    },
+    "declaration": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "symbol_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "global",
+            "local",
+            "anonymous",
+            "equ"
+          ]
+        },
+        "name_span": {
+          "$ref": "#/$defs/span"
+        },
+        "scope_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "lexical_owner_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expression_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "location_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "symbol_id",
+        "name",
+        "kind",
+        "name_span",
+        "scope_id",
+        "lexical_owner_id",
+        "expression_id",
+        "location_id"
+      ],
+      "additionalProperties": false
+    },
+    "expression": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "context_syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "kind": {
+          "enum": [
+            "integer",
+            "string",
+            "symbol",
+            "local",
+            "anonymous_forward",
+            "anonymous_backward",
+            "pc",
+            "unary",
+            "binary"
+          ]
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+          }
+        },
+        "value": {
+          "type": "integer"
+        },
+        "bytes_base64": {
+          "type": "string",
+          "contentEncoding": "base64"
+        },
+        "reference_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "operator": {
+          "enum": [
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+            "remainder",
+            "shift_left",
+            "shift_right",
+            "bit_and",
+            "bit_or",
+            "bit_xor",
+            "less",
+            "greater",
+            "equal",
+            "not_equal",
+            "less_equal",
+            "greater_equal",
+            "complement",
+            "not",
+            "negate",
+            "low",
+            "high",
+            "bank"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "context_syntax_id",
+        "kind",
+        "span",
+        "children"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "integer"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "value"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "string"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "bytes_base64"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "symbol",
+                  "local",
+                  "anonymous_forward",
+                  "anonymous_backward"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reference_id"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "unary",
+                  "binary"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "operator"
+            ]
+          }
+        }
+      ]
+    },
+    "reference": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "expression_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "context_syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "name": {
+          "type": "string"
+        },
+        "spelling": {
+          "type": "string"
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "scope_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "declaration_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resolution_origin": {
+          "anyOf": [
+            {
+              "enum": [
+                "assembly",
+                "analysis"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "diagnostic_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "expression_id",
+        "context_syntax_id",
+        "name",
+        "spelling",
+        "span",
+        "scope_id",
+        "declaration_id",
+        "resolution_origin",
+        "diagnostic_id"
+      ],
+      "additionalProperties": false
+    },
+    "evaluation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "expression_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "context_syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "operand_index": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pc_context": {
+          "type": "object",
+          "properties": {
+            "cpu_address": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "segment_id": {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            }
+          },
+          "required": [
+            "cpu_address",
+            "segment_id"
+          ],
+          "additionalProperties": false
+        },
+        "value": {
+          "$ref": "#/$defs/value"
+        },
+        "resolution_origin": {
+          "enum": [
+            "assembly",
+            "analysis"
+          ]
+        },
+        "reference_values": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "reference_id": {
+                "type": "string",
+                "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+              },
+              "declaration_id": {
+                "type": "string",
+                "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+              },
+              "value": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "required": [
+              "reference_id",
+              "declaration_id",
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "id",
+        "expression_id",
+        "context_syntax_id",
+        "operand_index",
+        "pc_context",
+        "value",
+        "resolution_origin",
+        "reference_values"
+      ],
+      "additionalProperties": false
+    },
+    "segment": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "start_syntax_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "address_space": {
+          "const": "cpu"
+        },
+        "origin": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "start_syntax_id",
+        "address_space",
+        "origin",
+        "output_offset"
+      ],
+      "additionalProperties": false
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "segment_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "cpu_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "segment_id",
+        "cpu_address",
+        "output_offset",
+        "byte_length"
+      ],
+      "additionalProperties": false
+    },
+    "memory": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "data": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "read",
+                        "write",
+                        "read_modify_write"
+                      ]
+                    },
+                    "address": {
+                      "anyOf": [
+                        {
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "index_register": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "X",
+                            "Y"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "via_pointer": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "address",
+                    "index_register",
+                    "via_pointer"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pointer": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "integer"
+                    },
+                    "high_byte_address": {
+                      "type": "integer"
+                    },
+                    "index_register": {
+                      "anyOf": [
+                        {
+                          "enum": [
+                            "X",
+                            "Y"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "high_byte_address",
+                    "index_register"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "data",
+            "pointer"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "instruction_operand": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expression_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "evaluation_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "emission_ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/range"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "expression_id",
+        "evaluation_id",
+        "emission_ranges"
+      ],
+      "additionalProperties": false
+    },
+    "data_operand": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expression_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "evaluation_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "element_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byte_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "emission_ranges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/range"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "expression_id",
+        "evaluation_id",
+        "element_count",
+        "output_offset",
+        "byte_length",
+        "emission_ranges"
+      ],
+      "additionalProperties": false
+    },
+    "instruction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "location_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "mnemonic": {
+          "type": "string"
+        },
+        "parsed_mode": {
+          "enum": [
+            "IMPLIED_MODE",
+            "ACCUMULATOR_MODE",
+            "IMMEDIATE_MODE",
+            "ZEROPAGE_MODE",
+            "ZEROPAGE_X_MODE",
+            "ZEROPAGE_Y_MODE",
+            "ABSOLUTE_MODE",
+            "ABSOLUTE_X_MODE",
+            "ABSOLUTE_Y_MODE",
+            "PREINDEXED_INDIRECT_MODE",
+            "POSTINDEXED_INDIRECT_MODE",
+            "INDIRECT_MODE",
+            "RELATIVE_MODE"
+          ]
+        },
+        "final_mode": {
+          "enum": [
+            "IMPLIED_MODE",
+            "ACCUMULATOR_MODE",
+            "IMMEDIATE_MODE",
+            "ZEROPAGE_MODE",
+            "ZEROPAGE_X_MODE",
+            "ZEROPAGE_Y_MODE",
+            "ABSOLUTE_MODE",
+            "ABSOLUTE_X_MODE",
+            "ABSOLUTE_Y_MODE",
+            "PREINDEXED_INDIRECT_MODE",
+            "POSTINDEXED_INDIRECT_MODE",
+            "INDIRECT_MODE",
+            "RELATIVE_MODE"
+          ]
+        },
+        "forced_absolute": {
+          "type": "boolean"
+        },
+        "opcode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "operand_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+          }
+        },
+        "operands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/instruction_operand"
+          }
+        },
+        "emission_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+          }
+        },
+        "memory_access": {
+          "$ref": "#/$defs/memory"
+        },
+        "control_flow": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "call",
+                "jump",
+                "branch",
+                "return",
+                "trap",
+                "none"
+              ]
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "encoded_displacement": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "target",
+            "encoded_displacement"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "location_id",
+        "mnemonic",
+        "parsed_mode",
+        "final_mode",
+        "forced_absolute",
+        "opcode",
+        "operand_ids",
+        "operands",
+        "emission_ids",
+        "memory_access",
+        "control_flow"
+      ],
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "location_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "element_width": {
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "directive_token": {
+          "enum": [
+            "BYTE",
+            "WORD"
+          ]
+        },
+        "operands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/data_operand"
+          }
+        },
+        "emission_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "location_id",
+        "element_width",
+        "directive_token",
+        "operands",
+        "emission_ids"
+      ],
+      "additionalProperties": false
+    },
+    "emission": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "syntax_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "operand_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "segment_id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "cpu_address": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_end_exclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "opcode",
+            "instruction_operand",
+            "data_operand"
+          ]
+        },
+        "operand_index": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "syntax_id",
+        "operand_id",
+        "segment_id",
+        "cpu_address",
+        "output_start",
+        "output_end_exclusive",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+        },
+        "code": {
+          "enum": [
+            "SOURCE_MODEL_DUPLICATE_DECLARATION",
+            "SOURCE_MODEL_INCOMPLETE",
+            "SOURCE_MODEL_RESOURCE_LIMIT",
+            "SOURCE_MODEL_INPUT_CHANGED",
+            "SOURCE_MODEL_IO_ERROR",
+            "SOURCE_MODEL_INTERNAL_ERROR",
+            "SOURCE_MODEL_UNBOUND_REFERENCE",
+            "SOURCE_MODEL_UNSUPPORTED_CONSTRUCT",
+            "SOURCE_MODEL_VALUE_UNAVAILABLE"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "error",
+            "warning"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "syntax_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "related_declaration_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][0-9]+(?:-[a-z0-9]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "severity",
+        "message",
+        "span",
+        "syntax_id",
+        "related_declaration_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "diagnostic"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evaluations": {
+            "type": "null"
+          },
+          "segments": {
+            "type": "null"
+          },
+          "locations": {
+            "type": "null"
+          },
+          "instructions": {
+            "type": "null"
+          },
+          "data": {
+            "type": "null"
+          },
+          "emissions": {
+            "type": "null"
+          },
+          "binary": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "evaluations": {
+            "type": "array"
+          },
+          "segments": {
+            "type": "array"
+          },
+          "locations": {
+            "type": "array"
+          },
+          "instructions": {
+            "type": "array"
+          },
+          "data": {
+            "type": "array"
+          },
+          "emissions": {
+            "type": "array"
+          },
+          "binary": {
+            "type": "object"
+          },
+          "diagnostics": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

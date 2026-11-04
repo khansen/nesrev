@@ -113,9 +113,10 @@ supervisor itself cannot run cleanup.
 Success requires all configured checks on the fresh log. A nonzero emulator
 exit is a failure. When Lua has completed but the GUI remains open, the runner
 allows a brief normal exit, then stops its process group and records
-`stopped_after_completion` in `result.json`. That deliberate stop can have a
-nonzero child status; it is not an emulator failure. The log is checked again
-after cleanup before success is reported.
+`stopped_after_completion` in `result.json`. Signal termination after that
+deliberate stop, including a shutdown fault, does not reject a validated capture;
+the actual negative child status remains recorded. Positive nonzero exit codes
+still fail. The log is checked again after cleanup before success is reported.
 
 - JSONL mode (`--require-milestone NAME`, repeatable): a `start` record, every
   named milestone, and a final `done` record with reason `max_frames` or
