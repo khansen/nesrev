@@ -424,19 +424,52 @@ results identify the new gate/data pairing and the controlled schema differences
 
 | Workload | Sources; operation and edit size |
 | --- | --- |
-| N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, a 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes mentions requiring an unsupported baseline writer; sort by `(-use_count, name, declaration_id)` and take 64, including the most-used eligible declaration. If fewer qualify or the selection exceeds operation/response bounds, stop and revise the workload before timing; do not substitute lower-use symbols. |
+| N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, exactly the mandatory supporting prose defined below, a separately labelled 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes policy-fixed definitions and mentions requiring an unsupported baseline writer, as defined below; sort by `(-use_count, name, declaration_id)` and take 64, including the most-used eligible declaration. If fewer qualify or the selection exceeds operation/response bounds, stop and revise the workload before timing; do not substitute lower-use symbols. |
 | B2-N | Saved 64-name map, 66 uses, 64 reasoned ledger rows, two separated crosswalk edits, scorecard and closeout inputs; reproduce the saved requests rather than reselecting symbols on each run. |
 | A64 | On each N64 source and B2-N: prepare a rejected candidate by also adding a document line naming a nonexistent symbol, then amend by removing that line while retaining the complete intended edit batch. Time the repair transaction through fresh validation and review readiness; initial setup/failure is separately measured and its disk remains counted until cleanup. |
 | M8 | B2-M on each of the three sources: publication 1 repeats N64/B2-N; 2 inserts 8 declarations and replaces 16 expressions; 3 localizes 8 labels; 4 reflows 8 ranges of 16 operands; 5 changes representation of four 16-byte ranges with matching hints; 6 edits 4 comment/layout units and two 256-byte document regions; 7 updates 64 typed ledger/policy rows including a runtime-question/deferral pair using a fixed tool profile; 8 repairs one expression, one comment and one document region. Each includes necessary supporting artifact rows and scorecard/closeout inputs, enumerated separately in the frozen request manifest; the existing 64-rename cap is unchanged. Freeze valid parity-preserving mechanical selections before 2A; include a refused attempt/repair, window continuation and reopened application. An unrepresentable workload remains a plan issue, not a silently skipped operation. |
 | CAP | One fixed neutral ROM/capture fixture per supported real emulator/backend, with a pinned no-op 16-address watch logger for 3,600 frames and at most 512 MiB output; separate malicious analyzer/Lua canaries attempt source/credential reads. Repeat under the same supervisor on B1-S, B1-R and B2-N session roots to test isolation from each source tree. No gameplay or inference is implied. |
 
 For N64, derive `use_count` from all producer-bound references, and retain the
-eligible ranking, excluded declarations with concrete unsupported-writer reasons,
+eligible ranking, excluded declarations with concrete policy or unsupported-writer reasons,
 selected IDs and each selected use count in the frozen request manifest. Assert
 that the highest-use eligible declaration is included and that no lower-ranked
 selection displaced a higher-ranked eligible one. Preview/readiness time,
 temporary disk and retained growth use this same high-use edit set. B2-N stays
 unchanged as the small existing review-volume regression.
+
+Define policy-fixed from the unchanged `scripts/check_symbol_naming.py`, not a
+handwritten list of failures. Apply the checker's rules to the mechanically
+renamed definition of every declaration in each source's whole ranking and
+record the checker hash, proposed spelling and actual refusal for each exclusion.
+In particular, its canonical hardware-register rule requires the canonical
+spelling for a direct `$XXXX` EQU at an address in
+`CANONICAL_HARDWARE_REGISTERS`; its PPUCTRL pattern-table rule requires the
+canonical spelling for matching `$08`/`$10` bit constants. Use producer spans
+to select and rename the definition; the unchanged checker supplies naming
+policy. Do not recover assembler facts with a new source parser. Cost and use
+count are never exclusion reasons. Preserve the previous ranking, failed packet
+and old/new selection diff when applying a reviewed eligibility correction.
+
+Mandatory supporting prose is exactly the current-prose mentions of the
+selected old names reported by the unchanged service's stale-prose obligation,
+including its source-comment records and current authored-document mentions.
+Freeze those mention identities and the edits that discharge them; refuse an
+extra or missing supporting item. Do not substitute the harness's independent
+token sweep for the service's obligation set. A mention requiring an unsupported
+writer excludes its declaration with a concrete reason. Label the fixed padding
+comment and two-region document fixture separately, even if a document also
+needs supporting edits. Retain the exact before/after bytes, operation counts
+and byte counts for supporting prose and fixtures, and include all their costs
+in every measurement.
+
+Before constructing A64's deliberate failure, validate the complete intended
+batch through `project-inventory`, `project-verify`, `project-process-check`,
+`project-docs-check` and `project-pass-closeout` on the unchanged service and
+legacy gate. Retain each actual result and duration as untimed preflight evidence,
+outside the acceptance timing samples. Preview acceptance alone is insufficient.
+Any refusal returns to workload review; do not inject the deliberate defect or
+silently change the selected batch to hide it.
 
 For A64, final verification includes `project-inventory`, `project-verify`,
 `project-process-check` and `project-docs-check`, each with its actual exit and
@@ -484,7 +517,7 @@ implementation. Record input/tool/environment identities and all samples.
 | Read latency | Each R row's largest page for each view/subtype on B1-S, B1-R and B2-N | At most 10 s warm and 120 s cold, including integrity checking/loading and serialization. Every run passes. Long jobs use status/poll when the client deadline is shorter. |
 | Full-amend latency | A64 on B1-S, B1-R and B2-N, with the exact gate set above | At most 300 s per run. One warmup then five serial measured runs from equivalent rejected-candidate snapshots; report all and the maximum. Include mandatory policy/runtime validation, not a reduced gate profile. |
 | Existing wrappers | Each affected fixed wrapper on both B1 extremes, and B2-N if it has an additional affected path | Median increase at most 5% under the existing [performance contract](../../PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement). Compare identical source/edit/tool inputs; no claim from a different workload or skipped analyzer. |
-| Temporary disk | A64 validation, publication and simultaneous before/after retained review, separately on B1-S, B1-R and B2-N; then M8 on each | At most 2 GiB peak per A64 run; at most 4 GiB per serial M8/corpus campaign. Include editor checkouts, failed attempts, captures, stores' staging files and restored caches. Sample allocated bytes at most 1 s apart and at allocation/phase boundaries; report sampling limits and raw before/after free blocks. |
+| Temporary disk | A64 validation, publication and simultaneous before/after retained review, separately on B1-S, B1-R and B2-N; then M8 on each | At most 2 GiB peak per A64 run; at most 4 GiB per serial M8/corpus campaign. Include editor checkouts, failed attempts, captures, stores' staging files and restored caches. Use an independent sampler process at a nominal period of at most 0.5 s, also sampling allocation/phase boundaries; reject any run with an actual sampling gap over 1.0 s. Report sampling limits and raw before/after free blocks. |
 | Retained growth | N64/B2-N publication on each of B1-S, B1-R and B2-N; then every publication and total M8 on each | At most 256 MiB per publication; total M8 must fit the frozen derived limit below and 2 GiB. Measure actual store-byte growth including receipts/tickets/blobs, not model-file size. Retain the toolchain and unedited base once before taking the publication-delta baseline; report that bootstrap separately. Use equivalent fresh stores for repeated measurements. |
 | Capture limits | CAP positive/control jobs and malicious canaries on each configured real backend and all three session roots | Cap 300 s and 512 MiB output per job; status/cancel within 5 s, descendants gone within 5 s of termination escalation. A cap hit is incomplete evidence, not success. |
 | Admission/cleanup | Every workload above, including injected failure/cancellation/recovery | One canonical shared heavy-run lock for both roles/copies. Estimate covers peak allocation plus 2 GiB reserve on every affected volume. No hardlinked mutable files, leftover scratch checkouts or live children. |
