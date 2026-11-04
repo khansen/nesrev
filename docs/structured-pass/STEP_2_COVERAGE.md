@@ -1,6 +1,6 @@
 # Step 2 operation coverage
 
-Status: scope baseline v1, prepared for independent plan review. No step-2
+Status: scope baseline v2, revised after review of `6fd532436`. No step-2
 operation is implemented by this document. The proposed PR split below needs
 agreement before implementation; it does not narrow the rollout's exit criteria.
 
@@ -94,12 +94,13 @@ documented absence of a recoverable historical case plus a neutral control.
 
 | ID / status | Read and mutation contract; writer / generation | Positive acceptance | Failing-direction acceptance |
 | --- | --- | --- | --- |
-| S1 — retain | R1/R4; bound rename plus typed rename rows; C/W | Global/local/EQU renames preserve all selected uses, unrelated declarations/bindings and ledger prefix, including a 64-name batch. | Independently remove each of the five binding/declaration guards and stale-source-prose guard; designated parity-preserving controls must fail. |
+| S1 — retain | R1/R4; bound rename plus typed rename rows; C/W | Global/local/EQU renames preserve all selected uses, unrelated declarations/bindings and ledger prefix, including a 64-name batch. | Independently remove `declarations_renamed`, `every_bound_use_preserved`, `unselected_bindings_preserved`, `unselected_declarations_preserved`, `reference_inventory_preserved` and `no_stale_source_prose`; designated parity-preserving controls must fail. |
 | S2 — new | R1/R2/R3; insert an EQU/label, replace a selected expression, remove a proven-unneeded declaration; C | Typed expressions refer to declaration IDs; preview groups every selected occurrence by owner. Cover hardware masks, field offsets, selector offsets, low/high pointers, bounds and label math. | Same-value wrong binding, implicit broad replacement, use-before-scope error, live-declaration deletion and unintended width/encoding changes refuse; untouched bindings remain identical. |
 | S3 — new | R1/R5; localize a global label into an explicit scope; C | Re-certify all uses, neighboring scope ownership and retained source reconstruction; repeated local names in other scopes remain separate. | An out-of-scope or through-EQU use, collision, accidental anonymous/local rebinding or unsupported reachability claim refuses. Zero xref count alone is insufficient. |
 | S4 — new | R6; regroup data operands and insert proven boundary labels; C | Reflow DB/DW/string operands by reviewed format while preserving operand identity, byte order, references, segment and physical extent. | Swapping same-valued operands, splitting a word/string incorrectly, crossing an ORG or dropping a hidden reference fails despite matching aggregate bytes. |
 | S5 — extend | R1/R4; create/replace/delete comment and whitespace units; C | Inline/header comments and formatting can change without dummy renames or document writes; invalid source bytes remain exact unless explicitly repaired. | A replacement that consumes a statement, newline or next label, a stale byte preimage, or a comment that injects code refuses. |
-| S6 — new | R6/R5; typed recovery hints and controlled regeneration; C/W | Admit configured code/data pointers, entries, inline payloads and data ranges; fixed regeneration shows the full diff and preserves reference PRG and existing authored work. | CPU address used as PRG offset, wrong bank, contradictory hints, arbitrary config execution or regeneration overwriting unrelated edits refuses. |
+| S6 — new | R6/R5; typed recovery hints plus non-writing `project-regenerate-check` evidence; C/W | Admit configured code/data pointers, entries, inline payloads and data ranges; retain the bounded diff against temporary generator output without replacing authored assembly. | CPU address used as PRG offset, wrong bank, contradictory hints, arbitrary config execution or any write of generated assembly over the authored file refuses. |
+| S7 — new | R1/R6; decode data to instructions, or explicitly revert instructions to data, over an exact emitted byte range; C | Preserve bytes, length, segment and every label's byte position; map/rebind all references into the range or refuse. Required S6 hint changes accompany the same candidate. | A changed byte, crossed ORG/bank, referenced label moved off its opcode byte, dangling interior target or hint contradicting the representation refuses. |
 
 The service serializes typed expression requests and asks XORcyst to resolve
 them. It must not add a consumer assembler parser or evaluator. The confirmed
@@ -109,8 +110,26 @@ name or constant still requires reviewer judgment: a machine check cannot prove
 the author's meaning. Historical wrong-meaning fixtures must expose the decisive
 context rather than teach the service an answer key.
 
-S6 may admit only declarative, schema-checked configuration. Shell configuration,
-tool selection, policy weakening and permission settings stay operator-owned.
+S6 may admit only declarative, schema-checked recovery configuration. Shell
+configuration, executable selection and permission settings stay operator-owned;
+gate-policy changes have only the dedicated D5–D7 writers below.
+`project-regenerate-asm` overwrites the authored file and is not an S6 operation.
+`project-regenerate-check` exits zero on ordinary drift: retain and review its
+actual hunks, never treat that exit as proof of parity or reconciliation. No
+automatic merge of raw generator output into mature source is proposed.
+
+S7 is the in-place recovery route. Its preview includes the original physical
+range, byte preimage, new instruction/data records, label positions and every
+affected binding. Decoding uses a fixed producer/decoder over retained bytes,
+not a consumer parser of assembly text; candidate assembly is re-certified by
+XORcyst. An interior reference must still select the same physical byte, even
+when the new instruction cannot host a label there; unrepresentable targets
+refuse. Bytes and authored units outside the selected range stay unchanged.
+Reverting code to data also requires an explicit representation rationale and
+review; it is not a way to suppress warnings or improve KPIs. The existing
+[parity-safe decode protocol](../../agent_playbook/DATA_RECOVERY.md#orphan-opcode-decode)
+and its warning/constantization pre-assessment apply to the whole candidate.
+
 If normal work requires a missing producer fact or grammar, record the exact
 XORcyst prerequisite and obtain its separate contract/review. Do not fill it with
 source parsing or count the blocked row complete.
@@ -122,10 +141,20 @@ source parsing or count the blocked row complete.
 | D1 — extend | R4; authored document create/update/delete; C | Cover canonical docs, working notes, current project-root docs, authored inventory Markdown and explicitly registered shared docs. Review scattered edits, additions and deletions in both sessions. | Reviews, tool configuration, source, generated files, symlinks, case aliases and canonical-document deletion remain protected; an unregistered shared path refuses. |
 | D2 — new | R4/R6; typed authored CSV row create/update/delete; C | Cover blob/format dispositions, policy baseline, extent assertions and proof-debt dispositions; key changes are explicit and duplicate/glob contracts are checked. | Wrong row preimage, duplicate key, wrong file schema, rename breaking a disposition glob or forged evidence/gate output refuses. |
 | D3 — new | R2/R4; typed raw-RAM judgments; C/W | Update authored status/name/notes, with address identity and pass context fixed; the existing refresh path regenerates factual columns. | Caller-supplied counts/owners/active flag, mirror conflation, row rekeying or fabricated pass IDs refuses. |
-| D4 — extend | R4; scorecard inputs and deferral lifecycle; C/W | Focus/notes and explicit closeout inputs remain usable; a fixed deferral operation can resolve/reopen a row while retaining its prior version and evidence. | Direct gate/KPI edits, whole-file mixed replacement, fabricated new-row greens or alteration of historical closeout rows outside the dedicated writer refuses. |
+| D4 — extend | R4; scorecard inputs and deferral lifecycle; C/W | Close an open row by changing only its status in place; reopen by appending a new current-pass row with the exact same subject, preserving all closed rows. Closing evidence lives in the receipt and closing-pass records below. | Editing a closed row, reopening by rewriting one, duplicate `(pass_id, subject)`, direct gate/KPI edits, whole-file mixed replacement or fabricated new-row greens refuses. |
+| D5 — new | R4/R5; typed `WARNING_BASELINE.txt` curation from fresh assembler diagnostics; C/W | Add only a current warning with specific rationale; remove only after that warning is absent in the same candidate; rename entries with their warning identity. | A baseline entry for a nonexistent warning, deletion while its warning persists or generic/empty rationale refuses. |
+| D6 — new | R4/R5; measured `inventory/kpis.conf` ratchet updates; C/W | Tighten through a fixed calibration writer using current emitted metrics; an increase requires the matching reviewer-visible `intentional-kpi-regression:` or `kpi-measurement-change:` marker and measured basis. | Unmarked loosened `MAX_*`, fabricated count, stale metric basis, unknown key or injected shell text refuses. |
+| D7 — new | R1/R3/R4; typed `constant_magic_allowlist.csv` and `hardware_local_allowlist.txt` entries; C/W | Bind each reasoned entry to an actual current immediate occurrence or hardware-symbol declaration; review affected gate counts. | Allowlisting a nonexistent immediate/symbol, ambiguous same-name occurrence, wrong value, absent reason or row left stale by another edit refuses. |
+| D8 — new | R4; declarative `inventory/runtime_evidence.json` question writer under `runtime_evidence_check.py`; C/W | Match open runtime subjects, blob/family dispositions, trace-plan questions and required signals/check fixtures atomically; before W2 use only fixed reviewed/committed tool profiles. | Runtime deferral without a question, unmatched subject, fake successful result or new/edited executable/command admitted through a manifest field refuses. |
+| D9 — new | R4; fixed process-friction import/triage operation; W | Existing `process_friction.py` owns `process_friction_receipts.json` and receipt-backed queue blocks; retain source/destination identity and rationale. | Direct receipt edits, forged candidate hash or removal of receipt-backed queue content outside the wrapper refuses. |
 
-The ownership manifest is a write boundary, not merely a review label. It must
-be complete before widening a path allowlist. File and field ownership is:
+The ownership manifest is a write boundary, not merely a review label. Before
+any allowlist widens, replace the classifier's unlisted-path `authored` fallback
+with refusal. Every admitted path/field needs an explicit owner; a filename
+extension alone grants no access. Test an unregistered Markdown, CSV, text and
+JSON path through every write route, including case/symlink variants. The rows
+below are requirements, not a claim that the current classifier enforces them.
+File and field ownership is:
 
 | Artifact/content | Permitted writer |
 | --- | --- |
@@ -135,8 +164,13 @@ be complete before widening a path allowlist. File and field ownership is:
 | `proof_debt_acknowledged.csv` | Typed disposition service; session supplies pass ID; rationale, scope and revisit condition are required and existing proof-debt checks still apply |
 | `renames.csv` | Bound-rename transaction; pass ID and old/new names come from the selected edit, reason/confidence are authored |
 | `raw_ram_review.csv` | Judgment operation owns `status`, `proposed_symbol`, `notes`; service derives `last_pass_reviewed`; address is the immutable selector; trusted refresh owns `active`, counts and top readers/writers |
-| Scorecard | Author supplies only `focus`/`notes`; service derives pass identity and pending/unmeasured seeds; wrappers supply all measured/gate cells |
-| `deferrals.csv` | Existing closeout writer appends; new fixed lifecycle writer applies explicit row transitions and retains provenance, with no general replacement route |
+| Scorecard | Direct authored cells are only `focus`/`notes`; service derives pass identity and pending/unmeasured seeds. Typed closeout also accepts author-supplied `REWORK_ITEMS`, which the wrapper records; it is not an independently measured count. Wrappers alone write gate/measurement/result cells |
+| `deferrals.csv` | Existing closeout writer appends; dedicated closing writer changes only `open` to `closed`; reopening appends a new row with the same subject. Closed rows and original keys are immutable |
+| `WARNING_BASELINE.txt` | D5 writer admits only current assembler warnings with rationale and removes only resolved warnings |
+| `inventory/kpis.conf` | D6 fixed measurement/calibration writer; no generic file edit or client-supplied measurement; increases require the specific current-row marker and reviewed justification |
+| `inventory/constant_magic_allowlist.csv`, `inventory/hardware_local_allowlist.txt` | D7 typed writer checks actual producer occurrences/declarations and reasons; no unrestricted suppression list |
+| `inventory/runtime_evidence.json` | D8 declarative question writer under the existing validator; W2 supervisor supplies any new capture/result artifacts, never an authored success flag |
+| `inventory/process_friction_receipts.json` and receipt-backed blocks in `PROCESS_FRICTION.md` | Existing process-friction wrapper only; D1 cannot replace/remove those blocks |
 | Six generated inventories listed by `service.GENERATED_RELATIVE` and generated pass cache | Their existing fixed generators only; any added artifact needs an explicit writer entry |
 | `config/nesrev/` hints and approved declarative configuration | S6 typed service plus existing validators; execution/policy settings remain operator-owned |
 | Registered project trace/decoder tools | W2 sandboxed tool workflow; no executable is admitted as an ordinary document |
@@ -145,24 +179,77 @@ be complete before widening a path allowlist. File and field ownership is:
 
 Root/shared documents need path-specific ownership and lock/preimage checks at
 application, including overlap with another pass. They are not granted by a
-generic `../` escape. Published artifacts carry every admitted path and its
+generic `../` escape. Known shared documents are `projects/PROJECT_DEBT_PLAN.md`
+and `projects/PROGRAMMING_STYLE_COMPARISON.md`: D1 grants only the selected
+project's registered section, retaining other sections and shared framing.
+Changing a shared heading or cross-project section requires a separate registered
+scope; it cannot piggyback on a project pass. Published artifacts carry every admitted path and its
 reviewed version. The existing artifact schema/pins must be versioned if new
 provenance cannot be represented without ambiguity; old evidence is never
 rewritten or opened with weakened identity checks.
+
+D5–D7 never accept an edit merely because it makes a gate green. Preserve the
+warning/metric/occurrence inputs, previous and proposed policy, rationale and
+resulting counts for reviewer inspection. The mature-project D6 writer is new:
+`kpi_ratchet_calibrate.py` currently only accepts intake scaffolds. Extend or wrap
+its measurement contract explicitly rather than treating it as an existing
+mature ratchet endpoint. Tightening writes measured finite values. Loosening
+requires the exact metric and final values/reason in the current scorecard notes,
+or the old/new measurement basis, following the
+[intentional-regression rules](../../agent_playbook/PASS_WORKFLOW.md#intentional-kpi-regressions).
+Neither marker authorizes arbitrary thresholds or executable config changes.
+Admission checks use producer facts, not assembly-text scans. If these writers
+touch a legacy KPI/allowlist parser's feature, its structured-consumer migration
+is part of that slice under Tooling Rule One, with wrapper non-regression tests.
+
+Deferral identity is the existing `(pass_id, subject)` key; the subject stays
+verbatim across passes. Closing preserves all other columns, including the
+original pass ID. Record the closing pass, selected key, before/after row hashes,
+resolution rationale and evidence references in the retained operation receipt;
+link that closure from the closing pass's scorecard/notes and review archive.
+No resolution column or new ledger schema is introduced. Reopening is a new
+`open` row for the current pass with the same subject and a revisit condition;
+it counts as another strike and changes the existing proof-debt fingerprint.
+If that key already exists, refuse rather than rewrite a closed row. Closed-row
+immutability and the [three-strikes contract](../../agent_playbook/PASS_WORKFLOW.md#proof-debt)
+remain mandatory. Closing/reopening runtime rows also updates D8 question coverage
+in the same candidate; it cannot leave the validator's subject sets inconsistent.
 
 ## Wrappers, runtime evidence and completion
 
 | ID / status | Read and mutation contract; writer / generation | Positive acceptance | Failing-direction acceptance |
 | --- | --- | --- | --- |
-| W1 — extend | Next-pass, explicit pass-start, verify/process/docs, inventories, prior reuse, comment audit, recovery and review packet; R/W | Agent receives bounded wrapper evidence and actual diagnostics; pass choice is explicit. Long jobs return a durable job ID/status rather than relying on an expiring bridge call. | Stale next-pass input, inherited environment override, failed gate followed by a successful summary, caller-selected command or dead worker cannot create green results. |
-| W2 — new | Registered trace-tool edits, fixed capture/decoding, and media reads; C/E | A sandboxed authored tool consumes issued records/approved runtime inputs; supervisor supplies ROM/emulator inputs and retains logs, screenshots/audio, provenance and failure details. Restart can inspect completed evidence. | Worker source/Git/store/credential reads, network/host escape, verdict writes and child-process escape fail; timeout, incomplete capture, wrong generation/bank or missing dependency cannot be promoted. |
+| W1 — extend | Next-pass, explicit pass-start, verify/process/docs, inventories, prior reuse, comment audit, recovery and review packet; R/W | Agent receives bounded wrapper evidence and actual diagnostics; pass choice is explicit. Long jobs return a durable job ID/status. Any analyzer subprocess follows W2, including packet portability and maturity checks; before W2 only the pinned tools below run. | Stale next-pass input, inherited environment override, failed gate followed by a successful summary, substituted analyzer/import, caller-selected command or dead worker cannot create green results. |
+| W2 — new | Registered trace-tool edits, fixed capture/decoding, and media reads; C/E | Every process executing project-authored code is isolated, including wrapper-launched analyzers and FCEUX running authored Lua; trusted supervision retains generation-qualified inputs and outputs. | Analyzer and real-emulator Lua source/credential reads are denied; Git/store access, network/host escape, verdict writes and child-process escape fail. Timeout, incomplete capture, wrong generation/bank or missing dependency cannot be promoted. |
 | W3 — retain/extend | Publication, review windows, verdicts, restart and approved local application; C/H | Mixed operations cross a window boundary, reopen after editor deletion, receive repair/reapproval and apply under locks with all canonical gates. | Missing earlier approval, revocation during apply, stale base, dirty/overlapping destination, changed archive or failed export cannot commit or lose evidence; partial-application recovery is documented and tested. |
 
 W2 requires a tested OS boundary on the selected platform, inherited by child
 processes, with default-deny source-bearing host access. Disabling a bridge method
-or relying on a role string is insufficient. The trusted supervisor may possess
-source and emulator inputs; the authored worker receives only the narrow issued
-inputs. There is no general host-shell endpoint. Real media must still be
+or relying on a role string is insufficient. The supervisor may possess source
+and emulator inputs, but it must not execute candidate-authored code in its own
+trust domain. The emulator itself is a W2 worker when it loads authored Lua;
+Lua `io` access and its child processes are subject to the same filesystem
+boundary. An analyzer launched by `project_pass_review_packet.sh`,
+`runtime_evidence_portability.py` or the maturity path in
+`runtime_evidence_check.py` is also a worker, regardless of its trusted parent.
+A scrubbed environment and timeout do not constitute this boundary.
+
+Before W2 lands, project-tool edits stay disabled. Wrappers may execute only
+operator-registered, previously reviewed and committed tool versions, with
+their executable/import closure, interpreter, command template and lookup paths
+pinned and checked before invocation. Merely committing candidate code does not
+make it trusted. D8 can select only those registered profiles and declarative
+inputs; it cannot supply a new command or a code-bearing fixture. A changed or
+unregistered dependency refuses instead of executing it or skipping the check.
+This is a limited bridge using trusted code, not completion of W2. Once W2 lands,
+all project analyzers and emulator/Lua execution use it, including reused tools.
+
+The isolated worker receives only its issued records, runtime/media inputs and
+output area; no source-bearing checkout, import path or supervisor credential.
+Test both a Python analyzer and a Lua script opening source/credential canaries,
+with the latter running on the real configured emulator. Exercise the analyzer
+through both review-packet and maturity entry points, not only a direct worker
+test. There is no general host-shell endpoint. Real media must still be
 inspectable by both roles. Runtime observations remain distinguishable from
 static facts and assisted scenarios from ordinary-input coverage.
 
@@ -208,12 +295,17 @@ remain outside tracked master tooling. The local case manifest separates:
   obligations and the completed service pass. Capture the exact needed
   operations from the record, including deferred work; do not treat a recorded
   debt item as an already approved naming decision.
-- **B1:** producer corpus, including the largest source/model and the largest
-  reference/instruction inventory. Measure both if they are different sources.
-  Preserve bank/segment cases, not only the quickest flat source.
-- **B2:** the existing full 64-rename/long-ledger/scattered-document rehearsal,
-  plus a mixed-source-edit run spanning more than seven publications. Exercise
-  repair, all-window coverage, restart, retained review and disposable application.
+- **H8:** recorded in-place code recovery with a corrected entry hint and warning
+  baseline, for S6/S7/D5. Its exact range and bindings need an independent replay
+  expectation before implementation; a historical commit alone is not that test.
+- **B1-S / B1-R:** the largest source/model and the largest reference/instruction
+  inventory in the pinned 23-source corpus, respectively. They are different
+  sources; both are mandatory. Preserve their bank/segment cases.
+- **B2-N:** the existing full 64-rename/long-ledger/scattered-document rehearsal.
+  **B2-M** is the new eight-publication mixed-operation workload below, run on
+  B1-S, B1-R and B2-N's source, not a replacement for the large-source checks.
+  Exercise repair, all-window coverage, restart, retained review and disposable
+  application. B2-M does not run on the unchanged service.
 - **B3:** neutral adversarial fixtures for wrong bindings, equal values, repeated
   locals/origins, byte/word/string boundaries, ownership, path aliases, failed
   jobs and permissions. Required removed-guard controls must fail independently.
@@ -224,23 +316,85 @@ resource measurements and removed-guard result. A response that merely matches
 another consumer is not an independent oracle. Reviewers must be able to change
 the candidate in the bad direction without changing the expected result.
 
-The following are **proposed operating limits to freeze at plan acceptance**,
-not measurements or permissions to consume these resources now. Before coding,
-measure the unchanged service on the same pinned B1/B2 workloads. If these limits
-are infeasible, revise this baseline with the evidence before implementation;
-do not relax them after seeing a new implementation's result.
+### Workload identities and edit sizes
 
-| Measurement | Limit / method |
+The private `WORKLOADS.json` names each source path, project commit and source
+hash. B1-S's saved capture is 207,955,484 bytes; B1-R's is 205,025,644 bytes.
+These are prior producer artifact sizes, not new resource measurements. B2-N
+pins the actual saved rehearsal, including its 64 rename rows and two crosswalk
+edits. Public tooling uses neutral workload IDs rather than game fixtures.
+Freeze the concrete request/selection manifest before the first timed run and
+reuse it unchanged; a failed selection is not permission to pick an easier case.
+
+| Workload | Sources; operation and edit size |
 | --- | --- |
-| Serialized bridge response | At most 24 KiB including MCP/JSON escaping. No skipped evidence; partial views name recoverable positions. Check every operation and both session types. |
-| Existing workload review volume | At most 1 MiB total on B2's 64-rename case; count all pages and metadata, and no loss of rows/uses/reasons. Added operation content is reported separately. |
-| Bounded read page | At most 10 s on an already loaded generation and 120 s including cold integrity checking/model loading; one cold run plus five timed warm runs after warmup, report every run. Jobs exceeding client-call deadlines use status/poll, never an unreported timeout. |
-| Complete candidate amendment | At most 300 s from accepted amendment through fresh certification, all required gates and review readiness on B1; five serial runs after one warmup, maximum observed time reported. Do not omit checks to meet it. |
-| Affected existing wrappers | Median increase at most 5% on the largest applicable input, following the existing [performance contract](../../PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement). Baseline and changed runs use the same inputs, tools and environment. |
-| Temporary disk | At most 2 GiB peak for one candidate plus its before/after review; at most 4 GiB peak for a serial multi-window/corpus campaign. Sample allocated bytes at most 1 s apart; report sampling limits and before/after free blocks. |
-| Retained growth | At most 256 MiB per publication and 2 GiB across the eight-publication B2 run, excluding the separately measured once-retained toolchain/base. Count actual retained bytes, not an estimate from compressed input. |
-| Capture jobs | Default cap 300 s and 512 MiB output per job; explicit bounded profile required. Job status/cancel returns within 5 s; worker children are gone within 5 s after termination escalation. A cap hit is incomplete evidence. |
-| Admission and cleanup | One canonical shared heavy-run lock for both roles/copies. Estimate covers peak allocation plus at least 2 GiB reserve on every affected volume. No hardlinked mutable files. No new scratch checkouts or live children after success, refusal, cancellation or injected crash recovery. |
+| N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, a 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes mentions requiring an unsupported baseline writer; sort by `(unused, use_count, name)` and take 64. If fewer qualify, stop and revise the workload before timing. |
+| B2-N | Saved 64-name map, 66 uses, 64 reasoned ledger rows, two separated crosswalk edits, scorecard and closeout inputs; reproduce the saved requests rather than reselecting symbols on each run. |
+| A64 | On each N64 source and B2-N: prepare a rejected candidate by also adding a document line naming a nonexistent symbol, then amend by removing that line while retaining the complete intended edit batch. Time the repair transaction through fresh validation and review readiness; initial setup/failure is separately measured and its disk remains counted until cleanup. |
+| M8 | B2-M on each of the three sources: publication 1 repeats N64/B2-N; 2 inserts 8 declarations and replaces 16 expressions; 3 localizes 8 labels; 4 reflows 8 ranges of 16 operands; 5 changes representation of four 16-byte ranges with matching hints; 6 edits 4 comment/layout units and two 256-byte document regions; 7 updates 64 typed ledger/policy rows including a runtime-question/deferral pair using a fixed tool profile; 8 repairs one expression, one comment and one document region. Each includes necessary supporting artifact rows and scorecard/closeout inputs, enumerated separately in the frozen request manifest; the existing 64-rename cap is unchanged. Freeze valid parity-preserving mechanical selections before 2A; include a refused attempt/repair, window continuation and reopened application. An unrepresentable workload remains a plan issue, not a silently skipped operation. |
+| CAP | One fixed neutral ROM/capture fixture per supported real emulator/backend, with a pinned no-op 16-address watch logger for 3,600 frames and at most 512 MiB output; separate malicious analyzer/Lua canaries attempt source/credential reads. Repeat under the same supervisor on B1-S, B1-R and B2-N session roots to test isolation from each source tree. No gameplay or inference is implied. |
+
+For A64, final verification includes `project-inventory`, `project-verify`,
+`project-process-check` and `project-docs-check`, each with its actual exit and
+duration. The required `project-pass-closeout` invocation is included too;
+its summary is not a substitute for the four named gate results. Time from
+acceptance of the amendment/repair preview through confirmation, copying,
+certification, gates and the availability of every review page. Publication
+and reopened review are separately timed and included in disk measurements.
+
+Read workloads edit zero bytes. On **each** B1-S, B1-R and B2-N source, enumerate
+all pages of the following fixed request sets. Keep the largest serialized page
+for every listed view/subtype, not just the largest page across all queries.
+Use maximum supported page limits within the wire contract, retaining all
+continuations; refusal to expose required evidence is a failure, not a fast read.
+
+| Row | Request set / page-size workload |
+| --- | --- |
+| R1 | All declarations via inspect and symbols/records/uses/comments navigation; 40 records per navigation request, including the maximum-use declaration and longest lexical block. |
+| R2 | All producer-observed RAM operand addresses and eligible declarations, for every access kind and alias/unknown category; 40 returned sites per page. |
+| R3 | Every EQU's Q04 context (64 uses per page) and every statement's outgoing control/data edges (40 edges per page), including through-EQU chains. |
+| R4 | Q09 for the workload's full 64-name selection (40 mentions per page), every admitted document (80 lines per page), and every typed artifact view (40 rows per page). |
+| R5 | Each named scope/unused/prior-reuse/policy view, paged at 40 evidence records; prior reuse compares the two pinned B1 sources, and B2-N compares with B1-S. Wrapper production time is separate from serving its recorded report. |
+| R6 | Every data declaration's operand/extent/pointer view (40 operands per page), and fixed decoding of each selected range up to 4,096 bytes per input chunk; include banked/repeated-origin cases. |
+
+The unchanged service cannot execute new R operations or M8. Record those cells
+as unavailable, measure only existing routes for their baseline, and run the
+full fixed request sets as the new routes land. Do not disguise a mock/new query
+implementation as an unchanged-service measurement. All rows still have fixed
+acceptance limits. One cold process run and five warm runs after a warmup are
+required for each selected largest page in both live and retained sessions;
+**every** run must pass its limit. Report cold/warm and service/wrapper costs
+separately, with no averaging away a slow page.
+
+### Proposed operating limits and freeze order
+
+These are proposed limits and a fixed derivation rule, not measured results.
+After plan re-review and owner agreement, benchmark the unchanged service before
+2A. If its supported workloads fail, revise the plan from that evidence before
+implementation. Record input/tool/environment identities and all samples.
+
+| Measurement | Source / operation | Limit / method |
+| --- | --- | --- |
+| Serialized response | Every R-row request above, A64 review, M8 and CAP status/media metadata on all three roots | At most 24 KiB including MCP/JSON escaping. No skipped evidence; partial views name recoverable positions. Check both session types. |
+| Review volume | B2-N's exact 64-rename batch | At most 1 MiB across all pages and metadata, preserving all rows/uses/reasons. Measure N64/M8 volumes too; do not substitute their different content for this regression. |
+| Read latency | Each R row's largest page for each view/subtype on B1-S, B1-R and B2-N | At most 10 s warm and 120 s cold, including integrity checking/loading and serialization. Every run passes. Long jobs use status/poll when the client deadline is shorter. |
+| Full-amend latency | A64 on B1-S, B1-R and B2-N, with the exact gate set above | At most 300 s per run. One warmup then five serial measured runs from equivalent rejected-candidate snapshots; report all and the maximum. Include mandatory policy/runtime validation, not a reduced gate profile. |
+| Existing wrappers | Each affected fixed wrapper on both B1 extremes, and B2-N if it has an additional affected path | Median increase at most 5% under the existing [performance contract](../../PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement). Compare identical source/edit/tool inputs; no claim from a different workload or skipped analyzer. |
+| Temporary disk | A64 validation, publication and simultaneous before/after retained review, separately on B1-S, B1-R and B2-N; then M8 on each | At most 2 GiB peak per A64 run; at most 4 GiB per serial M8/corpus campaign. Include editor checkouts, failed attempts, captures, stores' staging files and restored caches. Sample allocated bytes at most 1 s apart and at allocation/phase boundaries; report sampling limits and raw before/after free blocks. |
+| Retained growth | N64/B2-N publication on each of B1-S, B1-R and B2-N; then every publication and total M8 on each | At most 256 MiB per publication; total M8 must fit the frozen derived limit below and 2 GiB. Measure actual store-byte growth including receipts/tickets/blobs, not model-file size. Retain the toolchain and unedited base once before taking the publication-delta baseline; report that bootstrap separately. Use equivalent fresh stores for repeated measurements. |
+| Capture limits | CAP positive/control jobs and malicious canaries on each configured real backend and all three session roots | Cap 300 s and 512 MiB output per job; status/cancel within 5 s, descendants gone within 5 s of termination escalation. A cap hit is incomplete evidence, not success. |
+| Admission/cleanup | Every workload above, including injected failure/cancellation/recovery | One canonical shared heavy-run lock for both roles/copies. Estimate covers peak allocation plus 2 GiB reserve on every affected volume. No hardlinked mutable files, leftover scratch checkouts or live children. |
+
+Freeze the M8 growth rule **now**, rather than pretending M8 can be baselined:
+let `g` be the maximum measured per-publication retained growth across all
+unchanged-service N64/B2-N runs on the three sources. Set
+`L8 = ceil_to_MiB(8 * 1.25 * g)`: eight publications plus a 25% margin for new
+edit/provenance kinds. The baseline report must substitute measured `g`, record
+the numeric `L8`, and freeze it before 2A. If `L8` exceeds 2 GiB, or a mandatory
+baseline is unavailable, scope/limits return to plan review before coding.
+No new-operation result can be used to enlarge that bound retrospectively.
+After implementation, every M8 source must fit both `L8` and the per-publication
+limit; the 25% is a budget allowance, not a prediction of compression savings.
 
 Retain immutable receipts, pinned inputs/tools and selected artifacts outside
 system temporary directories. Do not remove the coordinator, original stores,
@@ -254,16 +408,31 @@ where available; do not require a platform-specific clone command for correctnes
 Step 2 is too broad for one reviewable implementation PR. Propose three dependent
 slices, preserving every row above and the rollout's original completion gates:
 
-1. **2A — source operations and query reuse:** R1–R3, R5–R6 and S1–S5.
-   Land typed edit/provenance contracts with neutral controls and private
-   defective/corrected replays. Existing D/W operations support the rehearsals;
-   missing artifact routes remain explicit, not bypassed by direct edits.
-2. **2B — artifact and wrapper coverage:** R4, S6, D1–D4 and W1. Land the full
-   ownership manifest, mixed rows, registered shared documents, recovery inputs
-   and bounded jobs. Exercise real wrappers and every affected corpus schema.
+1. **2A — source operations and query reuse, with required artifact writers:**
+   R1–R3, R5–R6, S1–S5, D5 warning curation, and the extent-assertion/blob-disposition
+   parts of D2 with their R4 reads. The default-deny ownership manifest lands
+   first. Boundary-label insertion/reflow changes its extent/disposition rows in
+   the same candidate; localization/declaration changes curate warnings before
+   canonical verification. Cases requiring a new allowlist or KPI change remain
+   explicitly open until D6/D7 in 2B; S2/S3 are not called complete for those cases.
+2. **2B — remaining artifact and wrapper coverage:** remaining R4/D2, S6–S7,
+   D1/D3/D4/D6–D9 and W1. Land typed recovery with in-place decode, registered
+   shared documents, gate-policy writers and bounded jobs. D8 is a declarative
+   question writer limited to pinned reviewed/committed tool profiles until W2.
+   Runtime deferrals/dispositions and their manifest/trace-plan references change
+   atomically, so they can pass the existing validator without a new executable.
 3. **2C — runtime evidence and integrated acceptance:** W2–W3 and all-row
    regression/rehearsal, with sandbox/capture acceptance and measured limits.
    W2's sandbox feasibility is checked before authored-code execution is enabled.
+
+The dependencies are explicit: S4 needs D2's extent/disposition subset in 2A;
+S2/S3 need D5 there and D6/D7 for policy-changing cases in 2B; S7 needs S6 plus
+D5–D7 in 2B. D2/D4 runtime transitions need D8 in 2B. W1 packet/maturity checks
+may run the restricted committed-tool profiles before 2C; any case needing a new
+or changed analyzer, Lua runner, imported helper or executable fixture stays
+open until W2. A manifest path cannot bypass that dependency. 2C must then test
+the real packet/maturity/emulator entry points through W2, not only a standalone
+sandbox probe. Interim slice acceptance never claims these open cases passed.
 
 Each slice needs its own reviewed wire contract, positive and failing-direction
 tests, affected wrapper measurements, focused/full regressions, independent
