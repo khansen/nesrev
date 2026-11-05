@@ -474,10 +474,12 @@ silently change the selected batch to hide it.
 For A64, final verification includes `project-inventory`, `project-verify`,
 `project-process-check` and `project-docs-check`, each with its actual exit and
 duration. The required `project-pass-closeout` invocation is included too;
-its summary is not a substitute for the four named gate results. Time from
-acceptance of the amendment/repair preview through confirmation, copying,
-certification, gates and the availability of every review page. Publication
-and reopened review are separately timed and included in disk measurements.
+its summary is not a substitute for the four named gate results. Start the
+repair timer immediately before submitting the first amendment/repair preview
+request, including that request's execution and response. Continue through
+confirmation, copying, certification, gates and review readiness as defined
+below. Report preview time separately as well. Publication and reopened review
+are separately timed and included in disk measurements.
 
 For the 300-second amendment limit, review readiness ends when the validated,
 published generation's first metadata page is served and exposes the complete
@@ -488,7 +490,63 @@ after every required page has been retrieved with complete coverage and within
 the response bounds: a metadata page alone never proves success, and an unreadable
 later page invalidates the sample. Report readiness, complete pagination and
 reopened review separately; do not hide partial pagination behind the readiness
-result.
+result. An unreadable required page is a workload failure, not an environmental
+invalidity eligible for the repeats below.
+
+### Declared baseline conditions and sample validity
+
+The owner has confirmed AC power, lid open, full wake held throughout the
+campaign with `caffeinate -dims`, and no system sleep. The 300-second claim is
+limited to those conditions; unattended lid-closed operation requires a
+separately declared series. Run one fresh A64 warmup and five serial measured
+runs on B1-R, then B1-S, then B2-N. Cooldowns between runs are allowed and are
+recorded separately. Preserve earlier series and failures without merging their
+samples into this series or changing their original verdicts.
+
+Before each timed sample, observe the kernel thermal budget at its unlimited
+value for at least 60 continuous seconds. Record the wait, the raw thermal
+events establishing the state, and the machine-specific unlimited value. Unknown
+state, missing telemetry or a dead collector prevents admission; absence of a
+new log message alone does not establish unlimited state. Thermal limiting that
+begins after a valid start is recorded and the run still counts, however slow.
+
+For each sample retain wall-clock timestamps, `time.monotonic()` (awake time on
+this host), and a sleep-inclusive clock (`mach_continuous_time` on macOS), with
+start/end snapshots and phase boundaries. Use the sleep-inclusive clock for
+elapsed limits and sampling gaps; report awake and wall durations alongside it.
+Stream the kernel's `Thermal Budget` messages. Record lid, AC/battery and full-wake
+state at start/end and monitor transitions throughout, retaining the observation
+intervals and power-event log. Record load average. For every gate child process,
+including the closeout and regular gates inside the bridge, record before/after
+`resource.getrusage(RUSAGE_CHILDREN)` user/system CPU deltas in its waiting
+parent, alongside the three clocks. A benchmark-parent reading while its bridge
+is still alive is not a substitute for the gate's child accounting. This is
+harness instrumentation only; service, gate and workload bytes stay pinned.
+
+Apply these environmental validity rules to fast and slow samples alike. A
+sample is invalid only when its start condition was violated, sleep-inclusive
+and monotonic elapsed times diverge by more than 1 second, or lid/power state
+changes during it (including loss of full wake). Preserve the complete invalid
+attempt and its reason. Allow at most two invalid replacement attempts per
+workload across its timed phases; a third invalid attempt stops the campaign
+for review. A valid readiness result over 300 seconds stops for review, even if
+thermal limiting developed during the run. Evaluate validity at the readiness
+endpoint before handling a timing failure, so a later event cannot erase one.
+For successful readiness, continue monitoring through pagination and retained
+review. Missing measurement evidence or a sampling gap over 1 second without
+sleep stops for review as an instrumentation failure; it is not another reason
+to discard a slow result or consume an environmental repeat.
+
+Earlier B1 read scans may carry forward only with unchanged input/reader hashes,
+labelled as prior-protocol awake-time observations rather than new measurements
+under these conditions. Correct the old report alongside its immutable packet:
+the B1-R scan spans about 19,988 seconds of wall time versus 17,704.6 seconds
+awake, including three sleeps; the cause of its cost was not measured. Do not
+attribute that cost to Q04 recomputation or thermal state as an established
+cause. B2-N's read scan and every future timed run use the new instrumentation
+and validity rules. Earlier publication-growth observations remain in the
+conservative maximum for `g`; neither `g` nor `L8` is frozen until the required
+fresh series and checks complete.
 
 Read workloads edit zero bytes. On **each** B1-S, B1-R and B2-N source, enumerate
 all pages of the following fixed request sets. Keep the largest serialized page
