@@ -143,7 +143,7 @@ source parsing or count the blocked row complete.
 | D3 — new | R2/R4; typed raw-RAM judgments; C/W | Update authored status/name/notes, with address identity and pass context fixed; the existing refresh path regenerates factual columns. | Caller-supplied counts/owners/active flag, mirror conflation, row rekeying or fabricated pass IDs refuses. |
 | D4 — extend | R4; scorecard inputs and deferral lifecycle; C/W | Close every open row of the exact subject atomically, changing only status; reopen by appending a new current-pass row with the same subject, preserving all closed rows. Closing evidence lives in the receipt and closing-pass records below. | Closing only a subset of the subject's open rows, editing a closed row, reopening by rewriting one, duplicate `(pass_id, subject)`, direct gate/KPI edits, whole-file mixed replacement or fabricated new-row greens refuses. |
 | D5 — new | R4/R5; typed `WARNING_BASELINE.txt` curation from fresh assembler diagnostics; C/W | Add only a current warning with specific rationale; remove entries whose warnings disappear, including through another edit, in the same candidate; rename entries with their warning identity. | A baseline entry for a nonexistent warning, stale entry retained after another edit resolves it, deletion while its warning persists or generic/empty rationale refuses. |
-| D6 — new | R4/R5; measured `inventory/kpis.conf` ratchet updates; C/W | Tighten through a fixed calibration writer using current emitted metrics; an increase requires the matching reviewer-visible `intentional-kpi-regression:` or `kpi-measurement-change:` marker and measured basis. | Unmarked loosened `MAX_*`, fabricated count, stale metric basis, unknown key or injected shell text refuses. |
+| D6 — new | R4/R5; measured `inventory/kpis.conf` ratchet updates; C/W | Tighten through a fixed calibration writer using current emitted metrics; update its associated rationale comment in the same candidate with a checked preimage, preserving unrelated keys/comments and admitting comment text only; an increase requires the matching reviewer-visible `intentional-kpi-regression:` or `kpi-measurement-change:` marker and measured basis. | Unmarked loosened `MAX_*`, fabricated count, stale metric basis, unknown key, injected shell text, or a rationale-comment edit touching a key line or unrelated comment refuses. |
 | D7 — new | R1/R3/R4; typed allowlist entries plus unconditional migration of the constant gate to explicit scope-qualified occurrence sets; C/W | The writer and gate suppress exactly the same reviewed producer occurrences or hardware declarations. Disposition every legacy row and retain before/after counts; no spelled-key fallback. | A new same-key occurrence elsewhere must be counted; a nonexistent/stale site, ambiguous legacy match, wrong value, absent reason or unmigrated key must not suppress a warning/count. |
 | D8 — new | R4; declarative runtime questions and schema-checked fixture-data writer under `runtime_evidence_check.py`; C/W | Match subjects, dispositions, trace plans and tracked acceptance/single-signal refusal data atomically; before W2 use only fixed reviewed/committed tool profiles and their registered inert data schemas. | Missing acceptance data or a single-signal refusal for any required signal, untracked fixture, unsupported data schema, fake capture result or executable/command injection refuses. |
 | D9 — new | R4; fixed process-friction import/triage operation; W | Existing `process_friction.py` owns `process_friction_receipts.json` and receipt-backed queue blocks; retain source/destination identity and rationale. | Direct receipt edits, forged candidate hash or removal of receipt-backed queue content outside the wrapper refuses. |
@@ -367,6 +367,12 @@ This planning change deletes neither branch.
 
 ## Replay and measurement contract
 
+The initial Step 2A draft preceded the concrete replay/workload freeze. Treat it
+as provisional: complete and independently review the applicable expectations,
+holdouts and mechanical selections before resuming it, and record this sequencing
+deviation. Freeze a recorded holdout selection rule before examining its results;
+do not backdate the freeze or derive semantic expectations from draft output.
+
 Freeze the concrete input hashes and expected outcomes before implementing the
 corresponding operation. Public fixtures use neutral symbols; private replays
 remain outside tracked master tooling. The local case manifest separates:
@@ -375,6 +381,26 @@ remain outside tracked master tooling. The local case manifest separates:
   a missed state reader, stale rename prose and a false localization blocker.
   Use them for R3/S2, R2/R3, R4, and R5/S3 respectively. Snapshot availability is
   not a successful replay; recover expectations and review them first.
+  Freeze every R6-required H4 source/artifact change and derived expectation,
+  with explicit exclusions for the correction commit’s unrelated changes.
+  Its 2A result covers the scope proof/preview and localization edit, including
+  supporting source/system-doc prose and localization ledger rows. Rework-count
+  and R6 wording inputs may use the existing scorecard route in 2A, but must
+  preserve its policy audit marker and KPI-regression note until the coupled
+  2B candidate: update the marker with D2’s policy-row removal, and remove the
+  regression note with D6’s measured KPI write. The full canonical replay needs
+  these scorecard changes through the existing route, plus D1’s authored
+  inventory-Markdown route, remaining D2’s policy-baseline writer and D6’s
+  measured KPI writer in 2B. D6 owns the associated KPI rationale comment as
+  well as the value; generated owner/count fields come from their refresh
+  wrappers. Add `project-policy-baseline-check` to H4’s full replay and pin
+  its exact four pre-existing failures from the corrected snapshot: one missing
+  live member, one non-live manifest member and the two resulting off-by-one
+  reviewed counts. Retain its nonzero exit and full diagnostics; any added,
+  missing or changed diagnostic refuses this historical expectation. This is
+  an exact baseline comparison, not a green gate or a waiver for normal
+  passes; the standard gates still must pass. An interim source result cannot
+  close H4 or imply that its coupled supporting obligations passed.
 - **H5–H7:** recorded cases for data extent/representation, mixed ledger/doc
   obligations and the completed service pass. Capture the exact needed
   operations from the record, including deferred work; do not treat a recorded
@@ -427,8 +453,142 @@ results identify the new gate/data pairing and the controlled schema differences
 | N64 | B1-S and B1-R each: 64 distinct eligible global/EQU renames, all their uses, 64 ledger rows with 240-character reasons, exactly the mandatory supporting prose defined below, a separately labelled 256-byte replacement of an existing comment, and one authored document with one changed line near its beginning and one appended line (at most 256 UTF-8 bytes each). Eligibility excludes policy-fixed definitions and mentions requiring an unsupported baseline writer, as defined below; sort by `(-use_count, name, declaration_id)` and take 64, including the most-used eligible declaration. If fewer qualify or the selection exceeds operation/response bounds, stop and revise the workload before timing; do not substitute lower-use symbols. |
 | B2-N | Saved 64-name map, 66 uses, 64 reasoned ledger rows, two separated crosswalk edits, scorecard and closeout inputs; reproduce the saved requests rather than reselecting symbols on each run. |
 | A64 | On each N64 source and B2-N: prepare a rejected candidate by also adding a document line naming a nonexistent symbol, then amend by removing that line while retaining the complete intended edit batch. Time the repair transaction through fresh validation and review readiness; initial setup/failure is separately measured and its disk remains counted until cleanup. |
-| M8 | B2-M on each of the three sources: publication 1 repeats N64/B2-N; 2 inserts 8 declarations and replaces 16 expressions; 3 localizes 8 labels; 4 reflows 8 ranges of 16 operands; 5 changes representation of four 16-byte ranges with matching hints; 6 edits 4 comment/layout units and two 256-byte document regions; 7 updates 64 typed ledger/policy rows including a runtime-question/deferral pair using a fixed tool profile; 8 repairs one expression, one comment and one document region. Each includes necessary supporting artifact rows and scorecard/closeout inputs, enumerated separately in the frozen request manifest; the existing 64-rename cap is unchanged. Freeze valid parity-preserving mechanical selections before 2A; include a refused attempt/repair, window continuation and reopened application. An unrepresentable workload remains a plan issue, not a silently skipped operation. |
+| M8 | B2-M on each of the three sources: publication 1 repeats N64/B2-N; 2 inserts 8 declarations and replaces 16 expressions; 3 localizes 8 labels; 4 reflows 8 ranges of 16 operands; 5 changes representation of four 16-byte ranges with matching hints; 6 edits 4 comment/layout units and two 256-byte document regions; 7 updates 64 typed ledger/policy rows including a runtime-question/deferral pair using a fixed tool profile; 8 repairs one expression, one comment and one document region. Each includes necessary supporting artifact rows and scorecard/closeout inputs, enumerated separately in the frozen request manifest; the existing 64-rename cap is unchanged. Freeze valid parity-preserving mechanical selections and supporting obligations for publications 1–4, 6 and 8 before resuming 2A, together with the mechanical eligibility, ordering, counts/sizes and no-substitution rules below for publications 5 and 7. Freeze publication 5’s concrete mechanical selections first, before S6/S7 implementation; then freeze publication 7’s against the independently materialized, certified post-6 state before its remaining D2/D3/D8 writers are implemented, with D6/D7 prerequisites explicit if policy changes require them. Its new open deferral uses the existing closeout append, not D4’s new lifecycle writer. The complete eight-publication manifest must be frozen and preflighted before integrated M8 timing; partial slice checks are not full M8 acceptance. Include a refused attempt/repair, window continuation and reopened application. An unrepresentable workload remains a plan issue, not a silently skipped operation. |
 | CAP | One fixed neutral ROM/capture fixture per supported real emulator/backend, with a pinned no-op 16-address watch logger for 3,600 frames and at most 512 MiB output; separate malicious analyzer/Lua canaries attempt source/credential reads. Repeat under the same supervisor on B1-S, B1-R and B2-N session roots to test isolation from each source tree. No gameplay or inference is implied. |
+
+### Mechanical rules fixed before resuming 2A
+
+Freeze these rules together with the step-1 selections, before any new-operation
+service result or timing. Freeze publication 5's concrete mechanical selection
+first, using the original pinned native models and project artifacts, mapped
+through recorded edit provenance. Review the S6/S7 wire contracts before building
+the post-6 fixture. Its representation and reference spellings must follow those
+contracts, whose hashes are recorded; the fixture cannot invent a different form.
+Then independently materialize the frozen publications 1–6 as a fixture and
+certify that complete state with the pinned producer. Resolve and freeze
+publication 7 against that post-6 native model and
+artifact state, before implementing its remaining D2/D3/D8 writers. Record its
+source/artifact hashes, native model identity and the complete edit mapping from
+the original inputs. No service implementation result or timing chooses the
+state or selections. A publication-5 refusal stops this sequence for review;
+publication 7 may not use an alternative state. Retain the full eligible ranking
+and every exclusion with its native/artifact reason.
+
+**Publication 5 (S6/S7):** enumerate sixteen-byte windows of consecutive native
+instruction emissions. Each begins at an instruction's opcode byte, ends at a
+complete instruction boundary, contains no data emission, belongs to exactly
+one segment and has contiguous physical output offsets. The mechanical change
+is instruction-to-data representation with the same bytes and label positions.
+Keep every bound reference into or out of the window in the selection record;
+an unsupported reference mapping is a refusal, not an eligibility exclusion.
+Sort by physical output start, then segment ordinal in the native segment array,
+then source byte start and native syntax ID. Greedily take the first four
+non-overlapping eligible windows, exactly sixteen bytes each.
+
+Exclude any window overlapping a frozen site of publications 1–4, 6 or 8. The
+protected set includes declaration/use/expression spans, enclosing emitting
+records, zero-width insertion anchors and selected comment/layout units, with
+their source-file identities and segment/output positions. Preserve both lexical
+and emitted-range protection when mapping sites through earlier publications.
+Publication 5 may not move, consume or rewrite those sites. If four windows do
+not exist, return the workload to review; do not reselect publications 6 or 8.
+
+Only the S6 hint schema/serialization and S7's representation/reference mapping
+await their wire contracts. Those contracts must describe how to represent the
+already ranked windows, not introduce new eligibility exceptions. An impossible
+mapping, contradictory hint or failed gate returns the workload to review with
+the selected windows retained. There is no alternate direction or later/easier
+window substituted after refusal.
+
+**Publication 7 (remaining D2, D3 raw-RAM judgments and D8, plus D6/D7 if policy
+changes become necessary):** choose 62 existing authored rows plus one runtime question and its
+one new open deferral, for exactly 64 primary typed records. Fixtures and any
+mandatory supporting rows are counted separately. Existing-row candidates are
+from `data_format_targets.csv`, `policy_baseline.csv`,
+`proof_debt_acknowledged.csv` and `raw_ram_review.csv`, using the pinned schemas'
+exact keys. Here and for the question below, "current native" means the certified
+post-publication-6 fixture state, not the original model or an arbitrary live
+head. A candidate must resolve to its native declaration(s), a native
+scope, or an assembler-reported RAM access: family/glob keys match native
+declarations; symbol keys select native declarations; a proof-debt scope must
+explicitly name such a declaration/scope; an address key must be observed in
+native memory-access facts. Instruction access sites converted to data by
+publication 5 are excluded from occurrence sets and cannot establish a row's
+address binding. Record each removed site's original native identity,
+segment/output position and containing publication-5 range, including any row
+that becomes ineligible as a result. No source-text interpretation supplies this
+binding. Record the complete resolved occurrence set, not just an equal-valued
+symbol. D3 owns authored raw-RAM judgments; the existing refresh path owns their
+factual columns.
+
+Exclude row keys already selected for mutation/deletion by the frozen earlier
+publications, and generated fields, history and wrapper-owned rows. Sort by
+project-relative artifact path, then the exact schema key as UTF-8 bytes; take
+the first 62. Append the same fixed sentence, `Mechanical acceptance fixture;
+no semantic disposition is changed.`, to the row's authored evidence/rationale/
+reason/notes field respectively. Keep key, disposition and other authored fields
+unchanged; wrappers derive their own factual fields. Fewer than 62 eligible rows
+or a rejected selected row is a workload refusal, not permission to skip it.
+
+For the question/deferral pair, enumerate native direct internal-RAM addresses
+below `$0800` with at least one exact read and one exact write; exclude indexed
+potential-only and unresolved-indirect destinations. Sort by numeric address,
+then segment ordinal, physical offset and syntax ID of the first writer; choose
+the first eligible post-6 address and retain all remaining read/write identities.
+For that address, also retain the pre-publication-5 occurrence set and the exact
+sites removed by publication 5, linked to the frozen ranges. Record addresses
+that lose read/write eligibility for that reason; do not reconstruct removed
+instruction accesses from their data bytes. Publication 7 cannot change the
+frozen publication-5 ranges to recover a preferred address or occurrence. This is a
+mechanical evidence fixture and makes no gameplay conclusion. Use the fixed
+subject `m8-runtime-fixture` and exactly one new open runtime deferral. Keep it
+open unless a separately admitted capture supplies the required evidence. Append
+it through the existing typed `closeout.deferrals` route and trusted closeout
+writer, with the current pass identity and exact deferral preimage; this workload
+does not require D4's new subject-closing/reopening writer. The D8 question and
+its validated fixture data accompany that append in the same candidate. A
+conflicting existing subject/current-pass row is a refusal, not permission to
+rewrite history or silently invoke a different lifecycle operation.
+
+The D8 contract must fix the question/fixture schema, required signal names and
+CLI adapter before its implementation. The tool profile must already be
+reviewed and committed, support that schema and the selected native sites, and
+have acceptance data plus one single-signal refusal fixture per required signal.
+Order compatible profiles by repository-relative entry-point path, then closure
+hash, and take the first; pin its full executable/import closure. If none is
+available, return to review instead of inventing an easier question or analyzer.
+New executable logic remains disabled until W2 and needs its separately frozen
+expectations before implementation. No real capture or inference is authorized
+by this selection rule.
+
+No KPI or allowlist relaxation is part of the mechanical row mutation. If a
+selected record or its supporting obligations require D6/D7, record that explicit
+dependency and return to workload review; do not change the row selection to
+avoid it. The D7 project/gate migration and re-pin requirements remain intact.
+
+For either publication, cost, use count, response volume and observed performance
+are never exclusion reasons. A later rule change follows the existing correction
+procedure: preserve the previous rules/selections and any failed packet, retain
+the old/new diff, and obtain review before trying the replacement. The early
+whole-M8 representability check is deferred, not claimed complete. All eight
+publications, their supporting obligations and the frozen limits still apply.
+
+The frozen publication-3 instances can have supporting remaining-D2 policy-
+baseline obligations. Such rows must be frozen with the source selections;
+they are not silently added to 2A or omitted from a candidate. Where needed,
+the full publication-3 service run remains open until the corresponding 2B
+writer is available. Canonical preflight of independently materialized
+fixtures is still required before resuming 2A; it uses unchanged wrappers
+and does not claim new-service acceptance. Preserve the selections and
+record the dependency, rather than substituting labels.
+
+The frozen checker must refuse every count other than 8 declarations,
+16 expression sites, 8 localized labels, 8 data ranges and 4 layout units.
+The r3 proposal selected only 6 of 8 B2-N localizations; the r4 complete-
+group rule reaches 8 and adds two- and three-label groups. Retain the
+r3/r4 selection diff. That rule correction preceded service execution
+against these selections and is not evidence that the draft supports them.
+
 
 For N64, derive `use_count` from all producer-bound references, and retain the
 eligible ranking, excluded declarations with concrete policy or unsupported-writer reasons,
@@ -608,6 +768,25 @@ fingerprinted source checkouts or old captures as test cleanup. Any reclamation
 of prior evidence requires a hash-to-retained-location inventory and verified
 restoration first. Prefer lazy restoration of selected states and copy-on-write
 where available; do not require a platform-specific clone command for correctness.
+
+## Accepted unchanged-service baseline
+
+The independent review accepted the completed baseline on 2026-11-06. The
+sealed packet manifest is SHA-256
+`5cc025a4b8bc7f0499632d674bc515bf4944385164f8bedea1d29c2ed61dd6ed`;
+the separate acceptance record is SHA-256
+`ee85e00de7ffafd557c7241df0375703703e073833d96edf0fb98294e74df82e`.
+Neither record changes the earlier failed or stopped series.
+
+The frozen values are **g = 18,595,840 bytes** and
+**L8 = 186,646,528 bytes (178 MiB)**. New-operation measurements cannot raise
+these limits. Every M8 source must satisfy L8 as well as the separate 256 MiB
+per-publication limit. The 300-second readiness claim applies only to the
+AC-powered, lid-open, fully awake conditions above. Full pagination remains a
+separate timed and verified requirement.
+
+The owner authorized local Step 2A implementation after baseline acceptance.
+Project migration, inference, publication and rollout remain separate decisions.
 
 ## Proposed delivery split and exit gates
 
