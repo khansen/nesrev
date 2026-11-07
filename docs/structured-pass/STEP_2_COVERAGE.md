@@ -409,14 +409,27 @@ remain outside tracked master tooling. The local case manifest separates:
   baseline, for S6/S7/D5. Its exact range and bindings need an independent replay
   expectation before implementation; a historical commit alone is not that test.
 
-The accepted staged step-1 preparation covers H1–H4, the seven classified
-holdouts and the concrete M8 publications 1–4, 6 and 8. It does not discharge
-H5–H8. Preserve that acceptance separately from the sealed evidence. The
-remaining historical cases have these slice assignments and prerequisites:
+The accepted staged step-1 preparation covers H1–H4, the original seven
+classified pairs and the concrete M8 publications 1–4, 6 and 8. It does not
+discharge H5–H8. Preserve that acceptance separately from the sealed evidence.
+
+**H5 overlap correction — option A:** the two H5 boundary cases reuse two
+of those same seven before/after commit pairs. Retain them as disclosed H5
+implementation/regression fixtures and retire them from the effective holdout
+set; they cannot count as unseen tests of R6, S4 or D2, or in holdout totals.
+The effective set is five. One remaining pair already has a previously seen
+corrected snapshot, and only one remaining pair covers R6 data boundaries.
+Do not claim five blind cases or unchanged independent coverage. A separate
+correction record pins both retired pair IDs/commits, the five retained pairs
+and their visibility limits; the sealed selection rule and all earlier packets
+remain unchanged historical records. Any later replacement holdout needs its
+selection rule recorded before inspecting results. No replacement is selected
+by this correction. H5/H8 expectation review remains a prerequisite for their
+paused operations. The remaining cases have these slice assignments:
 
 | Case | Slice and expected coverage | Admission prerequisite |
 | --- | --- | --- |
-| H5 | 2A: R6 operand/extent evidence, S4 representation, D2 extent/blob rows, and associated S2/S5/current-document edits. 2B: any S6 regeneration-hint evidence and authored inventory-Markdown obligations. | Freeze and independently review both recorded boundary cases, exact retained bytes/operands, reference changes, row preimages and supporting artifacts before resuming R6/S4 or the D2 subset. Keep unrelated historical changes excluded explicitly. |
+| H5 | Option A: the two boundary pairs are implementation/regression fixtures retired from the effective holdout set. 2A: R6 operand/extent evidence, S4 representation, D2 extent/blob rows, and associated S2/S5/current-document edits. 2B: any S6 regeneration-hint evidence and authored inventory-Markdown obligations. | Independently review their frozen exact bytes/operands, reference changes, row preimages and supporting artifacts before resuming R6/S4 or the D2 subset. Do not double-count these pairs as holdouts. Keep unrelated historical changes excluded explicitly. |
 | H6 | 2B: remaining R4 and D1–D4 mixed artifact obligations, with D8 where a runtime question is required. | Pin the documented unresolved obligations before the corresponding writer work; a recorded debt item is not an approved source rename or semantic answer. Any source edit still needs its own reviewed evidence and the applicable 2A operations. |
 | H7 | 2A regression: the existing S1/S5, document/scorecard/closeout and repair workflow; 2C: W3 real-client/integrated acceptance. | Freeze the completed pass's exact changes, repair and retained coverage as deterministic regression expectations before its replay. Preserve the disclosed operator hint; neither the old assisted run nor a deterministic replay counts as a new unassisted inference trial. |
 | H8 | 2A: D5 warning curation and R4/R5 diagnostic evidence on pinned before/after snapshots. 2B: S6/S7 code recovery, hint/reference mapping and the full coupled source/artifact replay. | Freeze and independently review the fresh warning identities, rationale rows and exact additions/removals before resuming D5. Use independently materialized historical snapshots for that subset; do not claim the 2A writer performs S6/S7. Freeze the full recovery expectations before those 2B operations. |
@@ -425,8 +438,10 @@ R1–R3, R5, S1–S3 and S5 work covered by the accepted H1–H4 expectations ma
 resume on the approved plan base. R6, S4, the D2 extent/blob subset and D5 stay
 paused until the applicable H5/H8 expectation review accepts them. Existing
 provisional code does not satisfy this prerequisite. The original H5 case
-identities remain fixed; any wider review excerpt corrects the recorded
-coverage explicitly rather than silently revising the accepted holdout record.
+identities remain fixed. Use the approved overlap correction for effective
+holdout accounting, and retain the original seven-pair classification only as
+historical evidence. Wider review excerpts and coverage changes are recorded
+explicitly; unchanged sealed files do not imply unchanged holdout independence.
 
 - **B1-S / B1-R:** the largest source/model and the largest reference/instruction
   inventory in the pinned 23-source corpus, respectively. They are different
