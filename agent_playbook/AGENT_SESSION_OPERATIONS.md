@@ -4,6 +4,48 @@ The review lifecycle lives in [TOOLING.md](TOOLING.md#agent-review-handoff).
 These procedures cover coordinator evidence and authorized continuation of a
 bounded task. They do not grant permission for further game passes.
 
+<a id="proportionate-verification"></a>
+## Proportionate Verification and Review Evidence
+
+These rules cover tooling, process and structured-pass correction rounds and
+review handoffs, for both implementers and reviewers. Preserve required gates
+and discriminating regression controls; scale the surrounding work to the change.
+
+Project passes still run `make project-verify PROJECT=<slug>` after every edit
+batch and run the required closeout gates; the
+[claimed-green rule](../AGENTS.md#safety-rules) is unchanged.
+
+- **Small corrections get small packets.** Supply the diff, exact tested file
+  hashes, relevant check/control results, failures and limitations, and hash-pinned
+  references to prior evidence. A new review round alone does not require fresh
+  archives, copies of unchanged evidence, or a new bespoke verifier.
+- **Reuse verification and sealing code.** Pass paths, expected hashes and claims
+  as data to existing helpers. Extend a shared helper only when a real requirement
+  is missing; do not turn a small correction into a tooling-framework project.
+- **Rerun checks according to impact.** Rerun affected checks after the final
+  relevant edit. Label unchanged results as carried forward, naming their tested
+  inputs. Broaden testing for changed dependencies, failures, unresolved concerns
+  or an explicit acceptance requirement. This does not waive mandatory checks.
+- **Bound integrity work.** Check relevant inputs, outputs and protected state
+  the operation could affect. Do not recursively re-hash the entire historical
+  packet chain on every correction. Perform comprehensive checks at required
+  acceptance boundaries or when an integrity concern warrants them. Preserve
+  existing seals and failed attempts; record authorized state changes separately.
+- **Preflight harness changes cheaply.** Check imports, paths, input schemas,
+  case routing and expectations on the smallest representative input before a
+  costly replay, observing the shared-run locking rules. Distinguish harness
+  failures from product failures; neither counts as a passing check.
+- **Record round timing.** Each claims index records the first recorded work time,
+  the review-handoff time and total heavy-job elapsed time from its receipts,
+  including failed attempts. State timestamp precision and mark missing timing
+  unknown. Separate coordination waits where measured; do not infer model thinking
+  time or exact turn duration from gaps between reviews.
+
+Reviewers should request additional evidence for a concrete unresolved claim or
+risk, rather than requiring the full acceptance package again for every fix.
+Apply the same impact rules to reviewers' own reruns, including the independent
+checks needed to establish their verdict.
+
 <a id="coordinator-observations"></a>
 ## Preserve observed friction
 

@@ -925,6 +925,10 @@ update does not itself start an experiment or authorize inference or rollout.
 
 ### Review preparation for each slice
 
+Apply the shared [proportionate verification rules](../../agent_playbook/AGENT_SESSION_OPERATIONS.md#proportionate-verification)
+to each correction round. The slice's required acceptance checks still apply;
+small fixes reuse existing helpers and hash-pinned evidence.
+
 - **Systematic refusal controls.** Inventory every new or changed refusal,
   including individual predicates in compound checks, and map it to a valid
   baseline and a bad input that reaches it. Remove or weaken each check in a

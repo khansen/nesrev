@@ -245,6 +245,8 @@ Unavailable choices fail. New sessions open `agents` and `watchers` windows,
 then attach/switch tmux. Repeated launches reconnect unchanged; conflicts fail.
 [Session operations](AGENT_SESSION_OPERATIONS.md) covers evidence reconciliation
 and authorized continuation.
+For correction rounds, apply
+[proportionate verification](AGENT_SESSION_OPERATIONS.md#proportionate-verification).
 Both agents reply `READY` after login/trust setup. In `watchers`, provide the manual
 and optional FAQs, or explicitly waive the manual after the quality warning.
 Enter cannot skip missing files. `.agents/reference_intake/<slug>.json` persists the choice;
