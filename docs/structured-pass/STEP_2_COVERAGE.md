@@ -408,6 +408,26 @@ remain outside tracked master tooling. The local case manifest separates:
 - **H8:** recorded in-place code recovery with a corrected entry hint and warning
   baseline, for S6/S7/D5. Its exact range and bindings need an independent replay
   expectation before implementation; a historical commit alone is not that test.
+
+The accepted staged step-1 preparation covers H1–H4, the seven classified
+holdouts and the concrete M8 publications 1–4, 6 and 8. It does not discharge
+H5–H8. Preserve that acceptance separately from the sealed evidence. The
+remaining historical cases have these slice assignments and prerequisites:
+
+| Case | Slice and expected coverage | Admission prerequisite |
+| --- | --- | --- |
+| H5 | 2A: R6 operand/extent evidence, S4 representation, D2 extent/blob rows, and associated S2/S5/current-document edits. 2B: any S6 regeneration-hint evidence and authored inventory-Markdown obligations. | Freeze and independently review both recorded boundary cases, exact retained bytes/operands, reference changes, row preimages and supporting artifacts before resuming R6/S4 or the D2 subset. Keep unrelated historical changes excluded explicitly. |
+| H6 | 2B: remaining R4 and D1–D4 mixed artifact obligations, with D8 where a runtime question is required. | Pin the documented unresolved obligations before the corresponding writer work; a recorded debt item is not an approved source rename or semantic answer. Any source edit still needs its own reviewed evidence and the applicable 2A operations. |
+| H7 | 2A regression: the existing S1/S5, document/scorecard/closeout and repair workflow; 2C: W3 real-client/integrated acceptance. | Freeze the completed pass's exact changes, repair and retained coverage as deterministic regression expectations before its replay. Preserve the disclosed operator hint; neither the old assisted run nor a deterministic replay counts as a new unassisted inference trial. |
+| H8 | 2A: D5 warning curation and R4/R5 diagnostic evidence on pinned before/after snapshots. 2B: S6/S7 code recovery, hint/reference mapping and the full coupled source/artifact replay. | Freeze and independently review the fresh warning identities, rationale rows and exact additions/removals before resuming D5. Use independently materialized historical snapshots for that subset; do not claim the 2A writer performs S6/S7. Freeze the full recovery expectations before those 2B operations. |
+
+R1–R3, R5, S1–S3 and S5 work covered by the accepted H1–H4 expectations may
+resume on the approved plan base. R6, S4, the D2 extent/blob subset and D5 stay
+paused until the applicable H5/H8 expectation review accepts them. Existing
+provisional code does not satisfy this prerequisite. The original H5 case
+identities remain fixed; any wider review excerpt corrects the recorded
+coverage explicitly rather than silently revising the accepted holdout record.
+
 - **B1-S / B1-R:** the largest source/model and the largest reference/instruction
   inventory in the pinned 23-source corpus, respectively. They are different
   sources; both are mandatory. Preserve their bank/segment cases.
@@ -810,6 +830,13 @@ slices, preserving every row above and the rollout's original completion gates:
    reviewed/committed tool profiles until W2. Runtime deferrals/dispositions,
    manifest/trace-plan references and tracked fixture data change atomically;
    unsupported fixture formats or new analyzer logic remain open.
+   Before their corresponding work, freeze and review H6's mixed obligations,
+   H5's deferred support and H8's full recovery expectation. Freeze publication
+   5's concrete selection before S6/S7 implementation. After reviewing those
+   wire contracts, materialize the post-6 fixture and freeze publication 7
+   before its remaining D2/D3/D8 work, with D6/D7 prerequisites as specified
+   above. These deferred freezes are required 2B checklist items, not completed
+   step-1 work.
 3. **2C — runtime evidence and integrated acceptance:** W2–W3 and all-row
    regression/rehearsal, with sandbox/capture acceptance and measured limits.
    W2's sandbox feasibility is checked before authored-code execution is enabled.
