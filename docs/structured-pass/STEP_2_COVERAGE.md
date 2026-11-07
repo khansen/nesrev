@@ -1,8 +1,10 @@
 # Step 2 operation coverage
 
-Status: scope baseline v4, revised after review of `dac80f116`. No step-2
-operation is implemented by this document. The proposed PR split below needs
-agreement before implementation; it does not narrow the rollout's exit criteria.
+Status: the owner has agreed to the staged 2A/2B/2C sequence. Local 2A
+implementation is undergoing acceptance; this document does not grant that
+acceptance. The execution priorities below bring confinement feasibility forward
+and strengthen review preparation without changing operation scope, frozen
+workloads, numeric limits or rollout exit criteria.
 
 Baseline: PR #175 merged as `ea2fd0de2`, with service head `40203e10d` and the
 official XORcyst 2.1.0 pin. Step 1 is complete. Step 2 completes the operations
@@ -823,10 +825,11 @@ separate timed and verified requirement.
 The owner authorized local Step 2A implementation after baseline acceptance.
 Project migration, inference, publication and rollout remain separate decisions.
 
-## Proposed delivery split and exit gates
+<a id="proposed-delivery-split-and-exit-gates"></a>
+## Delivery split and exit gates
 
-Step 2 is too broad for one reviewable implementation PR. Propose three dependent
-slices, preserving every row above and the rollout's original completion gates:
+Step 2 uses three dependent slices, preserving every row above and the rollout's
+original completion gates:
 
 1. **2A — source operations and query reuse, with required artifact writers:**
    R1–R3, R5–R6, S1–S5, D5 warning curation, and the extent-assertion/blob-disposition
@@ -854,7 +857,9 @@ slices, preserving every row above and the rollout's original completion gates:
    step-1 work.
 3. **2C — runtime evidence and integrated acceptance:** W2–W3 and all-row
    regression/rehearsal, with sandbox/capture acceptance and measured limits.
-   W2's sandbox feasibility is checked before authored-code execution is enabled.
+   Bring W2 sandbox and actual-client confinement feasibility forward as described
+   below; integrated acceptance remains in 2C. Project-authored execution stays
+   disabled until its boundary is accepted.
 
 The dependencies are explicit: S4 needs D2's extent/disposition subset in 2A;
 S2/S3 need D5 there and D6/D7 for policy-changing cases in 2B; S7 needs S6 plus
@@ -870,6 +875,103 @@ tests, affected wrapper measurements, focused/full regressions, independent
 review and green Linux/macOS CI before an authorized merge. Fresh claims name
 the tested commit; unchanged earlier evidence is marked carried forward. If a
 producer change is needed, its separate reviewed release/pin is a prerequisite.
+
+### Execution priorities
+
+The next delivery milestone is accepted and merged 2A. Keep current result hashes,
+remaining acceptance work and carried-forward claims in the review index.
+
+Plan 2B as the largest remaining implementation effort. S6/S7 must preserve byte
+positions and remap references through representation changes; D7 couples gate
+matching to reviewed project dispositions and a coordinated local rebase; each
+artifact writer must preserve real layouts and its cross-file obligations. Row
+counts do not provide a completion percentage or delivery estimate.
+
+### Early confinement feasibility
+
+Schedule these two bounded investigations alongside 2A closure and early 2B work,
+before finalizing interfaces that depend on their outcome. They do not wait for
+2B to finish. Independent 2B work can proceed under the existing pinned-tool
+restrictions. Record the platform, tool/client builds, configuration, attempted
+operations, resource bounds and explicit pass/fail criteria before execution.
+Use minimal disposable harnesses to test feasibility; full service integration
+and acceptance stay in their delivery slices.
+
+| Boundary | Required feasibility evidence |
+| --- | --- |
+| W2 worker on macOS | A Python analyzer and the real configured FCEUX running Lua complete an allowed synthetic capture/analysis inside the proposed OS boundary. Source/credential canaries, disposable Git/store replicas, network access and verdict paths are denied; subprocesses inherit the restriction. Exercise the packet/maturity entry points as well as the emulator, and check timeout, cancellation and cleanup. |
+| Actual implementer/reviewer client | Pin the intended client and connection mode. Both roles can use their allowed structured tools and reference media, while attempts to bypass the service through file, edit, shell/interpreter, Git or alternate-path routes are denied. Include attempts to change the client's own settings, permission files, hooks and tool/MCP configuration, and to start child or differently configured sessions. Test launch and resume. Record which restrictions were actually enforced by that configuration. |
+
+Before the macOS investigation, name the isolation mechanism and API, pin their
+platform/version requirements, and record their vendor-documented support status,
+including any deprecated or private interface. A pass that relies on an unsupported
+mechanism is conditional and returns to review. Declare the legitimate FCEUX
+resources separately: window-server/display and audio access where required,
+emulator inputs, output paths, and the supervised capture mode and shutdown path
+used by the capture wrappers. Check that the allowed synthetic capture works with
+those declared resources inside the boundary. A display/audio setup failure is
+reported separately from access-denial results; neither justifies broader host
+access or establishes a successful boundary test.
+
+Use synthetic inputs and credential canaries, with no real secrets available to
+workers. A fake backend or substitute client can establish only its tested
+feasibility; it cannot stand in for the intended subscription/client setup.
+Provider-backed testing needs its separately authorized model and budget. If a
+boundary fails or cannot be tested, retain the attempt and return the affected
+W2, D8 and step-3 design to review. Do not compensate by granting host access.
+Passing a spike does not enable authored project tools or complete W2/W3 or
+step 3; their integrated and real-run criteria remain unchanged. This scheduling
+update does not itself start an experiment or authorize inference or rollout.
+
+### Review preparation for each slice
+
+- **Systematic refusal controls.** Inventory every new or changed refusal,
+  including individual predicates in compound checks, and map it to a valid
+  baseline and a bad input that reaches it. Remove or weaken each check in a
+  disposable copy, with clean and restored runs. Record contract failures,
+  downstream crashes, setup errors, surviving mutations and redundant/equivalent
+  checks separately. Setup errors do not establish coverage. Resolve survivors
+  with a discriminating case, removal of a redundant check, or a reviewed
+  equivalence argument; untested checks remain explicit gaps. Use disposable
+  canaries for access-boundary controls and record any unsafe/unperformed case.
+- **Real-file writer probes.** Inventory and hash every eligible real file before
+  review, excluding effective holdouts and preserving their visibility rules.
+  In disposable copies, exercise no-ops and mechanically valid updates, additions,
+  deletions and identity-preserving renames where supported. Check untouched bytes,
+  row order, comments, quoting and line endings, plus complete review of changes.
+  Record every eligible file as passing, refused or excluded with a reason.
+  Unsupported eligible layouts remain capability gaps; a typed refusal does not
+  establish full writer coverage. Never write the original project files.
+- **Separate code review from bulk evidence.** Supply a compact review bundle
+  containing the diff, tested hashes, claim/result index, limitations, failed
+  attempt summaries and reproduction commands. Seal large logs, captures and
+  archives separately. Each claim names its exact evidence location and hash so
+  a reviewer can retrieve a relevant subset. Preserve prior seals and failures;
+  label carried-forward checks explicitly. Existing retention/restoration rules
+  still apply, and private project evidence stays outside publishable changes.
+
+### Optional real-pass pilot after 2A
+
+After 2A merges, consider one separately authorized real pass to expose workflow
+friction. Select a non-holdout project through normal next-pass evidence and a
+coherent corridor whose source and supporting-artifact obligations fit accepted
+2A capabilities. Pin the client configuration and pass its access preflight;
+the owner selects the model and run budget. Keep project-tool edits disabled and
+use only the already registered trusted wrapper/tool closures.
+
+The pilot authorization must choose the disposition before execution: apply an
+approved result to the local `projects` branch using a real pass number and
+scorecard row, or retain it as evidence only. Record that choice with the selected
+corridor and budget; a successful evidence-only run is not permission to apply it.
+
+Record retries, diagnostics, review navigation and input-order friction as well
+as the outcome. A required unsupported operation stops the pilot and records the
+gap; it cannot be replaced by direct edits or operator-relayed repair evidence.
+This is a usability trial within 2A, not an additional 2A merge gate, completion
+of normal-pass coverage or a substitute for step 3's broader real corridor.
+It does not change launcher defaults or authorize a project migration or push.
+
+### Completion boundaries
 
 Step 2 closes only when every applicable row has implementation, positive,
 negative and replay/result references; all numeric limits pass; the multi-batch

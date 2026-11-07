@@ -3,9 +3,9 @@
 Status: step 1 is complete: [PR #175](https://github.com/khansen/nesrev/pull/175)
 merged as `ea2fd0de2`, including service head `40203e10d`. Steps 2 and 3 are not
 complete. The [step-2 coverage baseline](STEP_2_COVERAGE.md) maps required
-operations, ownership, replays and proposed operating limits before implementation.
-It proposes splitting step 2 into three reviewable PRs; that split is pending plan
-agreement. The numbers below identify delivery stages, not GitHub PR numbers.
+operations, ownership, replays and frozen operating limits. The owner has agreed
+to the 2A/2B/2C delivery sequence; local 2A implementation is undergoing acceptance.
+The numbers below identify delivery stages, not GitHub PR numbers.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
@@ -86,8 +86,23 @@ merely to fill the checklist.
 
 [STEP_2_COVERAGE.md](STEP_2_COVERAGE.md) is the concrete baseline for this gate.
 It also records what to reuse from the earlier analysis-query branches and what
-remains unmeasured. Its proposed PR split keeps every obligation below; it does
+remains unmeasured. Its delivery split keeps every obligation below; it does
 not authorize a narrower definition of normal passes.
+
+The next milestone is accepted and merged 2A, making source editing and its
+supported artifacts available for a substantial class of static passes. 2B
+contains the larger remaining implementation effort: recovery, artifact and
+policy writers, coordinated migration and wrapper coverage. Bring macOS worker
+isolation and actual-client confinement feasibility forward alongside 2A closure
+and early 2B, before fixing interfaces that depend on them; integrated runtime
+acceptance remains in 2C. The coverage plan owns the
+[execution priorities](STEP_2_COVERAGE.md#execution-priorities),
+[feasibility criteria](STEP_2_COVERAGE.md#early-confinement-feasibility) and
+[review preparation](STEP_2_COVERAGE.md#review-preparation-for-each-slice).
+
+An [optional real-pass pilot after 2A](STEP_2_COVERAGE.md#optional-real-pass-pilot-after-2a)
+can test usability within that slice after separate owner authorization. It
+neither changes the default workflow nor replaces step 3's broader acceptance.
 
 The following are the minimum areas to resolve, not claims of current support:
 
