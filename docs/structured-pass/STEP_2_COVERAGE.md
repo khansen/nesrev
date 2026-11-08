@@ -745,7 +745,8 @@ and validity rules. Earlier publication-growth observations remain in the
 conservative maximum for `g`; neither `g` nor `L8` is frozen until the required
 fresh series and checks complete.
 
-Read workloads edit zero bytes. On **each** B1-S, B1-R and B2-N source, enumerate
+Read workloads edit zero bytes. Except for the one-time 2A closure supplement
+below, on **each** B1-S, B1-R and B2-N source, enumerate
 all pages of the following fixed request sets. Keep the largest serialized page
 for every listed view/subtype, not just the largest page across all queries.
 Use maximum supported page limits within the wire contract, retaining all
@@ -769,6 +770,42 @@ required for each selected largest page in both live and retained sessions;
 **every** run must pass its limit. Report cold/warm and service/wrapper costs
 separately, with no averaging away a slow page.
 
+<a id="two-a-read-closure-supplement"></a>
+### One-time 2A read closure supplement
+
+Carry forward the completed full read series on B1-R and B2-N with their
+sealed input, code and evidence pins. For B1-S, replace the unfinished full
+series with at most 30 distinct request series across live and retained
+sessions: the 12 exactly reused baseline R1/Q04 selections; largest fitting
+pages for the frozen Q09 batch (2), admitted documents (2), each of the three
+typed artifacts (6), three fixed prior-reuse cases (6), and approved head
+policy (2). Preserve current page limits and deterministic traversal/ties.
+
+Choose prior-reuse cases from pinned native declarations/evaluations before
+query evaluation: integer EQU with greatest total spelling-or-value match
+count (union by analogue declaration); named declaration with greatest
+positive same-spelling count; named declaration with no match. Break ties by
+stable declaration ID. Record absent categories without substitution and
+measure exact duplicate requests only once. Compute counts using native
+indexes; do not query every declaration. Freeze IDs, rankings, requests,
+expected answers and hashes before timing. Any mismatch or changed rule returns
+to review; failed legacy reuse stops without an exhaustive fallback.
+
+Do not rerun full RAM, outgoing/expression, scope/unit, data/decoder or analogue
+selection on B1-S. B1-R already exercises both native models, but this evidence
+is retained with its actual primary/analogue roles. Report the supplement as
+bounded B1-S coverage, not fresh timing of every B1-S view/subtype or a universal
+worst-case latency. Accept the unmeasured role-specific performance gap only
+through explicit owner agreement on this correction.
+
+Use fresh saved-batch preparation and the real post-publication preflight.
+All rows use pass-start generations except the approved, hash-pinned head
+policy view. Each selected request retains the cold/warm repetitions, exact
+answer comparisons, host-validity rules, shared invalid-repeat cap and all
+numeric limits. This exception applies only to 2A closure; it neither changes
+operation coverage nor automatically admits later operations. Preserve the
+interrupted series and the superseded protocol; apply no easier substitutions.
+
 ### Proposed operating limits and freeze order
 
 These are proposed limits and a fixed derivation rule, not measured results.
@@ -780,7 +817,7 @@ implementation. Record input/tool/environment identities and all samples.
 | --- | --- | --- |
 | Serialized response | Every R-row request above, A64 review, M8 and CAP status/media metadata on all three roots | At most 24 KiB including MCP/JSON escaping. No skipped evidence; partial views name recoverable positions. Check both session types. |
 | Review volume | B2-N's exact 64-rename batch | At most 1 MiB across all pages and metadata, preserving all rows/uses/reasons. Measure N64/M8 volumes too; do not substitute their different content for this regression. |
-| Read latency | Each R row's largest page for each view/subtype on B1-S, B1-R and B2-N | At most 10 s warm and 120 s cold, including integrity checking/loading and serialization. Every run passes. Long jobs use status/poll when the client deadline is shorter. |
+| Read latency | Each R row's largest page for each view/subtype on B1-S, B1-R and B2-N, with the explicit [2A closure supplement](#two-a-read-closure-supplement) exception | At most 10 s warm and 120 s cold, including integrity checking/loading and serialization. Every run passes. Long jobs use status/poll when the client deadline is shorter. |
 | Full-amend latency | A64 on B1-S, B1-R and B2-N, with the exact gate set above | At most 300 s per run. One warmup then five serial measured runs from equivalent rejected-candidate snapshots; report all and the maximum. Include mandatory policy/runtime validation, not a reduced gate profile. |
 | Existing wrappers | Each affected fixed wrapper on both B1 extremes, and B2-N if it has an additional affected path | Median increase at most 5% under the existing [performance contract](../../PROJECT_CI_PERFORMANCE_PLAN.md#non-regression-requirement). Compare identical source/edit/tool inputs; no claim from a different workload or skipped analyzer. |
 | Temporary disk | A64 validation, publication and simultaneous before/after retained review, separately on B1-S, B1-R and B2-N; then M8 on each | At most 2 GiB peak per A64 run; at most 4 GiB per serial M8/corpus campaign. Include editor checkouts, failed attempts, captures, stores' staging files and restored caches. Use an independent sampler process at a nominal period of at most 0.5 s, also sampling allocation/phase boundaries; reject any run with an actual sampling gap over 1.0 s. Report sampling limits and raw before/after free blocks. |
