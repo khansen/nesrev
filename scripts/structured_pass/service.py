@@ -22,16 +22,17 @@ from .q04_view import constant_uses
 from . import mixed_documents
 from . import gate_environment
 from . import gate_diagnostics
+from . import ownership
 HERE = Path(__file__).resolve().parent
 GENERATED_RELATIVE = {'docs/reverse_engineering/inventory/'+name for name in
              ('constants_catalog.csv','pointer_targets.csv','embedded_pointer_targets.csv',
               'split_pointer_targets.csv','branch_literal_sites.csv','unknowns.md')}
 REVISION_FIELDS = frozenset((
-    'error','error_details','retryable','checkout','capture','certification_seconds','certification',
+    'error','error_details','error_records','retryable','checkout','capture','certification_seconds','certification',
     'semantic_properties','gates','manifest','capture_hashes','edit_provenance',
     'generated_catalog_row','total_validation_seconds'))
 PUBLIC_ERROR_CODES = producer.ERRORS | mixed_documents.ERRORS | gate_environment.ERRORS | frozenset('''
-RESPONSE_TOO_LARGE
+RESPONSE_TOO_LARGE OWNERSHIP_MANIFEST_INVALID STALE_VALIDATION_EVIDENCE
     INTERNAL_SERVICE_ERROR UNKNOWN_RECORD RECORD_ALIGNMENT_FAILED REFERENCE_INVALID REFERENCE_FORMAT_UNSUPPORTED
     CAPTURE_CHANGED INVALID_SYMBOL REQUEST_SCHEMA UNSUPPORTED_EXPRESSION
     INVALID_BATCH MULTI_RECORD_SELECTION_UNSUPPORTED GENERATED_PATH_SERVICE_OWNED
@@ -60,8 +61,7 @@ class ServiceError(ValueError):
         self.details = details
 
 
-def file_ownership(path, project, source):
-    # Review labels do not grant write access; mutations keep their own allowlist.
+def file_ownership(path, project, source, registered=()):
     if not isinstance(path,str) or not path.casefold().startswith(project.casefold()):raise ValueError('REQUEST_SCHEMA')
     if path.casefold()==source.casefold():return 'source'
     relative=path[len(project):].casefold()
@@ -71,11 +71,15 @@ def file_ownership(path, project, source):
                     'docs/reverse_engineering/inventory/raw_ram_review.csv')}:return 'mixed'
     if relative=='pass_edits.jsonl':return 'service-owned'
     if relative=='project.conf' or relative.startswith(('reference/','mods/')):return 'forbidden'
-    return 'authored'
+    typed={p.casefold():owner for p,owner in ownership.TYPED.items()}
+    if relative in typed:return typed[relative]
+    if relative.startswith('docs/reverse_engineering/inventory/pass/'):return 'generated-pass-cache'
+    if relative in {p.casefold() for p in ownership.DOCUMENTS | set(registered)}:return 'authored'
+    return 'forbidden'
 
 
-def changed_file_views(before,after,project,source):
-    return [{'path':path,'ownership':file_ownership(path,project,source),
+def changed_file_views(before,after,project,source, classifier=file_ownership):
+    return [{'path':path,'ownership':classifier(path,project,source),
              'before_sha256':before.get(path),'after_sha256':after.get(path)}
             for path in sorted(before.keys()|after.keys()) if before.get(path)!=after.get(path)]
 
@@ -114,7 +118,9 @@ def git(root, *args, env=None):
 def reader_hashes():
     return {p.name:producer.sha(p) for p in sorted(HERE.glob('*.py'))} | {
         'source-model.schema.json':producer.sha(HERE/'source-model.schema.json'),
-        'nes_graphics.py':producer.sha(Path(producer.rom.__file__))}
+        'nes_graphics.py':producer.sha(Path(producer.rom.__file__))} | {
+        name:producer.sha(HERE.parent/name) for name in ('data_blob_dispositions_check.py',
+            'runtime_evidence_check.py','data_format_targets_check.py')}
 
 
 def capture_hashes(capture):
@@ -152,6 +158,17 @@ class Service:
     source = reference = project = slug = None
     fixture_path = baseline_path = None
     minimum_free_bytes = 2 * 1024**3
+    authored_paths = ()
+    analogue_models = ()
+
+    def ownership(self,path,project,source):
+        record=self.state['generations'][self.state['current']]
+        manifest=Path(record['capture'])/'ownership.json'
+        expected=record['capture_hashes'].get('ownership.json')
+        if (producer.sha(manifest) if manifest.is_file() else None)!=expected:
+            raise ValueError('CAPTURE_CHANGED')
+        paths=ownership.read(json.loads(manifest.read_text())) if manifest.exists() else ()
+        return file_ownership(path,project,source,paths)
 
     @classmethod
     def readers(cls):
@@ -220,6 +237,14 @@ class Service:
         toolchain=gate_environment.configure(producer.EXE,root/'gate-home')
         environment=gate_environment.environment(toolchain,root/'gate-tmp')
         base = Path(base_checkout).resolve()
+        # Keep caller-supplied and historical captures immutable. The new
+        # session's registry travels with every retained capture and its hashes.
+        bootstrap=root/'bootstrap-capture'
+        shutil.copytree(base_capture,bootstrap)
+        write_json(bootstrap/'ownership.json',ownership.registry(cls.authored_paths))
+        from . import analogue_inputs
+        analogue_inputs.capture(list(cls.analogue_models),bootstrap)
+        base_capture=bootstrap
         model = Model(base_capture)
         fixture = json.loads(cls.fixture_path.read_text())
         if digest(model.source)!=fixture['source_sha256']:
@@ -227,7 +252,9 @@ class Service:
         paths = git(base,'ls-files',cls.project,env=environment).splitlines()
         manifest = {p:producer.sha(base/p) for p in paths}
         identity = {'files':manifest,'producer':producer.sha(producer.EXE),'readers':cls.readers(),
-                    'reference':producer.sha(base/cls.reference)}
+                    'reference':producer.sha(base/cls.reference),
+                    'ownership':producer.sha(bootstrap/'ownership.json'),
+                    'analogues':producer.sha(bootstrap/'analogues.json')}
         generation = 'G-'+digest(json.dumps(identity,sort_keys=True).encode())[:20]
         state = {'producer_sha256':producer.sha(producer.EXE),'current':generation,
                  'pass_start_generation':generation,'gate_toolchain':toolchain,
@@ -266,6 +293,9 @@ class Service:
         pass
 
     def check_authored(self, generation, operations):
+        pass
+
+    def after_certification(self,checkout,changed,operations):
         pass
 
     def run_gates(self, checkout, operations, folder, env):
@@ -403,6 +433,8 @@ class Service:
             id_seed = {'base':c['base'],'operations':c['operations'],'source':digest(data)}
             prefix = 'edit-'+digest(json.dumps(id_seed,sort_keys=True).encode())[:20]
             changed,certification = certify(checkout/self.source,capture,ref,base,edits,prefix=prefix)
+            for retained in ['ownership.json','analogues.json',*(p.name for p in base.capture.glob('analogue-*.json.gz'))]:
+                shutil.copy2(base.capture/retained,capture/retained)
             c['certification_seconds'] = time.monotonic()-t
             c['certification'] = certification
             phase = 'acceptance'
@@ -410,6 +442,7 @@ class Service:
             c['semantic_properties'] = properties
             if not properties['passed']:
                 raise ValueError('SEMANTIC_CONTRACT')
+            self.after_certification(checkout,changed,c['operations'])
             gates = self.run_gates(checkout,c['operations'],folder,env)
             failure_count=sum(bool(gate['exit_code']) for gate in gates)
             for gate in gates:
@@ -423,6 +456,7 @@ class Service:
                 raise ValueError('NONZERO_BASE_REQUIRES_DIAGNOSTIC_COMPARISON')
             if any(g['exit_code'] for g in gates):
                 raise ValueError('NEW_GATE_FAILURE')
+            write_json(capture/'gate-results.json',[{k:g[k] for k in ('target','exit_code','seconds','log_sha256')} for g in gates])
             inventory = self.inventory_result(checkout,changed,c['operations'])
             manifest = {p:producer.sha(checkout/p) for p in self.manifest_paths(base_record,c['operations'])}
             c.update(status='validated',manifest=manifest,
@@ -431,7 +465,12 @@ class Service:
                      generated_catalog_row=inventory)
             self.cache[cid] = changed
         except Exception as error:
-            if isinstance(error, ServiceError): c['error_details'] = error.details
+            if isinstance(error, ServiceError):
+                c['error_details'] = dict(error.details)
+                if 'records' in c['error_details']:
+                    c['error_records']=c['error_details'].pop('records')
+                    c['error_details'].update(total_records=len(c['error_records']),read={
+                        'operation':'validation_evidence','arguments':{'cid':cid,'revision':c['revision'],'attempt':c['attempt']}})
             # Raw producer logs stay service-owned; clients get a bounded code.
             fallback = 'INTERNAL_SERVICE_ERROR'
             retryable = phase=='setup' and isinstance(error,(OSError,subprocess.SubprocessError))
@@ -524,6 +563,16 @@ class Service:
                 'revision':c['revision'],'status':'published','review':c['review']}
 
     @state_operation()
+    def validation_evidence(self,cid,revision,attempt,offset=0,limit=40):
+        from .evidence_views import page
+        c=self.candidate(cid)
+        if type(revision) is not int or type(attempt) is not int or revision!=c['revision'] or attempt!=c.get('attempt'):
+            raise ValueError('STALE_VALIDATION_EVIDENCE')
+        if 'error_records' not in c:raise ValueError('EVIDENCE_UNAVAILABLE')
+        return {'candidate':cid,'revision':revision,'attempt':attempt,'error':c.get('error'),
+                **page(c['error_records'],offset,limit)}
+
+    @state_operation()
     def candidate_status(self,cid):
         c=self.candidate(cid)
         return {'generation':self.state['current'],'candidate':cid,'revision':c['revision'],
@@ -548,6 +597,7 @@ class Service:
 
     def dispatch(self, operation, arguments, role):
         allowed = {
+            'validation_evidence':(('cid','revision','attempt'),('offset','limit')),
             'candidate_status':(('cid',),()),
             'query':(('generation','symbol'),('offset','limit')),
             'propose':(('generation','operations'),()),

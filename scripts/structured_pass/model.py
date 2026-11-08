@@ -8,6 +8,7 @@ import base64
 from bisect import bisect_right
 from collections import defaultdict
 import hashlib
+import gzip
 import json
 from pathlib import Path
 
@@ -32,9 +33,11 @@ def translated(position, edits, right):
 
 
 class Model:
-    def __init__(self, capture, previous=None, edits=(), prefix='new'):
+    def __init__(self, capture, previous=None, edits=(), prefix='new', *, analogue_file=None):
         self.capture = Path(capture)
-        self.document, raw = producer.load(self.capture/'model.json')
+        if analogue_file is not None:
+            self.document, raw = producer.loads(gzip.decompress((self.capture/analogue_file).read_bytes()))
+        else:self.document, raw = producer.load(self.capture/'model.json')
         doc = self.document
         self.source = next(iter(raw.values()))
         self.lines = [0] + [i+1 for i,b in enumerate(self.source) if b == 10]
@@ -69,7 +72,10 @@ class Model:
             self.bindings[n] = decls[r['declaration_id']]['syntax_id']
             self.reference_contexts[n] = r['context_syntax_id']
         id_file = self.capture/'stable-ids.json'
-        if previous is not None:
+        if analogue_file is not None:
+            producer.require(previous is None,'RECORD_ALIGNMENT_FAILED')
+            self.ids={n:self.document['identity']['model_id']+':'+n for n in self.facts}
+        elif previous is not None:
             old = {}
             for n,(lo,hi) in previous.ranges.items():
                 try:

@@ -22,6 +22,9 @@ def preview_records(details):
         records.append({k:v for k,v in item.items() if k not in ('before','after','before_text','after_text','hunks')} |
                        {'kind':'document'})
     for op in details['comment_dispositions']:records.append(op)
+    records.extend(details.get('source_edits',[]))
+    from .artifact_edits import preview_rows
+    records.extend(preview_rows(details.get('artifact_edits',[])))
     if details['mixed_documents'] is not None:
         records.append({'kind':'mixed_documents',**details['mixed_documents']})
     for hit in details['q09']['mentions']:records.append({'kind':'prose_sweep','item':hit})

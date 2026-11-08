@@ -28,7 +28,13 @@ class Documents(unittest.TestCase):
         return {'kind':'document_write','path':self.path,'preimage':self.manifest[self.path],
                 'text':'After\n','reason':'Synthetic document operation',**changes}
 
-    def prepare(self,ops):return docs.prepare(self.root,self.manifest,ops,self.project,self.source,service.file_ownership)
+    def ownership(self,path,project,source):
+        registered=['docs/reverse_engineering/'+name for name in (
+            'OPTIONAL.md','Demo_DX_Systems.md','Guides/NEW.md','Guides/EXISTING.md',
+            'NewDirectory/A.md','NewDirectory/B.md')]
+        return service.file_ownership(path,project,source,registered)
+
+    def prepare(self,ops):return docs.prepare(self.root,self.manifest,ops,self.project,self.source,self.ownership)
 
     def test_existing_new_deleted_documents_and_preimages(self):
         result=self.prepare([self.op()]);self.assertEqual(result[0]['before'],b'Before\n')
@@ -146,7 +152,7 @@ class Documents(unittest.TestCase):
                 writer=csv.DictWriter(f,fieldnames=list(row));writer.writeheader();writer.writerows(rows)
         write(old,[row]);write(new,[row,added])
         # Actual review code and CSV reads; assembler views are irrelevant to a ledger-only page.
-        fake=SimpleNamespace(model=lambda g:None,ledger=path,project=self.project,source=self.source,readers=lambda:{},
+        fake=SimpleNamespace(ownership=self.ownership,model=lambda g:None,ledger=path,project=self.project,source=self.source,readers=lambda:{},
             state={'generations':{'base':{'checkout':str(old),'manifest':{}},'head':{'checkout':str(new),'manifest':{},
                 'base':'base','provenance':[{'kind':'ledger_append','rows':[added]}]}}})
         page=RenameService.review.__wrapped__(fake,'head','base',1)
@@ -207,7 +213,7 @@ class Documents(unittest.TestCase):
             op=self.op(path=self.project+'docs/reverse_engineering/'+directory+'/REVIEWER_PROBE.md',preimage=None)
             # Check policy without relying on the host's case sensitivity or the spelling guard.
             with self.subTest(directory=directory),self.assertRaisesRegex(ValueError,'DOCUMENT_PATH_FORBIDDEN'):
-                docs.selected([op],self.project,self.source,service.file_ownership)
+                docs.selected([op],self.project,self.source,self.ownership)
             with self.assertRaisesRegex(ValueError,'DOCUMENT_PATH_FORBIDDEN'):self.prepare([op])
 
     def test_existing_parent_spelling_and_filename_case_are_exact(self):
@@ -237,7 +243,7 @@ class Documents(unittest.TestCase):
         for path in paths:
             target=self.root/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_text('OldName\n')
             manifest[path]=docs.sha(target.read_bytes())
-        subject=SimpleNamespace(project=self.project,source=self.source,
+        subject=SimpleNamespace(project=self.project,source=self.source,ownership=self.ownership,
             ledger=self.project+'docs/reverse_engineering/inventory/renames.csv',
             generated={self.project+n for n in service.GENERATED_RELATIVE},
             state={'current':'G','generations':{'G':{'checkout':str(self.root),'manifest':manifest}}},

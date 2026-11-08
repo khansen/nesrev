@@ -28,8 +28,10 @@ def service_class(path,expected=None):
     require(expected is None or producer.sha(path)==expected,'PROJECT_PROFILE_CHANGED')
     common.schema(profile,('schema','slug','source','reference','source_sha256','base_commit',
         'baseline_path','baseline_sha256','producer_path','producer_sha256','pass_id','objective',
-        'next_pass_sha256','pass_plan_sha256'))
+        'next_pass_sha256','pass_plan_sha256'),('authored_paths','analogue_models'))
     require(profile['schema']=='current-project-profile-v1')
+    from .ownership import registry
+    registered=registry(profile.get('authored_paths', []))['authored_documents']
     slug=profile['slug'];require(isinstance(slug,str) and re.fullmatch('[a-z0-9_]+',slug))
     project='projects/'+slug+'/'
     for key in ('source','reference'):
@@ -54,6 +56,8 @@ def service_class(path,expected=None):
         reference=profile['reference']
         fixture_path=path
         baseline_path=baseline
+        authored_paths=registered
+        analogue_models=profile.get('analogue_models',[])
 
         def document_pass_id(self):
             return profile['pass_id']

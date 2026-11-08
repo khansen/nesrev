@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 
-from . import service as common, review_pages
+from . import service as common, review_pages, source_edits, artifact_edits
 from .publication import MAX_REVIEW_STATES
 from .durable_artifact import Store, canonical, digest, require, running_tooling, UNSPECIFIED_BASE
 
@@ -81,7 +81,7 @@ class RetainedReviewService(RenameService):
         self.anchor=self.config.get('anchor_artifact')
         require(self.config['schema']==('retained-review-session-v2' if self.anchor else 'retained-review-session-v1'),
                 'REVIEW_SESSION_CHANGED')
-        require(self.config['profile'] in ('rename','instruction'),'REVIEW_PROFILE_INVALID')
+        require(self.config['profile'] in ('rename','source-v2','instruction'),'REVIEW_PROFILE_INVALID')
         require(isinstance(self.config['artifacts'],list) and 2<=len(self.config['artifacts'])<=MAX_REVIEW_STATES,
                 'REVIEW_SESSION_CHANGED')
         require(len(set(self.config['artifacts']))==len(self.config['artifacts']),'BASE_ARTIFACT_MISMATCH')
@@ -108,8 +108,11 @@ class RetainedReviewService(RenameService):
             prior_ticket=read_ticket(self.store.root,self.anchor)
             require(prior_ticket['profile']==self.config['profile'],'REVIEW_PROFILE_INVALID')
         first=next(iter(self.bodies.values()))
+        if self.config['profile']=='source-v2':
+            registry=first['captures'].get('ownership.json')
+            require(registry is not None and all(b['captures'].get('ownership.json')==registry for b in self.bodies.values()),'REVIEW_SESSION_CHANGED')
         self.review_pass_id=first.get('review_pass_id')
-        if self.config['profile']=='rename':
+        if self.config['profile'] in ('rename','source-v2'):
             require(isinstance(self.review_pass_id,str) and self.review_pass_id.isdigit()
                     and all(b.get('review_pass_id')==self.review_pass_id for b in self.bodies.values()),
                     'REVIEW_PASS_CONTEXT_MISSING')
@@ -184,9 +187,9 @@ class RetainedReviewService(RenameService):
         if record is None:raise ValueError('UNKNOWN_GENERATION')
         if record['base']!=base_generation:raise ValueError('MIXED_GENERATION_COMPARISON')
         if not record['provenance']:raise ValueError('MISSING_REVIEW_PROVENANCE')
-        if self.config['profile']=='rename':
+        if self.config['profile'] in ('rename','source-v2'):
             require(all(isinstance(op,dict) and op.get('kind') in
-                        ('rename','comment_replace','ledger_append','scorecard_update','closeout','document_write','document_delete')
+                        ({'rename','comment_replace','ledger_append','scorecard_update','closeout','document_write','document_delete'} | (source_edits.KINDS | artifact_edits.KINDS if self.config['profile']=='source-v2' else set()))
                         for op in record['provenance']),'INVALID_REVIEW_PROVENANCE')
             result=RenameService.review(self,generation,base_generation,offset,limit)
         else:result=self.instruction_review(generation,base_generation,offset,limit)
@@ -267,13 +270,14 @@ class RetainedReviewService(RenameService):
     def dispatch(self,operation,arguments,role):
         if operation in ('propose','amend','validate','publish','preview','confirm','start_chain'):
             raise ValueError('REVIEW_READ_ONLY')
-        specs={'status':((),()),'query':(('generation','symbol'),('offset','limit')),
+        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'status':((),()),'query':(('generation','symbol'),('offset','limit')),
                'review':(('generation','base_generation'),('offset','limit')),
                'reassemble':(('generation',),())}
-        if self.config['profile']=='rename':
+        if self.config['profile'] in ('rename','source-v2'):
             specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit')),inspect=(('generation','symbol'),()),q09=(('generation','names'),('offset','limit')),
                          document=(('generation','path'),('offset','limit')))
         if operation not in specs:raise ValueError('UNKNOWN_OPERATION')
         common.schema(arguments,*specs[operation])
         if operation=='status':return self.status(role)
+        if operation=='evidence':return self.evidence_query(**arguments)
         return getattr(self,operation)(**arguments)
