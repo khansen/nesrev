@@ -19,12 +19,22 @@ passes build from that same checked archive. The schema is vendored unchanged in
 
 ## Supported work
 
-The current editing surface supports bound global/local/EQU renames, replacement
-of existing comment records, appended rename-ledger rows, authored text documents,
-and typed scorecard/closeout inputs. A rename changes every producer-bound use,
-including data and nested expressions. It preserves the other declarations and
-bindings and refuses undisposed current prose. Historical review archives,
-historical scorecard rows and the old-name ledger column remain history.
+The `source-v2` profile supports bound global/local/EQU renames, EQU and label
+insertion, typed expression replacement, unused-declaration removal, grouped
+localization, data reflow, and comment/trivia edits. It also supports admitted
+authored Markdown, rename-ledger appends, and typed scorecard/closeout inputs.
+The fixed artifact writers update `data_extent_assertions.csv`,
+`data_blob_dispositions.csv` and `WARNING_BASELINE.txt`. See the
+[Step 2A operation contract](SOURCE_OPERATIONS.md) for request fields,
+preconditions, layout restrictions and read views.
+
+A rename changes every producer-bound use, including data and nested expressions.
+It preserves the other declarations and bindings and refuses undisposed current
+prose. Historical review archives, historical scorecard rows and the old-name
+ledger column remain history. Preview currently refuses a combined batch of
+more than 64 retired names across renames, localizations and declaration removals;
+the [Q09 follow-ups](STEP_2_COVERAGE.md#deferred-q09-follow-ups) track that limit
+and the incomplete retired-name list in review page-zero metadata.
 
 Comment-only repair batches are supported. In a corridor they still include the
 scorecard and closeout operations, but need neither a rename nor an unrelated
@@ -65,6 +75,8 @@ changed record still refuses with `RESPONSE_TOO_LARGE`, but includes `offset`,
 Inspect returns a declaration and use count; use `navigate` to page references.
 For paginated document/query/navigation results, reduce `limit` and retry the same
 offset if a response is too large; those refusals never give a skipping `next_offset`.
+`document` accepts `generation`, a repository-relative `path`, optional `offset`
+(default 0), and optional `limit` (default and maximum 80 lines).
 Q09 accepts `offset` (default 0) and `limit` (default 12, maximum 40). It returns
 `mentions`, `total_mentions` and `next_offset`, stopping earlier when the encoded
 byte budget requires it. Follow `next_offset` until null; no match is discarded.
@@ -73,6 +85,9 @@ the offset after that undelivered match; continuing there does not mean the matc
 was reviewed. Preview still checks
 the complete prose inventory, independently of the public page limit.
 Read subsequent pages with `preview_page` before confirming the preview digest.
+It accepts `generation`, `preview_digest`, optional `offset` (default 0), and
+optional `limit` (default 12, maximum 40 records). Follow the returned
+`next_offset`; the byte ceiling may end a page before the requested limit.
 Preview pages measure the complete MCP encoding, including escaped text, with
 metadata headroom. An individual oversized item refuses before its confirmation
 digest is registered, rather than leaving an unreadable saved preview.
@@ -91,17 +106,18 @@ UTF-8 text while leaving untouched comments byte-identical. These views
 present evidence; they do not decide whether a name or constant is semantically
 correct. Addresses retain their producer segment identity.
 
-Operand replacement, adding declarations, localization, data reflow, general
-project-tool edits, mixed raw-RAM row editing and runtime capture are not exposed
-by this corridor profile. Authored inventory updates to
-`data_blob_dispositions.csv` and `policy_baseline.csv`, and mixed
-`raw_ram_review.csv` rows, have no edit route yet. A rename whose spelling occurs
-in these files can fail closed during closeout after validation work; the service
-cannot complete that rename until the required ledger operation exists.
+Code/data recovery, project-tool edits, KPI/allowlist changes and runtime capture
+remain unavailable. Authored updates to `policy_baseline.csv`,
+`data_format_targets.csv`, `proof_debt_acknowledged.csv` and the judgment fields
+of `raw_ram_review.csv` have no edit route yet. Trusted refresh may update the
+existing raw-RAM queue's factual fields while preserving its authored judgments.
+A rename that requires an unsupported artifact update can fail closed during
+validation or closeout; the service cannot complete it until that writer exists.
+Existing deferral rows also remain protected; closeout supports new-row appends,
+not closing or rewriting existing rows.
 A pass requiring one of these operations must stop and
-report the missing operation. The earlier instruction-correction experiment is
-not an editing API in this extraction. No agent worker or arbitrary-code endpoint
-is provided.
+report the missing operation. No agent worker or arbitrary-code endpoint is
+provided.
 
 ## Invariants and ownership
 
