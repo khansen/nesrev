@@ -348,8 +348,12 @@ not just a fake. These requirements do not authorize new game captures here.
 ## Disposition of the earlier analysis-query work
 
 The spec tip `cb856e558` is an ancestor of implementation tip `e937c92ef`.
-Preserve both as source material until extraction is accounted for. Do not merge
-the CLI and its legacy bundle adapter wholesale into a second agent interface.
+Keep `feat/analysis-query` as source material until extraction is accounted for,
+and preserve the spec tip with the local tag `archive/analysis-query-spec`.
+The redundant `feat/analysis-query-spec` branch may be removed once the tag
+resolves to that exact ancestor; this consolidation does not complete extraction.
+Do not merge the CLI and its legacy bundle adapter wholesale into a second
+agent interface.
 
 | Earlier capability/contract | Step-2 disposition |
 | --- | --- |
@@ -362,10 +366,10 @@ the CLI and its legacy bundle adapter wholesale into a second agent interface.
 | Two-second fresh-CLI target | Preserve with that experiment; step-2 service measurements use the separately stated workload/limits below, not a claimed result for the old CLI |
 | Agent A/B trials and default-guidance quality claims | Still unperformed; any comparative claim needs its separately authorized, frozen protocol. Functional service rollout is not evidence that the earlier efficiency gate passed |
 
-Before deleting the old branches, produce an extraction ledger listing each old
-test/requirement as retained with a new test ID, superseded with a reason, or
-explicitly deferred. Preserve their commit IDs and recoverable Git history.
-This planning change deletes neither branch.
+Before deleting the remaining implementation branch, produce an extraction
+ledger listing each old test/requirement as retained with a new test ID,
+superseded with a reason, or explicitly deferred. Preserve both commit IDs and
+recoverable Git history, including the archived spec tip.
 
 ## Replay and measurement contract
 
