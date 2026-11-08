@@ -35,6 +35,8 @@ project-pass handoff protocol. When reviewing scripts, gates, wrappers,
 playbooks, specs, or tooling, apply the bad-direction proof and cross-project
 blast-radius procedure at
 [REVIEW_AUDITS.md](REVIEW_AUDITS.md#process-change-review-sanity-checks).
+For correction rounds, use
+[proportionate verification](AGENT_SESSION_OPERATIONS.md#proportionate-verification).
 
 For semantic corrections, review the
 [current-artifact sweep](DOCUMENTATION.md#corrected-claim-propagation), including

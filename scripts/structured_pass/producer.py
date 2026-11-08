@@ -79,7 +79,11 @@ def reconstruct(document):
 
 
 def load(path, *, certified=True):
-    doc = json.loads(Path(path).read_bytes())
+    return loads(Path(path).read_bytes(),certified=certified)
+
+
+def loads(data, *, certified=True):
+    doc = json.loads(data)
     try:
         check_schema(doc, json.loads(Path(__file__).with_name('source-model.schema.json').read_bytes()))
     except (ValueError, KeyError, TypeError, RecursionError):

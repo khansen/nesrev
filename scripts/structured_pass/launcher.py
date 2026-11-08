@@ -157,7 +157,7 @@ class Corridor:
         return self.generation_read('document',args)
 
     def generation_read(self,operation,args):
-        specs={'document':(('generation','path'),('offset','limit')),
+        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'document':(('generation','path'),('offset','limit')),
                'q09':(('generation','names'),('offset','limit')),
                'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit'))}
         common.schema(args,*specs[operation])
@@ -260,7 +260,7 @@ class Corridor:
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
-        if operation in ('q09','navigate'):return self.generation_read(operation,arguments)
+        if operation in ('q09','navigate','evidence'):return self.generation_read(operation,arguments)
         if operation=='closeout':
             common.schema(arguments,());return self.closeout()
         if operation=='reready':
@@ -287,6 +287,6 @@ class Corridor:
                 answer=self.editor.publish(arguments['cid'])
             self.ensure_handoff()
             return answer
-        allowed={'candidate_status','navigate','inspect','query','q09','documents','document','preview','preview_page','confirm','validate','start_chain'}
+        allowed={'validation_evidence','candidate_status','navigate','inspect','query','q09','documents','document','preview','preview_page','confirm','validate','start_chain'}
         require(operation in allowed,'UNKNOWN_OPERATION')
         return self.editor.dispatch(operation,arguments,role)

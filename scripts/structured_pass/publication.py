@@ -92,7 +92,7 @@ def read_ticket(store,artifact):
 def export_chain(state,generation,source,reference,profile,*,review_pass_id=None):
     config=state.get('retention')
     require(isinstance(config,dict) and config.get('schema')=='publication-retention-v1','RETENTION_NOT_CONFIGURED')
-    require(profile in ('rename','instruction'),'PUBLICATION_RECEIPT_MISMATCH')
+    require(profile in ('rename','source-v2','instruction'),'PUBLICATION_RECEIPT_MISMATCH')
     require(review_pass_id is None or isinstance(review_pass_id,str) and review_pass_id.isdigit(),
             'PUBLICATION_RECEIPT_MISMATCH')
     store=Store(persistent_root(config['root']))

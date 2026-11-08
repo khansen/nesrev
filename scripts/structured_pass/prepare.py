@@ -24,8 +24,8 @@ def run(command, cwd, env, log):
 
 
 def prepare(repo, output, selection, executable, store):
-    common.schema(selection,('project','target','objective','why_now','boundaries','evidence','reference_scope','out_of_scope'))
-    producer.require(all(isinstance(v,str) and v.strip() for v in selection.values()),'PROJECT_SELECTION_INVALID')
+    common.schema(selection,('project','target','objective','why_now','boundaries','evidence','reference_scope','out_of_scope'),('authored_paths','analogue_models'))
+    producer.require(all(isinstance(v,str) and v.strip() for k,v in selection.items() if k not in ('authored_paths','analogue_models')),'PROJECT_SELECTION_INVALID')
     slug=selection['project'];producer.require(re.fullmatch('[a-z0-9_]+',slug),'PROJECT_SELECTION_INVALID')
     repo=Path(repo).resolve();root=Path(output).resolve()
     producer.require(not root.exists(),'PREPARATION_EXISTS')
@@ -73,7 +73,8 @@ def prepare(repo, output, selection, executable, store):
         'baseline_sha256':producer.sha(root/'baseline.json'),'producer_path':str(producer.EXE),
         'producer_sha256':producer.sha(producer.EXE),'pass_id':str(plan['intended_pass_id']),
         'objective':selection['objective'],'next_pass_sha256':producer.sha(pass_dir/'next_pass.json'),
-        'pass_plan_sha256':producer.sha(pass_dir/'current_pass_plan.json')}
+        'pass_plan_sha256':producer.sha(pass_dir/'current_pass_plan.json'),
+        'authored_paths':selection.get('authored_paths',[]),'analogue_models':selection.get('analogue_models',[])}
     common.write_json(root/'profile.json',profile)
     controller=Corridor.initialize(root/'session',checkout,root/'capture',store,
         run_id=slug+'-structured-'+profile['pass_id'],objective=profile['objective'],project_profile=root/'profile.json')

@@ -359,11 +359,12 @@ ROOT_WORD_CEILING = 6000
 # The structured-service ownership link adds 6 words and no lines to TOOLING
 # relative to the pre-service text. Preserve the introduction and Ownership wording; raise only
 # TOOLING-bearing route budgets by the addition, retaining their headroom.
+# Readable verification links add 2L/6W per included playbook; preserve route headroom.
 ROUTE_BUDGETS = {
-    "default": (3632, 26680),
-    "data-recovery": (3270, 24648),
+    "default": (3634, 26686),
+    "data-recovery": (3272, 24654),
     "new-project": (4309, 31832),
-    "project-pass-review": (4690, 33605),
+    "project-pass-review": (4694, 33617),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
