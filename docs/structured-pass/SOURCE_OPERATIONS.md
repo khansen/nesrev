@@ -1,6 +1,6 @@
 # Step 2A source operations
 
-Status: implementation in progress; independent review and CI remain pending.
+Status: Step 2A is merged and available through the opt-in structured services.
 The scope and frozen limits are in [STEP_2_COVERAGE.md](STEP_2_COVERAGE.md).
 This contract grants no inference, project migration or rollout authorization.
 
@@ -180,12 +180,11 @@ namespaced by model identity and cannot be used as current-project edit IDs.
 The source is never exposed as a bulk read. The old query branches stay intact;
 their source-excerpt interface is superseded by these structured views.
 
-## Acceptance still required
+<a id="acceptance-still-required"></a>
+## Remaining scope
 
-The implementation needs the Step 2A positive/failing-direction matrix,
-classified historical replays/holdouts, affected-wrapper measurements and
-largest-source measurements under the frozen protocol. Focused, optimized and
-full suites must pass on the final code. Independent review and Linux/macOS CI
-are required before any separately authorized merge. The remaining M8 operations
-and integrated eight-publication run belong to the later slices; this slice
-cannot claim that whole run complete.
+The accepted Step 2A slice does not complete Step 2B, runtime confinement in
+Step 2C, or the structured-default rollout. Full H4 replay, M8 publications 5
+and 7, and the integrated eight-publication workload remain with the later
+slices described in [STEP_2_COVERAGE.md](STEP_2_COVERAGE.md). Real-pass inference,
+project migration and rollout still require their separate authorizations.
