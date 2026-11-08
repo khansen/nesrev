@@ -87,7 +87,7 @@ def memory(model,address=None,record_id=None):
         if pointer:
             for part,key in (('low','address'),('high','high_byte_address')):
                 if pointer['index_register']:
-                    categories.append(('indexed_pointer_byte',part))
+                    if address<0x100:categories.append(('indexed_pointer_byte',part))
                 elif pointer[key]==address:categories.append(('pointer_byte',part))
         for category,part in categories:
             proofs=[]

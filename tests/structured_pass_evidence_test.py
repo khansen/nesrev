@@ -45,6 +45,32 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(all(not r['exact_destination'] for r in unknown))
         self.assertTrue(any(r['category']=='indexed_other_base_possible' and r['memory_access']['data']['address']==0xFFFF for r in rows))
 
+    def test_indexed_pointer_bytes_include_both_zero_page_boundaries(self):
+        indexed=[self.model.ids[n] for n,ins in self.model.instructions.items()
+                 if ins['memory_access'] and ins['memory_access']['pointer']
+                 and ins['memory_access']['pointer']['index_register']]
+        self.assertEqual(len(indexed),1)
+        for address in (0,0xFE,0xFF):
+            with self.subTest(address=address):
+                rows=views.memory(self.model,address=address)
+                hits=[r for r in rows if r['category']=='indexed_pointer_byte']
+                self.assertEqual({(r['record_id'],r['pointer_part']) for r in hits},
+                                 {(indexed[0],'low'),(indexed[0],'high')})
+                self.assertEqual(len(hits),2)
+                self.assertTrue(all(not r['exact_destination'] for r in hits))
+
+    def test_indexed_pointer_bytes_exclude_nonzero_page_but_keep_unknown_targets(self):
+        selections=[{'address':n} for n in (0x100,0x400,0x2000,0x6000,0xFFFF)]
+        selections.extend({'record_id':self.ident(name)} for name in ('DisplacedCell','PrgCell'))
+        for selection in selections:
+            with self.subTest(selection=selection):
+                rows=views.memory(self.model,**selection)
+                self.assertFalse(any(r['category']=='indexed_pointer_byte' for r in rows))
+                unknown=[r for r in rows if r['category']=='unresolved_indirect_destination']
+                self.assertEqual(len(unknown),2)
+                self.assertTrue(all(not r['exact_destination'] and r['pointer_part'] is None
+                                    for r in unknown))
+
     def test_overlaid_cpu_addresses_never_merge_sites(self):
         m=self.model;entry=m.locations[m.declarations['Entry']];over=m.locations[m.declarations['Overlaid']]
         self.assertEqual(entry['cpu_address'],over['cpu_address'])

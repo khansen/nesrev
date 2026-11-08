@@ -157,7 +157,7 @@ wire-size ceiling. It works in live and retained sessions, including admitted
 
 | View | Selection | Evidence |
 | --- | --- | --- |
-| `ram` | `address` or declaration `record_id` | Direct/indexed/RMW/pointer-byte and unknown indirect cases. Alias evidence requires a native memory binding, not equal values. Indexed possibilities are not exact destinations. |
+| `ram` | `address` or declaration `record_id` | Direct/indexed/RMW/pointer-byte and unknown indirect cases. Indexed-indirect pointer-byte possibilities stay within zero page; unresolved indirect destinations remain separate. Alias evidence requires a native memory binding, not equal values. Indexed possibilities are not exact destinations. |
 | `outgoing` | `record_id` | Native instruction effects and separately identified reference leaves, including through-EQU declarations. Segment and physical output position remain distinct from CPU address. |
 | `expression` | `record_id` | Paged native expression nodes, operators, values, bindings and children. String payloads have length/hash and use the data decoder for bytes. |
 | `data` | declaration or data-statement `record_id` | Operand identities, widths, output ranges, segment, byte counts and references. |
