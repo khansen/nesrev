@@ -913,6 +913,25 @@ review and green Linux/macOS CI before an authorized merge. Fresh claims name
 the tested commit; unchanged earlier evidence is marked carried forward. If a
 producer change is needed, its separate reviewed release/pin is a prerequisite.
 
+### Deferred Q09 follow-ups
+
+Track these two related limitations together in early 2B, before claiming larger
+combined retirement batches or complete prose-summary coverage. Existing
+stale-prose enforcement remains mandatory while they are open.
+
+| Follow-up | Current limitation | Completion evidence |
+| --- | --- | --- |
+| Q09 combined retired-name inventory | Internal prose scanning inherits the public Q09 limit of 64 names. Renames, localizations and deletions together can exceed it even when the separate rename/source-operation limits pass; preview then refuses with `REQUEST_SCHEMA`. | Separate complete internal inventory from the bounded public request interface. Test valid mixed batches on both sides of 64 names, complete stale-prose refusal, and bounded resumable reads without raising the frozen response ceiling. |
+| Q09 review metadata coverage | Live and retained page-zero summaries currently list only rename old names, omitting localized and deleted names. Validation checks the combined retired-name set. | Include all retired names in both review summaries and provide valid bounded continuations, coordinated with the inventory fix above. Test localization-only, deletion-only and mixed batches, including more than 64 retired names. |
+
+Keep the previously disclosed optional items in the review checklist: a control
+for CSV insertion anchored on another newly inserted row; a discriminating test
+or explicit redundancy disposition for per-line CSV parsing; a review item or
+refusal for formatting-only generated raw-RAM changes; and documentation of
+co-located data end markers. Code inspection alone does not close a test gap.
+Record each disposition with its evidence; these follow-ups do not complete any
+deferred operation or replace the slice's existing acceptance gates.
+
 ### Execution priorities
 
 The next delivery milestone is accepted and merged 2A. Keep current result hashes,
