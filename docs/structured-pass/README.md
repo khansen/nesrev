@@ -41,10 +41,19 @@ scorecard and closeout operations, but need neither a rename nor an unrelated
 document edit. Scorecard-only repairs also need no dummy edit. Preview and review
 results are paginated, with a 24 KiB ceiling on each serialized bridge response.
 Review page zero contains the Q09 count and paginated read request, changed files
-and the change/page totals, without any change payload. Subsequent pages show one
-declaration or other change, or up to eight consecutive uses of one declaration
-(fewer when the encoded bytes require it). `offset` addresses review pages;
-`total_changes` counts the individual changes across those pages.
+and the change/page totals, without any change payload. For `rename` and
+`source-v2` review, `limit` defaults to 1 and accepts 1–40 review items per call.
+An item is one declaration or other change, or up to eight consecutive uses of
+one declaration (fewer when the encoded bytes require it). Page zero stays
+metadata-only at every limit; its continuation is 1 when changes exist.
+`offset` addresses these stable items, with changes starting at 1. Follow
+`next_offset` until null: a page can stop before the requested limit to fit the
+24 KiB wire ceiling. Batching preserves the exact single-item change payloads,
+including any existing context/document truncation markers, in the same order.
+`total_changes` counts individual changes, including grouped uses; the legacy
+`total_pages` remains the number of single-item pages including metadata, not
+the number of calls needed with a larger limit. The older instruction profile
+still accepts only `limit: 1`.
 Use rows retain the full before/after statement and the exact reference leaf,
 including its binding, plus the lexical owner's record ID. They omit neighbouring
 statements and the repeated declaration body. To read context, call `navigate`

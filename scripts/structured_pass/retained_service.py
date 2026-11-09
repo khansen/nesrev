@@ -180,9 +180,15 @@ class RetainedReviewService(RenameService):
         return {'anchor_artifact':self.anchor,'previous_artifact':self.bodies[self.anchor]['base_artifact'],
                 'scope':'Changes after this published anchor; earlier changes remain in its review ticket.'}
 
+    def review_metadata(self,generation,base_generation):
+        result={'evidence':{'before':self.evidence(base_generation),'after':self.evidence(generation)}}
+        if self.anchor:result['review_window']=self.review_window()
+        return result
+
     @common.state_operation()
     def review(self,generation,base_generation,offset=0,limit=1):
-        if type(offset) is not int or offset<0 or limit!=1:raise ValueError('invalid pagination')
+        review_pages.validate_pagination(offset,limit)
+        if self.config['profile']=='instruction' and limit!=1:raise ValueError('invalid pagination')
         record=self.state['generations'].get(generation)
         if record is None:raise ValueError('UNKNOWN_GENERATION')
         if record['base']!=base_generation:raise ValueError('MIXED_GENERATION_COMPARISON')
@@ -191,10 +197,9 @@ class RetainedReviewService(RenameService):
             require(all(isinstance(op,dict) and op.get('kind') in
                         ({'rename','comment_replace','ledger_append','scorecard_update','closeout','document_write','document_delete'} | (source_edits.KINDS | artifact_edits.KINDS if self.config['profile']=='source-v2' else set()))
                         for op in record['provenance']),'INVALID_REVIEW_PROVENANCE')
-            result=RenameService.review(self,generation,base_generation,offset,limit)
-        else:result=self.instruction_review(generation,base_generation,offset,limit)
-        result['evidence']={'before':self.evidence(base_generation),'after':self.evidence(generation)}
-        if self.anchor:result['review_window']=self.review_window()
+            return RenameService.review(self,generation,base_generation,offset,limit)
+        result=self.instruction_review(generation,base_generation,offset,limit)
+        result.update(self.review_metadata(generation,base_generation))
         return review_pages.fit(result)
 
     def instruction_review(self,generation,base_generation,offset,limit):

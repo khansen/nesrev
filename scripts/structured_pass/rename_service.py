@@ -553,9 +553,12 @@ class RenameService(common.Service):
                  for op,n,refs in selected_renames(base,operations)}
         return [renames[op['declaration_id']] if op['kind']=='rename' else op for op in operations]
 
+    def review_metadata(self, generation, base_generation):
+        return {}
+
     @common.state_operation()
     def review(self, generation, base_generation, offset=0, limit=1):
-        if type(offset) is not int or offset<0 or limit!=1:raise ValueError('invalid pagination')
+        review_pages.validate_pagination(offset,limit)
         newer=self.model(generation);older=self.model(base_generation);record=self.state['generations'][generation]
         old_record=self.state['generations'][base_generation]
         if record['base']!=base_generation:raise ValueError('MIXED_GENERATION_COMPARISON')
@@ -601,56 +604,58 @@ class RenameService(common.Service):
                           'before_sha256':old_record['manifest'].get(raw_ram),
                           'after_sha256':record['manifest'].get(raw_ram),'row':row}
                          for i,row in enumerate(rows))
-        changes=[]
-        for op in (items[offset-1:offset-1+limit] if offset else []):
-            if op['kind']=='rename':
-                decl=op['declaration_id']
-                changes.append({'kind':'rename','declaration_id':decl,
-                    'before':neighbor_view(older,older.node(decl)),'after':neighbor_view(newer,newer.node(decl)),
-                    'use_count':len(op['reference_ids'])})
-            elif op['kind']=='rename_uses':
-                changes.extend(use_view(older,newer,ref,op['declaration_id']) for ref in op['reference_ids'])
-            elif op['kind']=='comment_replace':
-                before=next(c for c in comments(older) if c['record_id']==op['record_id'])
-                # The stored operations provide the origin; find the changed
-                # producer comment at its translated byte position, not by text.
-                all_ops=[]
-                for item in record['provenance']:
-                    if item['kind']=='rename':
-                        all_ops.append({'kind':'rename','declaration_id':item['declaration_id'],
-                            'old_name':item['old_name'],'new_name':item['new_name'],
-                            'preimage':older.statement(older.node(item['declaration_id']))['preimage_sha256']})
-                    else:all_ops.append(item)
-                edits,_=edits_for(older,all_ops,self.project);position=translated(before['start'],edits,True)
-                after=next(c for c in comments(newer) if c['start']==position)
-                changes.append({'kind':'comment','before':before,'after':after,'reason':op['reason']})
-            elif op['kind'] in ('authored_ledger','source_change','artifact_change'):
-                changes.append(op)
-            elif op['kind'] in authored.KINDS:
-                before=authored.read(old_record['checkout'],old_record['manifest'],op['path'])
-                after=authored.read(record['checkout'],record['manifest'],op['path'])
-                changes.append(authored.describe({'path':op['path'],'before':before,'after':after,'reason':op['reason']}))
-            elif op['kind']=='scorecard_update':
-                before=mixed.Scorecard((Path(old_record['checkout'])/self.project/mixed.SCORECARD).read_bytes())
-                after=mixed.Scorecard((Path(record['checkout'])/self.project/mixed.SCORECARD).read_bytes())
-                changes.append({'kind':'mixed_scorecard','path':self.project+mixed.SCORECARD,
-                    'authored_fields':op['fields'],'before':before.rows.get(op['pass_id']),
-                    'after':after.rows[op['pass_id']],'wrapper_owned_fields':sorted(mixed.PROTECTED)})
-            elif op['kind']=='closeout':
-                receipt_bytes=(Path(record['capture'])/'closeout.json').read_bytes()
-                receipt=json.loads(receipt_bytes)
-                hashes=receipt.pop('wrapper_code_hashes')
-                receipt['wrapper_code_sha256']=digest(json.dumps(hashes,sort_keys=True,separators=(',',':')).encode())
-                receipt['wrapper_code_files']=len(hashes)
-                changes.append({'kind':'wrapper_closeout','receipt_sha256':digest(receipt_bytes),'receipt':receipt})
+        def groups():
+            for op in items[offset-1:offset-1+limit]:
+                changes=[]
+                if op['kind']=='rename':
+                    decl=op['declaration_id']
+                    changes.append({'kind':'rename','declaration_id':decl,
+                        'before':neighbor_view(older,older.node(decl)),'after':neighbor_view(newer,newer.node(decl)),
+                        'use_count':len(op['reference_ids'])})
+                elif op['kind']=='rename_uses':
+                    changes.extend(use_view(older,newer,ref,op['declaration_id']) for ref in op['reference_ids'])
+                elif op['kind']=='comment_replace':
+                    before=next(c for c in comments(older) if c['record_id']==op['record_id'])
+                    # The stored operations provide the origin; find the changed
+                    # producer comment at its translated byte position, not by text.
+                    all_ops=[]
+                    for item in record['provenance']:
+                        if item['kind']=='rename':
+                            all_ops.append({'kind':'rename','declaration_id':item['declaration_id'],
+                                'old_name':item['old_name'],'new_name':item['new_name'],
+                                'preimage':older.statement(older.node(item['declaration_id']))['preimage_sha256']})
+                        else:all_ops.append(item)
+                    edits,_=edits_for(older,all_ops,self.project);position=translated(before['start'],edits,True)
+                    after=next(c for c in comments(newer) if c['start']==position)
+                    changes.append({'kind':'comment','before':before,'after':after,'reason':op['reason']})
+                elif op['kind'] in ('authored_ledger','source_change','artifact_change'):
+                    changes.append(op)
+                elif op['kind'] in authored.KINDS:
+                    before=authored.read(old_record['checkout'],old_record['manifest'],op['path'])
+                    after=authored.read(record['checkout'],record['manifest'],op['path'])
+                    changes.append(authored.describe({'path':op['path'],'before':before,'after':after,'reason':op['reason']}))
+                elif op['kind']=='scorecard_update':
+                    before=mixed.Scorecard((Path(old_record['checkout'])/self.project/mixed.SCORECARD).read_bytes())
+                    after=mixed.Scorecard((Path(record['checkout'])/self.project/mixed.SCORECARD).read_bytes())
+                    changes.append({'kind':'mixed_scorecard','path':self.project+mixed.SCORECARD,
+                        'authored_fields':op['fields'],'before':before.rows.get(op['pass_id']),
+                        'after':after.rows[op['pass_id']],'wrapper_owned_fields':sorted(mixed.PROTECTED)})
+                elif op['kind']=='closeout':
+                    receipt_bytes=(Path(record['capture'])/'closeout.json').read_bytes()
+                    receipt=json.loads(receipt_bytes)
+                    hashes=receipt.pop('wrapper_code_hashes')
+                    receipt['wrapper_code_sha256']=digest(json.dumps(hashes,sort_keys=True,separators=(',',':')).encode())
+                    receipt['wrapper_code_files']=len(hashes)
+                    changes.append({'kind':'wrapper_closeout','receipt_sha256':digest(receipt_bytes),'receipt':receipt})
+                yield changes
         files=common.changed_file_views(old_record['manifest'],record['manifest'],self.project,self.source,self.ownership)
         readers=self.readers()
         result={'generation':generation,'base_generation':base_generation,'selection_basis':'edit_provenance',
                 'review_code_sha256':digest(json.dumps(readers,sort_keys=True,separators=(',',':')).encode()),
-                'changes':changes,'total_changes':sum(len(op['reference_ids']) if op['kind']=='rename_uses' else 1 for op in items),
+                'changes':[],'total_changes':sum(len(op['reference_ids']) if op['kind']=='rename_uses' else 1 for op in items),
                 'total_pages':len(items)+1,'offset':offset,
                 'page_kind':'metadata' if offset==0 else 'change',
-                'next_offset':offset+limit if offset+limit<=len(items) else None,
+                'next_offset':1 if offset==0 and items else None,
                 'limits':['Shows stored edit provenance for supported operations; arbitrary history alignment is not implemented.']}
         if offset==0:
             result['review_code_hashes']=readers
@@ -660,7 +665,8 @@ class RenameService(common.Service):
             result['q09']={k:v for k,v in prose.items() if k!='mentions'} | {
                 'total_mentions':len(prose['mentions']),
                 'read':{'operation':'q09','arguments':{'generation':generation,'names':names,'offset':0,'limit':12}}}
-        return review_pages.fit(result)
+        result.update(self.review_metadata(generation,base_generation))
+        return review_pages.pack(result,groups(),limit)
 
     @common.state_operation()
     def evidence_query(self,generation,view,offset=0,limit=40,**arguments):

@@ -1,9 +1,45 @@
 """Bound review views without dropping changed records or their identities."""
+import copy
 import json
+from itertools import islice
 from . import paging
 
 # Leave room for retained-session evidence, window metadata and the request ID.
 BUDGET = paging.MAX_BYTES - 2048
+MAX_ITEMS = 40
+
+
+def validate_pagination(offset, limit):
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= MAX_ITEMS:
+        raise ValueError('invalid pagination')
+
+
+def pack(result, groups, limit):
+    """Pack legacy review slots; each slot keeps its single-page payload."""
+    validate_pagination(result['offset'], limit)
+    if result['offset'] == 0:
+        return fit(result)
+    from .service import ServiceError
+    result = {**result, 'changes': [], 'next_offset': None}
+    for index, group in enumerate(islice(groups, limit), result['offset']):
+        end = index + 1
+        following = end if end < result['total_pages'] else None
+        # Normalize each slot independently, so batching never trims more
+        # document evidence or context than the existing single-slot view.
+        single = copy.deepcopy({**result, 'changes': group, 'offset': index, 'next_offset': following})
+        try:
+            single = fit(single)
+        except ServiceError as error:
+            if str(error) != 'RESPONSE_TOO_LARGE' or not result['changes']:
+                raise
+            break  # Deliver the prefix; retry the oversized slot on the next call.
+        if limit == 1:
+            return single
+        trial = {**result, 'changes': result['changes'] + single['changes'], 'next_offset': following}
+        if wire_size(trial) > BUDGET:
+            break
+        result = trial
+    return result
 
 
 def wire_size(value):

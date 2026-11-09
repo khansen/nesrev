@@ -736,6 +736,7 @@ class RawRamRefreshTests(unittest.TestCase):
             self.assertEqual(RenameService.inventory_result(stub,candidate,None,operations)['inventory_gates'],
                              'refreshed and verified')
             stub.readers=lambda:{}
+            stub.review_metadata=lambda generation,base_generation:{}
             stub.state['generations']['After']={'base':'G','provenance':[],'checkout':str(candidate),
                 'manifest':{p:digest((candidate/p).read_bytes()) for p in data}}
             page=RenameService.review.__wrapped__(stub,'After','G',1)
