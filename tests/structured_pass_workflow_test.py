@@ -421,6 +421,63 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(pages[0]['total_changes'],134);self.assertEqual(pages[0]['total_pages'],135)
             self.assertEqual(len(pages),135)
 
+    def test_retained_batch_budget_includes_evidence_envelope(self):
+        from structured_pass import review_pages
+        c=self.controller;g=c.editor.state['current'];published=self.edit(rename_ops(c,g))
+        reader=RetainedReviewService.from_publication(self.root/'envelope-review',self.root/'store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts']
+        first=reader.review(head,base,1);second=reader.review(head,base,2)
+        combined={**first,'changes':first['changes']+second['changes'],'next_offset':second['next_offset']}
+        budget=review_pages.wire_size(combined)-1
+        self.assertLess(review_pages.wire_size(first),budget)
+        self.assertLess(review_pages.wire_size(second),budget)
+        with patch.object(review_pages,'BUDGET',budget):
+            batch=reader.review(head,base,1,2)
+        self.assertEqual(batch,first)
+        self.assertEqual(batch['next_offset'],2)
+        self.assertLessEqual(review_pages.wire_size(batch),budget)
+
+    def test_batched_review_keeps_single_slot_records_in_live_and_retained_bridges(self):
+        self.controller=prepare(self.root/'batching',uses=19)
+        c=self.controller;g=c.editor.state['current']
+        path=c.editor.project+'docs/reverse_engineering/WORKING_NOTES.md'
+        doc={'kind':'document_write','path':path,'preimage':c.editor.state['generations'][g]['manifest'][path],
+             'text':('Quoted " \u2603 '*200+'\n')*30,'reason':'Exercise a document at the byte boundary.'}
+        published=self.edit([doc,*rename_ops(c,g)])
+        reader=RetainedReviewService.from_publication(self.root/'batch-review',self.root/'batching/store',published['review']['artifact_id'])
+        base,head=reader.config['artifacts'];expected=None
+        def collect(read,limit):
+            pages=[];offset=0
+            while offset is not None:
+                page=read(offset,limit);pages.append(page)
+                self.assertTrue(page['next_offset'] is None or page['next_offset']>offset)
+                self.assertEqual(page['total_pages'],pages[0]['total_pages'])
+                offset=page['next_offset']
+            return pages,[row for page in pages for row in page['changes']]
+        routes=[lambda offset,limit:c.editor.review(published['generation'],g,offset,limit)]
+        for root,profile in ((c.root,'corridor'),(reader.root,'retained')):
+            def read(offset,limit,root=root,profile=profile):
+                args={'generation':head,'base_generation':base,'offset':offset,'limit':limit}
+                if profile=='corridor':args['ticket']=published['review']['artifact_id']
+                return self.bridge_request(root,profile,'review',args)
+            routes.append(read)
+        for read in routes:
+            singles,rows=collect(read,1)
+            if expected is None:expected=rows
+            self.assertEqual(rows,expected)
+            for limit in (2,12,40):
+                batched,actual=collect(read,limit)
+                self.assertEqual(actual,expected)
+                self.assertEqual(batched[0],singles[0])
+                self.assertEqual(batched[0]['next_offset'],1)
+                self.assertLess(len(batched),len(singles))
+                self.assertTrue(any(len(page['changes'])>1 for page in batched[1:]))
+        self.assertEqual(c.editor.review(published['generation'],g),c.editor.review(published['generation'],g,limit=1))
+        for limit in (0,41,True,1.0):
+            for read in (c.editor.review,reader.review):
+                with self.assertRaisesRegex(ValueError,'^invalid pagination$'):
+                    read(head,base,limit=limit)
+
     def test_appended_document_is_visible_and_page_ids_read_in_both_bridges(self):
         text=''.join('Unchanged line '+str(i)+' '+('x'*160)+'\n' for i in range(180))
         self.controller=prepare(self.root/'append-document',notes=text)

@@ -1,4 +1,5 @@
 """Bounded diagnostics and compact view controls; no provider inference."""
+import copy
 import json
 from pathlib import Path
 import sys
@@ -9,6 +10,99 @@ from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from structured_pass import gate_diagnostics,rename_service,review_pages
+from structured_pass.service import ServiceError
+
+
+class ReviewPackingTests(unittest.TestCase):
+    def envelope(self, offset, count):
+        return {'generation':'new','base_generation':'old','offset':offset,
+                'changes':[], 'total_pages':count+1, 'total_changes':count,
+                'next_offset':1 if offset==0 and count else None}
+
+    def collect(self, groups, limit):
+        offset=1;seen=[];pages=[]
+        while offset is not None:
+            page=review_pages.pack(self.envelope(offset,len(groups)),iter(groups[offset-1:]),limit)
+            self.assertLessEqual(review_pages.wire_size(page),review_pages.BUDGET)
+            self.assertTrue(page['changes'])
+            self.assertTrue(page['next_offset'] is None or page['next_offset']>offset)
+            seen+=page['changes'];pages.append(page);offset=page['next_offset']
+        return seen,pages
+
+    def test_cap_and_types_refuse(self):
+        for offset,limit in [(-1,1),(True,1),(1.0,1),(0,0),(0,41),(0,True),(0,1.0),(0,None)]:
+            with self.subTest(offset=offset,limit=limit):
+                with self.assertRaisesRegex(ValueError,'^invalid pagination$'):
+                    review_pages.pack(self.envelope(offset,1),iter([[{'id':'a'}]]),limit)
+        groups=[[{'id':i}] for i in range(41)]
+        page=review_pages.pack(self.envelope(1,41),iter(groups),40)
+        self.assertEqual([x['id'] for x in page['changes']],list(range(40)))
+        self.assertEqual(page['next_offset'],41)
+
+    def test_metadata_does_not_consume_changes(self):
+        def unavailable():
+            raise AssertionError('Metadata must not render a change')
+            yield
+        for limit in (1,12,40):
+            page=review_pages.pack(self.envelope(0,5),unavailable(),limit)
+            self.assertEqual(page['changes'],[]);self.assertEqual(page['next_offset'],1)
+        self.assertIsNone(review_pages.pack(self.envelope(0,0),unavailable(),40)['next_offset'])
+
+    def test_byte_boundaries_preserve_order_and_multirecord_slots(self):
+        groups=[[{'id':f'{i}-{j}','text':'quoted " \u2603 '*12} for j in range(1+i%3)] for i in range(23)]
+        original=copy.deepcopy(groups)
+        with patch.object(review_pages,'BUDGET',2400):
+            seen,pages=self.collect(groups,40)
+            self.assertEqual(seen,[row for group in groups for row in group])
+            self.assertGreater(len(pages),1);self.assertLess(len(pages),len(groups))
+            self.assertGreater(len(pages[0]['changes']),1)
+            consumed=0
+            for page in pages:
+                # IDs independently reveal the slot boundaries; use count is not slot count.
+                slots=list(dict.fromkeys(int(x['id'].split('-')[0]) for x in page['changes']))
+                self.assertEqual(slots,list(range(consumed,consumed+len(slots))))
+                consumed+=len(slots)
+                self.assertEqual(page['next_offset'],consumed+1 if consumed<len(groups) else None)
+        self.assertEqual(groups,original)
+
+    def test_context_trimming_matches_single_slot_exactly(self):
+        group=[{'kind':'rename_use','before':{'record':{'record_id':'r'},'before':'x'*5000,'after':'y'*5000}}]
+        groups=[[{'id':'first'}],group,[{'id':'last'}]];original=copy.deepcopy(groups)
+        with patch.object(review_pages,'BUDGET',1500):
+            singles,_=self.collect(groups,1);batched,_=self.collect(groups,40)
+        self.assertEqual(batched,singles)
+        self.assertTrue(batched[1]['neighbors_omitted'])
+        self.assertEqual(batched[1]['before']['record'],{'record_id':'r'})
+        self.assertEqual(groups,original)
+
+    def test_continuation_counts_slots_not_flattened_uses(self):
+        groups=[[{'id':i} for i in (0,1)],[{'id':i} for i in (2,3,4)],[{'id':5}]]
+        first=review_pages.pack(self.envelope(1,3),iter(groups),2)
+        self.assertEqual([row['id'] for row in first['changes']],[0,1,2,3,4])
+        self.assertEqual(first['next_offset'],3)
+        last=review_pages.pack(self.envelope(3,3),iter(groups[2:]),2)
+        self.assertEqual(last['changes'],[{'id':5}]);self.assertIsNone(last['next_offset'])
+
+    def test_oversized_middle_slot_delivers_prefix_then_refuses_exact_slot(self):
+        groups=[[{'id':'first'}],[{'id':'large','record':'x'*4000}],[{'id':'last'}]]
+        with patch.object(review_pages,'BUDGET',1500):
+            page=review_pages.pack(self.envelope(1,3),iter(groups),40)
+            self.assertEqual(page['changes'],groups[0]);self.assertEqual(page['next_offset'],2)
+            with self.assertRaisesRegex(ServiceError,'^RESPONSE_TOO_LARGE$') as caught:
+                review_pages.pack(self.envelope(2,3),iter(groups[1:]),40)
+            self.assertEqual(caught.exception.details['offset'],2)
+            self.assertEqual(caught.exception.details['next_offset'],3)
+            last=review_pages.pack(self.envelope(3,3),iter(groups[2:]),40)
+            self.assertEqual(last['changes'],groups[2]);self.assertIsNone(last['next_offset'])
+
+    def test_unrelated_failure_is_not_hidden_by_a_prefix(self):
+        original=review_pages.fit
+        def fail(page):
+            if page['offset']==2:raise ServiceError('GENERATION_INPUT_CHANGED')
+            return original(page)
+        with patch.object(review_pages,'fit',side_effect=fail):
+            with self.assertRaisesRegex(ServiceError,'^GENERATION_INPUT_CHANGED$'):
+                review_pages.pack(self.envelope(1,2),iter([[{'id':1}],[{'id':2}]]),40)
 
 
 class ReadinessTests(unittest.TestCase):

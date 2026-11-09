@@ -153,6 +153,7 @@ class Documents(unittest.TestCase):
         write(old,[row]);write(new,[row,added])
         # Actual review code and CSV reads; assembler views are irrelevant to a ledger-only page.
         fake=SimpleNamespace(ownership=self.ownership,model=lambda g:None,ledger=path,project=self.project,source=self.source,readers=lambda:{},
+            review_metadata=lambda generation,base_generation:{},
             state={'generations':{'base':{'checkout':str(old),'manifest':{}},'head':{'checkout':str(new),'manifest':{},
                 'base':'base','provenance':[{'kind':'ledger_append','rows':[added]}]}}})
         page=RenameService.review.__wrapped__(fake,'head','base',1)
