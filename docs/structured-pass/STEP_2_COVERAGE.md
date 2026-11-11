@@ -947,10 +947,14 @@ counts do not provide a completion percentage or delivery estimate.
 
 ### Early confinement feasibility
 
-The configured Codex implementer and existing Claude reviewer were exercised in
-the pilot; the [client document](CODEX_CLIENT.md) scopes that evidence. Schedule
-the remaining macOS worker investigation during early 2B work, before finalizing
-interfaces that depend on its outcome. Independent 2B work can proceed under
+The pinned [Codex implementer preflight](CODEX_CLIENT.md#established-evidence-and-limits)
+covers structured calls, launch/resume, denial probes, compaction and cleanup;
+self-reconfiguration and child-session routes were unavailable by construction.
+Reference-media access and the reviewer side of the actual-client feasibility
+row remain open. Schedule those items with the macOS worker investigation during
+early 2B, before finalizing interfaces that depend on their outcome.
+
+Independent 2B work can proceed under
 the existing pinned-tool restrictions. Record the platform, tool/client builds,
 configuration, attempted operations, resource bounds and explicit pass/fail
 criteria before execution.
