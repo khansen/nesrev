@@ -258,6 +258,13 @@ and follow `next_offset` until null. Offsets count Unicode characters; `limit`
 defaults to 1,024 and cannot exceed it. Each page includes the full report's hash
 and total character count. The checked canonical report and archive remain complete.
 
+The [Codex implementer adapter](CODEX_CLIENT.md) is a separate opt-in client
+for an existing corridor. Its tested configuration, admission hash checks,
+compaction behavior and evidence limits are documented there. It can work with
+the existing Claude reviewer and does not change the ordinary launcher defaults.
+
+### Claude subscription client
+
 The permission boundary is the restricted client's configuration, not Unix user
 separation. Both services run as the operator and own source, Git and evidence.
 The agent's workspace contains no checkout, snapshots, Git objects or source-model

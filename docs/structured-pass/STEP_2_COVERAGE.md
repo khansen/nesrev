@@ -1,10 +1,10 @@
 # Step 2 operation coverage
 
-Status: the owner has agreed to the staged 2A/2B/2C sequence. Local 2A
-implementation is undergoing acceptance; this document does not grant that
-acceptance. The execution priorities below bring confinement feasibility forward
-and strengthen review preparation without changing operation scope, frozen
-workloads, numeric limits or rollout exit criteria.
+Status: the owner has agreed to the staged 2A/2B/2C sequence. 2A merged in
+PR #176 as `ed07fd8a7`; 2B is the next capability milestone. The separately
+authorized pilot completed review and local application. The execution priorities
+below retain the operation scope, frozen workloads, numeric limits and rollout
+exit criteria; the pilot does not complete 2B, 2C or default rollout.
 
 Baseline: PR #175 merged as `ea2fd0de2`, with service head `40203e10d` and the
 official XORcyst 2.1.0 pin. Step 1 is complete. Step 2 completes the operations
@@ -934,8 +934,10 @@ deferred operation or replace the slice's existing acceptance gates.
 
 ### Execution priorities
 
-The next delivery milestone is accepted and merged 2A. Keep current result hashes,
-remaining acceptance work and carried-forward claims in the review index.
+2A is merged. Keep current result hashes, remaining acceptance work and
+carried-forward claims in the review index. The exercised
+[Codex implementer client](CODEX_CLIENT.md) is an opt-in addition; its client
+evidence does not close the worker or remaining operation requirements.
 
 Plan 2B as the largest remaining implementation effort. S6/S7 must preserve byte
 positions and remap references through representation changes; D7 couples gate
@@ -945,11 +947,13 @@ counts do not provide a completion percentage or delivery estimate.
 
 ### Early confinement feasibility
 
-Schedule these two bounded investigations alongside 2A closure and early 2B work,
-before finalizing interfaces that depend on their outcome. They do not wait for
-2B to finish. Independent 2B work can proceed under the existing pinned-tool
-restrictions. Record the platform, tool/client builds, configuration, attempted
-operations, resource bounds and explicit pass/fail criteria before execution.
+The configured Codex implementer and existing Claude reviewer were exercised in
+the pilot; the [client document](CODEX_CLIENT.md) scopes that evidence. Schedule
+the remaining macOS worker investigation during early 2B work, before finalizing
+interfaces that depend on its outcome. Independent 2B work can proceed under
+the existing pinned-tool restrictions. Record the platform, tool/client builds,
+configuration, attempted operations, resource bounds and explicit pass/fail
+criteria before execution.
 Use minimal disposable harnesses to test feasibility; full service integration
 and acceptance stay in their delivery slices.
 
@@ -1012,10 +1016,14 @@ small fixes reuse existing helpers and hash-pinned evidence.
 
 ### Optional real-pass pilot after 2A
 
-After 2A merges, consider one separately authorized real pass to expose workflow
-friction. Select a non-holdout project through normal next-pass evidence and a
-coherent corridor whose source and supporting-artifact obligations fit accepted
-2A capabilities. Pin the client configuration and pass its access preflight;
+One separately authorized real pass completed service review, external review
+and local application. The exercised Codex client remains opt-in; its
+[acceptance scope and limitations](CODEX_CLIENT.md#established-evidence-and-limits)
+do not establish complete normal-pass coverage or default rollout.
+
+For a separately authorized pilot, select a non-holdout project through normal
+next-pass evidence and a coherent corridor whose source and supporting-artifact
+obligations fit accepted 2A capabilities. Pin the client configuration and pass its access preflight;
 the owner selects the model and run budget. Keep project-tool edits disabled and
 use only the already registered trusted wrapper/tool closures.
 
