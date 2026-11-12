@@ -1,7 +1,7 @@
 # Opt-in structured launcher: decision record
 
 Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
-priority pending the project-status assessment. Implementation awaits the owner's
+priority pending the process assessment. Implementation awaits the owner's
 priority decision; merging this guidance does not start the work. Provider calls,
 profile admission and another project pass require separate owner authorization.
 
@@ -14,10 +14,13 @@ The owner steers between turns. Ordinary interactive launching remains the
 default. This is a candidate integration slice; it does not complete Step 2B,
 2C or default rollout.
 
-The status assessment will compare continuing project passes with the ordinary
-workflow, this structured launcher, and a smaller intervention at the evidenced
-bottleneck. Compare benefit and cost against high-quality disassembly with less
-operator effort. Scope acceptance establishes a bounded option, not its priority.
+The process assessment will compare hardening the ordinary workflow, this
+structured launcher, and a smaller intervention at the measured bottleneck.
+Evaluate each against the [process objective](../MANIFESTO.md): a dependable,
+reusable workflow that can take unfamiliar games from supplied inputs through
+reviewed closeout with minimal bespoke intervention and reliable recovery.
+Account for missing end-to-end capabilities as well as benefit and cost. Scope
+acceptance establishes a bounded option, not its priority.
 
 The driving implementation agent owns the plan, effort accounting and
 [reassessment checkpoint](../../agent_playbook/AGENT_SESSION_OPERATIONS.md#decision-checkpoints).

@@ -265,7 +265,7 @@ the existing Claude reviewer and does not change the ordinary launcher defaults.
 
 The [launcher decision record](LAUNCHER_DECISION.md) defines an opt-in structured
 mode in the existing tmux launcher as a bounded option: scope accepted 2026-11-12,
-priority pending the project-status assessment. Implementation awaits that
+priority pending the process assessment. Implementation awaits that
 priority decision, and live testing requires separate owner authorization.
 
 ### Claude subscription client
