@@ -263,6 +263,12 @@ for an existing corridor. Its tested configuration, admission hash checks,
 compaction behavior and evidence limits are documented there. It can work with
 the existing Claude reviewer and does not change the ordinary launcher defaults.
 
+The [launcher decision record](LAUNCHER_DECISION.md) defines an opt-in structured
+mode in the existing tmux launcher as a bounded option: scope accepted 2026-11-12,
+implementation not selected. The [process assessment](../PROCESS_BASELINE_PLAN.md#assessment)
+recommends a measured fresh start first; the owner's priority decision remains
+pending. Live testing requires separate owner authorization.
+
 ### Claude subscription client
 
 The permission boundary is the restricted client's configuration, not Unix user

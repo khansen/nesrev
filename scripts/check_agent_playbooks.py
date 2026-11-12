@@ -363,11 +363,14 @@ ROOT_WORD_CEILING = 6000
 # Milestone retrospectives add 1L/47W at root and 18L/129W to DOCUMENTATION.
 # Default/data-recovery retain their maximum-route headroom. New-project and
 # project-pass-review regain 50L/150W of headroom above their measured bundles.
+# The process objective and manifesto routing add 13L/84W at root. Raise every
+# route by that measured addition, preserving its existing headroom rather than
+# compressing the mission or weakening the per-pass quality contract.
 ROUTE_BUDGETS = {
-    "default": (3635, 26733),
-    "data-recovery": (3273, 24701),
-    "new-project": (4367, 32158),
-    "project-pass-review": (4745, 33799),
+    "default": (3648, 26817),
+    "data-recovery": (3286, 24785),
+    "new-project": (4380, 32242),
+    "project-pass-review": (4758, 33883),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

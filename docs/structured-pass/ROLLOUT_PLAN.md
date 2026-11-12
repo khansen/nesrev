@@ -8,6 +8,12 @@ to the 2A/2B/2C delivery sequence. 2A merged in PR #176 as `ed07fd8a7`,
 followed by its documentation and review-pagination fixes in PRs #177 and #178.
 The numbers below identify delivery stages, not GitHub PR numbers.
 
+This is a capability dependency sequence, not an automatic next-work queue.
+The [process assessment and baseline plan](../PROCESS_BASELINE_PLAN.md) recommends
+measuring a fresh start before choosing the next investment; owner selection
+and execution authorization remain pending. New-project intake is outside the
+current step-2 parity-pass scope and would need separate coverage.
+
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
 transition state. The trusted service retains source, Git and wrapper execution;

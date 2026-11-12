@@ -1,7 +1,10 @@
 <a id="preamble"></a>
 # Disassembly Documentation Playbook (Reusable)
 
-This file defines a repeatable process for taking a raw NES 6502 disassembly and turning it into a high-confidence, developer-friendly codebase with solid onboarding docs.
+NESrev's product is its reusable reverse-engineering process. The
+[manifesto](docs/MANIFESTO.md) governs repository priorities; read it when
+assessing status or selecting roadmap work. This playbook defines the quality
+and execution contracts for the artifacts used to validate that process.
 
 <a id="mandatory-routing-table"></a>
 ## Mandatory Routing Table
@@ -227,7 +230,17 @@ Retention criteria for optional support docs live at
 <a id="mission"></a>
 ## Mission
 
-Given `Game.asm` (disassembly) and `GameReference.nes` (reference ROM in iNES format), produce a high-readability, maintainable, modifiable disassembly:
+Build a dependable process that can take unfamiliar NES games from supplied
+ROMs and references through recovery, semantic work, runtime evidence,
+independent review and closeout with minimal bespoke intervention. Prioritize
+demonstrable improvements in capability, reliability, recovery and cost across
+games. Existing projects are a validation corpus; their remaining debt does not
+automatically set repository priorities. Recreated artifacts must meet the same
+quality bar, and preservation rules still apply.
+
+Within an authorized pass, given `Game.asm` (disassembly) and `GameReference.nes`
+(reference ROM in iNES format), produce a high-readability, maintainable,
+modifiable disassembly:
 
 - **Primary:** maximize readability and maintainability.
 - **Secondary:** maximize relocatability/editability by removing hardcoded addresses, embedded raw pointers, and hardcoded table/counter sizes wherever symbols or expressions work.

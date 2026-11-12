@@ -1,5 +1,22 @@
 # NESrev
 
+## Purpose
+
+**NESrev's product is the reverse-engineering process.** Given a game's ROM and
+reference material, the aim is one reusable workflow from intake and recovery
+through semantic work, runtime evidence, independent review and closeout, with
+little bespoke intervention, reliable recovery and honest reporting of open
+questions. It must become practical across hundreds of games not yet started.
+
+Disassemblies and documents are artifacts that should be reproducible; existing
+projects provide reusable knowledge and a validation corpus. The
+[NESrev manifesto](docs/MANIFESTO.md) sets the basis for priorities and explains
+how artifact quality tests the process. The instructions below describe the
+current workflow, whose limits remain explicit. The
+[process baseline plan](docs/PROCESS_BASELINE_PLAN.md) records the reconciled
+assessment and a staged fresh-game trial recommendation; selection and execution
+authorization remain pending.
+
 ## Start a project with two agents
 
 One command sets up an implementer, an independent reviewer, and their automatic

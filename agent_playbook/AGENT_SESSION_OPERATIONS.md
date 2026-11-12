@@ -40,11 +40,83 @@ batch and run the required closeout gates; the
   including failed attempts. State timestamp precision and mark missing timing
   unknown. Separate coordination waits where measured; do not infer model thinking
   time or exact turn duration from gaps between reviews.
+- **Explain why a finding blocks this task.** In tooling/process correction
+  rounds, a Required finding must identify an unmet acceptance requirement, a
+  defect that would break the task under its promised operating conditions, or
+  evidence that cannot support the claimed result. Long sessions, compaction and
+  termination count when promised. Additional tests for otherwise correct code
+  and diagnostic polish stay parked unless a concrete risk makes them necessary.
+  This criterion does not narrow game-pass naming, readability, documentation or
+  other quality requirements, and does not waive existing gates or controls.
 
 Reviewers should request additional evidence for a concrete unresolved claim or
 risk, rather than requiring the full acceptance package again for every fix.
 Apply the same impact rules to reviewers' own reruns, including the independent
 checks needed to establish their verdict.
+
+<a id="decision-checkpoints"></a>
+## Decide when to reassess
+
+Before substantial tooling/process integration or a detour, the agent driving
+the work writes a short decision record in the task or PR plan: the outcome
+that justifies the work, acceptance criteria, expected effort and uncertainty,
+parked scope, and explicit reassessment triggers. Separate completing the
+immediate task from building reusable infrastructure. Set an effort or review
+round checkpoint and triggers for a repeated failure class or a subproblem
+becoming its own project; a universal numeric budget is not required.
+The record names the alternatives considered, including continuing the existing
+workflow, and explains why the selected work should take priority.
+Judge that priority against the [process objective](../docs/MANIFESTO.md),
+including the capability or operating limitation the work is meant to address.
+
+The driving agent calls the checkpoint when a trigger is reached, before
+starting another correction round. The reviewer can raise it independently.
+The owner decides whether to continue, change scope or stop. A passed review
+round does not establish that continuing is worthwhile. Record the decision;
+unused budget does not authorize retries, inference or additional work.
+At milestone completion, use the existing
+[retrospective guidance](DOCUMENTATION.md#milestone-retrospectives).
+
+<a id="delivered-inputs"></a>
+## Review delivered inputs and observe the real path
+
+Before the first live run of a new integration, and after relevant input changes,
+read each role's complete assembled input: base prompt, handoff text and owner
+message. Apply the existing
+[role-consistency checks](../docs/structured-pass/CODEX_CLIENT.md#admission-and-execution)
+to those delivered bytes, not just the changed fragment. Check combined
+instructions for conflicting duties, call sequences and stop rules.
+
+Observe the smallest authorized real-client execution early enough to inform
+fixtures and acceptance checks, including the intended successful path and the
+changed failure behavior. Record the actual protocol and configuration; label
+synthetic assumptions and provider differences. Use
+[proportionate verification](#proportionate-verification) to determine subsequent
+checks. A smoke result establishes only what it exercised.
+
+<a id="stop-classification"></a>
+## Classify results before choosing a remedy
+
+Persist observations before parsing or classifying them, including partial
+output, canary observations and process/cleanup results where collected. A
+parser refusal must not discard the evidence needed to understand the stop.
+Keep failed attempts intact and distinguish missing observations from negative
+observations.
+
+| Result | Response |
+| --- | --- |
+| Completed turn with handoff | Follow the authoritative handoff state; exit zero alone does not prove completion. |
+| Normal return without handoff | Show unfinished work and wait for explicit owner continuation. |
+| Budget or deadline stop | Report the exhausted allowance; an extension is an owner decision. |
+| Containment breach | Stop affected execution and block reuse pending investigation and review. |
+| Unfamiliar evidence | Stop, preserve observations and investigate whether the behavior fits the accepted contract. |
+| Inconclusive evidence | Stop without claiming acceptance; identify the missing proof for the next decision. |
+
+Classify from the available evidence before prescribing a change. An unfamiliar
+result does not authorize a wider allow rule, and an inconclusive result does
+not authorize a retry or weaker proof. Keep operational failure, evidence
+failure and unfinished task state distinct. Proposed durable changes still use
+[process-learning triage](REVIEW_AUDITS.md#process-learning-triage).
 
 <a id="coordinator-observations"></a>
 ## Preserve observed friction
