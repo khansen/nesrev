@@ -1,0 +1,8 @@
+{
+  "type": "compaction",
+  "id": "cmp_synthetic_observed_shape",
+  "encrypted_content": "synthetic-opaque-content-not-a-credential",
+  "internal_chat_message_metadata_passthrough": {
+    "turn_id": "synthetic-turn"
+  }
+}

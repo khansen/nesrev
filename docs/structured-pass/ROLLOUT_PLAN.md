@@ -4,7 +4,8 @@ Status: step 1 is complete: [PR #175](https://github.com/khansen/nesrev/pull/175
 merged as `ea2fd0de2`, including service head `40203e10d`. Steps 2 and 3 are not
 complete. The [step-2 coverage baseline](STEP_2_COVERAGE.md) maps required
 operations, ownership, replays and frozen operating limits. The owner has agreed
-to the 2A/2B/2C delivery sequence; local 2A implementation is undergoing acceptance.
+to the 2A/2B/2C delivery sequence. 2A merged in PR #176 as `ed07fd8a7`,
+followed by its documentation and review-pagination fixes in PRs #177 and #178.
 The numbers below identify delivery stages, not GitHub PR numbers.
 
 The destination is ordinary full-scale project passes in which implementers and
@@ -89,20 +90,22 @@ It also records what to reuse from the earlier analysis-query branches and what
 remains unmeasured. Its delivery split keeps every obligation below; it does
 not authorize a narrower definition of normal passes.
 
-The next milestone is accepted and merged 2A, making source editing and its
-supported artifacts available for a substantial class of static passes. 2B
-contains the larger remaining implementation effort: recovery, artifact and
-policy writers, coordinated migration and wrapper coverage. Bring macOS worker
-isolation and actual-client confinement feasibility forward alongside 2A closure
-and early 2B, before fixing interfaces that depend on them; integrated runtime
-acceptance remains in 2C. The coverage plan owns the
+2A makes source editing and its supported artifacts available for a substantial
+class of static passes. The next capability milestone is 2B: recovery, artifact
+and policy writers, coordinated migration and wrapper coverage. The opt-in
+[Codex client](CODEX_CLIENT.md) has passed its configured access preflight and
+completed its role in a real pass on a local project branch. That evidence is
+specific to the tested client configuration. macOS worker isolation remains an
+early 2B investigation, before fixing interfaces that depend on it; integrated
+runtime acceptance remains in 2C. The coverage plan owns the
 [execution priorities](STEP_2_COVERAGE.md#execution-priorities),
 [feasibility criteria](STEP_2_COVERAGE.md#early-confinement-feasibility) and
 [review preparation](STEP_2_COVERAGE.md#review-preparation-for-each-slice).
 
-An [optional real-pass pilot after 2A](STEP_2_COVERAGE.md#optional-real-pass-pilot-after-2a)
-can test usability within that slice after separate owner authorization. It
-neither changes the default workflow nor replaces step 3's broader acceptance.
+The separately authorized [real-pass pilot after 2A](STEP_2_COVERAGE.md#optional-real-pass-pilot-after-2a)
+completed service review, external review and local application. It tested
+usability within that slice; it neither changes the default workflow nor replaces
+step 3's broader acceptance.
 
 The following are the minimum areas to resolve, not claims of current support:
 
@@ -139,10 +142,10 @@ The following are the minimum areas to resolve, not claims of current support:
   non-regression requirements. Shared locking and cleanup prevent concurrent
   cooperating runs from exceeding the planned disk allowance.
 - Corpus, affected wrapper and service regressions pass. Independent review and
-  CI pass, and the authorized PR is merged.
+  CI pass, and the authorized PRs are merged.
 
-Keep this PR bounded by the frozen checklist. If it cannot fit in one reviewable
-PR, propose a split before expanding the work; the completion gates do not change.
+Keep each PR bounded by its agreed slice of the frozen checklist. Propose any
+further split before expanding the work; the completion gates do not change.
 A requested deferral that narrows "normal passes" needs an explicit owner decision
 and an updated rollout claim. Missing producer facts are fixed in XORcyst under
 its own contract/review rather than reconstructed in NESrev.
