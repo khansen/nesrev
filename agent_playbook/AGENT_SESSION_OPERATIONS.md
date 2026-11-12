@@ -64,6 +64,8 @@ parked scope, and explicit reassessment triggers. Separate completing the
 immediate task from building reusable infrastructure. Set an effort or review
 round checkpoint and triggers for a repeated failure class or a subproblem
 becoming its own project; a universal numeric budget is not required.
+The record names the alternatives considered, including continuing the existing
+workflow, and explains why the selected work should take priority.
 
 The driving agent calls the checkpoint when a trigger is reached, before
 starting another correction round. The reviewer can raise it independently.

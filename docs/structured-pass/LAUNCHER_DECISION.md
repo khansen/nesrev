@@ -1,8 +1,9 @@
 # Opt-in structured launcher: decision record
 
-Date: 12 November 2026. Status: scope accepted 2026-11-12.
-Implementation follows merge of this guidance. Provider calls, profile admission
-and another project pass require separate owner authorization.
+Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
+priority pending the project-status assessment. Implementation awaits the owner's
+priority decision; merging this guidance does not start the work. Provider calls,
+profile admission and another project pass require separate owner authorization.
 
 ## Outcome and boundary
 
@@ -10,8 +11,13 @@ Make the exercised structured workflow launchable through
 `scripts/agent_review_tmux.py --workflow structured`. Reuse the existing review
 store and notifier interface; tmux displays supervised headless turn output.
 The owner steers between turns. Ordinary interactive launching remains the
-default. This is an integration slice ahead of further Step 2B work, not
-completion of 2B, 2C or default rollout.
+default. This is a candidate integration slice; it does not complete Step 2B,
+2C or default rollout.
+
+The status assessment will compare continuing project passes with the ordinary
+workflow, this structured launcher, and a smaller intervention at the evidenced
+bottleneck. Compare benefit and cost against high-quality disassembly with less
+operator effort. Scope acceptance establishes a bounded option, not its priority.
 
 The driving implementation agent owns the plan, effort accounting and
 [reassessment checkpoint](../../agent_playbook/AGENT_SESSION_OPERATIONS.md#decision-checkpoints).
@@ -116,5 +122,5 @@ with a concrete dependency or new evidence and an explicit scope decision.
 
 This record applies selected lessons from the
 [pilot retrospective](../retros/2026-11-12-structured-pass-pilot.md); it does not
-turn the retrospective's remaining observations into work. Live-test authorization
-will be requested separately when the notifier path is ready for the smoke test.
+turn the retrospective's remaining observations into work. If selected, live-test
+authorization will be requested when the notifier path is ready for the smoke test.
