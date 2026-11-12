@@ -366,11 +366,13 @@ ROOT_WORD_CEILING = 6000
 # The process objective and manifesto routing add 13L/84W at root. Raise every
 # route by that measured addition, preserving its existing headroom rather than
 # compressing the mission or weakening the per-pass quality contract.
+# Initial-handoff recovery and article preservation add 6L/64W to TOOLING.
+# Preserve headroom for the affected route maxima; new-project is unchanged.
 ROUTE_BUDGETS = {
-    "default": (3648, 26817),
-    "data-recovery": (3286, 24785),
+    "default": (3654, 26881),
+    "data-recovery": (3292, 24849),
     "new-project": (4380, 32242),
-    "project-pass-review": (4758, 33883),
+    "project-pass-review": (4764, 33947),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -531,6 +531,10 @@ Implemented subcommands:
 - `ready` - validate clean committed state, write/update the implementation
   note, optionally generate and validate a packet, and set
   `READY_FOR_REVIEW`.
+  For an initial packet failure followed by a committed repair, `--head HEAD`
+  accepts a descendant of the saved head and requires explicit packet input or
+  regeneration for that head. The original base, run and round stay unchanged;
+  failed validation leaves state and reviewer delivery unchanged.
 - `request-changes` - validate a review file, set `CHANGES_REQUESTED`, and
   point the implementation agent at the next prompt.
 - `approve` - validate a review file, set `APPROVED`, and notify the
@@ -720,10 +724,10 @@ Changes-requested path:
 
 Dirty tree at handoff:
 
-- `ready` should refuse a dirty implementation tree unless all changes are
-  explicitly marked as untracked/ignored review artifacts.
-- `archive` also requires a clean tracked tree before creating the tracked
-  review artifact; commit the archive before starting the next handoff.
+- `ready`, `reready`, packet generation and `archive` refuse tracked changes
+  outside `articles/`. Article drafts are not gate inputs and remain untouched,
+  including their index entries. Project, tooling and shared inputs stay guarded.
+  Commit the archive before starting the next handoff.
 
 Stale state:
 
@@ -935,8 +939,8 @@ Resolved for v1:
    run.
 5. The reviewer may write protocol review files under `.agents/runs/`, but
    project-pass review remains read-only over implementation files.
-6. `ready` and `reready` check tracked dirty state only; unrelated untracked
-   local files are tolerated.
+6. `ready` and `reready` check tracked dirty state outside `articles/`;
+   unrelated untracked local files and tracked article drafts are tolerated.
 7. Re-review covers the original base through the latest head.
 8. V1 transport is tmux notification between already-running, paste-aware agent
    panes.

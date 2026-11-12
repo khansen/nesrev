@@ -48,9 +48,11 @@ if [[ "${CURRENT_SHA}" != "${HEAD_SHA}" ]]; then
   exit 2
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet; then
+# Match agent_review.py: article drafts are not project-gate inputs.
+REVIEW_PATHS=(. ':(exclude)articles/')
+if ! git diff --quiet -- "${REVIEW_PATHS[@]}" || ! git diff --cached --quiet -- "${REVIEW_PATHS[@]}"; then
   echo "error: tracked working tree changes would make gate evidence stale" >&2
-  echo "commit, stash, or discard tracked changes before generating a packet" >&2
+  echo "commit the project repair before generating a packet; leave unrelated article edits alone" >&2
   exit 2
 fi
 
@@ -59,7 +61,8 @@ trap 'rm -rf "${PACKET_SCRATCH}"' EXIT
 STATE_INTEGRITY=pass
 
 state_is_current() {
-  [[ "$(git rev-parse HEAD)" == "${HEAD_SHA}" ]] && git diff --quiet && git diff --cached --quiet
+  [[ "$(git rev-parse HEAD)" == "${HEAD_SHA}" ]] &&
+    git diff --quiet -- "${REVIEW_PATHS[@]}" && git diff --cached --quiet -- "${REVIEW_PATHS[@]}"
 }
 
 if ! git diff --quiet "${BASE_SHA}..${HEAD_SHA}" -- "${PROJECT_PATH}"; then

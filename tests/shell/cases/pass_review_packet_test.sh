@@ -351,6 +351,36 @@ test_packet_complete_inventory_includes_root_only_and_reverted_paths() {
   assert_match 'Complete Changed Path Inventory' "${out}"
 }
 
+test_packet_preserves_dirty_articles_without_skipping_gates() {
+  local repo="${NESREV_TEST_TMPDIR}/article" base head out
+  _init_packet_repo "${repo}" demo
+  base="$(git -C "${repo}" rev-parse HEAD~2)"
+  mkdir -p "${repo}/articles"
+  printf 'Original article\n' > "${repo}/articles/draft.md"
+  git -C "${repo}" add articles/draft.md
+  git -C "${repo}" commit -qm 'Article baseline'
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  printf 'Staged owner work\n' >> "${repo}/articles/draft.md"
+  git -C "${repo}" add articles/draft.md
+  printf 'Unstaged owner work\n' >> "${repo}/articles/draft.md"
+  git -C "${repo}" diff --binary > "${NESREV_TEST_TMPDIR}/unstaged-before"
+  git -C "${repo}" diff --cached --binary > "${NESREV_TEST_TMPDIR}/staged-before"
+  _write_make_stub "${NESREV_TEST_TMPDIR}/make-stub"
+  out="$(cd "${repo}" && MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" bash scripts/project_pass_review_packet.sh demo "${base}" "${head}")"
+  assert_match '"status": "pass"' "${out}"
+  assert_match 'stub make project-verify' "${out}"
+  assert_match 'stub make project-process-check' "${out}"
+  assert_match 'stub make project-docs-check' "${out}"
+  git -C "${repo}" diff --binary > "${NESREV_TEST_TMPDIR}/unstaged-after"
+  git -C "${repo}" diff --cached --binary > "${NESREV_TEST_TMPDIR}/staged-after"
+  cmp "${NESREV_TEST_TMPDIR}/unstaged-before" "${NESREV_TEST_TMPDIR}/unstaged-after"
+  cmp "${NESREV_TEST_TMPDIR}/staged-before" "${NESREV_TEST_TMPDIR}/staged-after"
+  out="$(cd "${repo}" && PACKET_TEST_DIRTY_PATH="${repo}/articles/draft.md" MAKE_BIN="${NESREV_TEST_TMPDIR}/make-stub" \
+    bash scripts/project_pass_review_packet.sh demo "${base}" "${head}")"
+  assert_match '"state_integrity": "pass"' "${out}"
+  assert_match 'stub make project-verify' "${out}"
+}
+
 test_packet_cold_cache_is_prepared_before_dependent_commands() {
   local repo="${NESREV_TEST_TMPDIR}/cold_cache" slug="demo"
   _init_packet_repo "${repo}" "${slug}"

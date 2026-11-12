@@ -174,6 +174,10 @@ literal dollar signs and apostrophes; no `$$` escaping is required.
 `start-pass` and `init` refuse to replace any non-APPROVED run. Resume an
 `IMPLEMENTING` run with `ready --note <existing-note> --generate-packet`, use
 `reready` for requested changes, or wait for review. Exhausted rounds need user input.
+If packet generation failed and a committed repair advanced HEAD, use
+`ready --head HEAD --note <updated-note> --generate-packet`. It keeps the run,
+base and round, accepts only a descendant repair without tooling changes, and
+updates state only after the new packet passes. Do not edit saved state by hand.
 
 Pass `BASE=<ref>`, `HEAD=<ref>`, `RUN_ID=<id>`, or `MAX_ROUNDS=<n>` to the
 wrapper for those overrides. Use lower-level `init` plus
@@ -221,8 +225,10 @@ project, pass id, scorecard row, path, and review-time SHA range; the durable
 key is project plus pass archive path because rebases may orphan SHAs. Packets,
 prompts, `.seen` files, and `current.json` stay ignored under `.agents/`;
 regenerate packets from the review-time range only while those SHAs remain
-reachable. Archive requires a clean tracked tree. Commit its output before the
-next handoff: `ready` and `reready` also refuse tracked dirty state.
+reachable. Archive, handoff and packet generation require clean tracked inputs,
+except `articles/`, which is not used by project gates. Leave article drafts and
+their staging unchanged; other tracked paths remain guarded. Commit the archive
+before the next handoff.
 When artifacts contain non-empty `## Learning Candidates` sections, `archive`
 also appends or updates a generated block in
 `projects/<slug>/PROCESS_FRICTION.md`. `_None._` is the explicit no-op marker.

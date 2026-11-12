@@ -148,6 +148,166 @@ _wait_for_log() {
   fail "timed out waiting for ${label}"
 }
 
+test_agent_review_recovers_initial_packet_failure_after_committed_repair() {
+  local repo="${NESREV_TEST_TMPDIR}/recovery" base head output rc
+  local run_id=demo-pass-1 note=.agents/runs/demo-pass-1/implementation.md
+  local stub_dir="${NESREV_TEST_TMPDIR}/bin" counter="${NESREV_TEST_TMPDIR}/calls"
+  local notify="${NESREV_TEST_TMPDIR}/notify" log="${NESREV_TEST_TMPDIR}/notify.log"
+  _init_agent_review_repo "${repo}"
+  base="$(git -C "${repo}" rev-parse HEAD~1)"
+  mkdir -p "${repo}/articles" "${stub_dir}"
+  printf 'Original article\n' > "${repo}/articles/draft.md"
+  git -C "${repo}" add articles/draft.md
+  git -C "${repo}" commit -qm 'Article baseline'
+  printf 'Unrelated owner draft\n' >> "${repo}/articles/draft.md"
+  _write_agent_review_make_stub "${stub_dir}/make" failure "${counter}"
+  export PATH="${stub_dir}:${PATH}"
+
+  set +e
+  output="$(cd "${repo}" && python3 scripts/agent_review.py start-pass \
+    --project demo --pass-id 1 --base "${base}" 2>&1)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 2
+  assert_match 'Project Verify Gate' "${output}"
+  assert_eq "$(_json_field "${repo}" status)" IMPLEMENTING
+  cp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+
+  printf '\n; project repair\n' >> "${repo}/projects/demo/asm/demo.asm"
+  git -C "${repo}" add projects/demo/asm/demo.asm
+  git -C "${repo}" commit -qm 'Repair project input'
+  head="$(git -C "${repo}" rev-parse HEAD)"
+  # Preserve both an article's staged version and its different worktree version.
+  git -C "${repo}" add articles/draft.md
+  printf 'Further owner work\n' >> "${repo}/articles/draft.md"
+  git -C "${repo}" diff --binary > "${NESREV_TEST_TMPDIR}/unstaged-before"
+  git -C "${repo}" diff --cached --binary > "${NESREV_TEST_TMPDIR}/staged-before"
+  printf 'Repair committed at %s; packet is authoritative.\n' "${head}" > "${repo}/${note}"
+
+  local scenario
+  for scenario in unchanged no-packet stale-packet failed-packet; do
+    local args=(ready --note "${note}")
+    case "${scenario}" in
+      unchanged) args+=(--generate-packet) ;;
+      no-packet) args+=(--head HEAD) ;;
+      stale-packet) args+=(--head HEAD --packet .agents/runs/demo-pass-1/packet-round-01.md) ;;
+      failed-packet) args+=(--head HEAD --generate-packet) ;;
+    esac
+    set +e
+    output="$(cd "${repo}" && python3 scripts/agent_review.py "${args[@]}" 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2 "${scenario} must not hand off"
+    cmp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+    [[ ! -f "${repo}/.agents/runs/${run_id}/prompts/01-ready-for-review-reviewer.md" ]]
+  done
+
+  _write_agent_review_make_stub "${stub_dir}/make" ok "${counter}"
+  (cd "${repo}" && python3 scripts/agent_review.py ready --head HEAD --note "${note}" --generate-packet)
+  assert_eq "$(_json_field "${repo}" review_head)" "${head}"
+  assert_eq "$(_json_field "${repo}" implementation_commit)" "${head}"
+  assert_eq "$(_json_field "${repo}" review_base)" "${base}"
+  assert_eq "$(_json_field "${repo}" round)" 1
+  assert_eq "$(_json_field "${repo}" run_id)" "${run_id}"
+  assert_eq "$(_json_field "${repo}" status)" READY_FOR_REVIEW
+  _write_agent_notify_stub "${notify}" "${log}"
+  (cd "${repo}" && python3 scripts/agent_review.py watch --role reviewer --notify "${notify}" --once)
+  set +e
+  output="$(cd "${repo}" && python3 scripts/agent_review.py watch --role reviewer --notify "${notify}" --once)"
+  rc=$?
+  set -e
+  assert_eq "${rc}" 3
+  assert_match 'no new reviewer turn' "${output}"
+  assert_eq "$(grep -c '^reviewer|' "${log}")" 1
+  assert_match "${base}..${head}" "$(cat "${log}")"
+
+  # The same unrelated edits must also survive rereview and archive guards.
+  printf 'Verdict: CHANGES_REQUESTED\n' > "${repo}/.agents/runs/${run_id}/review-01.md"
+  printf 'Clarification; no source edit needed.\n' > "${repo}/.agents/runs/${run_id}/response-01.md"
+  (cd "${repo}" && python3 scripts/agent_review.py request-changes --review ".agents/runs/${run_id}/review-01.md")
+  (cd "${repo}" && python3 scripts/agent_review.py reready --head HEAD --generate-packet \
+    --response ".agents/runs/${run_id}/response-01.md")
+  printf 'Verdict: APPROVED\n' > "${repo}/.agents/runs/${run_id}/review-02.md"
+  (cd "${repo}" && python3 scripts/agent_review.py approve --review ".agents/runs/${run_id}/review-02.md")
+  (cd "${repo}" && python3 scripts/agent_review.py archive --pass-id 1)
+  git -C "${repo}" diff --binary > "${NESREV_TEST_TMPDIR}/unstaged-after"
+  git -C "${repo}" diff --cached --binary > "${NESREV_TEST_TMPDIR}/staged-after"
+  cmp "${NESREV_TEST_TMPDIR}/unstaged-before" "${NESREV_TEST_TMPDIR}/unstaged-after"
+  cmp "${NESREV_TEST_TMPDIR}/staged-before" "${NESREV_TEST_TMPDIR}/staged-after"
+}
+
+test_agent_review_recovery_rejects_unsafe_heads_and_dirty_inputs() {
+  local scenario repo base head output rc path
+  for scenario in rewind tooling project-dirty project-staged tooling-dirty tooling-staged; do
+    repo="${NESREV_TEST_TMPDIR}/${scenario}"
+    _init_agent_review_repo "${repo}"
+    base="$(git -C "${repo}" rev-parse HEAD~1)"
+    head="$(git -C "${repo}" rev-parse HEAD)"
+    (cd "${repo}" && python3 scripts/agent_review.py init --project demo --base "${base}" --head "${head}" --run-id recovery)
+    printf 'Implementation\n' > "${repo}/.agents/runs/recovery/note.md"
+    cp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+    case "${scenario}" in
+      rewind) git -C "${repo}" checkout -q "${base}" ;;
+      tooling)
+        printf 'Changed tooling\n' > "${repo}/scripts/new-tool"
+        git -C "${repo}" add scripts/new-tool
+        git -C "${repo}" commit -qm 'Tooling change' ;;
+      *dirty|*staged)
+        path=projects/demo/asm/demo.asm
+        [[ "${scenario}" != tooling-* ]] || path=scripts/agent_review.py
+        printf '\n# Changed input\n' >> "${repo}/${path}"
+        [[ "${scenario}" != *staged ]] || git -C "${repo}" add "${path}" ;;
+    esac
+    _write_agent_packet "${repo}/.agents/runs/recovery/packet.md" "$(git -C "${repo}" rev-parse HEAD)"
+    set +e
+    output="$(cd "${repo}" && python3 scripts/agent_review.py ready --head HEAD \
+      --note .agents/runs/recovery/note.md --packet .agents/runs/recovery/packet.md 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2 "${scenario} must refuse"
+    case "${scenario}" in
+      rewind) assert_match 'must descend' "${output}" ;;
+      tooling) assert_match 'process/tooling paths' "${output}" ;;
+      *) assert_match 'tracked working tree changes' "${output}" ;;
+    esac
+    cmp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+  done
+}
+
+test_agent_review_ready_rechecks_inputs_after_packet_generation() {
+  local scenario repo stub_dir counter base head output rc
+  for scenario in dirty head; do
+    repo="${NESREV_TEST_TMPDIR}/${scenario}"
+    stub_dir="${NESREV_TEST_TMPDIR}/${scenario}-bin"
+    counter="${NESREV_TEST_TMPDIR}/${scenario}-calls"
+    _init_agent_review_repo "${repo}"
+    base="$(git -C "${repo}" rev-parse HEAD~1)"
+    head="$(git -C "${repo}" rev-parse HEAD)"
+    (cd "${repo}" && python3 scripts/agent_review.py init --project demo --base "${base}" --head "${head}" --run-id recovery)
+    printf 'Implementation\n' > "${repo}/.agents/runs/recovery/note.md"
+    cp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+    mkdir -p "${stub_dir}"
+    _write_agent_review_make_stub "${stub_dir}/make" ok "${counter}"
+    if [[ "${scenario}" == dirty ]]; then
+      printf '\nprintf "\\nchanged\\n" >> projects/demo/asm/demo.asm\n' >> "${stub_dir}/make"
+    else
+      printf '\ngit commit -qm "Concurrent commit" --allow-empty\n' >> "${stub_dir}/make"
+    fi
+    set +e
+    output="$(cd "${repo}" && PATH="${stub_dir}:${PATH}" python3 scripts/agent_review.py ready \
+      --head HEAD --note .agents/runs/recovery/note.md --generate-packet 2>&1)"
+    rc=$?
+    set -e
+    assert_eq "${rc}" 2
+    if [[ "${scenario}" == dirty ]]; then
+      assert_match 'tracked working tree changes' "${output}"
+    else
+      assert_match 'review head must be checked out' "${output}"
+    fi
+    cmp "${repo}/.agents/current.json" "${NESREV_TEST_TMPDIR}/saved-state.json"
+  done
+}
+
 test_agent_review_relay_round_trip_between_roles() {
   local repo="${NESREV_TEST_TMPDIR}/agent_review_repo"
   _init_agent_review_repo "${repo}"
