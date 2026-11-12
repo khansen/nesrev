@@ -1,8 +1,8 @@
 # Opt-in structured launcher: decision record
 
-Date: 12 November 2026. Status: draft for scope review. This record authorizes
-neither implementation nor provider calls, profile admission or another project
-pass. The owner has authorized preparing the guidance and this record.
+Date: 12 November 2026. Status: scope accepted 2026-11-12.
+Implementation follows merge of this guidance. Provider calls, profile admission
+and another project pass require separate owner authorization.
 
 ## Outcome and boundary
 
@@ -116,5 +116,5 @@ with a concrete dependency or new evidence and an explicit scope decision.
 
 This record applies selected lessons from the
 [pilot retrospective](../retros/2026-11-12-structured-pass-pilot.md); it does not
-turn the retrospective's remaining observations into work. Owner acceptance of
-the scope and live-test authorization are the next decisions before execution.
+turn the retrospective's remaining observations into work. Live-test authorization
+will be requested separately when the notifier path is ready for the smoke test.
