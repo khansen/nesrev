@@ -68,6 +68,8 @@ prompts under the existing
 [input-review guidance](../agent_playbook/AGENT_SESSION_OPERATIONS.md#delivered-inputs).
 Record existing broader grants; the requested mode alone does not prove the
 effective boundary. A mode change ends the frozen segment and must be disclosed.
+Include log preservation in the frozen setup: keep private copies of the relevant
+session logs before automatic client cleanup and before reducing them.
 
 Do not change tooling or permission profiles during a measured segment. Record
 an unexpected dependency and stop for a decision. Any authorized correction
@@ -80,7 +82,7 @@ stable while the run depends on them.
 
 | Stage | Proposed bound and endpoint |
 | --- | --- |
-| Preparation | At most two active agent hours. Complete the existing setup checks, input/configuration record and measurement plan. Optionally spend up to one hour of this allowance checking historical usage-log coverage to inform the token allowance. Do not build a telemetry framework. |
+| Preparation | At most two active agent hours. Complete the existing setup checks, input/configuration record and measurement plan. Optionally spend up to one hour of this allowance checking usage-log coverage for a recent completed pass whose logs remain within retention, to inform the token allowance. Do not build a telemetry framework. |
 | Stage 1 | One eight-hour elapsed observation window from the first trial model invocation, including readiness turns and quota/coordination waits. Record the achieved scope or earlier stop. This is a spending limit, not a prediction of game completion. |
 | Checkpoint | If a sufficiently important bottleneck is clear, recommend the intervention. Otherwise report what remains unknown and propose the smallest further observation. |
 | Possible stage 2 | Separately budget and authorize remaining static work and independent review against the existing criteria, with runtime gaps explicit. This is not a new mechanical maturity gate. |
@@ -105,9 +107,11 @@ will stop/checkpoint the roles at the deadline using the existing controls.
 <a id="measurement"></a>
 ## Measurement and evidence
 
-Use existing logs, handoff records and review archives. The driving agent owns
-the record and checkpoints; the owner supplies actual active-time estimates
-where logs cannot establish them. Preserve observations before reducing them.
+Use existing logs, handoff records and review archives. The coordinating agent
+outside the trial owns measurement and checkpoints; the trial implementer and
+reviewer receive the unmodified default task, without measurement duties.
+The owner supplies actual active-time estimates where logs cannot establish
+them. Preserve observations before reducing them.
 
 | Measure | Record and limitation |
 | --- | --- |
