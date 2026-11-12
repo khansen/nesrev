@@ -795,3 +795,21 @@ Do not move stale current text into historical records to evade validation.
 Restore provenance only from preserved originals, through reviewed commits with
 source citations and explicit evidence gaps. Never invent history or rewrite
 Git history. Follow the [PI-9 repair plan](../PROCESS_IMPROVEMENT_PLAN.md#pi-9-provenance-restoration).
+
+<a id="milestone-retrospectives"></a>
+## Milestone retrospectives
+
+Keep retrospectives honest, constructive and proportionate to the milestone.
+Record the intended and actual outcomes, evidence limits, what worked, the
+causes of friction, and suggested improvements. Explain decisions and process
+without assigning blame. Distinguish observations from interpretations and
+unverified reports; reconcile stale findings before carrying them forward.
+Use existing evidence rather than starting a new test campaign solely to write
+the retrospective. A short account is enough for most milestones.
+
+Store shared tooling and process retrospectives as dated Markdown files in
+`docs/retros/`, with a descriptive topic in the filename. Game retrospectives
+belong under `projects/<slug>/`. Retrospectives preserve learning and may suggest
+changes; they do not themselves establish policy, authorize implementation or
+turn every observation into a required task. Decide proposed rule and workflow
+changes separately.
