@@ -12,7 +12,10 @@ Disassemblies and documents are artifacts that should be reproducible; existing
 projects provide reusable knowledge and a validation corpus. The
 [NESrev manifesto](docs/MANIFESTO.md) sets the basis for priorities and explains
 how artifact quality tests the process. The instructions below describe the
-current workflow, whose limits remain explicit.
+current workflow, whose limits remain explicit. The
+[process baseline plan](docs/PROCESS_BASELINE_PLAN.md) records the reconciled
+assessment and a staged fresh-game trial recommendation; selection and execution
+authorization remain pending.
 
 ## Start a project with two agents
 

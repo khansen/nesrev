@@ -1,8 +1,9 @@
 # Opt-in structured launcher: decision record
 
 Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
-priority pending the process assessment. Implementation awaits the owner's
-priority decision; merging this guidance does not start the work. Provider calls,
+implementation not selected. The [process assessment](../PROCESS_BASELINE_PLAN.md#assessment)
+recommends a measured fresh start first; the owner's priority decision remains
+pending. Merging this guidance does not start the work. Provider calls,
 profile admission and another project pass require separate owner authorization.
 
 ## Outcome and boundary
@@ -14,13 +15,14 @@ The owner steers between turns. Ordinary interactive launching remains the
 default. This is a candidate integration slice; it does not complete Step 2B,
 2C or default rollout.
 
-The process assessment will compare hardening the ordinary workflow, this
-structured launcher, and a smaller intervention at the measured bottleneck.
-Evaluate each against the [process objective](../MANIFESTO.md): a dependable,
-reusable workflow that can take unfamiliar games from supplied inputs through
-reviewed closeout with minimal bespoke intervention and reliable recovery.
-Account for missing end-to-end capabilities as well as benefit and cost. Scope
-acceptance establishes a bounded option, not its priority.
+The [baseline plan](../PROCESS_BASELINE_PLAN.md) compares hardening the ordinary
+workflow, this structured launcher, a smaller intervention at a measured
+bottleneck, and structural coverage gaps. It recommends staged measurement
+before choosing an investment, unless existing evidence already justifies a
+direct fix. Evaluate that choice against the [process objective](../MANIFESTO.md).
+New-project intake is outside the currently specified 2B/2C coverage; this
+launcher does not close that gap. Scope acceptance establishes a bounded option,
+not its priority. The baseline plan owns the proposed trial and its decisions.
 
 The driving implementation agent owns the plan, effort accounting and
 [reassessment checkpoint](../../agent_playbook/AGENT_SESSION_OPERATIONS.md#decision-checkpoints).
