@@ -163,6 +163,7 @@ tool effects; preflight must independently prove pre-execution denial.
 Record the actual offered tools and phase process tree; no child
 Codex, daemon, bridge or hook may survive phase cleanup.
 
+<a id="admission-and-execution"></a>
 ## Admission and execution
 
 Pin both the client and installed code-mode host by SHA-256. Before calling
