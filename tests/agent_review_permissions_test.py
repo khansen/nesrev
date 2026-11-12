@@ -127,6 +127,16 @@ class PermissionTests(unittest.TestCase):
                     self.assertIn("--project must be supplied exactly once", result.stderr)
                     self.assertFalse((self.root / ".agents").exists())
 
+    def test_initial_handoff_recovery_is_an_implementer_grant(self):
+        grant = review.script_argv(self.root) + ["ready"]
+        self.assertIn(grant, permissions.grants(self.root, "demo", "implementer"))
+        self.assertNotIn(grant, permissions.grants(self.root, "demo", "reviewer"))
+        args = review.build_parser().parse_args([
+            "ready", "--head", "HEAD", "--note", "repair.md", "--generate-packet",
+        ])
+        self.assertEqual(args.head, "HEAD")
+        self.assertTrue(args.generate_packet)
+
     def test_decline_and_eof_do_not_install_anything(self):
         for answer in ("", "no", "y"):
             with self.assertRaisesRegex(review.UserError, "declined"):

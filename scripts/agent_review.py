@@ -279,8 +279,10 @@ def ensure_project_pass_range(root: Path, base_sha: str, head_sha: str) -> None:
 
 
 def ensure_clean_tracked(root: Path) -> None:
-    unstaged = subprocess.run(["git", "diff", "--quiet"], cwd=root)
-    staged = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=root)
+    # Articles are not inputs to project gates; preserve their worktree and index.
+    paths = ["--", ".", ":(exclude)articles/"]
+    unstaged = subprocess.run(["git", "diff", "--quiet", *paths], cwd=root)
+    staged = subprocess.run(["git", "diff", "--cached", "--quiet", *paths], cwd=root)
     if unstaged.returncode != 0 or staged.returncode != 0:
         raise UserError("tracked working tree changes would make handoff stale")
 
@@ -822,9 +824,25 @@ def command_ready(args: argparse.Namespace) -> int:
     if state["status"] != "IMPLEMENTING":
         raise UserError(f"ready requires IMPLEMENTING, got {state['status']}")
     ensure_clean_tracked(root)
+    if getattr(args, "head", None) is not None:
+        head_sha = git_commit(args.head, root)
+        ensure_head(root, head_sha)
+        if head_sha != state["review_head"]:
+            if not args.packet and not args.generate_packet:
+                raise UserError("ready --head requires --packet or --generate-packet for the updated head")
+            ancestor = subprocess.run(
+                ["git", "merge-base", "--is-ancestor", state["review_head"], head_sha], cwd=root,
+            )
+            if ancestor.returncode != 0:
+                raise UserError("updated head must descend from the saved review head")
+            ensure_project_pass_range(root, state["review_base"], head_sha)
+            state["review_head"] = head_sha
+            state["implementation_commit"] = head_sha
     ensure_head(root, state["review_head"])
     state["implementation_note"] = require_file(root, args.note, "implementation note")
     ensure_packet(root, state, args)
+    ensure_clean_tracked(root)
+    ensure_head(root, state["review_head"])
     state["status"] = "READY_FOR_REVIEW"
     write_prompt(root, state, "reviewer")
     write_state(root, state)
@@ -1536,6 +1554,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     ready = sub.add_parser("ready", help="mark committed pass ready for review")
     ready.add_argument("--note", required=True)
+    ready.add_argument("--head", help="validate a committed repair of an unfinished initial handoff")
     ready.add_argument("--packet")
     ready.add_argument("--generate-packet", action="store_true")
     ready.set_defaults(func=command_ready)

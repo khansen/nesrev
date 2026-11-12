@@ -64,7 +64,7 @@ def grants(root: Path, project: str, role: str) -> list[list[str]]:
             tool + ["stage-project", project, "--"],
             tool + ["commit-project", project],
             tool + ["start-pass", "--project", project],
-            tool + ["reready"], tool + ["archive"],
+            tool + ["ready"], tool + ["reready"], tool + ["archive"],
             tool + ["import-artifact", "--kind", "response"],
             tool + ["checkout-status"],
             tool + ["find-project-symbols", project],
