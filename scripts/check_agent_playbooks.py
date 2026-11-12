@@ -360,11 +360,14 @@ ROOT_WORD_CEILING = 6000
 # relative to the pre-service text. Preserve the introduction and Ownership wording; raise only
 # TOOLING-bearing route budgets by the addition, retaining their headroom.
 # Readable verification links add 2L/6W per included playbook; preserve route headroom.
+# Milestone retrospectives add 1L/47W at root and 18L/129W to DOCUMENTATION.
+# Default/data-recovery retain their maximum-route headroom. New-project and
+# project-pass-review regain 50L/150W of headroom above their measured bundles.
 ROUTE_BUDGETS = {
-    "default": (3634, 26686),
-    "data-recovery": (3272, 24654),
-    "new-project": (4309, 31832),
-    "project-pass-review": (4694, 33617),
+    "default": (3635, 26733),
+    "data-recovery": (3273, 24701),
+    "new-project": (4367, 32158),
+    "project-pass-review": (4745, 33799),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
