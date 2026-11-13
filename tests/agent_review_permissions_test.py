@@ -226,6 +226,48 @@ class PermissionTests(unittest.TestCase):
         with self.assertRaisesRegex(review.UserError, "default or dontAsk"):
             permissions.build_plan(self.root, "demo", {}, "bypassPermissions")
 
+    def test_reviewer_wrapper_rules_are_exact_and_role_scoped(self):
+        for project in ("demo", "legacy_demo"):
+            expected = {
+                f"Bash(make project-regenerate-check PROJECT={project})",
+                f"Bash(make project-regenerate-check PROJECT={project} ALLOW_TRAILING_BYTES=1 REGENERATE_DIFF_MAX_LINES=4000)",
+                f"Bash(make project-regenerate-check PROJECT={project} ALLOW_TRAILING_BYTES=1 REGENERATE_DIFF_MAX_LINES=100000)",
+                f"Bash(make project-hidden-code-scan PROJECT={project})",
+            }
+            for mode in ("default", "dontAsk"):
+                plan = permissions.build_plan(self.root, project, {
+                    role: ["claude", "--model", "chosen", "--effort", "high"]
+                    for role in ("implementer", "reviewer")
+                }, mode)
+                for role in ("implementer", "reviewer"):
+                    settings = json.loads(plan.files[f"{permissions.DIRECTORY}/{role}.json"])["permissions"]
+                    make_rules = [rule for rule in settings["allow"] if rule.startswith("Bash(make")]
+                    with self.subTest(project=project, mode=mode, role=role):
+                        self.assertEqual(set(make_rules), expected if role == "reviewer" else set())
+                        self.assertEqual(len(make_rules), 4 if role == "reviewer" else 0)
+            codex = self.plan("codex", "codex", project)
+            self.assertNotIn('"make"', codex.files[permissions.RULES])
+        for invalid in ("demo *", "demo;echo", "demo/SHELL=x", "demo\nother", "demo?", "demo[ab]"):
+            with self.subTest(project=invalid), self.assertRaisesRegex(review.UserError, "invalid project slug"):
+                permissions.claude_reviewer_wrapper_rules(invalid)
+
+    def test_new_wrapper_grants_require_fresh_consent(self):
+        old = self.plan()
+        name = f"{permissions.DIRECTORY}/reviewer.json"
+        settings = json.loads(old.files[name])
+        settings["permissions"]["allow"] = [rule for rule in settings["permissions"]["allow"]
+                                            if not rule.startswith("Bash(make")]
+        old.files[name] = json.dumps(settings, indent=2) + "\n"
+        self.apply(old)
+        before = {name: (self.root / name).read_bytes() for name in [*old.files, permissions.RECEIPT]}
+        updated = self.plan()
+        with self.assertRaisesRegex(review.UserError, "declined"):
+            self.apply(updated, "no")
+        self.assertEqual(before, {name: (self.root / name).read_bytes() for name in before})
+        self.assertEqual(self.apply(updated).call_count, 1)
+        self.assertEqual((self.root / name).read_text(), updated.files[name])
+        self.assertEqual(self.apply(updated).call_count, 0)
+
     @unittest.skipUnless(os.environ.get("NESREV_TEST_CLAUDE_CLI"), "opt-in offline Claude argument check")
     def test_native_claude_accepts_project_source_and_rejects_invalid_sources_offline(self):
         binary = os.environ["NESREV_TEST_CLAUDE_CLI"]

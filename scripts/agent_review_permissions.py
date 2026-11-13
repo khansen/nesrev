@@ -154,6 +154,18 @@ def restrictions(root: Path) -> list[tuple[list[str], str]]:
     return result
 
 
+def claude_reviewer_wrapper_rules(project: str) -> list[str]:
+    if not review.PROJECT_RE.fullmatch(project):
+        raise review.UserError("invalid project slug for reviewer wrapper grants")
+    regenerate = f"make project-regenerate-check PROJECT={project}"
+    return [f"Bash({command})" for command in (
+        regenerate,
+        f"{regenerate} ALLOW_TRAILING_BYTES=1 REGENERATE_DIFF_MAX_LINES=4000",
+        f"{regenerate} ALLOW_TRAILING_BYTES=1 REGENERATE_DIFF_MAX_LINES=100000",
+        f"make project-hidden-code-scan PROJECT={project}",
+    )]
+
+
 def command_guide(root: Path, project: str) -> str:
     tool = review.script_command(root)
     add, commit = (shlex.join(cmd) for cmd in grants(root, project, "implementer")[1:3])
@@ -213,6 +225,8 @@ class Plan:
         print("Existing Codex user/admin grants still apply and may allow more; this is not a security boundary.")
         print("Codex project rules are shared by Codex sessions in this trusted checkout, including the reviewer.")
         print("The approved tool runs repository code and Git hooks. No blanket shell, Python, Git, or make grant is added.")
+        if f"{DIRECTORY}/reviewer.json" in self.files:
+            print("Claude reviewer Make grants are four exact project-scoped forms, with no argument suffix. They execute trusted repository code and can write derived outputs; trailer overrides still require an audited intake decision.")
         for role, command in self.commands.items():
             print(f"{role} launch: {shlex.join(command)}")
         for name, content in self.files.items():
@@ -309,6 +323,8 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]],
             }
             if role == "implementer":
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
+            elif role == "reviewer":
+                permissions["allow"].extend(claude_reviewer_wrapper_rules(project))
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
             configured[role] = command + [
                 "--permission-mode", claude_permission_mode, "--setting-sources", "project",
