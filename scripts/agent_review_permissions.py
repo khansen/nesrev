@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shlex
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,70 @@ RULES = ".codex/rules/nesrev-pass-cycle.rules"
 RECEIPT = f"{DIRECTORY}/receipt.json"
 GUIDE = f"{DIRECTORY}/commands.md"
 ASK_GIT = ("add", "commit", "reset", "restore", "checkout", "switch", "rebase", "merge", "clean", "config", "worktree", "branch")
+
+
+def option_values(command: list[str], flag: str) -> list[str]:
+    return [
+        arg.split("=", 1)[1] if arg.startswith(flag + "=") else command[index + 1]
+        for index, arg in enumerate(command)
+        if arg.startswith(flag + "=") or (arg == flag and index + 1 < len(command))
+    ]
+
+
+def claude_project_files(root: Path) -> dict[str, str]:
+    """Reject ambient project configuration, including Git-ignored files."""
+    directory = root / ".claude"
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise review.UserError("Claude project configuration must be a regular .claude directory")
+    tracked = set(review.run_git(["ls-files", "-z", "--", ".claude/"], cwd=root).split("\0")) - {""}
+    tree = subprocess.run(["git", "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".claude/"],
+                          cwd=root, text=True, capture_output=True)
+    committed_names = set(tree.stdout.split("\0")) - {""}
+    present = {str(path.relative_to(root)) for path in directory.rglob("*")
+               if path.is_symlink() or not path.is_dir()}
+    hashes = {}
+    for name in sorted((tracked | committed_names | present) - {".claude/settings.local.json"}):
+        path = root / name
+        if name not in tracked or path.resolve() != path or not path.is_file():
+            raise review.UserError(f"Claude project input must be committed, unchanged and non-symlinked: {name}")
+        committed = subprocess.run(["git", "show", f"HEAD:{name}"], cwd=root, capture_output=True)
+        staged = subprocess.run(["git", "diff", "--cached", "--quiet", "HEAD", "--", name], cwd=root)
+        content = path.read_bytes()
+        if committed.returncode or staged.returncode or committed.stdout != content:
+            raise review.UserError(f"Claude project input must be committed, unchanged and non-symlinked: {name}")
+        hashes[name] = hashlib.sha256(content).hexdigest()
+    return hashes
+
+
+def launch_configuration(commands: dict[str, list[str]], profile: str, root: Path) -> dict:
+    """Describe requested configuration; only the live client can attest loading."""
+    records = {}
+    for role, command in commands.items():
+        agent = Path(command[0]).name
+        record = {"profile": profile, "agent": agent}
+        if agent == "claude":
+            record.update({
+                "model_arguments": option_values(command, "--model"),
+                "effort_arguments": option_values(command, "--effort"),
+                "permission_mode_arguments": option_values(command, "--permission-mode"),
+                "setting_sources_arguments": option_values(command, "--setting-sources"),
+                "settings_arguments": option_values(command, "--settings"),
+                "observed_setting_sources": None,
+            })
+            if profile == "pass-cycle":
+                record.update({
+                    "excluded_settings_sources": ["user", "local"],
+                    "project_files": claude_project_files(root),
+                    "repository_instructions": {
+                        "source": "project", "observed_loading": None,
+                        "AGENTS.md_sha256": hashlib.sha256((root / "AGENTS.md").read_bytes()).hexdigest()
+                        if (root / "AGENTS.md").is_file() else None,
+                    },
+                    "plugins_from_excluded_settings": "not loaded from those settings",
+                    "remaining_ambient_inputs": ["managed policy", "environment", "auto-memory", "account connectors", "ancestor instructions"],
+                })
+        records[role] = record
+    return records
 
 
 def digest(text: str) -> str:
@@ -128,9 +193,10 @@ class Plan:
 
     def receipt(self) -> dict:
         return {
-            "version": 1, "root": str(self.root), "project": self.project,
+            "version": 2, "root": str(self.root), "project": self.project,
             "commands": self.commands,
             "files": {name: digest(text) for name, text in self.files.items()},
+            "launch_configuration": launch_configuration(self.commands, "pass-cycle", self.root),
         }
 
     def preview(self) -> None:
@@ -139,9 +205,12 @@ class Plan:
         print("Both roles can search project symbols read-only and execute the selected project's tools/trace/run_*.py drivers and analyze_*.py analyzers with desktop access.")
         print("Trace grants trust those changing drivers and their dependencies outside the sandbox, including drivers the agent writes during the pass; they do not constrain what the driver itself can do.")
         print("Analysis grants also execute trusted project code, including analyzers written during the pass; they are not read-only or restricted to the supplied input/output paths.")
-        print("Codex keeps workspace-write / on-request; Claude keeps manual approval for unlisted actions.")
+        print("Codex keeps workspace-write / on-request. Claude's permission mode, model and effort are explicit below.")
         print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
-        print("Existing user/admin grants still apply and may allow more; this is not a permissions reset or a security boundary.")
+        print("Claude retains the project source for repository instructions, including AGENTS.md; user/local settings and their grants and plugins are excluded.")
+        print("Project .claude inputs must match committed files (settings.local.json is excluded); their hashes are recorded. Managed policy still applies.")
+        print("This records requested sources, not observed loading. Auto-memory, account connectors and environment remain outside this control.")
+        print("Existing Codex user/admin grants still apply and may allow more; this is not a security boundary.")
         print("Codex project rules are shared by Codex sessions in this trusted checkout, including the reviewer.")
         print("The approved tool runs repository code and Git hooks. No blanket shell, Python, Git, or make grant is added.")
         for role, command in self.commands.items():
@@ -164,7 +233,7 @@ class Plan:
         previous = json.loads(path.read_text()) if path.exists() else None
         allowed = {RULES, GUIDE, f"{DIRECTORY}/implementer.json", f"{DIRECTORY}/reviewer.json"}
         if previous is not None and (
-            not isinstance(previous, dict) or previous.get("version") != 1
+            not isinstance(previous, dict) or previous.get("version") not in {1, 2}
             or previous.get("root") != str(self.root)
             or not isinstance(previous.get("files"), dict)
             or not set(previous["files"]).issubset(allowed)
@@ -190,6 +259,8 @@ class Plan:
         # Recheck after the human pause, before writing any configuration.
         if self.previous() != previous:
             raise review.UserError("permission receipt changed during confirmation; rerun setup")
+        if self.receipt() != receipt:
+            raise review.UserError("Claude project inputs changed during confirmation; rerun setup")
         review.ensure_runtime_excludes(self.root)
         for name, content in self.files.items():
             review.atomic_write(self.owned_path(name), content)
@@ -198,7 +269,10 @@ class Plan:
         review.atomic_write(self.owned_path(RECEIPT), json.dumps(receipt, indent=2) + "\n")
 
 
-def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan:
+def build_plan(root: Path, project: str, commands: dict[str, list[str]],
+               claude_permission_mode: str = "default") -> Plan:
+    if claude_permission_mode not in {"default", "dontAsk"}:
+        raise review.UserError("managed Claude permission mode must be default or dontAsk")
     root = root.resolve()
     files = {GUIDE: command_guide(root, project)}
     configured = {}
@@ -213,6 +287,12 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
                 "--config", 'approval_reviewer="user"',
             ]
         elif agent == "claude":
+            for flag in ("--model", "--effort"):
+                if len(option_values(command, flag)) != 1:
+                    raise review.UserError(
+                        f"pass-cycle Claude {role} requires exactly one explicit {flag}; "
+                        f"set --{role}-{flag[2:]} or the native option in --{role}-cmd"
+                    )
             # These characters are patterns in Claude rules, even inside shell quotes.
             for value in [str(root), *review.script_argv(root)]:
                 if any(char in value for char in "*?[]{}\n\r\\"):
@@ -230,11 +310,16 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
             if role == "implementer":
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
-            configured[role] = command + ["--permission-mode", "default", "--settings", str(root / settings)]
+            configured[role] = command + [
+                "--permission-mode", claude_permission_mode, "--setting-sources", "project",
+                "--settings", str(root / settings),
+            ]
     if codex_grants:
         entries = [(argv, "allow") for argv in codex_grants] + restrictions(root)
         files[RULES] = "# Managed by the NESrev launcher after explicit user consent.\n" + "".join(dict.fromkeys(
             f"prefix_rule(pattern={json.dumps(argv)}, decision={json.dumps(decision)})\n"
             for argv, decision in entries
         ))
-    return Plan(root, project, configured, files)
+    plan = Plan(root, project, configured, files)
+    plan.receipt()
+    return plan

@@ -3,7 +3,9 @@
 
 import contextlib
 import io
+import hashlib
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -29,7 +31,8 @@ class PermissionTests(unittest.TestCase):
 
     def plan(self, implementer="codex", reviewer="claude", project="demo"):
         return permissions.build_plan(self.root, project, {
-            "implementer": [f"/test/{implementer}"], "reviewer": [f"/test/{reviewer}"],
+            role: [f"/test/{agent}"] + (["--model", "chosen-model", "--effort", "high"] if agent == "claude" else [])
+            for role, agent in (("implementer", implementer), ("reviewer", reviewer))
         })
 
     def apply(self, plan, answer="yes"):
@@ -43,7 +46,7 @@ class PermissionTests(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.plan().preview()
         self.assertEqual(before, list(self.root.rglob("*")))
-        for text in ("Existing user/admin grants", "shared by Codex sessions", "--repo", "--kind", "no global settings"):
+        for text in ("Existing Codex user/admin grants", "shared by Codex sessions", "--repo", "--kind", "no global settings"):
             self.assertIn(text, out.getvalue())
         for line in (
             "Both roles can search project symbols read-only and execute the selected project's tools/trace/run_*.py drivers and analyze_*.py analyzers with desktop access.",
@@ -59,9 +62,9 @@ class PermissionTests(unittest.TestCase):
                     plan = self.plan(implementer, reviewer)
                     for role, agent in (("implementer", implementer), ("reviewer", reviewer)):
                         command = plan.commands[role]
-                        self.assertNotIn("--model", command)
                         self.assertFalse(any("model_reasoning_effort" in arg for arg in command))
                         if agent == "codex":
+                            self.assertNotIn("--model", command)
                             self.assertEqual(command[1:5], ["--sandbox", "workspace-write", "--ask-for-approval", "on-request"])
                             self.assertIn('approval_reviewer="user"', command)
                         else:
@@ -80,7 +83,7 @@ class PermissionTests(unittest.TestCase):
     def test_model_options_survive_and_permission_overrides_are_refused(self):
         plan = permissions.build_plan(self.root, "demo", {
             "implementer": ["codex", "--model", "chosen", "--config", 'model_reasoning_effort="high"'],
-            "reviewer": ["claude", "--effort", "medium"],
+            "reviewer": ["claude", "--model", "chosen-reviewer", "--effort", "medium"],
         })
         self.assertIn("chosen", plan.commands["implementer"])
         self.assertIn("medium", plan.commands["reviewer"])
@@ -90,6 +93,149 @@ class PermissionTests(unittest.TestCase):
                         ["--settings", "evil.json"], ["--permission-mode", "bypassPermissions"]):
             with self.subTest(options=options), self.assertRaises(review.UserError):
                 permissions.build_plan(self.root, "demo", {"implementer": ["codex", *options]})
+
+    def test_claude_sources_and_explicit_selections_for_both_roles(self):
+        for mode in ("default", "dontAsk"):
+            commands = {role: ["claude", "--model=chosen", "--effort", "high"]
+                        for role in ("implementer", "reviewer")}
+            plan = permissions.build_plan(self.root, "demo", commands, mode)
+            receipt = plan.receipt()
+            for role in commands:
+                command = plan.commands[role]
+                self.assertEqual(shlex.split(shlex.join(command)), command)
+                self.assertEqual(command[command.index("--setting-sources") + 1], "project")
+                self.assertEqual(command.count("--setting-sources"), 1)
+                record = receipt["launch_configuration"][role]
+                self.assertEqual(record["profile"], "pass-cycle")
+                self.assertEqual(record["setting_sources_arguments"], ["project"])
+                self.assertEqual(record["excluded_settings_sources"], ["user", "local"])
+                self.assertEqual(record["permission_mode_arguments"], [mode])
+                self.assertEqual(record["model_arguments"], ["chosen"])
+                self.assertEqual(record["effort_arguments"], ["high"])
+                self.assertEqual(record["settings_arguments"], [str(self.root / permissions.DIRECTORY / f"{role}.json")])
+                self.assertIsNone(record["observed_setting_sources"])
+                self.assertIn("account connectors", record["remaining_ambient_inputs"])
+
+    def test_project_source_refuses_untracked_inputs_including_ignored_files(self):
+        (self.root / ".git/info/exclude").write_text(".claude/\n")
+        for name in ("settings.json", "rules/instructions.md", "plugins/example.json"):
+            path = self.root / ".claude" / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}\n")
+            for implementer, reviewer in (("claude", "codex"), ("codex", "claude")):
+                with self.subTest(name=name, implementer=implementer), self.assertRaisesRegex(review.UserError, "must be committed"):
+                    self.plan(implementer, reviewer)
+            path.unlink()
+        self.assertFalse((self.root / ".agents").exists())
+        self.plan("codex", "codex")
+
+    def test_project_source_records_committed_inputs_and_instruction_hash(self):
+        path = self.root / ".claude/settings.json"
+        path.parent.mkdir()
+        content = '{"permissions":{"allow":[]}}\n'
+        path.write_text(content)
+        instructions = self.root / "AGENTS.md"
+        instructions.write_text("Repository instruction fixture.\n")
+        subprocess.run(["git", "add", ".claude/settings.json", "AGENTS.md"], cwd=self.root, check=True)
+        subprocess.run(["git", "-c", "user.name=Test", "-c", "user.email=test@example.invalid",
+                        "-c", "commit.gpgsign=false", "commit", "-qm", "Record project inputs"], cwd=self.root, check=True)
+        local = self.root / ".claude/settings.local.json"
+        local.write_text('{"permissions":{"allow":["Bash(python3:*)"]}}')
+        plan = self.plan("claude", "claude")
+        for role in ("implementer", "reviewer"):
+            record = plan.receipt()["launch_configuration"][role]
+            self.assertEqual(record["project_files"], {".claude/settings.json": hashlib.sha256(content.encode()).hexdigest()})
+            self.assertEqual(record["repository_instructions"]["AGENTS.md_sha256"], hashlib.sha256(instructions.read_bytes()).hexdigest())
+            self.assertIsNone(record["repository_instructions"]["observed_loading"])
+        for staged in (False, True):
+            with self.subTest(staged=staged):
+                path.write_text('{"permissions":{"allow":["Bash(make:*)"]}}')
+                if staged:
+                    subprocess.run(["git", "add", ".claude/settings.json"], cwd=self.root, check=True)
+                    path.write_text(content)
+                with self.assertRaisesRegex(review.UserError, "must be committed"):
+                    self.plan()
+                subprocess.run(["git", "restore", "--staged", "--worktree", ".claude/settings.json"], cwd=self.root, check=True)
+        path.unlink()
+        with self.assertRaisesRegex(review.UserError, "must be committed"):
+            self.plan()
+        path.symlink_to(local)
+        with self.assertRaisesRegex(review.UserError, "non-symlinked"):
+            self.plan()
+        path.unlink()
+        subprocess.run(["git", "add", ".claude/settings.json"], cwd=self.root, check=True)
+        with self.assertRaisesRegex(review.UserError, "must be committed"):
+            self.plan()
+
+    def test_project_input_added_during_consent_refuses_before_installation(self):
+        plan = self.plan()
+        def change(_):
+            path = self.root / ".claude/settings.json"
+            path.parent.mkdir()
+            path.write_text("{}\n")
+            return "yes"
+        with patch("builtins.input", side_effect=change), contextlib.redirect_stdout(io.StringIO()), self.assertRaisesRegex(review.UserError, "must be committed"):
+            plan.apply()
+        self.assertFalse((self.root / permissions.RECEIPT).exists())
+        self.assertFalse((self.root / permissions.RULES).exists())
+
+    def test_claude_missing_duplicate_or_overridden_configuration_refuses(self):
+        for role in ("implementer", "reviewer"):
+            for options in ([], ["--model", "chosen"], ["--effort", "high"],
+                            ["--model", "one", "--model=two", "--effort", "high"],
+                            ["--model", "one", "--effort", "high", "--effort=low"]):
+                with self.subTest(role=role, options=options), self.assertRaisesRegex(review.UserError, "exactly one explicit"):
+                    permissions.build_plan(self.root, "demo", {role: ["claude", *options]})
+            for overrides in (["--setting-sources", "user"], ["--settings", "extra.json"],
+                              ["--permission-mode", "bypassPermissions"]):
+                with self.subTest(role=role, overrides=overrides), self.assertRaisesRegex(review.UserError, "only model/effort"):
+                    permissions.build_plan(self.root, "demo", {
+                        role: ["claude", "--model", "chosen", "--effort", "high", *overrides],
+                    })
+        self.assertFalse((self.root / ".agents").exists())
+
+    def test_legacy_receipt_requires_consent_without_editing_ambient_settings(self):
+        plan = self.plan()
+        self.apply(plan)
+        local = self.root / ".claude/settings.local.json"
+        local.parent.mkdir()
+        ambient = '{"permissions":{"allow":["Bash(python3:*)","Bash(truncate:*)"]}}\n'
+        local.write_text(ambient)
+        legacy = plan.receipt()
+        legacy["version"] = 1
+        del legacy["launch_configuration"]
+        command = legacy["commands"]["reviewer"]
+        at = command.index("--setting-sources")
+        del command[at:at + 2]
+        (self.root / permissions.RECEIPT).write_text(json.dumps(legacy))
+        fresh = self.plan()
+        self.assertEqual(self.apply(fresh).call_count, 1)
+        self.assertEqual(local.read_text(), ambient)
+        self.assertEqual(json.loads((self.root / permissions.RECEIPT).read_text()), fresh.receipt())
+        self.assertNotIn("Bash(python3:*)", fresh.files[f"{permissions.DIRECTORY}/reviewer.json"])
+
+    def test_permission_mode_change_requires_consent_without_changing_grants(self):
+        original = self.plan()
+        self.apply(original)
+        changed = permissions.build_plan(self.root, "demo", {
+            "implementer": ["/test/codex"],
+            "reviewer": ["/test/claude", "--model", "chosen-model", "--effort", "high"],
+        }, "dontAsk")
+        self.assertEqual(changed.files, original.files)
+        self.assertEqual(self.apply(changed).call_count, 1)
+        with self.assertRaisesRegex(review.UserError, "default or dontAsk"):
+            permissions.build_plan(self.root, "demo", {}, "bypassPermissions")
+
+    @unittest.skipUnless(os.environ.get("NESREV_TEST_CLAUDE_CLI"), "opt-in offline Claude argument check")
+    def test_native_claude_accepts_project_source_and_rejects_invalid_sources_offline(self):
+        binary = os.environ["NESREV_TEST_CLAUDE_CLI"]
+        accepted = subprocess.run([binary, "--setting-sources", "project", "--version"],
+                                  text=True, capture_output=True, timeout=15)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        rejected = subprocess.run([binary, "--setting-sources", "invalid-source", "--version"],
+                                  text=True, capture_output=True, timeout=15)
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("Invalid setting source", rejected.stderr)
 
     def test_native_agent_errors_name_only_supported_profile_agents(self):
         for profile, supported in (("pass-cycle", "codex or claude"), ("bypass", "codex, claude, or agy")):
@@ -267,7 +413,9 @@ class PermissionTests(unittest.TestCase):
     def test_claude_wildcard_paths_are_not_treated_as_literal(self):
         for char in "*?[]\\":
             with self.subTest(char=char), self.assertRaisesRegex(review.UserError, "pattern characters"):
-                permissions.build_plan(self.root / f"bad{char}path", "demo", {"reviewer": ["claude"]})
+                permissions.build_plan(self.root / f"bad{char}path", "demo", {
+                    "reviewer": ["claude", "--model", "chosen", "--effort", "high"],
+                })
 
     @unittest.skipUnless(shutil.which("codex"), "Codex CLI not installed")
     def test_native_codex_policy_allows_exact_handoffs_but_not_generic_execution(self):

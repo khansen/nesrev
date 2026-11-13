@@ -41,11 +41,14 @@ are optional. The agents do not obtain those for you. You can explicitly
 choose to proceed without a manual at startup, accepting lower semantic precision.
 
 Open Terminal in the repository folder. Replace `my_game` in the examples
-with your project’s folder name. This optional check starts no agents and
-creates no project:
+with your project’s folder name and `<claude-model>` with your selected model.
+These examples select Claude explicitly; [choose two Codex roles](#choose-your-agents)
+instead if Claude is unavailable.
+This optional check starts no agents and creates no project:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project my_game --check
+python3 scripts/agent_review_tmux.py --project my_game --check \
+  --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort high
 ```
 
 If a required tool is missing, install it using the diagnostic or toolchain
@@ -72,7 +75,8 @@ when used.
    Use lowercase letters, numbers, and underscores.
 
    ```sh
-   python3 scripts/agent_review_tmux.py --project my_game
+   python3 scripts/agent_review_tmux.py --project my_game \
+     --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort high
    ```
 
 2. The launcher shows the local permissions it proposes. Type **yes** to
@@ -119,8 +123,11 @@ refuses unrelated staged changes. Review drafts are written into the project's
 `tmp` folder before the handoff tool publishes them. Other commands can still
 need approval, including builds under Claude, installations, network access,
 and unusual Git operations.
-Existing user permissions remain in effect; Codex's project rules are shared
-by both Codex sessions. This does not isolate the agents from each other.
+Managed Claude roles retain project instructions, exclude user/local settings,
+guard project `.claude/` inputs against uncommitted changes, and require explicit
+model and effort choices; managed policy still applies. Codex's existing user
+rules remain, and its project rules are shared by both Codex sessions. This
+does not isolate the agents from each other.
 For live branch, HEAD and working-tree inspection, use the approved
 `checkout-status` command in the generated guide. Raw `git branch` inspection
 can still prompt. `find-project-symbols` replaces compound symbol-search loops;
@@ -208,9 +215,9 @@ or play a whole game just to answer a question.
   startup pane in `watchers`, resolve its error, and use the restart procedure
   above. Waiting longer or simply reconnecting will not restart a dead watcher.
 
-The agents are instructed never to push `projects`. Model and effort defaults
-come from each agent; you can override them separately below. Permissions
-come from your existing agent configuration. Advanced command overrides and
+The agents are instructed never to push `projects`. Choose models and effort
+separately below; managed Claude roles require both. Permission sources depend
+on the selected profile as described above. Advanced command overrides and
 the handoff protocol are in
 [TOOLING.md](agent_playbook/TOOLING.md#agent-review-handoff).
 
@@ -220,7 +227,8 @@ the handoff protocol are in
 To have Claude implement and Codex review:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project my_game --implementer-cmd claude --reviewer-cmd codex
+python3 scripts/agent_review_tmux.py --project my_game --reviewer-cmd codex \
+  --implementer-cmd claude --implementer-model "<claude-model>" --implementer-effort high
 ```
 
 To use Codex for both roles, even when Claude is installed:
@@ -232,7 +240,9 @@ python3 scripts/agent_review_tmux.py --project my_game --reviewer-cmd codex
 To use Claude for both roles:
 
 ```sh
-python3 scripts/agent_review_tmux.py --project my_game --implementer-cmd claude --reviewer-cmd claude
+python3 scripts/agent_review_tmux.py --project my_game \
+  --implementer-cmd claude --implementer-model "<claude-model>" --implementer-effort high \
+  --reviewer-cmd claude --reviewer-model "<claude-model>" --reviewer-effort high
 ```
 
 To use Antigravity CLI as reviewer with its saved model and permission settings,
@@ -267,9 +277,11 @@ is missing produces an error, rather than silently choosing another app.
 <a id="choose-models-and-effort"></a>
 ### Choose models and reasoning levels
 
-**No options are needed to use each agent's default model and effort.** The
-launcher leaves those choices to Codex, Claude, or agy, including their saved settings.
-It does not pin a model, force a reasoning level, or edit the apps' configuration.
+**Managed Claude roles require explicit model and effort selections.** Their
+user/local model preferences are excluded, so omission could otherwise
+silently select client defaults. Codex and agy retain defaults when their options
+are omitted. Claude also retains that behavior with `inherit` or `bypass`.
+The launcher does not edit the apps' global configuration.
 
 Choose independently for each role:
 
@@ -280,11 +292,11 @@ Choose independently for each role:
 | `--reviewer-model` | Reviewer's model name or alias |
 | `--reviewer-effort` | Reviewer's inference/reasoning level |
 
-For example, leave model selection to the agents and choose different effort levels:
+For example, leave model selection to two Codex roles and choose effort levels:
 
 ```sh
 python3 scripts/agent_review_tmux.py --project my_game \
-  --implementer-effort high --reviewer-effort medium
+  --reviewer-cmd codex --implementer-effort high --reviewer-effort medium
 ```
 
 To choose models too, replace the quoted placeholders with names supported by
@@ -298,7 +310,7 @@ python3 scripts/agent_review_tmux.py --project my_game \
 ```
 
 The same options work with any supported app in either or both roles.
-Any omitted choice stays with that agent. Supported models
+Outside managed Claude roles, any omitted choice stays with that agent. Supported models
 and effort levels depend on the agent version, model, and account; the launcher
 passes your choices through without substituting another model or level.
 Codex effort uses its [model_reasoning_effort setting](https://developers.openai.com/codex/config-reference);

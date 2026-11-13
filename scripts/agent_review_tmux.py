@@ -132,6 +132,8 @@ def interactive_command(command: list[str], prompt: str) -> list[str]:
 
 
 def launch_commands(args: argparse.Namespace) -> dict[str, list[str]]:
+    if getattr(args, "claude_permission_mode", None) is not None and args.permissions != "pass-cycle":
+        raise review.UserError("--claude-permission-mode requires --permissions pass-cycle")
     commands = {role: role_command(args, role) for role in ROLES}
     if args.permissions == "bypass":
         for command in commands.values():
@@ -459,7 +461,9 @@ def launch(args: argparse.Namespace) -> int:
         raise review.UserError("tmux executable not found")
     if args.check:
         commands = launch_commands(args)
-        plan = permissions.build_plan(root, args.project, commands) if args.permissions == "pass-cycle" else None
+        plan = permissions.build_plan(
+            root, args.project, commands, getattr(args, "claude_permission_mode", None) or "default",
+        ) if args.permissions == "pass-cycle" else None
         if plan:
             plan.previous()
         for role, command in commands.items():
@@ -505,7 +509,9 @@ def launch(args: argparse.Namespace) -> int:
             )
 
     commands = launch_commands(args)
-    plan = permissions.build_plan(root, args.project, commands) if args.permissions == "pass-cycle" else None
+    plan = permissions.build_plan(
+        root, args.project, commands, getattr(args, "claude_permission_mode", None) or "default",
+    ) if args.permissions == "pass-cycle" else None
     if plan:
         plan.previous()
     current_state(root, args.project)
@@ -552,6 +558,7 @@ def launch(args: argparse.Namespace) -> int:
             "root": str(root), "project": args.project, "panes": panes,
             "agents_window": agents_window, "tmux_bin": str(Path(tmux_bin).absolute()),
             "permission_mode": args.permissions, "commands": commands,
+            "launch_configuration": permissions.launch_configuration(commands, args.permissions, root),
         }
         if smoke is not None:
             config["smoke"] = smoke
@@ -609,11 +616,15 @@ def main() -> int:
         help="pass-cycle installs scoped grants (default); inherit keeps existing settings; "
              "bypass disables native approval checks for both agents (Codex also disables its sandbox)",
     )
+    parser.add_argument(
+        "--claude-permission-mode", choices=("default", "dontAsk"),
+        help="pass-cycle Claude roles only: default asks for unlisted actions; dontAsk denies them",
+    )
     for role in ROLES:
-        parser.add_argument(f"--{role}-model", help=f"model for the {role}; omit to use the agent's default")
+        parser.add_argument(f"--{role}-model", help=f"model for the {role}; required for pass-cycle Claude")
         parser.add_argument(
             f"--{role}-effort", f"--{role}-reasoning-effort", dest=f"{role}_effort",
-            help=f"inference/reasoning level for the {role} (e.g. low, medium, high); omit to use the agent's default",
+            help=f"inference/reasoning level for the {role} (e.g. low, medium, high); required for pass-cycle Claude",
         )
     parser.add_argument("--task", default=(
         "Complete any unfinished intake, then continue coherent semantic passes to reviewed gold standard. "
