@@ -1,8 +1,9 @@
 # Fresh-game process baseline: assessment and proposed trial
 
-Date: 12 November 2026. Status: reconciled assessment and recommendation;
-game selection, configuration, budgets and execution authorization remain pending.
-This plan records the next proposed experiment under the [manifesto](MANIFESTO.md).
+Date: 12 November 2026. Status updated 13 November: the first baseline checkpoint
+is [assessed](retros/2026-11-13-fresh-game-process-baseline.md); the project remains
+unfinished. Owner-authorized configurations and allowances are recorded locally.
+This plan preserves the original experiment under the [manifesto](MANIFESTO.md).
 Merging it starts neither trial preparation nor provider usage. It does not authorize
 another project pass, a tooling change or a later trial stage.
 
@@ -168,5 +169,7 @@ Before any execution, record the owner's choice of:
    limit and deadline-stop procedure.
 5. Authorization to prepare and launch stage 1, including provider usage.
 
-All five are pending. Later stages, implementation of the recommended fix and
-the structured launcher require separate decisions.
+The first trial's owner decisions and subsequent segment boundaries are recorded
+locally; the [checkpoint assessment](retros/2026-11-13-fresh-game-process-baseline.md)
+records the outcome and limits. Further trial windows, implementation of the
+recommended fix and the structured launcher require separate decisions.
