@@ -35,17 +35,22 @@ Codex loads project rules at startup after workspace trust. **Both Codex agents
 share those project rules**; role ownership is enforced by the handoff protocol
 and review instructions, not a filesystem boundary. Other Codex sessions in this
 checkout can also use the installed rules. Claude receives its role's settings
-through `--settings` with an empty `--setting-sources` argument. This excludes
-user, project and local settings, including their accumulated grants, enabled
-plugins, hooks and model preferences. It does not edit those files. These
+through `--settings` with `--setting-sources project`, retaining repository
+instructions such as `AGENTS.md`. User and local settings, including their grants,
+plugins, hooks and model preferences, are excluded without editing them.
+Project `.claude/` files other than the excluded `settings.local.json` must be
+committed, unchanged against HEAD and the index, and non-symlinked. The launcher
+also refuses ignored or untracked project inputs, and rechecks after consent.
+The receipt hashes accepted project files and the root `AGENTS.md`; inspect any
+committed project settings' grants, hooks and plugins before consent. These
 behaviors follow the native
 [Codex rules](https://developers.openai.com/codex/rules) and
 [Claude permissions](https://code.claude.com/docs/en/permissions) mechanisms.
 
 Codex's existing user/project rules remain in effect. Managed policy still
 applies to Claude; setting-source selection does not pin account connectors,
-auto-memory or environment inputs. These limits also apply when measuring
-permission behavior. The generated rules block direct `git push`
+auto-memory, ancestor instructions or environment inputs. These limits also
+apply when measuring permission behavior. The generated rules block direct `git push`
 and `git -C <checkout> push`; matching raw add, commit, reset, restore, checkout,
 switch, rebase, merge, clean, config, worktree, and branch commands require approval. These
 patterns do not cover every equivalent Git invocation or indirect script.
@@ -64,8 +69,10 @@ refuse before installation or agent startup. The receipt records the actual
 argument values, excluded sources and remaining ambient inputs; it does not
 claim a model was available or settings were loaded. Its
 `observed_setting_sources` remains null; collect loading evidence separately
-during an authorized live session. `workspace.json` records each launch's profile
-and the same configuration, including for `inherit` and `bypass`. A version-1 receipt requires
+during an authorized live session, including evidence that both roles received
+the hash-matched root `AGENTS.md` before inspection. `workspace.json` records each
+launch's profile and the same configuration, including for `inherit` and `bypass`.
+A version-1 receipt requires
 fresh consent for this change even when the generated grant files are unchanged.
 
 `--claude-permission-mode dontAsk` is an opt-in alternative for managed Claude
@@ -128,7 +135,8 @@ bounded evidence scenarios. Ad-hoc Python, shell loops, and scratch scripts
 remain outside these grants. Do not relocate a refused scratch script to the
 trusted tool directory to bypass approval. Reusable analyzers belong in the
 project's reviewed tooling. This profile does not disable Claude's sandbox or
-override restrictive user or administrator settings.
+override administrator restrictions. Managed Claude excludes user settings
+as described above.
 
 Keep commands that may prompt separate from routine reads. If a supported form
 still prompts, record the exact command, loaded permission mode and observed

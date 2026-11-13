@@ -29,10 +29,15 @@ waits for actual permission observations.
 
 ## Offline steps and decisions
 
-1. For both managed Claude roles, pass `--setting-sources ''` with the generated
-   role settings. Exclude user/project/local permission rules, plugins, hooks,
-   model preferences and other keys from those sources. Leave the original files
-   untouched. Preserve `inherit` and `bypass` behavior.
+1. For both managed Claude roles, pass `--setting-sources project` with the
+   generated role settings. Retain project instruction loading, including
+   `AGENTS.md`; exclude user/local settings and their grants, plugins, hooks and
+   model preferences. Refuse untracked (including ignored), modified, deleted or
+   symlinked files under `<root>/.claude/`, except the excluded
+   `settings.local.json`. Accepted files must match both HEAD and the index;
+   record their hashes and the root `AGENTS.md` hash in the receipt. Recheck
+   after consent before installing. Leave the original files untouched and
+   preserve `inherit` and `bypass` behavior.
 2. Require explicit model and effort arguments for managed Claude roles. Record
    those arguments, the permission mode, selected settings file, excluded
    sources and remaining ambient inputs in the consent receipt and workspace
@@ -40,20 +45,26 @@ waits for actual permission observations.
    Offer `default` and explicit opt-in `dontAsk` with the same generated grants.
    Prepare the finite wrapper proposal below; add no new grants before approval.
 
-These are configuration checks, not observations of a running model. Claude
-Code 2.1.322 accepts `--setting-sources '' --version` with exit 0 and rejects
-`--setting-sources invalid-source --version` with exit 1. The invalid-source
-control shows that argument validation ran. Neither command starts inference
-or proves which sources a full session loads. The offline unit suite covers
-argument transport, receipts, missing choices, consent migration and unchanged
-inheritance mode using disposable checkouts.
+These are configuration checks, not observations of a running model. The first
+implementation used an empty source selection. Independent offline review of
+Claude Code 2.1.322's bundle confirmed that this maps to no sources, but also
+disables project instruction loading, including `AGENTS.md`. That choice was
+incorrect and is replaced by `project`. The offline CLI check now tests
+`--setting-sources project --version` and rejection of `invalid-source`; this
+exercises argument validation, not instruction delivery. The unit suite checks
+both roles, argument transport, guarded project files, receipts, explicit
+choices, consent migration and unchanged inheritance using disposable checkouts.
 
 Managed policy still applies. The receipt's `observed_setting_sources` is null;
 record actual loading separately during the authorized live check. Auto-memory,
-account connectors, environment inputs and Codex's ambient rules remain baseline
-limitations. No MCP-isolation claim is made and `--strict-mcp-config` is not
-added. Excluding user settings also excludes their enabled plugins; a live check
+account connectors, environment inputs, ancestor instruction files and Codex's
+ambient rules remain baseline limitations. Project `CLAUDE.md` and project rules
+remain eligible for loading along with `AGENTS.md`; the `.claude/` guard is
+limited to the selected checkout, not its ancestors. No MCP-isolation claim is
+made and `--strict-mcp-config` is not added. Excluding user settings also excludes their enabled plugins; a live check
 must confirm the resulting tool set rather than assume it matches the old run.
+Committed project settings can still supply grants, hooks and plugins; inspect
+the recorded files before approving the profile.
 
 ## Wrapper grants proposed for owner approval
 
@@ -102,7 +113,9 @@ The old prompt reasons were `no-rule-match` (10), `too-complex` (7),
 `assigned-variable` (1), `cd-git-compound` (1), and `subcommandResults` (1).
 Pipes and semicolon chains sometimes succeeded. Do not replace those observations
 with a blanket claim that compound commands prompt, or predict the new profile
-from the old classifications.
+from the old classifications. Include the observed `2>&1 | head -150` and
+classifier-pipe forms in the live checklist: an exact Make rule does not grant
+the pipe's consumer, and its permission behavior remains unmeasured.
 
 ## Separately authorized live steps
 
@@ -118,7 +131,10 @@ Acceptance requires completed routine inspection with equivalent evidence and
 zero `user_temporary` permission decisions. Also count denied requests, missing
 operations, repeated attempts and unfinished tasks: `dontAsk` must not win by
 refusing necessary work. Record tool availability and actual settings sources,
-and check that the old broad Python/Make permissions are not effective. Keep
+and verify each role actually receives the hash-matched root `AGENTS.md` in
+its initial context or an explicit read before inspection. Missing instruction
+evidence fails the smoke even if the prompt count is zero. Check that the old
+broad Python/Make permissions are not effective. Keep
 prompt counts primary; wait duration is secondary and depends on supervision
 cadence. Preserve observations before classification under the existing
 [session rules](../agent_playbook/AGENT_SESSION_OPERATIONS.md#stop-classification).

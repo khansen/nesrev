@@ -123,7 +123,8 @@ refuses unrelated staged changes. Review drafts are written into the project's
 `tmp` folder before the handoff tool publishes them. Other commands can still
 need approval, including builds under Claude, installations, network access,
 and unusual Git operations.
-Managed Claude roles exclude user/project/local settings and require explicit
+Managed Claude roles retain project instructions, exclude user/local settings,
+guard project `.claude/` inputs against uncommitted changes, and require explicit
 model and effort choices; managed policy still applies. Codex's existing user
 rules remain, and its project rules are shared by both Codex sessions. This
 does not isolate the agents from each other.
@@ -277,7 +278,7 @@ is missing produces an error, rather than silently choosing another app.
 ### Choose models and reasoning levels
 
 **Managed Claude roles require explicit model and effort selections.** Their
-saved user/project/local settings are excluded, so omission would otherwise
+user/local model preferences are excluded, so omission could otherwise
 silently select client defaults. Codex and agy retain defaults when their options
 are omitted. Claude also retains that behavior with `inherit` or `bypass`.
 The launcher does not edit the apps' global configuration.

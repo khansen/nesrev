@@ -558,7 +558,7 @@ def launch(args: argparse.Namespace) -> int:
             "root": str(root), "project": args.project, "panes": panes,
             "agents_window": agents_window, "tmux_bin": str(Path(tmux_bin).absolute()),
             "permission_mode": args.permissions, "commands": commands,
-            "launch_configuration": permissions.launch_configuration(commands, args.permissions),
+            "launch_configuration": permissions.launch_configuration(commands, args.permissions, root),
         }
         if smoke is not None:
             config["smoke"] = smoke

@@ -357,9 +357,9 @@ class LauncherTests(unittest.TestCase):
             self.launch()
         calls = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
         self.assertIn("--sandbox workspace-write --ask-for-approval on-request", calls[0])
-        self.assertIn("--permission-mode default --setting-sources '' --settings", calls[1])
+        self.assertIn("--permission-mode default --setting-sources project --settings", calls[1])
         command = shlex.split(calls[1])[1:]
-        self.assertEqual(command[command.index("--setting-sources") + 1], "")
+        self.assertEqual(command[command.index("--setting-sources") + 1], "project")
         workspace = json.loads(self.config().read_text())
         receipt = json.loads((self.root / ".agents/permissions/receipt.json").read_text())
         self.assertEqual(workspace["launch_configuration"], receipt["launch_configuration"])

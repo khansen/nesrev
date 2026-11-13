@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shlex
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,7 +27,32 @@ def option_values(command: list[str], flag: str) -> list[str]:
     ]
 
 
-def launch_configuration(commands: dict[str, list[str]], profile: str) -> dict:
+def claude_project_files(root: Path) -> dict[str, str]:
+    """Reject ambient project configuration, including Git-ignored files."""
+    directory = root / ".claude"
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise review.UserError("Claude project configuration must be a regular .claude directory")
+    tracked = set(review.run_git(["ls-files", "-z", "--", ".claude/"], cwd=root).split("\0")) - {""}
+    tree = subprocess.run(["git", "ls-tree", "-r", "--name-only", "-z", "HEAD", "--", ".claude/"],
+                          cwd=root, text=True, capture_output=True)
+    committed_names = set(tree.stdout.split("\0")) - {""}
+    present = {str(path.relative_to(root)) for path in directory.rglob("*")
+               if path.is_symlink() or not path.is_dir()}
+    hashes = {}
+    for name in sorted((tracked | committed_names | present) - {".claude/settings.local.json"}):
+        path = root / name
+        if name not in tracked or path.resolve() != path or not path.is_file():
+            raise review.UserError(f"Claude project input must be committed, unchanged and non-symlinked: {name}")
+        committed = subprocess.run(["git", "show", f"HEAD:{name}"], cwd=root, capture_output=True)
+        staged = subprocess.run(["git", "diff", "--cached", "--quiet", "HEAD", "--", name], cwd=root)
+        content = path.read_bytes()
+        if committed.returncode or staged.returncode or committed.stdout != content:
+            raise review.UserError(f"Claude project input must be committed, unchanged and non-symlinked: {name}")
+        hashes[name] = hashlib.sha256(content).hexdigest()
+    return hashes
+
+
+def launch_configuration(commands: dict[str, list[str]], profile: str, root: Path) -> dict:
     """Describe requested configuration; only the live client can attest loading."""
     records = {}
     for role, command in commands.items():
@@ -43,9 +69,15 @@ def launch_configuration(commands: dict[str, list[str]], profile: str) -> dict:
             })
             if profile == "pass-cycle":
                 record.update({
-                    "excluded_settings_sources": ["user", "project", "local"],
+                    "excluded_settings_sources": ["user", "local"],
+                    "project_files": claude_project_files(root),
+                    "repository_instructions": {
+                        "source": "project", "observed_loading": None,
+                        "AGENTS.md_sha256": hashlib.sha256((root / "AGENTS.md").read_bytes()).hexdigest()
+                        if (root / "AGENTS.md").is_file() else None,
+                    },
                     "plugins_from_excluded_settings": "not loaded from those settings",
-                    "remaining_ambient_inputs": ["managed policy", "environment", "auto-memory", "account connectors"],
+                    "remaining_ambient_inputs": ["managed policy", "environment", "auto-memory", "account connectors", "ancestor instructions"],
                 })
         records[role] = record
     return records
@@ -164,7 +196,7 @@ class Plan:
             "version": 2, "root": str(self.root), "project": self.project,
             "commands": self.commands,
             "files": {name: digest(text) for name, text in self.files.items()},
-            "launch_configuration": launch_configuration(self.commands, "pass-cycle"),
+            "launch_configuration": launch_configuration(self.commands, "pass-cycle", self.root),
         }
 
     def preview(self) -> None:
@@ -175,7 +207,8 @@ class Plan:
         print("Analysis grants also execute trusted project code, including analyzers written during the pass; they are not read-only or restricted to the supplied input/output paths.")
         print("Codex keeps workspace-write / on-request. Claude's permission mode, model and effort are explicit below.")
         print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
-        print("Claude excludes user, project and local settings, including their permission grants and plugins; managed policy still applies.")
+        print("Claude retains the project source for repository instructions, including AGENTS.md; user/local settings and their grants and plugins are excluded.")
+        print("Project .claude inputs must match committed files (settings.local.json is excluded); their hashes are recorded. Managed policy still applies.")
         print("This records requested sources, not observed loading. Auto-memory, account connectors and environment remain outside this control.")
         print("Existing Codex user/admin grants still apply and may allow more; this is not a security boundary.")
         print("Codex project rules are shared by Codex sessions in this trusted checkout, including the reviewer.")
@@ -226,6 +259,8 @@ class Plan:
         # Recheck after the human pause, before writing any configuration.
         if self.previous() != previous:
             raise review.UserError("permission receipt changed during confirmation; rerun setup")
+        if self.receipt() != receipt:
+            raise review.UserError("Claude project inputs changed during confirmation; rerun setup")
         review.ensure_runtime_excludes(self.root)
         for name, content in self.files.items():
             review.atomic_write(self.owned_path(name), content)
@@ -276,7 +311,7 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]],
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
             configured[role] = command + [
-                "--permission-mode", claude_permission_mode, "--setting-sources", "",
+                "--permission-mode", claude_permission_mode, "--setting-sources", "project",
                 "--settings", str(root / settings),
             ]
     if codex_grants:
@@ -285,4 +320,6 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]],
             f"prefix_rule(pattern={json.dumps(argv)}, decision={json.dumps(decision)})\n"
             for argv, decision in entries
         ))
-    return Plan(root, project, configured, files)
+    plan = Plan(root, project, configured, files)
+    plan.receipt()
+    return plan
