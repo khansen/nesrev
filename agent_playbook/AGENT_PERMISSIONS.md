@@ -21,6 +21,16 @@ Claude roles require explicit model and effort options and default to manual
 approval for unlisted actions. No blanket Git, Python, shell, or make grant is
 added. Codex's omitted model and effort options remain omitted.
 
+The managed Claude reviewer also receives the four
+[exact wrapper forms](../docs/CLAUDE_PERMISSION_PLAN.md#exact-reviewer-wrapper-grants)
+for regeneration checks and hidden-code inventory. No argument suffix or wildcard
+is granted. The trailer override requires the project's audited intake decision.
+These wrappers execute trusted repository code and can write derived outputs;
+they are not read-only operations. Implementer and Codex grants are unchanged.
+Installing this grant delta requires fresh consent, including for an existing
+profile. Live matching of pipelines and unrelated inspection commands remains a
+separate measurement; fewer prompts are not yet established.
+
 The local files are ignored by Git, including in older project checkouts:
 
 | File | Purpose |
@@ -69,8 +79,8 @@ refuse before installation or agent startup. The receipt records the actual
 argument values, excluded sources and remaining ambient inputs; it does not
 claim a model was available or settings were loaded. Its
 `observed_setting_sources` remains null; collect loading evidence separately
-during an authorized live session, including evidence that both roles received
-the hash-matched root `AGENTS.md` before inspection. `workspace.json` records each
+during an authorized live session, including evidence that each managed Claude
+role exercised received the hash-matched root `AGENTS.md` before inspection. `workspace.json` records each
 launch's profile and the same configuration, including for `inherit` and `bypass`.
 A version-1 receipt requires
 fresh consent for this change even when the generated grant files are unchanged.
