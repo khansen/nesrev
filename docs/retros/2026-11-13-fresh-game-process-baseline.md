@@ -17,13 +17,18 @@ committed but its review stopped at the reviewer's quota limit. This establishes
 useful early progress with assistance, not unattended operation, static maturity
 or a cost per completed game.
 
-Read-only command approvals were the most frequent recorded intervention.
-However, the more consequential reliability finding was a restart after its
-authorization had expired. Recommend **deadline enforcement inside the ordinary
-launcher's session lifecycle** as the next bounded improvement. It should prevent
-late launches and stop the owned clients at expiry without relying on the
-coordinator remembering the deadline. Permission friction remains the strongest
-candidate for reducing recurring supervision after that boundary works.
+Recommend **reducing routine reviewer approval friction first**. Twenty inspection
+approvals accounted for 73.6 minutes of waiting, about 47% of the resumed segment,
+on the critical path to the implementer's next turn. Begin with a one-hour
+read-only audit of those commands to separate existing tool routes, reference
+preparation and operations that need a permission-boundary decision.
+
+The initial assessment ranked launcher deadline integration first without
+measuring this wait. The measurement changes that ranking. The late restart
+remains an authorization failure, but arose in the coordinator's launch procedure
+and consumed about 69 seconds. Correct that procedure before another window;
+defer native launcher deadline integration until longer unattended windows make
+it the selected need. The owner decides which work to authorize.
 
 ## What ran and what it established
 
@@ -71,12 +76,30 @@ compound shell commands rather than the existing standalone inspection helpers,
 so the evidence does not establish that all twenty require new tooling.
 
 Delegation moved work from the owner to the coordinator; it did not eliminate
-supervision. The last owner estimate was 15 active minutes across the trial.
+supervision. All twenty recorded commands matched native Bash calls exactly.
+Method: match each command to its call, pair the result by tool-use ID, and time
+call to result, splitting at the coordinator's recorded approval timestamp.
+The intervals do not overlap: 73.6 minutes precede approval and 3.5 seconds follow
+it. The latter rounds to 0.1 minutes and includes command execution plus
+delivery/logging overhead; it is not independently instrumented execution time.
+
+| Review | Approximate UTC interval | Approvals | Wait to recorded approval |
+| --- | --- | --- | --- |
+| Intake | 05:29–06:42, about 73 minutes | 13 | 63.5 minutes; the first request alone took 22.5 minutes |
+| First semantic pass | 06:54–07:14, about 20 minutes | 7 | 10.1 minutes |
+| Total | 158.2-minute resumed segment | 20 | 73.6 minutes, or 46.5% (about 47%) of the segment |
+
+The implementer waits for the review verdict, so this delay sits on the critical
+path. Five-minute coordinator observation contributed detection delay. An owner
+watching continuously might shorten it, but would still be supervising approvals.
+These measurements do not imply that a permission change would reclaim every
+minute or remove later quota limits.
+
+The last owner estimate was 15 active minutes across the trial.
 Later approvals and coordination have unknown active durations, so neither the
 final owner total nor compliance with the one-hour active-time allowance is
-established. Coordinator active time was not measured. Five-minute observation
-also added possible detection delay to permission waits; no total approval-wait
-duration is claimed.
+established. Coordinator active time was not measured. Measured approval waiting
+is elapsed delay, not either person's active time.
 
 **Reliability.** After the handoff fix, ordinary verdict transitions delivered
 the next turns automatically. A Codex context compaction was followed by continued
@@ -114,24 +137,63 @@ semantic outcome remain unmeasured.
 The owner selected Opus 5.5 for future Claude launches after this stop. It has
 not been exercised in this trial. Any continuation is a new model segment;
 these observations do not establish that switching reduces cost or restores quota.
+Approval waiting itself consumes no inference tokens. Removing that wait could
+bring the quota stop earlier in elapsed time; a future window should record
+usage per review to assess that next constraint.
 
 ## Alternatives and priority
 
 | Candidate | Expected benefit, evidence and cost | Decision at this checkpoint |
 | --- | --- | --- |
-| Native deadline enforcement | One actual late launch and an external guard that could not stop an unregistered workspace. A small integration can remove reliance on coordinator timing; estimated below. | Recommend first because bounded unattended spending needs this boundary. |
-| Reduce routine inspection approvals | Twenty approvals are strong evidence of recurring friction. Audit existing read/search routes and reference extraction before adding narrowly scoped operations; arbitrary helper execution cannot be declared read-only by filename. Implementation cost is not yet scoped. | Next candidate for operator-effort reduction; no blanket grant proposed. |
-| Quota recovery | Quota ended the resumed segment and a review checkpoint survived. A bounded wait/resume policy could reduce reconstruction and intervention; it cannot create quota or extend an owner deadline. Provider-specific detection and replay make this a larger, unscoped change. | Preserve the checkpoint; assess recovery after the spending boundary is enforceable. |
+| Reduce routine inspection approvals | Twenty approvals delayed review by 73.6 minutes. Audit existing read/search routes and reference preparation before adding narrowly scoped operations; arbitrary helper execution cannot be declared read-only by filename. | Recommend first, beginning with a one-hour read-only audit; implementation is bounded after that audit. No blanket grant proposed. |
+| Coordinator deadline procedure / later launcher integration | The late restart consumed 69.5 seconds, 101,779 Codex input tokens (59,008 cached), 487 output tokens and one reviewer readiness turn. Its cause was the coordinator's procedure. | Recheck expiry at launch and arm/verify the guard before another window. Defer launcher integration; retain its acceptance tests below. |
+| Quota recovery | Quota ended the resumed segment and a review checkpoint survived. A bounded wait/resume policy could reduce reconstruction and intervention; it cannot create quota or extend an owner deadline. Provider-specific detection and replay make this a larger, unscoped change. | Preserve the checkpoint and measure usage per review next time; quota is a likely subsequent throughput limit. |
 | Model or context-cost experiment | Recorded input exposure warrants investigation. There is no comparable Opus run or measured quality/cost tradeoff yet. | Honor the model preference; defer comparative claims and further inference. |
-| Structured launcher and services | The accepted launcher option was estimated at 8–16 active hours, but structured new-project intake remains outside the current roadmap. Runtime coverage is also incomplete. | No evidence here justifies selecting that broader work ahead of the smaller reliability fix. |
+| Structured launcher and services | The accepted launcher option was estimated at 8–16 active hours, but structured new-project intake remains outside the current roadmap. Runtime coverage is also incomplete. | No evidence here justifies selecting that broader work ahead of the measured approval bottleneck. |
 | Mapper coverage and concurrency | NROM/MMC1 support excludes other architectures; one managed session per checkout leaves multi-game workspace and resource management unresolved. This supported-game trial could not measure either gap or the affected library share. | Keep visible as strategic alternatives; no automatic implementation queue. |
 
-These priorities combine severity, recurrence and scope. They are not a measured
-ranking by minutes saved: intervention durations and comparative implementation
-costs are incomplete. A successful same-checkpoint resume would add recovery
+The approval ranking now rests on measured critical-path delay as well as
+recurrence. Active operator time, avoidable share and comparative implementation
+costs remain incomplete. A successful same-checkpoint resume would add recovery
 evidence, but would not erase the earlier failures or complete the fresh-game trial.
 
 ## Proposed next improvement and acceptance test
+
+**Outcome:** routine reviewer inspection proceeds through appropriate existing or
+narrowly scoped tools without owner or coordinator approval for each read.
+Start with **at most one active hour of read-only audit**, if the owner selects
+this work. Classify all twenty requests against the tools actually available and
+the effective permissions. The independent review's preliminary split is roughly
+ten compound read/search commands, five reference-extraction/hash commands and
+five reviewer-authored helper or inline-Python commands; the audit must confirm it.
+
+For each request, identify whether Read/Grep or the existing symbol-search helper
+already serves it, whether retaining extracted reference text at intake removes
+repeated work, or whether executing custom code requires a separate trust decision.
+An approved filename does not make changing Python code read-only. Return a
+bounded implementation proposal, expected approval reduction and unresolved
+boundary choices; do not implement or widen grants during the audit.
+
+Acceptance for the selected change is that every request classified as avoidable
+has a demonstrated route producing equivalent inspection evidence without
+per-command approval. Out-of-scope writes, installation, Git mutations and
+arbitrary code must not gain permission through that route. A separately
+authorized review smoke should confirm the expected reduction, record approvals
+and usage per review, and disclose Opus 5.5 as a configuration change. If the
+audit cannot establish a small scope in one hour, return the findings for an
+owner decision instead of expanding the work.
+
+Before any further window, the coordinator must recheck the authorization deadline
+immediately before starting clients, after preparation and consent waits, and
+arm and verify the guard before launch. An expired allowance or exited guard
+prevents launch; confirm workspace registration before releasing the handoff.
+This is a prerequisite on the coordinator's next launch procedure, not a claim
+that the launcher already enforces it. No new window is authorized here.
+
+## Deferred launcher deadline integration
+
+The earlier proposal and its acceptance tests remain available if the owner
+selects them later, particularly for routine long unattended windows.
 
 **Outcome:** an explicitly bounded ordinary-launcher session cannot start or keep
 running native clients beyond its recorded authorization. Put the small control
@@ -168,7 +230,8 @@ The assessment used preserved launch/stop records, the article-wait observation,
 handoff blocker and restart result, the resumed segment's intervention log,
 private transcript copies, two committed reviews and the unfinished review
 checkpoint. A local assessment index maps these sources and the usage reduction
-to their hashes; raw logs, reference paths and project-specific details are not
+to their hashes. The revision adds all twenty call/result matches and the approval
+wait reduction without changing the original evidence; raw logs, reference paths and project-specific details are not
 published with this report. Verification here was read-only evidence reduction
 and document checking, not a new provider run or test campaign.
 
