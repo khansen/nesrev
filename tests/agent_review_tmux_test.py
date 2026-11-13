@@ -109,6 +109,8 @@ class LauncherTests(unittest.TestCase):
 
     def permission_agents(self):
         self.args.permissions = "pass-cycle"
+        self.args.reviewer_model = "chosen-reviewer"
+        self.args.reviewer_effort = "high"
         for role, name in (("implementer", "codex"), ("reviewer", "claude")):
             binary = Path(self.temp.name) / name
             binary.write_bytes(self.agent.read_bytes())
@@ -291,6 +293,7 @@ class LauncherTests(unittest.TestCase):
     def test_bypass_rejects_competing_native_permission_options_before_launch(self):
         self.permission_agents()
         self.args.permissions = "bypass"
+        self.args.reviewer_model = self.args.reviewer_effort = None
         codex, claude = self.args.implementer_cmd, self.args.reviewer_cmd
         for agent, options in (
             (codex, "--sandbox read-only"), (codex, "--ask-for-approval on-request"),
@@ -354,9 +357,54 @@ class LauncherTests(unittest.TestCase):
             self.launch()
         calls = [c[-1] for c in self.calls() if c[0] == "respawn-pane"]
         self.assertIn("--sandbox workspace-write --ask-for-approval on-request", calls[0])
-        self.assertIn("--permission-mode default --settings", calls[1])
+        self.assertIn("--permission-mode default --setting-sources '' --settings", calls[1])
+        command = shlex.split(calls[1])[1:]
+        self.assertEqual(command[command.index("--setting-sources") + 1], "")
+        workspace = json.loads(self.config().read_text())
+        receipt = json.loads((self.root / ".agents/permissions/receipt.json").read_text())
+        self.assertEqual(workspace["launch_configuration"], receipt["launch_configuration"])
         self.assertIn("--repo", self.config().with_name("task.md").read_text())
         self.assertTrue((self.root / ".codex/rules/nesrev-pass-cycle.rules").is_file())
+
+    def test_managed_claude_requires_model_and_effort_before_startup(self):
+        self.permission_agents()
+        for field in ("reviewer_model", "reviewer_effort"):
+            saved = getattr(self.args, field)
+            setattr(self.args, field, None)
+            with self.subTest(field=field), self.assertRaisesRegex(review.UserError, "exactly one explicit"):
+                self.launch()
+            setattr(self.args, field, saved)
+        self.assertFalse((self.root / ".agents").exists())
+        self.assertTrue(all(c[0] == "list-sessions" for c in self.calls()))
+
+    def test_inherit_keeps_sources_and_records_mode_without_installing(self):
+        self.permission_agents()
+        self.args.permissions = "inherit"
+        self.args.reviewer_model = self.args.reviewer_effort = None
+        self.launch()
+        workspace = json.loads(self.config().read_text())
+        command = workspace["commands"]["reviewer"]
+        self.assertNotIn("--setting-sources", command)
+        self.assertNotIn("--permission-mode", command)
+        self.assertNotIn("--settings", command)
+        record = workspace["launch_configuration"]["reviewer"]
+        self.assertEqual(record["profile"], "inherit")
+        self.assertEqual(record["model_arguments"], [])
+        self.assertIsNone(record["observed_setting_sources"])
+        self.assertFalse((self.root / ".agents/permissions/receipt.json").exists())
+
+    def test_dontask_is_explicit_and_only_applies_to_managed_claude(self):
+        self.permission_agents()
+        self.args.claude_permission_mode = "dontAsk"
+        with patch("builtins.input", return_value="yes"):
+            self.launch()
+        workspace = json.loads(self.config().read_text())
+        self.assertEqual(workspace["launch_configuration"]["reviewer"]["permission_mode_arguments"], ["dontAsk"])
+        self.assertNotIn("dontAsk", workspace["commands"]["implementer"])
+        for mode in ("inherit", "bypass"):
+            self.args.permissions = mode
+            with self.subTest(mode=mode), self.assertRaisesRegex(review.UserError, "requires --permissions pass-cycle"):
+                launcher.launch_commands(self.args)
 
     def test_declined_permissions_do_not_start_agents_or_watchers(self):
         self.permission_agents()

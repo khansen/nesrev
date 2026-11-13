@@ -18,6 +18,39 @@ GUIDE = f"{DIRECTORY}/commands.md"
 ASK_GIT = ("add", "commit", "reset", "restore", "checkout", "switch", "rebase", "merge", "clean", "config", "worktree", "branch")
 
 
+def option_values(command: list[str], flag: str) -> list[str]:
+    return [
+        arg.split("=", 1)[1] if arg.startswith(flag + "=") else command[index + 1]
+        for index, arg in enumerate(command)
+        if arg.startswith(flag + "=") or (arg == flag and index + 1 < len(command))
+    ]
+
+
+def launch_configuration(commands: dict[str, list[str]], profile: str) -> dict:
+    """Describe requested configuration; only the live client can attest loading."""
+    records = {}
+    for role, command in commands.items():
+        agent = Path(command[0]).name
+        record = {"profile": profile, "agent": agent}
+        if agent == "claude":
+            record.update({
+                "model_arguments": option_values(command, "--model"),
+                "effort_arguments": option_values(command, "--effort"),
+                "permission_mode_arguments": option_values(command, "--permission-mode"),
+                "setting_sources_arguments": option_values(command, "--setting-sources"),
+                "settings_arguments": option_values(command, "--settings"),
+                "observed_setting_sources": None,
+            })
+            if profile == "pass-cycle":
+                record.update({
+                    "excluded_settings_sources": ["user", "project", "local"],
+                    "plugins_from_excluded_settings": "not loaded from those settings",
+                    "remaining_ambient_inputs": ["managed policy", "environment", "auto-memory", "account connectors"],
+                })
+        records[role] = record
+    return records
+
+
 def digest(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
@@ -128,9 +161,10 @@ class Plan:
 
     def receipt(self) -> dict:
         return {
-            "version": 1, "root": str(self.root), "project": self.project,
+            "version": 2, "root": str(self.root), "project": self.project,
             "commands": self.commands,
             "files": {name: digest(text) for name, text in self.files.items()},
+            "launch_configuration": launch_configuration(self.commands, "pass-cycle"),
         }
 
     def preview(self) -> None:
@@ -139,9 +173,11 @@ class Plan:
         print("Both roles can search project symbols read-only and execute the selected project's tools/trace/run_*.py drivers and analyze_*.py analyzers with desktop access.")
         print("Trace grants trust those changing drivers and their dependencies outside the sandbox, including drivers the agent writes during the pass; they do not constrain what the driver itself can do.")
         print("Analysis grants also execute trusted project code, including analyzers written during the pass; they are not read-only or restricted to the supplied input/output paths.")
-        print("Codex keeps workspace-write / on-request; Claude keeps manual approval for unlisted actions.")
+        print("Codex keeps workspace-write / on-request. Claude's permission mode, model and effort are explicit below.")
         print("Direct and checkout-scoped git push are blocked; raw add/commit and listed history/destructive Git commands ask.")
-        print("Existing user/admin grants still apply and may allow more; this is not a permissions reset or a security boundary.")
+        print("Claude excludes user, project and local settings, including their permission grants and plugins; managed policy still applies.")
+        print("This records requested sources, not observed loading. Auto-memory, account connectors and environment remain outside this control.")
+        print("Existing Codex user/admin grants still apply and may allow more; this is not a security boundary.")
         print("Codex project rules are shared by Codex sessions in this trusted checkout, including the reviewer.")
         print("The approved tool runs repository code and Git hooks. No blanket shell, Python, Git, or make grant is added.")
         for role, command in self.commands.items():
@@ -164,7 +200,7 @@ class Plan:
         previous = json.loads(path.read_text()) if path.exists() else None
         allowed = {RULES, GUIDE, f"{DIRECTORY}/implementer.json", f"{DIRECTORY}/reviewer.json"}
         if previous is not None and (
-            not isinstance(previous, dict) or previous.get("version") != 1
+            not isinstance(previous, dict) or previous.get("version") not in {1, 2}
             or previous.get("root") != str(self.root)
             or not isinstance(previous.get("files"), dict)
             or not set(previous["files"]).issubset(allowed)
@@ -198,7 +234,10 @@ class Plan:
         review.atomic_write(self.owned_path(RECEIPT), json.dumps(receipt, indent=2) + "\n")
 
 
-def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan:
+def build_plan(root: Path, project: str, commands: dict[str, list[str]],
+               claude_permission_mode: str = "default") -> Plan:
+    if claude_permission_mode not in {"default", "dontAsk"}:
+        raise review.UserError("managed Claude permission mode must be default or dontAsk")
     root = root.resolve()
     files = {GUIDE: command_guide(root, project)}
     configured = {}
@@ -213,6 +252,12 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
                 "--config", 'approval_reviewer="user"',
             ]
         elif agent == "claude":
+            for flag in ("--model", "--effort"):
+                if len(option_values(command, flag)) != 1:
+                    raise review.UserError(
+                        f"pass-cycle Claude {role} requires exactly one explicit {flag}; "
+                        f"set --{role}-{flag[2:]} or the native option in --{role}-cmd"
+                    )
             # These characters are patterns in Claude rules, even inside shell quotes.
             for value in [str(root), *review.script_argv(root)]:
                 if any(char in value for char in "*?[]{}\n\r\\"):
@@ -230,7 +275,10 @@ def build_plan(root: Path, project: str, commands: dict[str, list[str]]) -> Plan
             if role == "implementer":
                 permissions["allow"].append(f"Bash({shlex.join(allowed[2])})")
             files[settings] = json.dumps({"permissions": permissions}, indent=2) + "\n"
-            configured[role] = command + ["--permission-mode", "default", "--settings", str(root / settings)]
+            configured[role] = command + [
+                "--permission-mode", claude_permission_mode, "--setting-sources", "",
+                "--settings", str(root / settings),
+            ]
     if codex_grants:
         entries = [(argv, "allow") for argv in codex_grants] + restrictions(root)
         files[RULES] = "# Managed by the NESrev launcher after explicit user consent.\n" + "".join(dict.fromkeys(

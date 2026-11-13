@@ -147,6 +147,7 @@ External review is optional; solo closeout does not require it. Run
 to start two agent panes and their watchers. `scripts/agent_review.py` records
 turn ownership in `.agents/current.json` and points each role at its artifacts.
 Watchers notify the next role; use generated commands and [permission setup](AGENT_PERMISSIONS.md).
+Managed Claude roles also require explicit model and effort options at launch.
 
 Minimal flow:
 ```sh

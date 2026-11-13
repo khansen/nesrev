@@ -38,6 +38,15 @@ The agents received the default task; a separate coordinator kept measurements.
 Default pass-cycle permissions were selected, with existing broader grants
 disclosed. Those grants are not a filesystem containment boundary.
 
+The subsequent approval audit established the size of that limitation: the
+reviewer inherited 107 local allow rules, including broad Python and Make grants,
+alongside its generated role profile. It also loaded personal auto-memory;
+the implementer's user rules were not isolated. The observed prompted/unprompted
+split therefore describes this machine's configuration, not repository-only
+permissions. Explicit settings sources and a new measured baseline precede any
+claim of portable approval reduction; the [permission plan](../CLAUDE_PERMISSION_PLAN.md)
+records that correction and the separately authorized next steps.
+
 | Segment | Outcome and timing |
 | --- | --- |
 | Initial eight-hour authorization | Stopped after 2h 30m 10s, before the first review. An unrelated article draft blocked the clean-tree check. After a separate project repair, the saved initial handoff had no supported way to advance to the repaired head. |
@@ -158,6 +167,10 @@ costs remain incomplete. A successful same-checkpoint resume would add recovery
 evidence, but would not erase the earlier failures or complete the fresh-game trial.
 
 ## Proposed next improvement and acceptance test
+
+This was the assessment's original proposal. The completed audit led to the
+[permission plan](../CLAUDE_PERMISSION_PLAN.md), which supersedes the sequence
+below while retaining the requirement for equivalent inspection evidence.
 
 **Outcome:** routine reviewer inspection proceeds through appropriate existing or
 narrowly scoped tools without owner or coordinator approval for each read.

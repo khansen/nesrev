@@ -16,9 +16,10 @@ for project evidence tools.
 The reviewer receives `approve`, `request-changes`, `status`, and review
 publication. Claude file-edit grants cover the selected
 project for the implementer and only its `tmp` directory for the reviewer.
-Codex keeps `workspace-write`, `on-request`, and human approval review; Claude
-uses its normal manual permission mode. Neither receives a blanket Git, Python,
-shell, or make grant. Omitted model and effort options remain omitted.
+Codex keeps `workspace-write`, `on-request`, and human approval review. Managed
+Claude roles require explicit model and effort options and default to manual
+approval for unlisted actions. No blanket Git, Python, shell, or make grant is
+added. Codex's omitted model and effort options remain omitted.
 
 The local files are ignored by Git, including in older project checkouts:
 
@@ -28,19 +29,23 @@ The local files are ignored by Git, including in older project checkouts:
 | `.agents/permissions/implementer.json` | Claude implementer settings, when selected |
 | `.agents/permissions/reviewer.json` | Claude reviewer settings, when selected |
 | `.agents/permissions/commands.md` | Exact command forms for this checkout |
-| `.agents/permissions/receipt.json` | Consent and hashes of managed files |
+| `.agents/permissions/receipt.json` | Consent, managed-file hashes and requested launch configuration |
 
 Codex loads project rules at startup after workspace trust. **Both Codex agents
 share those project rules**; role ownership is enforced by the handoff protocol
 and review instructions, not a filesystem boundary. Other Codex sessions in this
 checkout can also use the installed rules. Claude receives its role's settings
-through `--settings`. These behaviors follow the native
+through `--settings` with an empty `--setting-sources` argument. This excludes
+user, project and local settings, including their accumulated grants, enabled
+plugins, hooks and model preferences. It does not edit those files. These
+behaviors follow the native
 [Codex rules](https://developers.openai.com/codex/rules) and
 [Claude permissions](https://code.claude.com/docs/en/permissions) mechanisms.
 
-Existing user, project, and administrator settings still apply. Broad grants
-already present are not revoked, and restrictive policies may still require
-approval or refuse an operation. The generated rules block direct `git push`
+Codex's existing user/project rules remain in effect. Managed policy still
+applies to Claude; setting-source selection does not pin account connectors,
+auto-memory or environment inputs. These limits also apply when measuring
+permission behavior. The generated rules block direct `git push`
 and `git -C <checkout> push`; matching raw add, commit, reset, restore, checkout,
 switch, rebase, merge, clean, config, worktree, and branch commands require approval. These
 patterns do not cover every equivalent Git invocation or indirect script.
@@ -52,6 +57,25 @@ during the pass, are trusted code with desktop access outside the Codex sandbox;
 the grants do not constrain their effects or input/output paths. An analyzer
 name does not make execution read-only. Installation,
 network, direct emulator launches, builds, and other unlisted requests may still prompt.
+
+For each managed Claude role, set both `--<role>-model` and `--<role>-effort`,
+or their native equivalents in `--<role>-cmd`. Missing or duplicate selections
+refuse before installation or agent startup. The receipt records the actual
+argument values, excluded sources and remaining ambient inputs; it does not
+claim a model was available or settings were loaded. Its
+`observed_setting_sources` remains null; collect loading evidence separately
+during an authorized live session. `workspace.json` records each launch's profile
+and the same configuration, including for `inherit` and `bypass`. A version-1 receipt requires
+fresh consent for this change even when the generated grant files are unchanged.
+
+`--claude-permission-mode dontAsk` is an opt-in alternative for managed Claude
+roles; unmatched permission requests are denied rather than presented for
+approval. The default remains `default`. Changing this mode requires fresh
+consent, and it cannot be combined with `inherit` or `bypass`. Zero prompts is
+not success if required inspection is denied or evidence is missing. Authentication,
+usage limits, questions and other stops remain possible. The
+[bounded permission plan](../docs/CLAUDE_PERMISSION_PLAN.md) separates offline
+configuration checks from separately authorized measurements and grant decisions.
 
 ## Commands that match the grants
 
