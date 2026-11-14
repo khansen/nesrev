@@ -7,6 +7,12 @@ This plan preserves the original experiment under the [manifesto](MANIFESTO.md).
 Merging it starts neither trial preparation nor provider usage. It does not authorize
 another project pass, a tooling change or a later trial stage.
 
+The subsequent [four-segment workload map](structured-pass/TRIAL_WORKLOAD_COVERAGE.md)
+uses retained calls to assess structured coverage. The ordinary command-form
+follow-up is parked; further game passes are not needed for that comparison.
+The original trial proposal below remains historical context, not a new launch
+request.
+
 <a id="assessment"></a>
 ## Assessment and priority recommendation
 
