@@ -11,6 +11,14 @@ then make structured passes the enforced default. Opt-in is transitional.
 The [step-2 coverage baseline](STEP_2_COVERAGE.md) records the proposed missing
 operations and their acceptance criteria; it does not add supported operations.
 
+The [retained trial workload map](TRIAL_WORKLOAD_COVERAGE.md) compares both
+roles' observed calls with implemented and planned operations, including
+bounded search, early confinement feasibility and the full fresh-game path.
+The [accepted feasibility decision](FEASIBILITY_DECISION.md) records the tested
+macOS worker boundary and reviewer/media results, with the independent
+hook-disabled client check still open. Typed search is the next service slice
+to scope; neither record authorizes implementation or a live run.
+
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
 URL, archive checksum and source-model schema hash. Ordinary CI and structured

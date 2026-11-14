@@ -950,9 +950,14 @@ counts do not provide a completion percentage or delivery estimate.
 The pinned [Codex implementer preflight](CODEX_CLIENT.md#established-evidence-and-limits)
 covers structured calls, launch/resume, denial probes, compaction and cleanup;
 self-reconfiguration and child-session routes were unavailable by construction.
-Reference-media access and the reviewer side of the actual-client feasibility
-row remain open. Schedule those items with the macOS worker investigation during
-early 2B, before finalizing interfaces that depend on their outcome.
+The [accepted checkpoint of 14 November 2026](FEASIBILITY_DECISION.md) adds
+Python and emulator work under App Sandbox, plus reviewer facts/media access,
+resume and hook denials. The investigation is complete; the rows below are not
+blanket-complete. Packet/maturity entry-point integration was inspected rather
+than exercised through the worker, Codex implementer media access remains
+unproven, and the reviewer's independent protection with its hook disabled is
+still open. Include the latter in the next separately authorized client smoke.
+Use these limits before finalizing interfaces that depend on the results.
 
 Independent 2B work can proceed under
 the existing pinned-tool restrictions. Record the platform, tool/client builds,

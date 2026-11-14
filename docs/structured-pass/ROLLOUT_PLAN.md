@@ -9,10 +9,13 @@ followed by its documentation and review-pagination fixes in PRs #177 and #178.
 The numbers below identify delivery stages, not GitHub PR numbers.
 
 This is a capability dependency sequence, not an automatic next-work queue.
-The [process assessment and baseline plan](../PROCESS_BASELINE_PLAN.md) recommends
-measuring a fresh start before choosing the next investment; owner selection
-and execution authorization remain pending. New-project intake is outside the
-current step-2 parity-pass scope and would need separate coverage.
+The [retained baseline workload](TRIAL_WORKLOAD_COVERAGE.md) now supplies the
+measured capability gaps. The [accepted feasibility checkpoint](FEASIBILITY_DECISION.md)
+establishes a candidate macOS worker boundary and reviewer/media operation,
+with the reviewer's independent hook-disabled protection still open. Typed
+search is the next service slice to scope; implementation requires owner
+approval. New-project intake remains outside this step-2 parity-pass scope
+and needs a separate contract.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
@@ -101,9 +104,10 @@ class of static passes. The next capability milestone is 2B: recovery, artifact
 and policy writers, coordinated migration and wrapper coverage. The opt-in
 [Codex client](CODEX_CLIENT.md) has passed its configured access preflight and
 completed its role in a real pass on a local project branch. That evidence is
-specific to the tested client configuration. macOS worker isolation remains an
-early 2B investigation, before fixing interfaces that depend on it; integrated
-runtime acceptance remains in 2C. The coverage plan owns the
+specific to the tested client configuration. The completed investigation
+establishes App Sandbox feasibility for declared macOS runtimes, not production
+worker integration. Integrated runtime acceptance remains in 2C. The coverage
+plan owns the
 [execution priorities](STEP_2_COVERAGE.md#execution-priorities),
 [feasibility criteria](STEP_2_COVERAGE.md#early-confinement-feasibility) and
 [review preparation](STEP_2_COVERAGE.md#review-preparation-for-each-slice).
