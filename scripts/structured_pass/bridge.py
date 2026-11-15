@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from . import service, paging, review_pages, search
+from . import service, paging, review_pages, search, ram_evidence
 
 TOOL='mcp__facts__operation'
 
@@ -50,7 +50,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document']
                         elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
                         else:operations+=['approve','request-changes']
-                        result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+(search.TOOL_HELP if profile=='corridor' else ''),
+                        result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+(search.TOOL_HELP if profile=='corridor' else ''),
                             'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
                                 'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
                     elif method=='ping':result={}

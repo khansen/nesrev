@@ -41,8 +41,11 @@ and independently deliverable judgments, declared inputs/documents and friction
 import, then launcher and integrated acceptance. The authorized
 [slice-1 checkpoint](RAM_JUDGMENT_SLICE.md) parks the compact read prototype after
 one complete service question still needed nine requests. The independent
-existing-row judgment writer is implemented; complete RAM-read practicality
-remains open alongside the remaining input, root-document and launcher work.
+existing-row judgment writer is implemented. The separately authorized
+[compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now meets the eight-request
+limit for both measured questions through corridor and retained-review reads,
+preserving every legacy fact. This closes the measured transport gap offline;
+unscripted use and the remaining input, root-document and launcher work stay open.
 The conditional estimate does not select policy or runtime additions, or authorize
 a live run. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
 records the completed milestone and its limits.
