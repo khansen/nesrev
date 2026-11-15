@@ -47,9 +47,11 @@ limit for both measured questions through corridor and retained-review reads,
 preserving every legacy fact. This closes the measured transport gap offline;
 unscripted use and the remaining input and launcher work stay open. Subsequent
 artifact review found the root-document dependency was a placement/run-scope
-error in intake. The [revised slice 2](INPUT_DELIVERY_SLICE.md) proposes a one-time
+error in intake. The authorized [revised slice 2](INPUT_DELIVERY_SLICE.md) covers a one-time
 project correction, fresh preparation, pinned input delivery to both roles and
 an advisory canonical-notes check, with no expansion of root access.
+Its [input-contract checkpoint](INPUT_DELIVERY_CHECKPOINT.md) records the completed
+correction, successful fresh preparation and the remaining bounded delivery routes.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.
 The conditional estimate does not select policy or runtime additions, or authorize

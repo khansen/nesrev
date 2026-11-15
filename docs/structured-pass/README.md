@@ -31,8 +31,10 @@ before input delivery and launcher integration; no implementation is authorized
 by that report. The separately authorized [judgment writer](RAM_JUDGMENT_SLICE.md)
 and [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now have offline evidence.
 The [revised input-delivery slice](INPUT_DELIVERY_SLICE.md) corrects misplaced
-notes instead of expanding root access. Declared inputs, friction import and the
-launcher remain dependencies.
+notes instead of expanding root access. Its [authorized checkpoint](INPUT_DELIVERY_CHECKPOINT.md)
+records the corrected baseline, successful preparation and the declared-input
+contract before implementation. Input delivery, friction import and the launcher
+remain dependencies.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download

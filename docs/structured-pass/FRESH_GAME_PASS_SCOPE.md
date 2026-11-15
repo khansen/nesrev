@@ -9,7 +9,9 @@ request limit in offline service measurements. The
 successful preparation and remaining evidence/write/launcher dependencies.
 The [revised slice 2](INPUT_DELIVERY_SLICE.md) withdraws root-document access:
 correct the intake artifacts, then deliver declared inputs through bounded
-routes. It includes an advisory notes-location check and awaits authorization.
+routes. The owner authorized the correction and offline input delivery, including
+an advisory notes-location check. The [input-contract checkpoint](INPUT_DELIVERY_CHECKPOINT.md)
+records successful preparation and the remaining delivery changes.
 Proposed after the accepted
 [early-pass admission milestone](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) and its
 [retrospective](../retros/2026-11-15-structured-early-pass-admission.md).
