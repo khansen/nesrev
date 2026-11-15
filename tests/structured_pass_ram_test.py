@@ -94,6 +94,15 @@ class JudgmentTests(unittest.TestCase):
         changed=edits.raw_ram_judgments(spaced,operation(spaced),'1')
         self.assertIn(b'\r\n\r\n0x0040',changed)
 
+    def test_authored_fields_refuse_newlines_and_nul(self):
+        data=ledger()
+        for field in ('status','proposed_symbol','notes'):
+            for character in ('\r','\n','\x00'):
+                op=operation(data)
+                op['changes'][0]['fields'][field]='deferred'+character+'text'
+                with self.subTest(field=field,character=repr(character)),self.assertRaisesRegex(ValueError,'^ARTIFACT_EDIT_SCHEMA$'):
+                    edits.raw_ram_judgments(data,op,'1')
+
     def test_writer_does_not_depend_on_compact_read(self):
         with patch.object(evidence_views,'memory',side_effect=ValueError('RESPONSE_TOO_LARGE')):
             self.assertEqual(edits.raw_ram_rows(edits.raw_ram_judgments(ledger(),operation(ledger()),'1'))[0]['status'],'deferred')
