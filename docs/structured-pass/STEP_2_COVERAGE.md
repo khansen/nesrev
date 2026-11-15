@@ -348,12 +348,19 @@ not just a fake. These requirements do not authorize new game captures here.
 ## Disposition of the earlier analysis-query work
 
 The spec tip `cb856e558` is an ancestor of implementation tip `e937c92ef`.
-Keep `feat/analysis-query` as source material until extraction is accounted for,
-and preserve the spec tip with the local tag `archive/analysis-query-spec`.
-The redundant `feat/analysis-query-spec` branch may be removed once the tag
-resolves to that exact ancestor; this consolidation does not complete extraction.
-Do not merge the CLI and its legacy bundle adapter wholesale into a second
-agent interface.
+The local tags `archive/analysis-query-spec` and
+`archive/analysis-query-implementation` preserve those exact commits and their
+recoverable history. The [extraction ledger](ANALYSIS_QUERY_EXTRACTION.csv)
+accounts for all 33 tests from the implementation tip. It distinguishes a
+native replacement checked by inspection, superseded CLI-specific contracts,
+and explicit test-porting work for the existing service rows. Deferred means
+that equivalent coverage has not been established, not that the current route
+is known to fail. This inventory runs no historical or new tests.
+
+The requirement families below remain the destination for the specification's
+contracts and evaluation obligations. The old CLI and legacy bundle adapter
+are archival source material, not a second agent interface. Retiring their
+branches does not make deferred extraction or comparative evaluation complete.
 
 | Earlier capability/contract | Step-2 disposition |
 | --- | --- |
@@ -366,10 +373,12 @@ agent interface.
 | Two-second fresh-CLI target | Preserve with that experiment; step-2 service measurements use the separately stated workload/limits below, not a claimed result for the old CLI |
 | Agent A/B trials and default-guidance quality claims | Still unperformed; any comparative claim needs its separately authorized, frozen protocol. Functional service rollout is not evidence that the earlier efficiency gate passed |
 
-Before deleting the remaining implementation branch, produce an extraction
-ledger listing each old test/requirement as retained with a new test ID,
-superseded with a reason, or explicitly deferred. Preserve both commit IDs and
-recoverable Git history, including the archived spec tip.
+When a deferred test is ported, update its ledger row with the new test ID and
+validation evidence. Keep mixed cases deferred until every relevant assertion
+has a disposition. The archive tags are local; publishing the old experiment is
+not required to upstream this ledger. A verified Git bundle is also retained in
+the private cleanup record. Do not delete the archived history while rows remain
+deferred.
 
 ## Replay and measurement contract
 
