@@ -1,9 +1,11 @@
 # Early-pass admission: measurement and scope proposal
 
-15 November 2026. **Checkpoint 1 authorized and complete; go for scoping
-implementation.** The [measurement record](EARLY_PASS_ADMISSION_CHECKPOINT.md)
-reports the results and limits. The implementation proposal below awaits owner
-authorization; no implementation, provider call or project restart has begun.
+15 November 2026. **Checkpoint 1 and offline implementation complete.** The
+owner authorized the four-to-eight-hour implementation after accepting the
+[measurement record](EARLY_PASS_ADMISSION_CHECKPOINT.md). The
+[implementation evidence](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) records the
+lifecycle, refusal controls, qualified results and remaining search overflows.
+No provider call or working-project restart was made.
 The [search retrospective](../retros/2026-11-15-structured-typed-search.md)
 closes the preceding milestone.
 
@@ -162,8 +164,8 @@ The [completed measurement](EARLY_PASS_ADMISSION_CHECKPOINT.md) found no extra
 gate failure. **Proposed estimate: four to eight active hours, hard bound eight,
 with one implementation review round.** This is a judgment estimate for mode
 propagation, evidence and tests, not an extrapolation from the one-minute gate
-matrix. Review waiting and remote CI elapsed time are separate. Implementation
-requires owner authorization.
+matrix. Review waiting and remote CI elapsed time are separate. The owner authorized this slice on 15 November; the bound and checkpoint below
+remain the record of that decision.
 
 | Change area | Intended work |
 | --- | --- |

@@ -34,7 +34,7 @@ def service_class(path,expected=None):
     require(('verification_policy' in profile) == (profile['schema'] == 'current-project-profile-v2'))
     policy = profile.get('verification_policy')
     profile_hash = producer.sha(path)
-    if policy is not None:
+    if profile['schema'] == 'current-project-profile-v2':
         verification_policy.check_shape(policy)
         require(all(policy[k] == profile[k] for k in ('base_commit', 'source', 'source_sha256')))
     from .ownership import registry

@@ -190,6 +190,10 @@ if [ -e later-defect ]; then exit 7; fi
         from structured_pass.current_project import service_class
         with self.assertRaisesRegex(ValueError, 'PROJECT_PROFILE_INVALID'):
             service_class(path)
+        profile['verification_policy'] = None
+        service.write_json(path, profile)
+        with self.assertRaisesRegex(ValueError, 'VERIFICATION_POLICY_INVALID'):
+            service_class(path)
 
     def test_real_dependency_order_and_later_failures_are_not_waived(self):
         c = self.fixture(); folder = self.root/'failures'; folder.mkdir()

@@ -101,7 +101,25 @@ scope; they are not included in this admission change.
 
 ## Validation, effort and limits
 
-Final regression and effort totals are recorded after the final checks.
+The early checkpoint was met in 17.4 minutes, before the two-hour limit:
+retained-source preparation succeeded and the initially clean fixture refused
+a newly introduced generic name. The implementation and local validation took about 40 minutes, conservatively
+counting the entire working interval including local test waits and command
+approvals; private timing records retain the exact interval. Independent review
+and remote implementation CI are not included.
+
+Final checks passed: 317 structured tests (one opt-in live-client check skipped),
+692 shell cases and 1,206 Java tests. The strict playbook checker reported zero
+warnings; repository hygiene and all 69 relative links passed. The final code
+also repeated real-source preparation, lifecycle/application, all four gate
+defects and the three deliberate faults. The working project checkout, its
+preserved state, article changes and stashes match the initial snapshot.
+
+The first synthetic rename test lacked its required ledger entry; it was fixed
+to reach the naming check. The first full structured suite was blocked by the
+execution sandbox's refusal of `/bin/ps`, which existing simulated-client
+cleanup tests require. It passed when rerun with that access. Failed attempts
+and their logs remain in the private packet; none is credited as green.
 
 Private evidence retains the authorization, exact inputs and tooling hashes,
 raw gate logs, preparation and application receipts, review pages, search pages

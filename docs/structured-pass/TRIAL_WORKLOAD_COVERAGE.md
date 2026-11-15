@@ -293,7 +293,7 @@ feasibility checkpoint and once the chosen pass's obligations are explicit.
 | Workflow jobs and generated evidence | 8–16 h | Named trusted jobs, complete paged results, failures and cancellation; next-pass/start, hidden-code findings and non-writing regeneration. Keep worker integration provisional until feasibility. |
 | Isolated worker execution and runtime integration | 16–40 h after feasible boundary | Authored Python/Lua, real emulator resources, captured outputs/media, fixtures and cleanup behind W2/W3. A fixed decoder may replace some observed helpers; it does not cover later authored traces. |
 | Fresh intake contract | 12–24 h | Supplied-input registration, mapper/container checks, reference extraction, initial regeneration and recovery. Transition into structured admission depends on the separate early-pass verification component below. Intake is outside the current parity-pass roadmap; S6 alone does not provide it. |
-| Early-pass admission and verification | 4–8 h proposed after measurement | The [checkpoint](EARLY_PASS_ADMISSION_CHECKPOINT.md) passed on three retained early-stage states; no additional gate failure appeared. The service must derive eligibility from the immutable starting source and carry it through preparation, candidate checks and application. Agents cannot choose relaxation; initially clean sources and maturity remain strict. Implementation is not yet authorized. |
+| Early-pass admission and verification | Implemented offline within the authorized 4–8 h bound | [Acceptance](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) covers preparation through disposable application, service-owned eligibility, initially clean strict refusal and real defect controls. Evidence remains one retained game, not broad fresh-game coverage. |
 | Instruction and text search | 8–16 h | Native instruction predicates and registered-text selection with complete, bounded results. Can be developed offline independently; admission and client delivery are needed for live use. |
 | Guidance, reference and analogue extensions | 4–8 h | Pin the needed guidance, extracted text and comparison corpus; extend the narrow current analogue views. Search does not replace these input/authority decisions. |
 | Candidate writes and publication closure | 8–24 h, pass-dependent | Required recovery hints, raw-RAM judgments, remaining artifact rows, policy migration, deferrals/friction and any attributed amendments. Reuse 2A edits; do not call these existing merely because the read side works. |
@@ -301,44 +301,49 @@ feasibility checkpoint and once the chosen pass's obligations are explicit.
 
 The previously estimated components total **80–176 active hours**, roughly ten
 to 22 eight-hour days, with substantial uncertainty. That subtotal excludes the
-early-pass admission component, now proposed at 4–8 hours after measurement.
+early-pass admission component, now implemented and measured separately after its
+4–8-hour authorization.
 The complete path still needs a revised estimate when the next integrated
 milestone is scoped. Shared implementation may reduce the
 subtotal; a failed worker boundary or broader intake contract may exceed it.
 It is not a commitment to build that whole path. In particular, the launcher
 alone is still an 8–16-hour component, not an 8–16-hour fresh-game solution.
 
-**Early-pass blocker, observed 15 November:** preparation
+**Early-pass blocker, observed 15 November and addressed by the [admission implementation](EARLY_PASS_ADMISSION_IMPLEMENTATION.md):** preparation
 ([`prepare.py`](../../scripts/structured_pass/prepare.py)), candidate checks
 ([`service.py`](../../scripts/structured_pass/service.py)) and application
-([`application.py`](../../scripts/structured_pass/application.py)) invoke strict
+([`application.py`](../../scripts/structured_pass/application.py)) previously invoked strict
 verification; the [fixed gate environment](../../scripts/structured_pass/gate_environment.py)
-does not pass through `ALLOW_UNRESOLVED_LXXXX`. Consequently a project retaining
-`LXXXX` placeholders cannot enter this path. The ordinary workflow's
+does not inherit `ALLOW_UNRESOLVED_LXXXX`. A project retaining
+`LXXXX` placeholders therefore could not enter the original path. The new
+service-owned exception is explicitly issued and pinned; ambient variables
+still cannot select it. The ordinary workflow's
 [semantic-pass mode](../../agent_playbook/PASS_WORKFLOW.md#semantic-pass-verification)
 allows incomplete naming only when it is the sole strict failure. The
 [search-corpus admission attempt](TYPED_SEARCH_CHECKPOINT.md#implementation-admission-follow-up-15-november)
 stopped at verification step 3 of 4: later verification checks and the process
 and documentation gates never ran. It does not prove that unnamed labels were
-the only failure. The future component must establish that condition and test
-rejection of other defects, rather than merely setting the variable. Strict
+the only failure. The later measurement and implementation establish that condition on retained
+inputs and test rejection of other defects, rather than merely setting the variable. Strict
 semantic-completion and maturity requirements remain unchanged.
 
-**Search practicality to scope with early-pass admission:** the accepted
+**Search practicality remains a separate follow-up:** the accepted
 [typed-search checks](TYPED_SEARCH_ACCEPTANCE.md) found four of 39 instruction
 questions above the fixed eight-request limit on unadmitted early-stage code,
 with a maximum of 20 pages. These are unit-level volume measurements, not
 service admission or historical replay. The admitted mature-code proxy needed
 at most five requests per question and does not predict fresh-game throughput.
-When scoping early-pass support, compare compact match lists with separately
-requested context and summaries grouped by routine or operand value. Keep the
+The admission implementation remeasures these four questions through the real
+service: 14, 9, 11 and 20 requests, with complete oracle agreement. The overflow
+remains. A separately scoped improvement should compare compact match lists
+with separately requested context and summaries grouped by routine or operand value. Keep the
 eight-request limit fixed; verify the selected approach on the overflowing
 questions rather than raising the limit or treating mature-code counts as proof.
 
 The [measurement-first proposal](EARLY_PASS_ADMISSION.md) has now completed its
 [three-snapshot checkpoint](EARLY_PASS_ADMISSION_CHECKPOINT.md), without repairs
-or production admission changes. No additional gate failure appeared; this
-supports scoping the mode/evidence integration, not broader waivers. For the
+to the measured artifacts or gates. No additional gate failure appeared; this
+supported the authorized mode/evidence implementation, not broader waivers. For the
 eventual first fresh-game milestone, start with owner-run existing intake; add
 intake service operations only where that pass demonstrates a need.
 

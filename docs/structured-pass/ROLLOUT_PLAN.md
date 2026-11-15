@@ -20,14 +20,15 @@ records the approved mature-code proxy and the failed early-pass admission.
 Live search acceptance remains open. New-project intake remains outside this step-2 parity-pass scope
 and needs a separate contract. The
 [minimum fresh-game path](TRIAL_WORKLOAD_COVERAGE.md#minimum-path-to-one-fresh-game-pass-through-the-service)
-also records early-pass admission as a separate blocker: strict
-verification currently refuses projects that retain generic names. The
-[admission checkpoint](EARLY_PASS_ADMISSION_CHECKPOINT.md) now records three
-early-stage snapshots passing every non-naming gate and the final preparation
-checks. Its [implementation proposal](EARLY_PASS_ADMISSION.md#post-checkpoint-implementation-proposal)
-keeps mode selection in the service; the proposed four-to-eight-hour slice still
-needs owner authorization. Resolve that contract before integrating intake and
-the launcher; it is outside typed search.
+records the early-pass admission dependency. The
+[measurement](EARLY_PASS_ADMISSION_CHECKPOINT.md) found naming was the only
+verification blocker on three retained states. The authorized
+[implementation and offline acceptance](EARLY_PASS_ADMISSION_IMPLEMENTATION.md)
+now carry service-owned eligibility through preparation, candidate validation,
+qualified closeout and application; initially clean sources remain strict.
+This removes the measured admission barrier, not the remaining fresh-game
+integration work. The four heavy searches still exceed the fixed request limit
+through the admitted service. Their redesign stays separate from admission.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
