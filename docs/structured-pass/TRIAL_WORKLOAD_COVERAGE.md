@@ -323,6 +323,17 @@ the only failure. The future component must establish that condition and test
 rejection of other defects, rather than merely setting the variable. Strict
 semantic-completion and maturity requirements remain unchanged.
 
+**Search practicality to scope with early-pass admission:** the accepted
+[typed-search checks](TYPED_SEARCH_ACCEPTANCE.md) found four of 39 instruction
+questions above the fixed eight-request limit on unadmitted early-stage code,
+with a maximum of 20 pages. These are unit-level volume measurements, not
+service admission or historical replay. The admitted mature-code proxy needed
+at most five requests per question and does not predict fresh-game throughput.
+When scoping early-pass support, compare compact match lists with separately
+requested context and summaries grouped by routine or operand value. Keep the
+eight-request limit fixed; verify the selected approach on the overflowing
+questions rather than raising the limit or treating mature-code counts as proof.
+
 Compare this investment with a smaller typed-inspection slice for an already
 admitted project and with attended ordinary operation. The latter preserves
 existing capability but accepts the measured permission friction. The owner
