@@ -1,8 +1,9 @@
 # Early-pass admission: measurement and scope proposal
 
-15 November 2026. **Proposed; checkpoint 1 has not run.** This document records
-the agreed direction and the proposed measurement allowance. It does not
-authorize measurement, implementation, provider calls or a project restart.
+15 November 2026. **Checkpoint 1 authorized and complete; go for scoping
+implementation.** The [measurement record](EARLY_PASS_ADMISSION_CHECKPOINT.md)
+reports the results and limits. The implementation proposal below awaits owner
+authorization; no implementation, provider call or project restart has begun.
 The [search retrospective](../retros/2026-11-15-structured-typed-search.md)
 closes the preceding milestone.
 
@@ -28,7 +29,7 @@ launcher implementation commitment.
 
 ## Checkpoint 1: measure before estimating
 
-**Proposed allowance: at most two active hours**, including setup, gate execution
+**Authorized allowance: at most two active hours**, including setup, gate execution
 and reporting, with no provider use. This is an investigation bound, not an
 implementation estimate. The driving agent owns measurements and the checkpoint;
 the reviewer can raise a stop, and the owner decides whether to proceed.
@@ -149,6 +150,46 @@ a repeated failure class, a new capability dependency or the bound. Run focused
 positive/refusal tests with failing controls, affected regressions and required
 Linux/macOS CI; no live client is needed for this admission slice. Approval of
 the proposal or a successful checkpoint does not automatically start coding.
+
+## Post-checkpoint implementation proposal
+
+The [completed measurement](EARLY_PASS_ADMISSION_CHECKPOINT.md) found no extra
+gate failure. **Proposed estimate: four to eight active hours, hard bound eight,
+with one implementation review round.** This is a judgment estimate for mode
+propagation, evidence and tests, not an extrapolation from the one-minute gate
+matrix. Review waiting and remote CI elapsed time are separate. Implementation
+requires owner authorization.
+
+| Change area | Intended work |
+| --- | --- |
+| `prepare.prepare` and `current_project.service_class` | Compute and pin policy from starting-source identity and canonical naming counts; validate the policy and baseline evidence when opening the profile. |
+| `gate_environment.environment` / `closeout_environment`, with a shared service-owned policy helper | Keep the default environment strict. Issue the existing naming exception only from validated policy, for the applicable verification command; never inherit it from the caller. |
+| `Service.run_gates`, current-project gate dispatch and application `apply` | Apply one policy consistently, preserve strict diagnostics, record effective mode and before/after counts, and re-check the binding on resume/application. |
+| `mixed_documents.run_closeout` and `Corridor._closeout` | Use the wrapper's existing relaxed mode when eligible; validate its qualified scorecard result rather than requiring or manufacturing an unqualified `pass`. |
+| Review/archive evidence | Carry the recorded mode into review and closeout output. Preserve strict gold/maturity/completion behavior and reject unsupported mode claims. |
+
+Exact function changes will be listed in the PR. No tool operation gains a
+caller-selectable verification mode. Reuse the canonical verifier's naming
+predicate; do not substitute a new interpretation of which names count.
+
+New current-project profiles must carry an explicit versioned policy binding.
+Old profiles and receipts stay with their original pinned readers; no automatic
+migration or missing-field default may confer relaxed eligibility. Re-preparing
+on the new tooling creates a new profile. Fixture-only services remain strict
+unless an explicit test fixture supplies the same trusted policy contract.
+
+At two active hours, report whether a retained early snapshot can be prepared
+with pinned mode evidence and an initially clean fixture still refuses an
+introduced generic name. Stop for reassessment if that seam reveals another
+admission dependency. The remaining acceptance is the full table above:
+candidate validation, review/closeout, application, refusal controls, receipt
+integrity and the four heavy-query measurements. Existing strict-path tests
+must continue to pass; deliberate faults must show the mode/refusal assertions
+can fail. No client adapter, provider run or fresh game pass is required.
+
+The estimate excludes search redesign, broader gate changes and old-session
+migration. Any such dependency, a repeated failure class, or exhaustion of the
+bound returns to the owner with evidence instead of expanding this slice.
 
 ## Separate follow-ups
 
