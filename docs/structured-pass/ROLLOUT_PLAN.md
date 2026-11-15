@@ -34,8 +34,12 @@ The next proposed milestone is [one first semantic pass on an unfamiliar
 game](FRESH_GAME_PASS_SCOPE.md), after explicit owner-run intake. Its dependency
 assessment includes candidate writers, reference/analogue access, search volume
 and the launcher; it does not select the whole remaining 2B/2C program. The
-fresh input and corridor must be measured before an integration estimate or
-live authorization. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
+fresh input and corridor now have an [offline measurement](FRESH_GAME_PASS_MEASUREMENT.md):
+preparation succeeds, but complete RAM evidence takes 14 requests and required
+judgment/root-document routes remain missing. The proposed order is RAM evidence
+and judgments, declared inputs/documents, then launcher and integrated acceptance.
+The conditional estimate does not select policy or runtime additions, or authorize
+a live run. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
 records the completed milestone and its limits.
 
 The destination is ordinary full-scale project passes in which implementers and

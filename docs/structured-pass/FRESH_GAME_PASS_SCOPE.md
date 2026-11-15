@@ -1,7 +1,10 @@
 # One fresh-game pass: scoping proposal
 
-15 November 2026. Status: intake accepted; post-intake measurement awaiting
-owner authorization. Proposed after the accepted
+15 November 2026. Status: intake accepted; authorized post-intake measurement
+complete, with implementation awaiting an owner decision. The
+[measurement and proposed slices](FRESH_GAME_PASS_MEASUREMENT.md) record the
+successful preparation and remaining evidence/write/launcher dependencies.
+Proposed after the accepted
 [early-pass admission milestone](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) and its
 [retrospective](../retros/2026-11-15-structured-early-pass-admission.md).
 Tooling baseline: master `65704d7b0`. This document authorizes neither
@@ -24,9 +27,10 @@ master. At selection, the game had no project tree or registered reference-intak
 record in the inspected checkout. The owner subsequently confirmed the selection
 and supplied the inputs. Ordinary intake and its independent round-1 review are
 now accepted and archived. ROM/header evidence, reference hashes and the accepted
-commit are pinned in the private `fresh-game-intake-20261115` packet. The exact
-semantic corridor anchor and structured preparation remain pending; no semantic
-pass or structured client has launched.
+commit are pinned in the private `fresh-game-intake-20261115` packet. The actual
+semantic corridor and successful disposable structured preparation are now
+pinned in `fg1-post-intake-20261115`; no semantic pass or structured client has
+launched.
 
 After intake, use native evidence to confirm one connected ownership corridor
 and record its actual target, producers, consumers, reference scope and exclusions.
@@ -232,9 +236,11 @@ owns the checkpoint, the reviewer may raise it, and the owner decides.
 | Build general workflow jobs or runtime first | Adds reusable capabilities and supports broader later passes. | Existing preparation may suffice for this static case; runtime was not required by its witness. Select only when the measured obligation warrants it. |
 | Attended ordinary pass | Can perform the full work today. | Retains the measured supervision/permission problem; does not test the structured boundary. |
 
-The leading known gap is **candidate closure and evidence access**, subject to
-the fresh input measurement. No implementation order or total is approved by
-this ranking. Per-session worktrees, article handling, parallel games, more
+The measured leading gap is **complete RAM evidence and judgment closure**.
+The follow-up recommends that bounded slice first, then declared inputs/root
+documents and the launcher. Its conditional estimate is not an authorized total
+or a promise that policy/runtime dependencies will not arise. Per-session
+worktrees, article handling, parallel games, more
 mappers and automatic quota recovery remain separate process capabilities.
 
 ## Live acceptance and limits

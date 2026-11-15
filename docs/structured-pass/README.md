@@ -24,8 +24,11 @@ a live run or completes the fresh-game path.
 The [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) scopes the next
 integration decision after early-pass admission: one independently reviewed
 first semantic corridor, with owner-run intake declared separately. It records
-the remaining dependencies and requires measurement on the selected input
-before estimating implementation.
+the remaining dependencies. The [post-intake measurement](FRESH_GAME_PASS_MEASUREMENT.md)
+admits the selected input but finds incomplete judgment/document routes and
+14-request RAM views. It proposes bounded RAM evidence and judgment closure
+before input delivery and launcher integration; no implementation is authorized
+by that report.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
