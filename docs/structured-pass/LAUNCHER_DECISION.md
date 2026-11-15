@@ -112,6 +112,10 @@ Keep machine-specific paths out of tracked documentation.
 Keep the accepted per-role model and effort settings, including Codex
 `gpt-6-astra` at `xhigh`, explicit in the preparation record. Apply the existing
 [admission and package-upgrade rules](CODEX_CLIENT.md#admission-and-execution).
+At the next client admission, re-pin the complete MCP tool declarations,
+including descriptions, for both corridor and retained-review profiles. The
+compact RAM views change both declarations; the earlier typed-search change
+affected only the corridor declaration. Preserve the existing sealed profiles.
 Do not rebase the project branch while an active session pins its ancestry.
 Login precedes the separately authorized live window. Leave existing retained
 client directories and sealed profiles untouched. Relocation remains parked;

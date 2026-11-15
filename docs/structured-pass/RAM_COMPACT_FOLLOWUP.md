@@ -99,6 +99,8 @@ match their starting hashes and records. No provider calls were made.
 This closes the measured RAM transport dependency offline. It does not show
 that an unscripted reviewer will choose the view or reconstruct its evidence
 correctly. The tool description and [API documentation](README.md#supported-work)
-explain both sets and the decoder. Independent review remains pending, followed
-by declared inputs/root documents and the launcher before a separately authorized
-live pass. This follow-up does not implement or authorize those slices.
+explain both sets and the decoder. Independent review accepted implementation
+`73f67813a`; the first live pass must still observe whether both roles fetch the
+shared set and reconstruct the evidence correctly. Declared inputs/root documents
+and the launcher remain dependencies before that separately authorized pass.
+This follow-up does not implement or authorize those slices.
