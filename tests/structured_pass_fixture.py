@@ -25,7 +25,7 @@ def git(repo,*args):
         '-c','user.name=Fixture','-c','user.email=fixture@example.invalid',*args],text=True).strip()
 
 
-def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project.\n', gate_extra="",raw_ram=None):
+def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project.\n', gate_extra="",raw_ram=None, declared_setup=None):
     root=Path(root);repo=root/'repo';repo.mkdir(parents=True)
     source,reference=fixture(root/'inputs',uses=uses,declarations=declarations)
     for path,original in ((SOURCE,source),(REFERENCE,reference)):
@@ -64,6 +64,8 @@ p.write_text('\\n'.join(lines)+'\\n')
         with (scripts/'fixture_closeout.py').open('a') as stream:stream.write(gate_extra)
     (repo/'.gitignore').write_text('projects/*/reference/\n')
     git(repo,'init','-q');git(repo,'add','.');git(repo,'commit','-qm','Synthetic project')
+    producer.EXE=Path(os.environ['STRUCTURED_PASS_XASM']).resolve()
+    declared=declared_setup(root,repo) if declared_setup else None
     baseline=root/'baseline.json';baseline.write_text(json.dumps({'checks':[
         {'target':t,'exit_code':0} for t in ('project-inventory','project-verify','project-process-check','project-docs-check')]}))
     producer.EXE=Path(os.environ['STRUCTURED_PASS_XASM']).resolve()
@@ -74,6 +76,11 @@ p.write_text('\\n'.join(lines)+'\\n')
         'producer_path':str(producer.EXE),'producer_sha256':producer.sha(producer.EXE),'pass_id':'1',
         'objective':'Synthetic rename and repair','next_pass_sha256':producer.sha(docs/'inventory/pass/next_pass.json'),
         'pass_plan_sha256':producer.sha(docs/'inventory/pass/current_pass_plan.json')}
+    if declared is not None:
+        from structured_pass import declared_inputs
+        profile['analogue_models']=declared.get('analogue_models',[])
+        profile['declared_inputs_sha256']=declared_inputs.admit(repo,'sample',profile['base_commit'],
+            declared['selection'],root/'capture',profile['analogue_models'])
     common.write_json(root/'profile.json',profile)
     toolchain=producer.EXE.parent;store=root/'store';destination=store/'toolchains'/producer.sha(producer.EXE)
     destination.mkdir(parents=True)

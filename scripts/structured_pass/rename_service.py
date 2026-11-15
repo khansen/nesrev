@@ -16,7 +16,7 @@ from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
 from . import authored_documents as authored
-from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search, ram_evidence
+from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search, ram_evidence, declared_inputs, guidance
 FIELDS = ('old_name','new_name','reason','confidence','pass_id')
 ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMATCH
     WRONG_DECLARATION_SCOPE INVALID_RENAME DUPLICATE_RENAME INVALID_COMMENT
@@ -25,6 +25,7 @@ ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMAT
     FORBIDDEN_PATH GENERATED_PATH_SERVICE_OWNED PREVIEW_ITEM_TOO_LARGE PREVIEW_CONTENT_CHANGED'''.split()
 common.PUBLIC_ERROR_CODES = common.PUBLIC_ERROR_CODES | frozenset(ERRORS) | authored.ERRORS | navigation.ERRORS | source_edits.ERRORS | artifact_edits.ERRORS | evidence_views.ERRORS
 common.PUBLIC_ERROR_CODES |= search.ERRORS
+common.PUBLIC_ERROR_CODES |= declared_inputs.ERRORS
 
 
 def comments(model):
@@ -266,8 +267,35 @@ class RenameService(common.Service):
                              operations,self.document_pass_id())
 
     @common.state_operation()
-    def navigate(self,generation,view,**selection):
-        return {'generation':generation,**navigation.Navigation(self.model(generation)).query(view,**selection)}
+    def navigate(self,generation,view,*,analogue_index=None,**selection):
+        model=self.model(generation)
+        metadata={}
+        if analogue_index is not None:
+            from .analogue_inputs import project
+            model=project(model,analogue_index)
+            metadata={'analogue_index':analogue_index,'analogue_model_id':model.document['identity']['model_id']}
+        return {'generation':generation,**metadata,**navigation.Navigation(model).query(view,**selection)}
+
+    @common.state_operation()
+    def inputs(self,generation,offset=0,limit=12):
+        return declared_inputs.catalog_page(self.model(generation).capture,generation,offset,limit)
+
+    @common.state_operation()
+    def input(self,generation,input_id,offset=0,limit=4096):
+        return declared_inputs.read(self.model(generation).capture,generation,input_id,offset,limit)
+
+    @common.state_operation()
+    def guidance(self,generation,name,offset=0,limit=200):
+        if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=400:raise ValueError('REQUEST_SCHEMA')
+        self.model(generation)
+        data=guidance.read(self,name,generation)
+        if data is None:raise ValueError('SEARCH_INPUT_UNAVAILABLE')
+        lines=data.decode().splitlines()
+        capture=self.model(generation).capture
+        policy_commit=(declared_inputs.load(capture)['base_commit'] if (capture/declared_inputs.FILE).exists() else self.fixture['base_commit'])
+        return {'generation':generation,'path':name,'sha256':digest(data),'policy_commit':policy_commit,
+                'total_lines':len(lines),'offset':offset,'lines':lines[offset:offset+limit],
+                'next_offset':offset+limit if offset+limit<len(lines) else None}
 
     @common.state_operation()
     def inspect(self, generation, symbol):
@@ -719,7 +747,9 @@ class RenameService(common.Service):
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
-        spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit')),
+        spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),
+              'inputs':(('generation',),('offset','limit')),'input':(('generation','input_id'),('offset','limit')),
+              'guidance':(('generation','name'),('offset','limit')),
               'inspect':(('generation','symbol'),()),'q09':(('generation','names'),('offset','limit')),
               'search':(('generation','query'),('continuation','limit')),
               'documents':(('generation',),()),'document':(('generation','path'),('offset','limit')),

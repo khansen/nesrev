@@ -7,6 +7,10 @@ the early checkpoint in [slice 2](INPUT_DELIVERY_SLICE.md), before service
 integration. No new service routes, advisory, live profile or provider run are
 claimed here.
 
+The owner subsequently authorized continuation. The implementation and its
+offline results are recorded in [the acceptance report](INPUT_DELIVERY_ACCEPTANCE.md);
+the observations below remain the pre-implementation checkpoint.
+
 The process outcome remains one independently reviewed, unscripted first
 semantic corridor on an unfamiliar game. This slice supplies its missing
 context. Learning-candidate import, launcher/client admission and integrated

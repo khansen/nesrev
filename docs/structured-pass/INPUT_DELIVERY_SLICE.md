@@ -1,13 +1,14 @@
 # Slice 2: declared input delivery
 
-15 November 2026. **Authorized offline; at the input-contract checkpoint.** This replaces the
+15 November 2026. **Implemented offline; ready for the agreed review.** This replaces the
 root-document extension in the [post-intake proposal](FRESH_GAME_PASS_MEASUREMENT.md).
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records the
 preceding milestone. The owner authorized both the intake correction and this
 bounded slice. The correction and fresh preparation are complete; the
 [checkpoint](INPUT_DELIVERY_CHECKPOINT.md) records the pinned inputs, measured
-existing routes and proposed integration contract. Service implementation and
-the advisory remain pending. No provider-backed run has occurred.
+existing routes and integration contract. The [implementation contract](DECLARED_INPUTS.md)
+and [acceptance record](INPUT_DELIVERY_ACCEPTANCE.md) cover the service delivery
+and advisory. No provider-backed run has occurred.
 
 ## Outcome and order
 

@@ -22,6 +22,9 @@ required_files=(
 )
 
 echo "[1/4] Checking required process artifacts"
+if [[ -e "projects/$1/WORKING_NOTES.md" || -L "projects/$1/WORKING_NOTES.md" ]]; then
+  echo "advisory: project-root WORKING_NOTES.md is noncanonical; use docs/reverse_engineering/WORKING_NOTES.md (reconcile duplicate copies)" >&2
+fi
 python3 "${SCRIPT_DIR}/project_artifact_manifest.py" "$1" "${DOC_ROOT}"
 missing=0
 for path in "${required_files[@]}"; do

@@ -470,6 +470,8 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     state_path = session / 'editor/state.json'
     state = json.loads(state_path.read_text())
     require(isinstance(state.get('reader_hashes'), dict), 'CODEX_SESSION_INVALID')
+    declared=state.get('declared_inputs_sha256') is not None
+    if declared:require(not media,'INPUT_SELECTION_INVALID')
     selected = []
     for path in media:
         path = Path(path).resolve(strict=True)
@@ -481,6 +483,11 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     (root / 'auth-config').mkdir(mode=0o700)
     workspace = root / 'workspace'
     workspace.mkdir()
+    assembly=None
+    if declared:
+        from structured_pass import input_delivery
+        assembly=input_delivery.assemble(session,root/'inputs','implementer',message)
+        selected=[(Path(m['path']).name,Path(m['path']).read_bytes()) for m in assembly['media']]
     images = {}
     for name, data in selected:
         target = workspace / name
@@ -488,6 +495,8 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
         images[str(target)] = sha(target)
     prompt_path = root / 'prompt.md'
     prompt_path.write_bytes(Path(prompt).read_bytes())
+    if assembly is not None:
+        with prompt_path.open('a') as stream:stream.write(input_delivery.prompt(assembly,workspace))
     (root / 'message.txt').write_text(message)
     save(root / 'policy.json', {'tool': TOOL, 'media': images, 'log': str(root / 'hooks.jsonl'),
                               'session_home': str(root / 'auth-config')})
@@ -501,6 +510,7 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
         Path(__file__).resolve(), Path(process_tree.__file__).resolve(), bridge, prompt_path,
         root / 'message.txt', root / 'policy.json', root / 'config.json')}
     pins.update({str(p): sha(p) for p in (service_root / 'scripts/structured_pass').glob('*.py')})
+    if assembly is not None:pins[str(root/'inputs/assembly.json')]=sha(root/'inputs/assembly.json')
     config = {
         'schema': 'structured-codex-client-preparation-v1', 'client': str(client),
         'client_sha256': sha(client), 'service_root': str(service_root),
@@ -516,6 +526,7 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     }
     if compaction_probe:
         config['compaction_probe'] = True
+    if assembly is not None:config['input_assembly']=str(root/'inputs/assembly.json')
     save(root / 'launch.json', config)
     save(root / 'state.json', {'authorized': False, 'thread_id': None, 'runs': []})
     return config
@@ -553,6 +564,9 @@ def verify(root):
             'CODEX_WORKSPACE_CHANGED')
     require(all(not Path(p).is_symlink() and sha(p) == expected for p, expected in config['media'].items()),
             'CODEX_MEDIA_CHANGED')
+    if 'input_assembly' in config:
+        from structured_pass import input_delivery
+        input_delivery.verify(config['session'],config['input_assembly'])
     # The client installs bundled skills even when their loading is disabled.
     # Permit only its real .system directory, never user skill entries/links.
     home = root / 'auth-config'

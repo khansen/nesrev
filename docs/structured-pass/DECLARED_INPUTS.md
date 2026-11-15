@@ -1,0 +1,97 @@
+# Declared evidence inputs
+
+The operator declares the evidence for a corridor during preparation. Agents
+can read the admitted items by ID; they cannot add inputs or choose host paths.
+This implements the [slice-2 contract](INPUT_DELIVERY_CHECKPOINT.md). It does
+not expand ordinary document ownership or authorize a client launch.
+
+## Preparation and identity
+
+The preparation selection may contain `declared_inputs` with exactly `path`
+(an absolute path to the private selection JSON) and `sha256`. Its schema is
+`declared-input-selection-v1`, with `items` and `analogues` arrays. Inputs are
+validated before capture payloads or the profile are installed. The profile
+pins the resulting catalog; the starting generation also includes that hash.
+
+Nine guidance files come from the starting commit automatically: `AGENTS.md`
+and the pass, assembly, quality, review-audit, tooling, documentation, recovery
+and new-project playbooks. Each additional item has a unique `id`, a fixed
+`kind` and `sha256`, plus the fields below.
+
+| Kind | Operator fields and allowed origin |
+| --- | --- |
+| `reference_text` | `path`, `original_path`, `original_sha256`, `identity`. UTF-8 `.txt` under the current project's `tmp/`, derived from a supplied PDF under its `docs/game_reference/`. |
+| `reference_image` | The same fields, with a PNG derivative and positive integer `identity.pdf_page`. Preserve printed-page and conversion identities in `identity`. |
+| `comparison` | `path`: the committed architecture index or Markdown under a selected analogue's `docs/`, excluding review archives and inventories. |
+| `intake_review` | `path`: the current project's committed pass-0 review archive. |
+| `intake_receipt` | `data`: an operator-owned JSON object, including source, baseline and qualified gate evidence. |
+| `reference_decision` | `data`: an operator-owned JSON object recording the supplied-reference decision. |
+
+Inline JSON hashes use UTF-8 JSON with sorted keys, no indentation, default
+ASCII escaping and separators `(',', ':')`. Text and image hashes cover exact
+file bytes. Paths must be relative, canonical and free of symlink components;
+tracked evidence must match the selected commit. Input IDs do not become paths
+the agent may choose. IDs beginning with `guidance-` are reserved.
+
+Each analogue entry supplies `source`, `sha256` and `model_sha256`, in the same
+order as the existing `analogue_models` selection. Preparation compares the
+native model's source bytes with the committed source and checks both hashes.
+The existing producer identity and two-model limit still apply. Comparison
+vocabulary is evidence requiring proof against the current game, not authority.
+Selecting the analogues remains a manual operator step.
+
+Limits are 32 text items, 256 KiB each and 2 MiB total; 16 PNGs, 16 MiB each
+and 64 MiB total including retained original PDFs; and two analogue models.
+Original PDFs are retained privately, not exposed by a new PDF read operation.
+Both roles receive their complete declared extracts and page PNGs. Excesses
+are refused rather than silently truncated. Missing conversion provenance must
+remain explicitly unknown; a hash does not establish extraction quality.
+
+## Read operations
+
+Both corridor roles and restored review readers support:
+
+- `inputs({generation, offset?, limit?})`: paged metadata for fixed input IDs.
+  The default is 12 items and the maximum is 40.
+- `input({generation, input_id, offset?, limit?})`: exact UTF-8 text, with
+  offsets measured in Unicode characters. The default is 4,096 characters and
+  the maximum is 8,192. Follow `next_offset` until null. Empty input is an
+  explicit complete result. Media IDs return `INPUT_MEDIA_REQUIRED`.
+- `guidance`: the existing named guidance reader, now including the first-pass
+  playbook. Declared sessions use captured bytes, including after restoration;
+  older profiles retain their commit-based behavior.
+- `navigate`: the existing native record, symbol, use and comment views accept
+  `analogue_index` 0 or 1. Responses identify the selected native model. No
+  source-text or arbitrary-project reader is added.
+
+The 24 KiB serialized MCP ceiling remains. Text pages reduce their character
+count when encoding requires it. Other oversized pages are refused with the
+existing reduce-limit response. No successful response silently loses content.
+Stale generations, changed catalogs or payloads, and undeclared IDs are refused.
+
+The service copies the catalog, originals and payloads into each candidate's
+hashed capture. Publication retains them as blobs. Restored reads therefore
+need neither the original operator folder nor the source PDF or model paths.
+Input evidence remains read-only; canonical notes use the existing document
+writer. Root README, root notes and friction records gain no access here.
+
+## Role assembly and historical scope
+
+One manifest builds both roles' input lists and page identities. The Claude
+adapter requires `--task-file` for declared sessions; the Codex adapter uses its
+explicit `--message-file`. The task states the current authorized corridor and
+stop condition. Additional `--media` inputs are refused for declared sessions,
+so they cannot bypass the manifest.
+
+Both adapters pin the assembled manifest, copied PNGs and prompt. They label the
+intake review, receipt and reference decision as historical. The prompt includes
+an index and an explicit instruction that quoted historical run restrictions
+do not govern the current task. The whole archive remains available on demand
+for its verdict, findings and gate evidence; its prose is not injected into the
+task prompt. Offline acceptance checks the assembled bytes and labels, not an
+agent's statement that it received them.
+
+The adapters use their existing media mechanisms. Client receipt and decoding,
+startup image cost, updated corridor and retained tool-declaration pins, and
+the reviewer's hook-disabled test remain launcher-admission work. This slice
+does not establish live delivery or token savings.

@@ -124,19 +124,9 @@ class Corridor:
                 'scope':'Current project corridor; no quality verdict until independent review.'}
 
     def guidance(self,args):
-        common.schema(args,('name',),('offset','limit'))
-        require(args['name'] in guidance.NAMES,'REQUEST_SCHEMA')
-        offset=args.get('offset',0);limit=args.get('limit',200)
-        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=400,'REQUEST_SCHEMA')
+        common.schema(args,('name',),('generation','offset','limit'))
         state=self.checked_editor()
-        # Read the pinned pass-start policy, never arbitrary host paths or docs
-        # supplied in a request. These are policies, not project source views.
-        data=guidance.read(self.editor,args['name'])
-        require(data is not None,'SEARCH_INPUT_UNAVAILABLE')
-        lines=data.decode().splitlines()
-        return {'generation':state['current'],'path':args['name'],'sha256':common.digest(data),
-                'policy_commit':self.editor.fixture['base_commit'],'total_lines':len(lines),'offset':offset,
-                'lines':lines[offset:offset+limit],'next_offset':offset+limit if offset+limit<len(lines) else None}
+        return self.generation_read('guidance',{'generation':state['current'],**args})
 
     def review(self,args):
         common.schema(args,('ticket','generation','base_generation'),('offset','limit'))
@@ -159,7 +149,9 @@ class Corridor:
         specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'document':(('generation','path'),('offset','limit')),
                'q09':(('generation','names'),('offset','limit')),
                'search':(('generation','query'),('continuation','limit')),
-               'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit'))}
+               'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),
+               'inputs':(('generation',),('offset','limit')),'input':(('generation','input_id'),('offset','limit')),
+               'guidance':(('generation','name'),('offset','limit'))}
         common.schema(args,*specs[operation])
         generation=args['generation']
         require(isinstance(generation,str),'REQUEST_SCHEMA')
@@ -279,7 +271,7 @@ class Corridor:
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
-        if operation in ('q09','navigate','evidence','search'):return self.generation_read(operation,arguments)
+        if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments)
         if operation=='closeout':
             common.schema(arguments,());return self.closeout()
         if operation=='reready':

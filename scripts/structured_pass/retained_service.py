@@ -108,6 +108,8 @@ class RetainedReviewService(RenameService):
             prior_ticket=read_ticket(self.store.root,self.anchor)
             require(prior_ticket['profile']==self.config['profile'],'REVIEW_PROFILE_INVALID')
         first=next(iter(self.bodies.values()))
+        input_hash=first['captures'].get('inputs.json')
+        require(all(b['captures'].get('inputs.json')==input_hash for b in self.bodies.values()),'REVIEW_SESSION_CHANGED')
         if self.config['profile']=='source-v2':
             registry=first['captures'].get('ownership.json')
             require(registry is not None and all(b['captures'].get('ownership.json')==registry for b in self.bodies.values()),'REVIEW_SESSION_CHANGED')
@@ -137,6 +139,7 @@ class RetainedReviewService(RenameService):
                     'content_id':body['content_id'],'tooling_id':body['tooling_id']}
             self._projection={'current':previous,'reference_sha256':first['reference_sha256'],
                               'generations':generations,'candidates':{}}
+            if input_hash is not None:self._projection['declared_inputs_sha256']=input_hash
             if self.state_path.exists():
                 require(json.loads(self.state_path.read_text())==self._projection,'REVIEW_SESSION_CHANGED')
             else:common.write_json(self.state_path,self._projection)
@@ -279,8 +282,10 @@ class RetainedReviewService(RenameService):
                'review':(('generation','base_generation'),('offset','limit')),
                'reassemble':(('generation',),())}
         if self.config['profile'] in ('rename','source-v2'):
-            specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit')),inspect=(('generation','symbol'),()),q09=(('generation','names'),('offset','limit')),
-                         document=(('generation','path'),('offset','limit')))
+            specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),inspect=(('generation','symbol'),()),q09=(('generation','names'),('offset','limit')),
+                         document=(('generation','path'),('offset','limit')),
+                         inputs=(('generation',),('offset','limit')),input=(('generation','input_id'),('offset','limit')),
+                         guidance=(('generation','name'),('offset','limit')))
         if operation not in specs:raise ValueError('UNKNOWN_OPERATION')
         common.schema(arguments,*specs[operation])
         if operation=='status':return self.status(role)
