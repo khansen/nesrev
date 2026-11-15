@@ -7,6 +7,9 @@ authorized [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now meets the fixed
 request limit in offline service measurements. The
 [measurement and proposed slices](FRESH_GAME_PASS_MEASUREMENT.md) record the
 successful preparation and remaining evidence/write/launcher dependencies.
+The [revised slice 2](INPUT_DELIVERY_SLICE.md) withdraws root-document access:
+correct the intake artifacts, then deliver declared inputs through bounded
+routes. It includes an advisory notes-location check and awaits authorization.
 Proposed after the accepted
 [early-pass admission milestone](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) and its
 [retrospective](../retros/2026-11-15-structured-early-pass-admission.md).
@@ -157,17 +160,20 @@ does not prove that the new game needs exactly the same operations.
 | Additional standalone workflow jobs | Unknown | The historical reviewer skipped regeneration and hidden-code scans because recovery controls did not change. If FG-1 needs either, or needs findings unavailable in existing gate evidence, record the exact W1 job and paged output required. |
 | Worker and runtime integration | Unknown; absent from the historical static outcome | No capture was needed for the retained pass. Media reads and parity corroboration are not emulator execution. Verify FG-1's evidence obligations after intake. A necessary trace, new decoder or authored analyzer stops this static proposal for a W2 decision; do not defer required evidence to manufacture success. The [feasibility result](FEASIBILITY_DECISION.md) is not service integration. |
 | Guidance, references and analogues | Needed; partly available | [`guidance.py`](../../scripts/structured_pass/guidance.py) admits eight files, not the first-pass intake playbook. [`analogue_inputs.py`](../../scripts/structured_pass/analogue_inputs.py) pins at most two models with selected views, not corpus discovery or analogue documents. Inventory the actual required excerpts, source views and references, and prove delivery to each role. The historical review inspected at least three analogue sources. |
-| Candidate writes | Needed; incomplete | Source edits, registered Markdown, rename ledger, scorecard and selected artifact rows exist. D3 RAM judgments, D6 measured KPI updates and D7 policy changes do not. Root-document and friction writes also need their proper authority. Enumerate FG-1's required write paths/fields before estimating; see below. |
+| Candidate writes | Needed; incomplete | Source edits, registered Markdown, rename ledger, scorecard, selected artifact rows and D3 RAM judgments exist. D6/D7 remain conditional and friction import has its own authority. Correct misplaced notes to their supported canonical path; a root-document extension is not required. |
 | Search volume | Needed; partial practicality | The four admitted questions take 14, 9, 11 and 20 requests. Keep the eight-request criterion and 24 KiB ceiling. Measure the actual corridor's questions separately, with independent complete results. Any required overflow needs a bounded design decision before launch. |
 | Structured launcher and client admission | Needed; not integrated | Use the [accepted launcher scope](LAUNCHER_DECISION.md), including per-turn messages, handoffs, continuation, public errors, deadlines and cleanup. Refresh admission for changed client/adapter bytes and test the reviewer's hook-disabled layer in the next authorized client smoke. |
 | New intake service | Not needed for the proposed boundary | Owner-authorized existing intake is an explicit prerequisite. This does not demonstrate structured intake or remove its cost from the broader process. |
 
 Candidate-write measurement must distinguish ordinary document registration
 from missing writers. `MANUAL_TERMS.md` can be explicitly registered under
-`docs/`; root `README.md` cannot be admitted by the current
-[registry](../../scripts/structured_pass/ownership.py). The
-[raw-RAM refresh](../../scripts/structured_pass/artifact_edits.py) deliberately
-protects judgment columns. KPI files, allowlists and friction receipts have
+`docs/`. Root `README.md` cannot be admitted by the current
+[registry](../../scripts/structured_pass/ownership.py), and this pass does not
+require its ongoing revision. Canonical working notes are already registered;
+the [intake correction](INPUT_DELIVERY_SLICE.md#one-time-intake-correction)
+removes the mistaken root-path dependency. The raw-RAM refresh protects judgment
+columns, now served by the separate typed writer. KPI files, allowlists and
+friction receipts have
 separate owners; none is an unrestricted Markdown/CSV escape hatch.
 
 If D7 is required, its [accepted contract](STEP_2_COVERAGE.md#documents-ledgers-and-trusted-writes)
@@ -241,7 +247,7 @@ owns the checkpoint, the reviewer may raise it, and the owner decides.
 
 The measured leading gap is **complete RAM evidence and judgment closure**.
 The follow-up recommends that bounded slice first, with D3 independently
-deliverable, then declared inputs/root documents, friction import and the
+deliverable, then declared inputs, friction import and the
 launcher. Its conditional estimate is not an authorized total
 or a promise that policy/runtime dependencies will not arise. Per-session
 worktrees, article handling, parallel games, more

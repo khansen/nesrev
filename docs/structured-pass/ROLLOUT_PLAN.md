@@ -45,7 +45,13 @@ existing-row judgment writer is implemented. The separately authorized
 [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now meets the eight-request
 limit for both measured questions through corridor and retained-review reads,
 preserving every legacy fact. This closes the measured transport gap offline;
-unscripted use and the remaining input, root-document and launcher work stay open.
+unscripted use and the remaining input and launcher work stay open. Subsequent
+artifact review found the root-document dependency was a placement/run-scope
+error in intake. The [revised slice 2](INPUT_DELIVERY_SLICE.md) proposes a one-time
+project correction, fresh preparation, pinned input delivery to both roles and
+an advisory canonical-notes check, with no expansion of root access.
+The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
+the completed capability and this corrected diagnosis.
 The conditional estimate does not select policy or runtime additions, or authorize
 a live run. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
 records the completed milestone and its limits.

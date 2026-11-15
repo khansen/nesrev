@@ -8,6 +8,16 @@ not completion of the validation game's remaining work.
 
 ## Decision
 
+**Correction after intake-artifact review, 15 November.** The root-document
+extension proposed below is withdrawn. The notes are misplaced relative to their
+canonical, already admitted location, and temporary run-stop instructions do not
+belong in durable project docs. The refusals below remain real observations;
+their interpretation as a required service capability was incorrect. See the
+[narrowed input-delivery slice](INPUT_DELIVERY_SLICE.md) for the proposed one-time
+correction, fresh preparation and current bounds. The tables and original
+estimates below preserve what this measurement proposed; they do not authorize
+root access. RAM judgments and compact reads have since been delivered.
+
 **Preparation succeeds; a complete structured pass is not ready to launch.**
 The new input passes the service's naming-only admission policy, including the
 remaining checks and native certification. Existing typed queries answer useful
@@ -141,7 +151,7 @@ the efficient route without measurement.
 | Admission, selection/start and ordinary candidate gates | Needed; available | Full preparation passed. Preserve qualified naming evidence through the existing lifecycle. |
 | Source edits, renames, scorecard, selected artifact rows and registered documents | Needed; existing core | Existing operations and acceptance cover these mechanisms; no semantic edit was rehearsed here. Actual candidate/independent review remains necessary. |
 | Complete RAM evidence and D3 judgments | Needed; missing practical read/write combination | Memory views cost 14 requests; factual refresh rejects authored judgment changes. Add a compact complete view plus typed status/name/notes/pass updates without accepting caller-authored counts or owners. |
-| Root README and working notes | Needed; D1 extension | Both actual reads returned `DOCUMENT_PATH_FORBIDDEN`. They still say intake-only and hold durable discoveries. Registration cannot admit root paths; do not relocate or rewrite the artifacts as a setup workaround. |
+| Root README and working notes | Service extension withdrawn after artifact review | Both actual reads returned `DOCUMENT_PATH_FORBIDDEN`, but notes belong in the already admitted canonical path. Correct their location and remove temporary run instructions in one authorized project commit; then repeat preparation. No recurring README writer is required. |
 | Existing optional documents | Needed; configuration | Reference terminology and recovery audit both read successfully after explicit registration under `docs/`. |
 | Guidance, references and analogues | Needed; incomplete | The first-pass playbook is outside the eight-file guidance list. The architecture index and analogue documents are not admitted. Two proposed analogues fit the existing model-count cap, but their complete delivery is unverified. Existing media feasibility does not admit searchable extracts. |
 | Additional standalone workflow jobs | Not selected for this static contract | Preparation, gates and closeout already supply the required core jobs. Regeneration/recovery checks become prerequisites if controls change or new evidence demands them. |
@@ -166,6 +176,10 @@ separate under
 the [existing typed-write contracts](STEP_2_COVERAGE.md#documents-ledgers-and-trusted-writes).
 
 ## Proposed slices, costs and checkpoints
+
+The following table and subtotal are the original measurement proposal, retained
+as history. The [revised slice-2 plan](INPUT_DELIVERY_SLICE.md) supersedes its
+root-access scope and gives the remaining, conditional estimate after RAM closure.
 
 These are engineering judgments with substantial uncertainty, not extrapolated
 from pass counts. Previous implementation slices were substantially shorter than

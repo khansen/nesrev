@@ -101,6 +101,8 @@ that an unscripted reviewer will choose the view or reconstruct its evidence
 correctly. The tool description and [API documentation](README.md#supported-work)
 explain both sets and the decoder. Independent review accepted implementation
 `73f67813a`; the first live pass must still observe whether both roles fetch the
-shared set and reconstruct the evidence correctly. Declared inputs/root documents
-and the launcher remain dependencies before that separately authorized pass.
+shared set and reconstruct the evidence correctly. Declared inputs and the
+launcher remain dependencies before that separately authorized pass. The
+[subsequent artifact correction](INPUT_DELIVERY_SLICE.md#one-time-intake-correction)
+withdraws the proposed root-document extension.
 This follow-up does not implement or authorize those slices.
