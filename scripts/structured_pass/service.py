@@ -21,6 +21,7 @@ from .model import Model, certify, digest, producer
 from .q04_view import constant_uses
 from . import mixed_documents
 from . import gate_environment
+from . import verification_policy
 from . import gate_diagnostics
 from . import ownership
 HERE = Path(__file__).resolve().parent
@@ -31,7 +32,7 @@ REVISION_FIELDS = frozenset((
     'error','error_details','error_records','retryable','checkout','capture','certification_seconds','certification',
     'semantic_properties','gates','manifest','capture_hashes','edit_provenance',
     'generated_catalog_row','total_validation_seconds'))
-PUBLIC_ERROR_CODES = producer.ERRORS | mixed_documents.ERRORS | gate_environment.ERRORS | frozenset('''
+PUBLIC_ERROR_CODES = verification_policy.ERRORS | producer.ERRORS | mixed_documents.ERRORS | gate_environment.ERRORS | frozenset('''
 RESPONSE_TOO_LARGE OWNERSHIP_MANIFEST_INVALID STALE_VALIDATION_EVIDENCE
     INTERNAL_SERVICE_ERROR UNKNOWN_RECORD RECORD_ALIGNMENT_FAILED REFERENCE_INVALID REFERENCE_FORMAT_UNSUPPORTED
     CAPTURE_CHANGED INVALID_SYMBOL REQUEST_SCHEMA UNSUPPORTED_EXPRESSION
@@ -160,6 +161,7 @@ class Service:
     minimum_free_bytes = 2 * 1024**3
     authored_paths = ()
     analogue_models = ()
+    verification_policy = None
 
     def ownership(self,path,project,source):
         record=self.state['generations'][self.state['current']]
@@ -265,6 +267,8 @@ class Service:
                  'generations':{generation:{'checkout':str(base),'capture':str(Path(base_capture).resolve()),
                      'capture_hashes':capture_hashes(base_capture),'manifest':manifest,'base':None}},
                  'candidates':{}}
+        if cls.verification_policy is not None:
+            state['verification_policy'] = cls.verification_policy
         write_json(root/'state.json',state)
         return cls(root)
 
@@ -301,6 +305,9 @@ class Service:
     def run_gates(self, checkout, operations, folder, env):
         gates=[]
         for target in ('project-inventory','project-verify','project-process-check','project-docs-check'):
+            if target == 'project-verify' and self.verification_policy is not None:
+                gates.append(verification_policy.run(checkout, self.slug, folder, env, self.verification_policy))
+                continue
             started=time.monotonic();log=folder/(target+'.log')
             with log.open('wb') as stream:
                 result=subprocess.run([self.state['gate_toolchain']['executables']['make'],target,'PROJECT='+self.slug],cwd=checkout,env=env,
@@ -456,7 +463,10 @@ class Service:
                 raise ValueError('NONZERO_BASE_REQUIRES_DIAGNOSTIC_COMPARISON')
             if any(g['exit_code'] for g in gates):
                 raise ValueError('NEW_GATE_FAILURE')
-            write_json(capture/'gate-results.json',[{k:g[k] for k in ('target','exit_code','seconds','log_sha256')} for g in gates])
+            write_json(capture/'gate-results.json',[
+                {k:g[k] for k in ('target','exit_code','seconds','log_sha256')} |
+                ({'verification':verification_policy.summary(g['verification'])} if 'verification' in g else {})
+                for g in gates])
             inventory = self.inventory_result(checkout,changed,c['operations'])
             manifest = {p:producer.sha(checkout/p) for p in self.manifest_paths(base_record,c['operations'])}
             c.update(status='validated',manifest=manifest,

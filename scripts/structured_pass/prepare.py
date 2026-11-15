@@ -9,6 +9,7 @@ import time
 
 from . import gate_environment, producer, service as common, mixed_documents as mixed
 from .launcher import Corridor
+from . import verification_policy
 from .model import certify, digest
 from .publication import configuration
 
@@ -49,6 +50,7 @@ def prepare(repo, output, selection, executable, store):
     producer.require(len(values)==3 and values[-1]=='','PROJECT_PROFILE_INVALID')
     source,reference=values[:2]
     producer.require(all(v.startswith(prefix) and '..' not in Path(v).parts for v in values[:2]),'PROJECT_PROFILE_INVALID')
+    policy = verification_policy.derive(base, source, (checkout/source).read_bytes(), env)
     # Refuse unsupported mixed documents before expensive preparation or creating a session.
     mixed.Scorecard((checkout/prefix/mixed.SCORECARD).read_bytes())
     mixed.deferral_rows((checkout/prefix/mixed.DEFERRALS).read_bytes())
@@ -63,12 +65,18 @@ def prepare(repo, output, selection, executable, store):
     plan=json.loads((pass_dir/'current_pass_plan.json').read_text())
     checks=[]
     for target in ('project-inventory','project-verify','project-process-check','project-docs-check'):
-        checks.append({'target':target,**run([tools['executables']['make'],target,'PROJECT='+slug],checkout,env,logs/(target+'.log'))})
+        if target == 'project-verify':
+            check = verification_policy.run(checkout, slug, logs, env, policy)
+            common.write_json(logs/'verification.json', check)
+            producer.require(check['exit_code'] == 0, 'PREPARATION_VERIFICATION_FAILED')
+            checks.append(check)
+        else:
+            checks.append({'target':target,**run([tools['executables']['make'],target,'PROJECT='+slug],checkout,env,logs/(target+'.log'))})
     changed=common.git(checkout,'diff','--name-only','HEAD',env=env).splitlines()
     producer.require(all(common.file_ownership(p,prefix,source)=='generated' for p in changed),'PREPARATION_CHANGED_AUTHORED_FILE')
     model,certificate=certify(checkout/source,root/'capture',checkout/reference)
     common.write_json(root/'baseline.json',{'checks':checks,'producer_sha256':producer.sha(producer.EXE)})
-    profile={'schema':'current-project-profile-v1','slug':slug,'source':source,'reference':reference,
+    profile={'schema':'current-project-profile-v2','verification_policy':policy,'slug':slug,'source':source,'reference':reference,
         'source_sha256':digest(model.source),'base_commit':base,'baseline_path':str(root/'baseline.json'),
         'baseline_sha256':producer.sha(root/'baseline.json'),'producer_path':str(producer.EXE),
         'producer_sha256':producer.sha(producer.EXE),'pass_id':str(plan['intended_pass_id']),

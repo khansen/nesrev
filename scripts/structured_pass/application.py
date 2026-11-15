@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 
 from .launcher import Corridor,common,require
-from . import gate_environment
+from . import gate_environment, verification_policy
 
 
 @contextmanager
@@ -105,13 +105,19 @@ def apply(session,target,*,commit=False):
             env=gate_environment.environment(state['gate_toolchain'],evidence/'gate-tmp')
             gates=[]
             for name in ('project-inventory','project-verify','project-process-check','project-docs-check'):
-                with (evidence/(name+'.log')).open('wb') as log:
-                    result=subprocess.run([state['gate_toolchain']['executables']['make'],name,'PROJECT='+controller.editor.slug],
-                        cwd=target,env=env,stdout=log,stderr=subprocess.STDOUT)
-                gates.append({'target':name,'exit_code':result.returncode,
-                              'log_sha256':common.producer.sha(evidence/(name+'.log'))})
+                if name == 'project-verify' and controller.editor.verification_policy is not None:
+                    controller.checked_editor()
+                    gate = verification_policy.run(target, controller.editor.slug, evidence, env,
+                                                   controller.editor.verification_policy)
+                else:
+                    with (evidence/(name+'.log')).open('wb') as log:
+                        result=subprocess.run([state['gate_toolchain']['executables']['make'],name,'PROJECT='+controller.editor.slug],
+                            cwd=target,env=env,stdout=log,stderr=subprocess.STDOUT)
+                    gate = {'target':name,'exit_code':result.returncode,
+                            'log_sha256':common.producer.sha(evidence/(name+'.log'))}
+                gates.append(gate)
                 common.write_json(journal,{**plan,'status':'applying','gates':gates})
-                require(result.returncode==0,'APPLICATION_GATE_FAILED')
+                require(gate['exit_code']==0,'APPLICATION_GATE_FAILED')
             require(git(target,'rev-parse','HEAD').decode().strip()==current,'APPLICATION_HEAD_CHANGED')
             require(all(disk_hash(target,p)==h for p,h in desired.items()),'APPLICATION_APPROVED_FILES_CHANGED')
             # Gates must not change any other tracked path in this project.

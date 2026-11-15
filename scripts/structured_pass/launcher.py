@@ -120,6 +120,7 @@ class Corridor:
         return {'generation':generation,'run_id':self.config['run_id'],'objective':self.config['objective'],
                 'pass_id':self.config['pass_id'],'pass_start_generation':state['pass_start_generation'],
                 'ticket':current_ticket,'handoff':handoff,
+                'verification_policy':self.editor.verification_policy,
                 'scope':'Current project corridor; no quality verdict until independent review.'}
 
     def guidance(self,args):
@@ -210,10 +211,25 @@ class Corridor:
         receipt=Path(record['capture'])/'closeout.json'
         require(receipt.is_file(),'CLOSEOUT_EVIDENCE_UNAVAILABLE')
         writer=json.loads(receipt.read_text())
-        require(writer['gate']['exit_code']==0 and writer['closed_row']['verify']=='pass'
+        expected_verify = 'pass'
+        evidence = writer['gate'].get('verification')
+        if self.editor.verification_policy is not None:
+            from . import verification_policy, gate_environment
+            env = gate_environment.environment(state['gate_toolchain'], self.editor.root/'gate-tmp')
+            require(evidence is not None, 'CLOSEOUT_EVIDENCE_UNAVAILABLE')
+            verification_policy.check_evidence(evidence, self.editor.verification_policy,
+                (Path(record['checkout'])/self.editor.source).read_bytes(), env)
+            expected_verify = verification_policy.expected_scorecard(evidence)
+        require(writer['gate']['exit_code']==0 and writer['closed_row']['verify']==expected_verify
                 and writer['closed_row']['docs_check']=='pass','CLOSEOUT_EVIDENCE_UNAVAILABLE')
         root=self.root/'handoff'
         answer,data=structured_handoff.archive_document(agent_review,root,review,self.config['pass_id'])
+        if evidence is not None:
+            data += ('\n## Service verification\n\n' +
+                'Verification: ' + expected_verify + '. This is a semantic-pass result, not a maturity assessment.\n' +
+                'Starting counts: ' + json.dumps(evidence['before'], sort_keys=True) + '\n' +
+                'Final counts: ' + json.dumps(evidence['after'], sort_keys=True) + '\n' +
+                'Source SHA-256: ' + evidence['source_sha256'] + '\n').encode()
         archive=root/answer['archive'];history=agent_review.run_dir(root,review)/'closeouts'
         journal=self.root/'application.json'
         if journal.exists():

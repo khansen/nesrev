@@ -15,6 +15,7 @@ from .rename_service import RenameService
 from . import service as common
 from .model import producer
 from . import mixed_documents as mixed
+from . import verification_policy
 ERRORS=frozenset(('PROJECT_PROFILE_INVALID','PROJECT_PROFILE_CHANGED'))
 common.PUBLIC_ERROR_CODES|=ERRORS
 
@@ -28,8 +29,14 @@ def service_class(path,expected=None):
     require(expected is None or producer.sha(path)==expected,'PROJECT_PROFILE_CHANGED')
     common.schema(profile,('schema','slug','source','reference','source_sha256','base_commit',
         'baseline_path','baseline_sha256','producer_path','producer_sha256','pass_id','objective',
-        'next_pass_sha256','pass_plan_sha256'),('authored_paths','analogue_models'))
-    require(profile['schema']=='current-project-profile-v1')
+        'next_pass_sha256','pass_plan_sha256'),('authored_paths','analogue_models','verification_policy'))
+    require(profile['schema'] in ('current-project-profile-v1', 'current-project-profile-v2'))
+    require(('verification_policy' in profile) == (profile['schema'] == 'current-project-profile-v2'))
+    policy = profile.get('verification_policy')
+    profile_hash = producer.sha(path)
+    if policy is not None:
+        verification_policy.check_shape(policy)
+        require(all(policy[k] == profile[k] for k in ('base_commit', 'source', 'source_sha256')))
     from .ownership import registry
     registered=registry(profile.get('authored_paths', []))['authored_documents']
     slug=profile['slug'];require(isinstance(slug,str) and re.fullmatch('[a-z0-9_]+',slug))
@@ -59,6 +66,21 @@ def service_class(path,expected=None):
         authored_paths=registered
         analogue_models=profile.get('analogue_models',[])
 
+        def reload(self):
+            super().reload()
+            require(producer.sha(path) == profile_hash and
+                    producer.sha(baseline) == profile['baseline_sha256'], 'PROJECT_PROFILE_CHANGED')
+            if policy is not None:
+                require(self.state.get('verification_policy') == policy, 'VERIFICATION_POLICY_CHANGED')
+                start = self.state['generations'][self.state['pass_start_generation']]
+                checkout = Path(start['checkout'])
+                require(common.git(checkout, 'rev-parse', 'HEAD') == profile['base_commit'], 'VERIFICATION_POLICY_CHANGED')
+                from . import gate_environment
+                env = gate_environment.environment(self.state['gate_toolchain'], self.root/'gate-tmp')
+                verification_policy.validate(policy, profile['base_commit'], self.source, (checkout/self.source).read_bytes(), env)
+                verify = next(c for c in checks if c['target'] == 'project-verify')
+                verification_policy.check_evidence(verify['verification'], policy, (checkout/self.source).read_bytes(), env)
+
         def document_pass_id(self):
             return profile['pass_id']
 
@@ -75,8 +97,9 @@ def service_class(path,expected=None):
             if mixed.document_operations(operations) is None:
                 return super().run_gates(checkout,operations,folder,env)
             return mixed.run_closeout(checkout,self.project,self.slug,operations,self.document_pass_id(),
-                folder,env,checkout/'scripts',pass_plan_sha256=profile['pass_plan_sha256'])
+                folder,env,checkout/'scripts',pass_plan_sha256=profile['pass_plan_sha256'], verification=policy)
 
+    ProjectService.verification_policy=policy
     ProjectService.project=project
     ProjectService.slug=slug
     return ProjectService
