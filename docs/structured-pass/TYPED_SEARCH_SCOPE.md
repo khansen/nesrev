@@ -1,11 +1,14 @@
-# Typed search: proposed service slice
+# Typed search: authorized offline scope
 
-**Draft for owner approval, revised 15 November 2026.** This proposal follows the
+**Owner-authorized offline scope, 15 November 2026.** This proposal follows the
 [accepted feasibility decision](FEASIBILITY_DECISION.md) and
-[retained workload assessment](TRIAL_WORKLOAD_COVERAGE.md). It authorizes no
-implementation, provider call or game pass. The completed checkpoint and census
-landed in [PR #186](https://github.com/khansen/nesrev/pull/186) as `aa6fff061`;
-this draft is the next decision.
+[retained workload assessment](TRIAL_WORKLOAD_COVERAGE.md). The owner authorized
+the bounded offline work below, beginning with the
+two-hour translation checkpoint. Provider calls and game passes remain outside
+that authorization. The completed feasibility checkpoint and census
+landed in [PR #186](https://github.com/khansen/nesrev/pull/186) as `aa6fff061`.
+The [translation checkpoint](TYPED_SEARCH_CHECKPOINT.md) records all 89 requests,
+the input and predicate gaps, and the decision before implementation.
 
 ## Outcome and why this comes first
 
@@ -36,16 +39,18 @@ it does not make the launcher optional.
 
 ## Bound, ownership and checkpoint
 
-Propose **8–16 active hours**, with an early translation checkpoint after at
-most two hours, a progress checkpoint at eight hours and a hard stop at sixteen.
-This is an uncertain estimate, not an allowance already granted. Expected work:
+The authorized scope has an **8–16-active-hour estimate**, with an early
+translation checkpoint after at most two hours, a progress checkpoint at eight
+hours and a hard stop at sixteen.
+The estimate remains uncertain; the sixteen-hour bound is the authorized ceiling.
+Expected work:
 1–2 hours for the case contract, 3–6 for routes, 3–5 for acceptance and failing
 controls, and 1–3 for documentation and review corrections. Record actual
 active intervals separately from CI, external review and owner waiting time.
 
 The driving agent owns the case ledger, parked list and checkpoints. The reviewer
 can call a checkpoint independently; the owner decides changes of scope or
-extensions. Propose one implementation review with a bounded correction check;
+extensions. Allow one implementation review with a bounded correction check;
 a second substantive review round returns to the owner. Stop sooner if the same
 failure class recurs twice, a producer change or new input-admission contract is
 needed, the eight-call practicality limit cannot be met, or a subproblem becomes
@@ -190,8 +195,8 @@ provider-backed smoke or emulator execution is needed for this offline slice.
 
 ## Integration and work deliberately left out
 
-After scope approval, implementation belongs on a branch from current master,
-which now contains the merged decision PR.
+Implementation is on a branch from master `aa6fff061`, which contains the
+merged decision PR.
 Expected changes are the source/document query helpers, service dispatch and
 wire schema, bridge operation declaration, focused fixtures/tests and docs.
 Reuse `model.py`, navigation/evidence identity helpers, the admitted document
@@ -212,5 +217,6 @@ runtime evidence, permission spelling guidance and per-session worktrees remain
 outside this implementation. The article-check inconsistency and workspace
 isolation stay parked. No ordinary or structured game pass follows automatically.
 
-**Owner decision requested:** accept or adjust this offline scope and its proposed
-8–16-hour bound. No new live authorization is requested here.
+**Authorization recorded:** the owner approved this offline scope on 15 November
+2026. Report at the first translation checkpoint before implementing the routes;
+any scope change or extension returns to the owner.
