@@ -520,6 +520,35 @@ Worker crashes retain available logs and identify every failed case future.
 For serial debugging, run `python3 tests/analysis_bundle_test.py -v`, or select
 a case with `python3 tests/analysis_bundle_test.py BundleTests.test_schema_refusals`.
 
+The shell runner prints each test when it starts, its elapsed time and exit
+status when it finishes, and the ten slowest entries at the end. During
+development, select suites or individual tests with quoted shell globs:
+
+```sh
+make test-shell TEST_SUITE='agent_review*'
+make test-shell TEST_CASE='lib::test_shell_runner_propagates_nonfinal_command_failures'
+bash tests/shell/run_all.sh --suite 'agent_review*' --test '*::test_*watch*' --list
+make test TEST_JSON=tmp/shell-tests.json
+```
+
+Suite names omit `_test.sh`; test identifiers are `suite::test_function`.
+When both filters are supplied, both must match. Filtered output is labeled
+`FILTERED`, and an empty selection fails. `--list` sources selected suite files
+to discover functions but does not run test bodies. `make test` rejects
+`TEST_SUITE` and `TEST_CASE`; run it without filters before review or merge.
+
+`TEST_JSON` (or the runner's `--json <path>`) writes a versioned shell-run
+report containing the filters, selected identifiers, per-entry elapsed seconds
+and exit codes, counts, discovery time, total time, and completion status.
+An existing report is replaced with an incomplete record before discovery;
+only `complete: true`, `status: passed`, and `selection.filtered: false`
+describe a successful full shell run. Java and playbook/hygiene results remain
+in the `make test` log. Entry timings include fixture setup, sourcing and the
+test subprocess, but exclude runner cleanup; total time includes discovery
+and cleanup. All timings use a monotonic clock. A shell entry may contain an
+entire Python suite: profile inside expensive entries before attributing cost
+to individual tests. Use `--slowest N` to change the console ranking length.
+
 [GitHub CI](.github/workflows/ci.yml) runs the same command on Ubuntu 24.04 and
 macOS 15 for every pull request and push to `master`. It can also be started
 manually from the Actions tab. The workflow pins its action revisions, Python,
@@ -539,8 +568,8 @@ reports that optional coverage explicitly in its job summary and toolchain log.
 A green CI run does not replace project-specific parity or runtime evidence.
 
 Each job has a 30-minute limit. New runs cancel older runs for the same ref,
-and completed jobs retain build, toolchain, and test logs as artifacts for
-14 days, including when a check fails.
+and completed jobs retain build, toolchain, and test logs plus the shell timing
+report as artifacts for 14 days, including when a check fails.
 
 ## NESrev Recovery Controls
 

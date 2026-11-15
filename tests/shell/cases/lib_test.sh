@@ -20,6 +20,7 @@ test_shell_runner_propagates_nonfinal_command_failures() {
   local fixture_root="${NESREV_TEST_TMPDIR}/runner-fixture"
   mkdir -p "${fixture_root}/tests/shell/cases"
   cp "${REPO_ROOT}/tests/shell/run_all.sh" "${fixture_root}/tests/shell/run_all.sh"
+  cp "${REPO_ROOT}/tests/shell/run_all.py" "${fixture_root}/tests/shell/run_all.py"
   cp "${REPO_ROOT}/tests/shell/lib.sh" "${fixture_root}/tests/shell/lib.sh"
   cat > "${fixture_root}/tests/shell/cases/nonfinal_test.sh" <<'EOF'
 #!/usr/bin/env bash
