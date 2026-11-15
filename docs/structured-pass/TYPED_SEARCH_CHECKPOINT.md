@@ -5,6 +5,10 @@ authorized the [offline scope](TYPED_SEARCH_SCOPE.md), including this checkpoint
 within two active hours. All 89 retained search-bearing calls have been read and
 translated. No search route, client, permission or admission code has changed.
 
+This paragraph records the state at the translation checkpoint. Subsequent
+owner decisions are recorded below; implementation results are in the separate
+[offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md).
+
 **Recommendation:** continue with the approved native-instruction and
 literal-text contracts, retaining the unsupported predicates below as explicit
 gaps. Do not add a regex engine or broader input admission to make the census
@@ -180,14 +184,15 @@ It is now a separate blocker in the
 [minimum fresh-game path](TRIAL_WORKLOAD_COVERAGE.md#minimum-path-to-one-fresh-game-pass-through-the-service),
 to scope with intake and the launcher.
 
-**Proposed corpus adjustment, awaiting owner decision:** use an isolated copy of
-the earlier static pilot's real-code corpus. Its retained profile and baseline
-hashes match, with all four baseline checks recorded green. Label new results
+**Corpus adjustment approved by the owner on 15 November 2026:** use an isolated
+copy of the earlier static pilot's real-code corpus. Fresh preparation admitted
+that copy with all four baseline checks green, unchanged source bytes matching
+the retained pilot pin, and native model/reference parity certified. Label new results
 **cross-project proxy**, test the service and independent oracle on identical
 admitted bytes, and keep all 29 trial instruction calls historically unverified.
-This would test correctness and request counts on real code, not reconstruct the
-trial or predict fresh-game throughput. Route implementation remains held until
-the corpus decision; the existing eight- and sixteen-hour bounds still apply.
+This tests correctness and request counts on real code, not reconstruction of the
+trial or prediction of fresh-game throughput. Route implementation can proceed;
+the existing eight- and sixteen-hour bounds still apply.
 Practicality results must say **measured on mature code**: its named operands
 under-represent a new game's raw-operand match volumes. Synthetic later-page and
 full-page tests remain mandatory. A direct query test on unadmitted trial code,

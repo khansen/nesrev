@@ -9,6 +9,8 @@ work are not authorized by this document. Service baseline:
 worked for the declared worker runtimes, and the reviewer/media smoke passed;
 the reviewer's hook-disabled protection remains open. Typed search is the next
 service slice to propose, with implementation still subject to owner approval.
+The subsequently authorized [typed-search implementation and offline results](TYPED_SEARCH_ACCEPTANCE.md)
+are recorded separately; the original census below has not been reclassified.
 The census and recommendation below preserve the assessment that preceded the
 checkpoint; they are not a statement that the investigation remains unstarted.
 

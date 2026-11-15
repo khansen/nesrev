@@ -9,6 +9,8 @@ that authorization. The completed feasibility checkpoint and census
 landed in [PR #186](https://github.com/khansen/nesrev/pull/186) as `aa6fff061`.
 The [translation checkpoint](TYPED_SEARCH_CHECKPOINT.md) records all 89 requests,
 the input and predicate gaps, and the decision before implementation.
+The [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) reports the resulting
+implementation separately from the original scope and translation decisions.
 
 ## Outcome and why this comes first
 

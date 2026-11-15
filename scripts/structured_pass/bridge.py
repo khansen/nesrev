@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import sys
 
-from . import service, paging, review_pages
+from . import service, paging, review_pages, search
 
 TOOL='mcp__facts__operation'
 
@@ -46,11 +46,11 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         result={'protocolVersion':request['params']['protocolVersion'],'capabilities':{'tools':{}},
                             'serverInfo':{'name':'structured-pass','version':'1'}}
                     elif method=='tools/list':
-                        operations=['status','evidence','query','navigate','inspect','q09','documents','document','review','review_report','candidate_status','validation_evidence','guidance']
+                        operations=['status','evidence','query','navigate','inspect','q09','documents','document','review','review_report','candidate_status','validation_evidence','guidance','search']
                         if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document']
                         elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
                         else:operations+=['approve','request-changes']
-                        result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.',
+                        result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+(search.TOOL_HELP if profile=='corridor' else ''),
                             'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
                                 'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
                     elif method=='ping':result={}

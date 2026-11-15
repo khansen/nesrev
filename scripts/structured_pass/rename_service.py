@@ -16,7 +16,7 @@ from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
 from . import authored_documents as authored
-from . import navigation, review_pages, source_edits, artifact_edits, evidence_views
+from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search
 FIELDS = ('old_name','new_name','reason','confidence','pass_id')
 ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMATCH
     WRONG_DECLARATION_SCOPE INVALID_RENAME DUPLICATE_RENAME INVALID_COMMENT
@@ -24,6 +24,7 @@ ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMAT
     LEDGER_RENAME_MISMATCH UNDISPOSED_STALE_PROSE UNCHANGED_LEDGER_REQUIRED
     FORBIDDEN_PATH GENERATED_PATH_SERVICE_OWNED PREVIEW_ITEM_TOO_LARGE PREVIEW_CONTENT_CHANGED'''.split()
 common.PUBLIC_ERROR_CODES = common.PUBLIC_ERROR_CODES | frozenset(ERRORS) | authored.ERRORS | navigation.ERRORS | source_edits.ERRORS | artifact_edits.ERRORS | evidence_views.ERRORS
+common.PUBLIC_ERROR_CODES |= search.ERRORS
 
 
 def comments(model):
@@ -705,10 +706,16 @@ class RenameService(common.Service):
                     **evidence_views.page(fields,offset,limit)}
         return {'generation':generation,**evidence_views.query(model,view,offset,limit,**arguments)}
 
+    @common.state_operation()
+    def search(self, generation, query, continuation=None, limit=40, *, public_generation=None):
+        return search.execute(self, generation, query, continuation, limit,
+                              public_generation=public_generation)
+
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
         spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit')),
               'inspect':(('generation','symbol'),()),'q09':(('generation','names'),('offset','limit')),
+              'search':(('generation','query'),('continuation','limit')),
               'documents':(('generation',),()),'document':(('generation','path'),('offset','limit')),
               'review':(('generation','base_generation'),('offset','limit')),
               'preview':(('generation','operations'),('cid',)),'confirm':(('generation','preview_digest'),())}
