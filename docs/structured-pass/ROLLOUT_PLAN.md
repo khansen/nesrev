@@ -21,8 +21,11 @@ Live search acceptance remains open. New-project intake remains outside this ste
 and needs a separate contract. The
 [minimum fresh-game path](TRIAL_WORKLOAD_COVERAGE.md#minimum-path-to-one-fresh-game-pass-through-the-service)
 also records early-pass admission as a separate, unestimated blocker: strict
-verification currently refuses projects that retain generic names. Resolve its
-verification contract with intake and the launcher; it is outside typed search.
+verification currently refuses projects that retain generic names. The
+[admission proposal](EARLY_PASS_ADMISSION.md) puts measurement of the remaining
+checks before an implementation estimate, with the verification mode owned by
+the service. Its first checkpoint is proposed, not yet run. Resolve the resulting
+contract before integrating intake and the launcher; it is outside typed search.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a

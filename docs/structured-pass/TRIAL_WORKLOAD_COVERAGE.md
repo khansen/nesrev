@@ -293,7 +293,7 @@ feasibility checkpoint and once the chosen pass's obligations are explicit.
 | Workflow jobs and generated evidence | 8–16 h | Named trusted jobs, complete paged results, failures and cancellation; next-pass/start, hidden-code findings and non-writing regeneration. Keep worker integration provisional until feasibility. |
 | Isolated worker execution and runtime integration | 16–40 h after feasible boundary | Authored Python/Lua, real emulator resources, captured outputs/media, fixtures and cleanup behind W2/W3. A fixed decoder may replace some observed helpers; it does not cover later authored traces. |
 | Fresh intake contract | 12–24 h | Supplied-input registration, mapper/container checks, reference extraction, initial regeneration and recovery. Transition into structured admission depends on the separate early-pass verification component below. Intake is outside the current parity-pass roadmap; S6 alone does not provide it. |
-| Early-pass admission and verification | Unestimated; newly identified blocker | Admit and carry an explicitly declared semantic-pass verification mode through preparation, candidate checks and application while generic names remain. Prove that unresolved names are the sole strict failure and all other checks still reject defects. Scope with intake and the launcher, before claiming a fresh-game path; outside the typed-search slice. |
+| Early-pass admission and verification | Unestimated; measurement proposed | Follow the [admission checkpoint](EARLY_PASS_ADMISSION.md#checkpoint-1-measure-before-estimating) before estimating implementation. The service derives eligibility from the immutable starting source; agents cannot choose relaxation. Prove that unresolved names are the sole strict failure and carry the policy through preparation, candidate checks and application. Initially clean sources and maturity remain strict. |
 | Instruction and text search | 8–16 h | Native instruction predicates and registered-text selection with complete, bounded results. Can be developed offline independently; admission and client delivery are needed for live use. |
 | Guidance, reference and analogue extensions | 4–8 h | Pin the needed guidance, extracted text and comparison corpus; extend the narrow current analogue views. Search does not replace these input/authority decisions. |
 | Candidate writes and publication closure | 8–24 h, pass-dependent | Required recovery hints, raw-RAM judgments, remaining artifact rows, policy migration, deferrals/friction and any attributed amendments. Reuse 2A edits; do not call these existing merely because the read side works. |
@@ -333,6 +333,13 @@ When scoping early-pass support, compare compact match lists with separately
 requested context and summaries grouped by routine or operand value. Keep the
 eight-request limit fixed; verify the selected approach on the overflowing
 questions rather than raising the limit or treating mature-code counts as proof.
+
+The [measurement-first proposal](EARLY_PASS_ADMISSION.md) selects several retained
+early-stage snapshots and runs the remaining gates in disposable copies, without
+repairing failures or changing production admission. Additional failures are new
+scope, not assumed to be covered by a naming-mode change. For the eventual first
+fresh-game milestone, start with owner-run existing intake; add intake service
+operations only where that pass demonstrates a need.
 
 Compare this investment with a smaller typed-inspection slice for an already
 admitted project and with attended ordinary operation. The latter preserves
