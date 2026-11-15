@@ -136,6 +136,24 @@ or still unverified. Synthetic analogues test behavior, not historical coverage.
 If reconstructing snapshots becomes a separate project, stop under the agreed
 bound rather than quietly substituting newer inputs.
 
+**Real-code corpus decision (15 November):** for the ten reviewer instruction
+calls, use the recorded review head only when retained evidence establishes that
+the searched code stayed unchanged throughout the review window, including no
+concurrent implementer edits. The reviewer's read-only role alone is not that
+proof. Otherwise keep historical verification unverified. For the nineteen
+implementer instruction calls, select the nearest retained committed snapshot
+in the recorded work sequence that passes full current-project admission, and
+label every result **proxy**. Record the chosen commit, selection reason, input
+hashes and any admission refusal. Run the independent native-fact oracle and
+the service queries on the same admitted snapshot; measure all requests against
+the unchanged eight-request limit. Report historical verification, proxy
+correctness/practicality and synthetic-fixture results separately. Proxy results
+never become historical replay or erase the original unverified disposition.
+Both paths require full admission without weakening any gate. Establish and pin
+at least one admitted real-code snapshot before building the routes; if neither
+path works within the bound, return that finding before implementation rather
+than silently reducing acceptance to fixtures alone.
+
 ## Bounds selected for implementation
 
 These are caps, not a promise that every allowed query fits eight requests.
@@ -186,8 +204,10 @@ resolve; the shared files passed the project-neutrality scan.
 were run because no service code changed. Provider calls, assembler/emulator
 runs, full project admission and heavy jobs were all zero.
 
-Work began at 23:29:20 UTC on 14 November (15 November locally). The private
-checkpoint record retains the preparation/check completion time and conservatively
-charges the elapsed work interval, excluding no unmeasured thinking time. It
-also retains the initial ledger-writer error, corrected before outputs were
-produced; no observation or failed service result was replaced.
+Work began at 23:29:20 UTC on 14 November (15 November locally), with the final
+documentation edit at 23:54:11 UTC. The corrected private record charges a
+**provisional 35 active minutes**, excluding the overnight approval wait before
+the commit. This is a conservative estimate, not an exact active/wait split;
+the original elapsed-time charge is retained as a superseded reduction. The
+record also retains the initial ledger-writer error, corrected before outputs
+were produced; no observation or failed service result was replaced.
