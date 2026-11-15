@@ -1,6 +1,7 @@
 # One fresh-game pass: scoping proposal
 
-15 November 2026. Status: proposed after the accepted
+15 November 2026. Status: intake accepted; post-intake measurement awaiting
+owner authorization. Proposed after the accepted
 [early-pass admission milestone](EARLY_PASS_ADMISSION_IMPLEMENTATION.md) and its
 [retrospective](../retros/2026-11-15-structured-early-pass-admission.md).
 Tooling baseline: master `65704d7b0`. This document authorizes neither
@@ -19,11 +20,13 @@ The proposed acceptance case is **FG-1, pass 1: a parity-preserving frame-servic
 and controller-input infrastructure corridor**. Its named game and selection
 rationale are recorded in `CASE.json` in private packet
 `fresh-game-pass-scope-20261115`; identities and supplied paths stay outside
-master. The game has no project tree or registered reference-intake record in
-the inspected checkout. The owner has not yet confirmed the selection or supplied
-a pinned input set for this milestone. ROM identity, header validation, reference
-hashes, intake commit and exact corridor anchor remain pending. This is a
-concrete proposed case, not an admitted or launched one.
+master. At selection, the game had no project tree or registered reference-intake
+record in the inspected checkout. The owner subsequently confirmed the selection
+and supplied the inputs. Ordinary intake and its independent round-1 review are
+now accepted and archived. ROM/header evidence, reference hashes and the accepted
+commit are pinned in the private `fresh-game-intake-20261115` packet. The exact
+semantic corridor anchor and structured preparation remain pending; no semantic
+pass or structured client has launched.
 
 After intake, use native evidence to confirm one connected ownership corridor
 and record its actual target, producers, consumers, reference scope and exclusions.
@@ -43,10 +46,11 @@ even for a locally unstarted game.
 Start with owner-authorized use of the existing
 [intake workflow](../../agent_playbook/NEW_PROJECT.md#starting-a-new-project),
 including recovery discovery, curated warnings, reference processing and the
-intake/reference commits and review. `make project-intake` alone does not
+intake/reference commits and review. This prerequisite is now complete for FG-1.
+`make project-intake` alone does not
 complete those obligations. Record its operator time and failures separately;
 do not hide coordinator semantic work in “setup.” No intake service is selected
-by this proposal, and no project is scaffolded during this scoping work.
+by this proposal; scaffolding and intake were separately authorized.
 
 The structured segment begins at that frozen accepted baseline. Preparation
 and its selected corridor are explicit trusted setup; autonomous pass selection
@@ -177,12 +181,12 @@ extract, and a shared conversation is not a reference-delivery mechanism.
 This scoping pass is limited to **two active hours**, offline, using retained
 evidence and code. It does not start intake, a service session, a capture or a
 provider-backed client. Record actual effort. It ends with this dependency
-assessment; the missing FG-1 inputs prevent a pass-specific implementation
-estimate now. The old 80–176-hour subtotal is historical context, not the price
-of this case.
+assessment; it did not produce a pass-specific implementation estimate before
+intake. The old 80–176-hour subtotal is historical context, not the price of this
+case.
 
-Once the owner selects the game and authorizes ordinary intake, prepare a
-separate bounded measurement packet before any integration estimate:
+With intake accepted, prepare a separate bounded measurement packet before any
+integration estimate. Its execution still requires the allowance below:
 
 1. Pin ROM/reference hashes, parsed header, accepted intake commit, current
    tooling and actual first-pass corridor. Run full preparation in a disposable
@@ -192,6 +196,13 @@ separate bounded measurement packet before any integration estimate:
    Name the required W1 results, D3/D6/D7 fields, document registrations,
    reference pages/extracts and analogue inputs. Mark unsupported operations
    explicitly. Inspect both roles' complete prospective inputs.
+   Include all eight one-off coordinator approvals from FG-1 intake in a ledger:
+   covered by an existing service route within eight requests, covered but over
+   that limit, or not covered. Record the required fact or lifecycle action,
+   the route and complete request count where measurable, and whether it recurs
+   in pass 1. Include the authored stack-dispatch sequence scan; do not assume
+   that a search route covers it merely because it can return instructions.
+   These are coverage questions, not shell-spelling or permission-grant work.
 3. Translate the actual search questions and count complete service requests,
    including selection/context. Compare with an independent native-fact oracle;
    no-match, unresolved operands and truncation remain distinct. Carry forward
