@@ -246,6 +246,9 @@ class Service:
         write_json(bootstrap/'ownership.json',ownership.registry(cls.authored_paths))
         from . import analogue_inputs
         analogue_inputs.capture(list(cls.analogue_models),bootstrap)
+        from . import declared_inputs
+        input_hash = getattr(cls, 'declared_inputs_sha256', None)
+        declared_inputs.identity(bootstrap, input_hash)
         base_capture=bootstrap
         model = Model(base_capture)
         fixture = json.loads(cls.fixture_path.read_text())
@@ -257,6 +260,7 @@ class Service:
                     'reference':producer.sha(base/cls.reference),
                     'ownership':producer.sha(bootstrap/'ownership.json'),
                     'analogues':producer.sha(bootstrap/'analogues.json')}
+        if input_hash is not None:identity['declared_inputs'] = input_hash
         generation = 'G-'+digest(json.dumps(identity,sort_keys=True).encode())[:20]
         state = {'producer_sha256':producer.sha(producer.EXE),'current':generation,
                  'pass_start_generation':generation,'gate_toolchain':toolchain,
@@ -269,6 +273,7 @@ class Service:
                  'candidates':{}}
         if cls.verification_policy is not None:
             state['verification_policy'] = cls.verification_policy
+        if input_hash is not None:state['declared_inputs_sha256'] = input_hash
         write_json(root/'state.json',state)
         return cls(root)
 
@@ -340,6 +345,8 @@ class Service:
         if any(producer.sha(checkout/p)!=h for p,h in record['manifest'].items()):
             raise ValueError('GENERATION_INPUT_CHANGED')
         check_capture(record)
+        from . import declared_inputs
+        declared_inputs.identity(record['capture'], self.state.get('declared_inputs_sha256'))
         if generation not in self.cache:
             self.cache[generation] = Model(record['capture'])
         if digest(self.cache[generation].source)!=record['manifest'][self.source]:
@@ -440,7 +447,8 @@ class Service:
             id_seed = {'base':c['base'],'operations':c['operations'],'source':digest(data)}
             prefix = 'edit-'+digest(json.dumps(id_seed,sort_keys=True).encode())[:20]
             changed,certification = certify(checkout/self.source,capture,ref,base,edits,prefix=prefix)
-            for retained in ['ownership.json','analogues.json',*(p.name for p in base.capture.glob('analogue-*.json.gz'))]:
+            from . import declared_inputs
+            for retained in ['ownership.json','analogues.json',*(p.name for p in base.capture.glob('analogue-*.json.gz')), *declared_inputs.files(base.capture)]:
                 shutil.copy2(base.capture/retained,capture/retained)
             c['certification_seconds'] = time.monotonic()-t
             c['certification'] = certification

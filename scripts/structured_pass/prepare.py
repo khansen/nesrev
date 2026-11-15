@@ -9,7 +9,7 @@ import time
 
 from . import gate_environment, producer, service as common, mixed_documents as mixed
 from .launcher import Corridor
-from . import verification_policy
+from . import verification_policy, declared_inputs
 from .model import certify, digest
 from .publication import configuration
 
@@ -25,8 +25,8 @@ def run(command, cwd, env, log):
 
 
 def prepare(repo, output, selection, executable, store):
-    common.schema(selection,('project','target','objective','why_now','boundaries','evidence','reference_scope','out_of_scope'),('authored_paths','analogue_models'))
-    producer.require(all(isinstance(v,str) and v.strip() for k,v in selection.items() if k not in ('authored_paths','analogue_models')),'PROJECT_SELECTION_INVALID')
+    common.schema(selection,('project','target','objective','why_now','boundaries','evidence','reference_scope','out_of_scope'),('authored_paths','analogue_models','declared_inputs'))
+    producer.require(all(isinstance(v,str) and v.strip() for k,v in selection.items() if k not in ('authored_paths','analogue_models','declared_inputs')),'PROJECT_SELECTION_INVALID')
     slug=selection['project'];producer.require(re.fullmatch('[a-z0-9_]+',slug),'PROJECT_SELECTION_INVALID')
     repo=Path(repo).resolve();root=Path(output).resolve()
     producer.require(not root.exists(),'PREPARATION_EXISTS')
@@ -75,6 +75,9 @@ def prepare(repo, output, selection, executable, store):
     changed=common.git(checkout,'diff','--name-only','HEAD',env=env).splitlines()
     producer.require(all(common.file_ownership(p,prefix,source)=='generated' for p in changed),'PREPARATION_CHANGED_AUTHORED_FILE')
     model,certificate=certify(checkout/source,root/'capture',checkout/reference)
+    input_hash = None
+    if 'declared_inputs' in selection:
+        input_hash = declared_inputs.admit(repo, slug, base, selection['declared_inputs'], root/'capture', selection.get('analogue_models', []))
     common.write_json(root/'baseline.json',{'checks':checks,'producer_sha256':producer.sha(producer.EXE)})
     profile={'schema':'current-project-profile-v2','verification_policy':policy,'slug':slug,'source':source,'reference':reference,
         'source_sha256':digest(model.source),'base_commit':base,'baseline_path':str(root/'baseline.json'),
@@ -83,6 +86,7 @@ def prepare(repo, output, selection, executable, store):
         'objective':selection['objective'],'next_pass_sha256':producer.sha(pass_dir/'next_pass.json'),
         'pass_plan_sha256':producer.sha(pass_dir/'current_pass_plan.json'),
         'authored_paths':selection.get('authored_paths',[]),'analogue_models':selection.get('analogue_models',[])}
+    if input_hash is not None:profile['declared_inputs_sha256'] = input_hash
     common.write_json(root/'profile.json',profile)
     controller=Corridor.initialize(root/'session',checkout,root/'capture',store,
         run_id=slug+'-structured-'+profile['pass_id'],objective=profile['objective'],project_profile=root/'profile.json')

@@ -30,7 +30,13 @@ admits the selected input but finds incomplete judgment/document routes and
 before input delivery and launcher integration; no implementation is authorized
 by that report. The separately authorized [judgment writer](RAM_JUDGMENT_SLICE.md)
 and [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now have offline evidence.
-Input delivery, root-document access and the launcher remain dependencies.
+The [revised input-delivery slice](INPUT_DELIVERY_SLICE.md) corrects misplaced
+notes instead of expanding root access. Its [authorized checkpoint](INPUT_DELIVERY_CHECKPOINT.md)
+records the corrected baseline, successful preparation and the declared-input
+contract before implementation. [Declared inputs](DECLARED_INPUTS.md) now provide
+the bounded delivery routes and common role assembly; the
+[offline acceptance](INPUT_DELIVERY_ACCEPTANCE.md) records their evidence and limits.
+Friction import, launcher/client admission and the unscripted pass remain.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
@@ -377,6 +383,12 @@ Optional repeated `--media /absolute/reference.png` or `--media /absolute/manual
 arguments copy operator-selected reference media into the source-free workspaces.
 Their bytes and allowed read paths are pinned; unexpected workspace files refuse
 launch.
+
+For a session with [declared inputs](DECLARED_INPUTS.md), supply `--task-file`
+with the current authorized pass scope instead of extra `--media` arguments.
+Both roles receive the manifest's page identities and an explicitly historical
+intake index. The archive itself is read on demand. These assembly changes have
+offline coverage; current client pins and actual delivery still need admission.
 
 Only an explicit operator `authorize --responses N --minutes N` enables a run.
 Run a role under the same heavy runner with `run implementer --message TEXT` or

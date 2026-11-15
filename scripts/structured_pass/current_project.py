@@ -15,7 +15,7 @@ from .rename_service import RenameService
 from . import service as common
 from .model import producer
 from . import mixed_documents as mixed
-from . import verification_policy
+from . import verification_policy, declared_inputs
 ERRORS=frozenset(('PROJECT_PROFILE_INVALID','PROJECT_PROFILE_CHANGED'))
 common.PUBLIC_ERROR_CODES|=ERRORS
 
@@ -29,11 +29,14 @@ def service_class(path,expected=None):
     require(expected is None or producer.sha(path)==expected,'PROJECT_PROFILE_CHANGED')
     common.schema(profile,('schema','slug','source','reference','source_sha256','base_commit',
         'baseline_path','baseline_sha256','producer_path','producer_sha256','pass_id','objective',
-        'next_pass_sha256','pass_plan_sha256'),('authored_paths','analogue_models','verification_policy'))
+        'next_pass_sha256','pass_plan_sha256'),('authored_paths','analogue_models','verification_policy','declared_inputs_sha256'))
     require(profile['schema'] in ('current-project-profile-v1', 'current-project-profile-v2'))
     require(('verification_policy' in profile) == (profile['schema'] == 'current-project-profile-v2'))
     policy = profile.get('verification_policy')
     profile_hash = producer.sha(path)
+    input_hash = profile.get('declared_inputs_sha256')
+    if 'declared_inputs_sha256' in profile:
+        require(isinstance(input_hash, str) and re.fullmatch('[a-f0-9]{64}', input_hash))
     if profile['schema'] == 'current-project-profile-v2':
         verification_policy.check_shape(policy)
         require(all(policy[k] == profile[k] for k in ('base_commit', 'source', 'source_sha256')))
@@ -65,11 +68,14 @@ def service_class(path,expected=None):
         baseline_path=baseline
         authored_paths=registered
         analogue_models=profile.get('analogue_models',[])
+        declared_inputs_sha256=input_hash
 
         def reload(self):
             super().reload()
             require(producer.sha(path) == profile_hash and
                     producer.sha(baseline) == profile['baseline_sha256'], 'PROJECT_PROFILE_CHANGED')
+            require(self.state.get('declared_inputs_sha256') == input_hash, 'PROJECT_PROFILE_CHANGED')
+            declared_inputs.identity(self.state['generations'][self.state['pass_start_generation']]['capture'], input_hash)
             if policy is not None:
                 require(self.state.get('verification_policy') == policy, 'VERIFICATION_POLICY_CHANGED')
                 start = self.state['generations'][self.state['pass_start_generation']]

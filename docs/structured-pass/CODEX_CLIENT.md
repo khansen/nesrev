@@ -54,6 +54,13 @@ profile are absolute. Use a new profile root. Optional `--media` accepts pinned
 PNG images for `view_image`; PDF intake needs separate, reviewed preparation.
 The model receives the pinned prompt through `model_instructions_file`.
 
+With [declared inputs](DECLARED_INPUTS.md), `--message-file` supplies the current
+authorized pass scope. Preparation assembles the manifest's PNGs and labeled
+evidence index, and refuses extra `--media` arguments. It pins the assembly and
+checks it again before execution. Historical intake instructions are not copied
+into the task prompt. This integration is tested offline with stub clients;
+updated tool-declaration pins and live delivery require separate admission.
+
 The isolated `auth-config` directory starts empty. Authentication uses a
 subscription login with file credential storage in that directory. Never seal,
 archive or publish this directory. Login is a separate owner action; preparation

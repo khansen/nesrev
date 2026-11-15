@@ -44,12 +44,15 @@ def check_initialization(event,model):
     require(event.get('model')==model and event.get('permissionMode')=='dontAsk','CLIENT_PROFILE_CHANGED')
 
 
-def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,media=()):
+def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,media=(),task=None):
     client=Path(client).resolve();interpreter=str(Path(interpreter).resolve())
     require(all(isinstance(x,str) and x.strip() for x in (model,effort)), 'MODEL_CONFIGURATION_CHANGED')
     root=Path(root).resolve();root.mkdir(exist_ok=True)
     require(not (root/'launch.json').exists(),'LAUNCH_ALREADY_PREPARED')
     controller=Corridor(session);require(not controller.editor.state['candidates'],'EDITOR_NOT_EMPTY')
+    from . import input_delivery
+    declared=controller.editor.state.get('declared_inputs_sha256') is not None
+    if declared:require(not media and isinstance(task,str) and bool(task.strip()),'INPUT_SELECTION_INVALID')
     workspace_root=Path(tempfile.mkdtemp(prefix='nesrev-live-clients-')).resolve()
     references=[]
     for path in media:
@@ -65,12 +68,19 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
             Path(__file__),HERE/'usage_budget.py',HERE/'launcher.py',HERE/'current_project.py',HERE/'application.py',BRIDGE,
             HERE/'structured_handoff.py',HERE/'verdict_bridge.py',HERE.parent/'agent_review.py')},
         'roles':{},'phase_response_cap':30}
+    if declared:
+        for name in ('input_delivery.py','declared_inputs.py'):
+            config['code_sha256'][str(HERE/name)]=common.producer.sha(HERE/name)
     for role in ('implementer','reviewer'):
         folder=root/role;folder.mkdir();workspace=workspace_root/role;workspace.mkdir()
         settings=folder/'settings.json';policy=folder/'policy.json';mcp=folder/'mcp.json';prompt=folder/'prompt.md'
-        prompt.write_text((Path(prompts)/(role+'.md')).read_text())
-        for name,data in references:(workspace/name).write_bytes(data)
-        media_hashes={str(workspace/name):common.digest(data) for name,data in references}
+        assembly=input_delivery.assemble(session,folder/'inputs',role,task) if declared else None
+        role_references=([(Path(m['path']).name,Path(m['path']).read_bytes()) for m in assembly['media']]
+                         if assembly is not None else references)
+        prompt.write_text((Path(prompts)/(role+'.md')).read_text()+
+                          (input_delivery.prompt(assembly,workspace) if assembly is not None else ''))
+        for name,data in role_references:(workspace/name).write_bytes(data)
+        media_hashes={str(workspace/name):common.digest(data) for name,data in role_references}
         common.write_json(policy,{'reads':list(media_hashes),'log':str(folder/'hooks.jsonl')})
         common.write_json(settings,{'permissions':{'defaultMode':'dontAsk','deny':['Bash','Grep','Glob','Edit','Write','Agent','WebFetch','WebSearch']},
             'hooks':{'PreToolUse':[{'matcher':'','hooks':[{'type':'command','command':shlex.join([interpreter,str(BRIDGE),'--hook',str(policy)])}]}]}})
@@ -79,6 +89,10 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
         config['roles'][role]={'workspace':str(workspace),'settings':str(settings),'mcp':str(mcp),'prompt':str(prompt),
             'media':media_hashes,
             'session_id':str(uuid.uuid4()),'files':{str(p):common.producer.sha(p) for p in (settings,policy,mcp,prompt)}}
+        if assembly is not None:
+            path=folder/'inputs/assembly.json'
+            config['roles'][role]['input_assembly']=str(path)
+            config['roles'][role]['files'][str(path)]=common.producer.sha(path)
     common.write_json(root/'launch.json',config)
     common.write_json(root/'budget.json',{'configuration_sha256':common.producer.sha(root/'launch.json'),
         'authorized':False,'max_responses':None,'max_seconds':None,'deadline':None,'runs':[]})
@@ -100,6 +114,9 @@ def verify(root):
     for role in config['roles'].values():files.update(role['files'])
     require(all(common.producer.sha(Path(p))==h for p,h in files.items()),'LAUNCH_CONFIGURATION_CHANGED')
     for role in config['roles'].values():
+        if 'input_assembly' in role:
+            from . import input_delivery
+            input_delivery.verify(config['session'],role['input_assembly'])
         workspace=Path(role['workspace'])
         expected=role.get('media',{})
         require(workspace.is_dir() and {str(p) for p in workspace.iterdir()}==set(expected),'CLIENT_WORKSPACE_NOT_EMPTY')
@@ -203,13 +220,14 @@ def main():
     for name in ('model','effort','client','interpreter','heavy-lock'):
         prep.add_argument('--'+name,required=True)
     prep.add_argument('--media',type=Path,action='append',default=[],help='Operator-selected PNG or PDF; copied and pinned')
+    prep.add_argument('--task-file',type=Path,help='Current authorized pass scope; required with declared inputs')
     sub.add_parser('check')
     approve=sub.add_parser('authorize');approve.add_argument('--responses',type=int,required=True);approve.add_argument('--minutes',type=int,required=True)
     extend=sub.add_parser('extend');extend.add_argument('--responses',type=int,required=True)
     extend.add_argument('--minutes',type=int,required=True);extend.add_argument('--reason',required=True)
     run=sub.add_parser('run');run.add_argument('role',choices=('implementer','reviewer'));run.add_argument('--message',required=True)
     args=parser.parse_args();root=args.root.resolve()
-    if args.action=='prepare':answer=prepare(root,args.session,args.prompts,model=args.model,effort=args.effort,client=args.client,interpreter=args.interpreter,heavy_lock=args.heavy_lock,media=args.media);answer={'prepared':True,'model':answer['model'],'effort':answer['effort'],'authorized':False}
+    if args.action=='prepare':answer=prepare(root,args.session,args.prompts,model=args.model,effort=args.effort,client=args.client,interpreter=args.interpreter,heavy_lock=args.heavy_lock,media=args.media,task=args.task_file.read_text() if args.task_file else None);answer={'prepared':True,'model':answer['model'],'effort':answer['effort'],'authorized':False}
     elif args.action=='check':verify(root);answer={'profile_valid':True,'auth':authenticate(root)}
     elif args.action=='authorize':
         verify(root);require(args.responses>0 and args.minutes>0,'INVALID_BUDGET')
