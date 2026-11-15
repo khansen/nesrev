@@ -26,8 +26,8 @@ the protected judgment columns are enforced by
 Recommend a bounded **RAM evidence and judgments** slice first: preserve complete
 ownership evidence in a more compact view and add the already planned D3 writer.
 Both serve the same required reasoning-and-recording step. Then complete the
-declared input/document routes and the launcher, followed by one separately
-authorized unscripted pass. Do not build all workflow jobs or runtime integration
+declared input/document routes, friction import and the launcher, followed by
+one separately authorized unscripted pass. Do not build all workflow jobs or runtime integration
 in anticipation of needs this corridor has not established.
 
 ## Prepared baseline and limits
@@ -80,6 +80,23 @@ were counted under their existing semantics; they were not independently
 reimplemented or used to prove any RAM name. Their indirect and indexed rows
 remain possibilities, not established accesses to the selected byte.
 
+**Review follow-up, 15 November.** Comparing the retained views by record,
+category and pointer-part identity confirms 304 shared rows: all 118 unresolved
+indirect-destination rows and 186 possible-indexed-access rows. The views have
+188 and 186 indexed possibilities respectively, and five and eight direct
+accesses with no shared direct site. Both selected fields are in zero page.
+This is overlap between these two views, not proof of one universal set for
+every address. No new service experiment was run for this comparison.
+
+At slice 1's two-hour checkpoint, evaluate a generation-bound shared evidence
+set plus each byte's own rows and explicit membership/differences. Fetch shared
+rows once for that generation, preserving every category, unknown and
+address-specific distinction; invalidate references when their generation or
+inputs change. Check a byte outside zero page before freezing the design.
+Measure the first complete question including shared-set retrieval, as well as
+subsequent questions reusing it. Cached savings alone must not conceal an
+over-budget first retrieval. Keep the eight-request and 24 KiB limits unchanged.
+
 The interrupt source walk returned 116 lexical records across 11 blocks in 15
 requests, or 16 with status. This is the measured default-size walk, not a claim
 that it is optimal or that a whole routine investigation is one atomic question.
@@ -131,7 +148,7 @@ the efficient route without measurement.
 | Worker/runtime integration | Not selected; conditional stop | No timing, visual identity or runtime-behavior claim is proposed. Static evidence may still prove insufficient during real work; a necessary trace returns to the owner rather than being omitted. |
 | D6 measured KPI updates | Unknown/conditional | Intake thresholds are provisional; the playbook forbids premature calibration while undecoded blobs remain. Normal metric recording exists. Do not infer that every pass must rewrite thresholds. A required policy change stops for its own scope. |
 | D7 allowlist and gate migration | Unknown/conditional | Existing canonical vocabulary and comparison candidates are available, but the future naming decisions have not been made. No assurance that D7 is unnecessary; no naming choice may be made to evade it. |
-| D9 friction import | Conditional, known missing route | Structured archives retain review prose, but the structured closeout does not call the ordinary friction-queue importer. New learning candidates must not be silently dropped or turned into coordinator edits. |
+| D9 friction import | Expected; known missing route | Both the trial and this intake produced learning candidates, so budget for import in this milestone. Structured archives retain review prose, but structured closeout does not call the ordinary friction-queue importer. Candidates must not be silently dropped or turned into coordinator edits. |
 | Launcher, client admission and final integration | Needed; missing | Use the accepted launcher scope. Recheck actual client/adapter pins and complete the hook-disabled reviewer test in the next authorized client smoke. |
 | New intake service, concurrency, mapper expansion | Not needed for this milestone | Owner-run intake is accepted. These remain broader process capabilities, not hidden prerequisites for this one case. |
 
@@ -144,7 +161,8 @@ The same judgment burden applies to both roles; earlier conversational context
 is not a substitute for delivery.
 The write inventory distinguishes the existing source/rename, scorecard,
 crosswalk and memory-map operations from missing root-document and RAM-judgment
-writers. It keeps conditional KPI, allowlist and friction owners separate under
+writers. It keeps conditional KPI/allowlist writers and expected friction import
+separate under
 the [existing typed-write contracts](STEP_2_COVERAGE.md#documents-ledgers-and-trusted-writes).
 
 ## Proposed slices, costs and checkpoints
@@ -156,14 +174,16 @@ effort, with external review, owner authorization and provider waits separate.
 
 | Order | Slice | Provisional active effort | Acceptance / stop |
 | --- | --- | ---: | --- |
-| 1 | Compact complete RAM evidence and D3 judgments | 6–12 h | At two hours, freeze the compact contract and demonstrate exact category/identity preservation on the two measured fields. Preserve unknowns, resolve selected context, and finish each complete question within eight requests. Then prove typed judgments, stale/preimage refusals, protected factual columns, review and application. Stop if a new analysis engine is required. |
+| 1 | Compact complete RAM evidence and independently deliverable D3 judgments | 6–12 h | At two hours, evaluate shared evidence on both measured fields and a byte outside zero page. Freeze a compact contract only with exact category/identity preservation and complete cold/reused request counts. Independently prove typed judgments, stale/preimage refusals, protected factual columns, review and application. If compaction needs a new analysis engine or misses eight requests, park that part and continue D3 within the same bound. |
 | 2 | Declared evidence inputs and root-document access | 6–12 h | Deliver pinned guidance, references, intake receipt and two analogues to both roles; narrowly register required root documents. Prove unknown-path refusal, preimages and review of root-document changes. Return if two analogues cannot support the corridor or input delivery becomes a new acquisition system. |
-| 3 | Launcher and admitted two-role delivery | 8–16 h | Follow the [accepted scope](LAUNCHER_DECISION.md), including per-turn messages, resume, public errors, guards and cleanup. Live client calls require separate authorization. |
-| 4 | Integrated pass-readiness check and one authorized run | 4–8 h engineering, live duration separately bounded | Check the whole input/write/lifecycle matrix; resolve every needed unknown before launch. Then measure an unscripted pass through independent review, qualified closeout and application. No coordinator repairs or automatic next pass. |
+| 3 | D9 friction import | 2–4 h | Use the existing wrapper authority; preserve source/destination identity, candidate provenance and rationale. Verify nonempty learning candidates reach the queue once, an empty set remains a no-op, and forged receipts are refused. |
+| 4 | Launcher and admitted two-role delivery | 8–16 h | Follow the [accepted scope](LAUNCHER_DECISION.md), including per-turn messages, resume, public errors, guards and cleanup. Live client calls require separate authorization. |
+| 5 | Integrated pass-readiness check and one authorized run | 4–8 h engineering, live duration separately bounded | Check the whole input/write/lifecycle matrix; resolve every needed unknown before launch. Then measure an unscripted pass through independent review, qualified closeout and application. No coordinator repairs or automatic next pass. |
 
-**Conditional engineering subtotal: 24–48 active hours.** It excludes additional
-D6/D7 policy work, D9 friction import (provisionally another 2–4 hours if selected),
-runtime/W1 additions, a general search redesign and new defects. It is not a
+**Conditional engineering subtotal: 26–52 active hours**, including the expected
+2–4 hours for D9 friction import. This supersedes the initial 24–48-hour subtotal
+that excluded D9. It still excludes additional D6/D7 policy work, runtime/W1
+additions, a general search redesign and new defects. It is not a
 complete fixed-price promise while those conditional obligations remain unknown.
 The relevant RAM-view redesign is priced in slice 1; the unrelated broad search
 is not smuggled into it. A confirmed D7 dependency must be separately scoped with
@@ -172,9 +192,13 @@ its required gate migration before a complete revised estimate is offered.
 Slice 1 is the next proposed authorization: **hard bound 12 active hours,
 checkpoint at two, one review round**, with offline fixtures and the retained
 input only. No provider calls. The driving agent owns the checkpoint; a new
-capability dependency, loss of unknown/alias evidence, failed safety control,
-unmet eight-request bound or exhausted allowance returns to the owner. The owner
-has authorized measurement, not this implementation.
+dependency or failed acceptance specific to compaction stops that work and leaves
+its practicality gap open; it does not block delivery of D3. Continue the writer
+within the remaining shared allowance, without weakening either acceptance bar.
+A shared integrity/safety failure, a new writer dependency or exhausted allowance
+returns the whole slice to the owner. D3 alone is not complete slice acceptance
+and does not make FG-1 ready to launch. The owner has authorized measurement,
+not this implementation.
 
 Launcher-first would expose the live loop sooner but leave required judgments
 unwritable. A generic worker could express more analysis but is much larger than

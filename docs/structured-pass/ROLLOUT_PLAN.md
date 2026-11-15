@@ -37,7 +37,8 @@ and the launcher; it does not select the whole remaining 2B/2C program. The
 fresh input and corridor now have an [offline measurement](FRESH_GAME_PASS_MEASUREMENT.md):
 preparation succeeds, but complete RAM evidence takes 14 requests and required
 judgment/root-document routes remain missing. The proposed order is RAM evidence
-and judgments, declared inputs/documents, then launcher and integrated acceptance.
+and independently deliverable judgments, declared inputs/documents and friction
+import, then launcher and integrated acceptance.
 The conditional estimate does not select policy or runtime additions, or authorize
 a live run. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
 records the completed milestone and its limits.

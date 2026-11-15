@@ -304,9 +304,9 @@ to 22 eight-hour days, with substantial uncertainty. That subtotal excludes the
 early-pass admission component, now implemented and measured separately after its
 4–8-hour authorization.
 The [FG-1 measurement](FRESH_GAME_PASS_MEASUREMENT.md) now gives a narrower
-24–48-hour conditional engineering subtotal for one static pass after owner-run
-intake. It excludes policy/runtime additions and is not a replacement estimate
-for this broader path. Shared implementation may reduce the
+26–52-hour conditional engineering subtotal for one static pass after owner-run
+intake, including expected friction import. It excludes policy/runtime additions
+and is not a replacement estimate for this broader path. Shared implementation may reduce the
 subtotal; a failed worker boundary or broader intake contract may exceed it.
 It is not a commitment to build that whole path. In particular, the launcher
 alone is still an 8–16-hour component, not an 8–16-hour fresh-game solution.

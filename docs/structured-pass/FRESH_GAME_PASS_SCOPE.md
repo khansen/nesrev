@@ -237,8 +237,9 @@ owns the checkpoint, the reviewer may raise it, and the owner decides.
 | Attended ordinary pass | Can perform the full work today. | Retains the measured supervision/permission problem; does not test the structured boundary. |
 
 The measured leading gap is **complete RAM evidence and judgment closure**.
-The follow-up recommends that bounded slice first, then declared inputs/root
-documents and the launcher. Its conditional estimate is not an authorized total
+The follow-up recommends that bounded slice first, with D3 independently
+deliverable, then declared inputs/root documents, friction import and the
+launcher. Its conditional estimate is not an authorized total
 or a promise that policy/runtime dependencies will not arise. Per-session
 worktrees, article handling, parallel games, more
 mappers and automatic quota recovery remain separate process capabilities.
