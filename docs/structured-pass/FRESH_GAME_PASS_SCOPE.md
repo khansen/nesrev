@@ -1,7 +1,9 @@
 # One fresh-game pass: scoping proposal
 
 15 November 2026. Status: intake accepted; authorized post-intake measurement
-complete, with implementation awaiting an owner decision. The
+complete; slice 1 authorized offline. Its [checkpoint](RAM_JUDGMENT_SLICE.md)
+parks compaction at the fixed request limit and continues the independent
+judgment writer. The
 [measurement and proposed slices](FRESH_GAME_PASS_MEASUREMENT.md) record the
 successful preparation and remaining evidence/write/launcher dependencies.
 Proposed after the accepted

@@ -8,11 +8,12 @@ import tempfile
 from pathlib import Path
 
 import data_blob_dispositions_check as blobs
+import raw_ram_review
 from . import authored_documents as documents
 from .model import digest
 from .producer import require
 
-KINDS=frozenset(('extent_rows','blob_rows','warning_baseline'))
+KINDS=frozenset(('extent_rows','blob_rows','warning_baseline','raw_ram_judgments'))
 ERRORS=frozenset(('ARTIFACT_EDIT_SCHEMA','ARTIFACT_EDIT_PREIMAGE','ARTIFACT_ROW_DUPLICATE',
                  'ARTIFACT_ROW_INVALID','ARTIFACT_LAYOUT_UNSUPPORTED','RAW_RAM_REFRESH_UNSUPPORTED',
                  'RAW_RAM_JUDGMENT_CHANGED','WARNING_NOT_CURRENT','WARNING_RATIONALE_REQUIRED',
@@ -27,10 +28,80 @@ RAW_RAM_PATH='docs/reverse_engineering/inventory/raw_ram_review.csv'
 RAW_RAM_PROTECTED=('addr_hex','status','proposed_symbol','notes','last_pass_reviewed')
 RAW_RAM_GENERATED=('active','operand_count','distinct_owner_count','read_count',
                    'write_count','top_readers','top_writers')
+PATHS['raw_ram_judgments']=RAW_RAM_PATH
+FIELDS['raw_ram_judgments']=list(RAW_RAM_PROTECTED+RAW_RAM_GENERATED)
+RAW_RAM_AUTHORED=frozenset(('status','proposed_symbol','notes'))
+RAW_RAM_STATUSES=frozenset(('candidate','unreviewed','deferred','revisit','not_semantic_yet','symbolized'))
 
 
-def raw_ram_changes(before,after):
-    """Trusted refresh may update facts, while the judgment writer stays disabled."""
+def row_key(kind):return 'addr_hex' if kind=='raw_ram_judgments' else 'label'
+
+
+def raw_ram_rows(data):
+    require(data is not None,'RAW_RAM_REFRESH_UNSUPPORTED')
+    try:
+        reader=csv.DictReader(io.StringIO(data.decode()),strict=True)
+        require(reader.fieldnames==FIELDS['raw_ram_judgments'],'ARTIFACT_EDIT_SCHEMA')
+        rows=list(reader)
+        require(all(set(r)==set(reader.fieldnames) and all(isinstance(v,str) for v in r.values())
+                    for r in rows),'ARTIFACT_EDIT_SCHEMA')
+        for row in rows:
+            try:canonical=raw_ram_review.parse_address(row['addr_hex'],ledger=True)
+            except ValueError as exc:raise ValueError('ARTIFACT_ROW_INVALID') from exc
+            require(canonical==row['addr_hex'],'ARTIFACT_ROW_INVALID')
+    except (UnicodeError,csv.Error) as exc:raise ValueError('ARTIFACT_EDIT_SCHEMA') from exc
+    require(len({r['addr_hex'] for r in rows})==len(rows),'ARTIFACT_ROW_DUPLICATE')
+    return rows
+
+
+def raw_ram_bytes(before,rows):
+    """Preserve untouched CSV records, including quoted multiline notes."""
+    old=raw_ram_rows(before);lines=before.decode().splitlines(keepends=True)
+    reader=csv.reader(io.StringIO(before.decode()),strict=True)
+    next(reader);end=reader.line_num;result=lines[:end]
+    for previous,row in zip(old,rows):
+        parsed=next(reader);start=end
+        while not parsed:
+            result.extend(lines[start:reader.line_num]);start=reader.line_num
+            parsed=next(reader)
+        end=reader.line_num
+        require(parsed==[previous[k] for k in FIELDS['raw_ram_judgments']],'ARTIFACT_LAYOUT_UNSUPPORTED')
+        original=''.join(lines[start:end])
+        if previous==row:result.append(original);continue
+        ending='\r\n' if original.endswith('\r\n') else '\n' if original.endswith('\n') else ''
+        stream=io.StringIO();writer=csv.writer(stream,lineterminator='\n')
+        writer.writerow([row[k] for k in FIELDS['raw_ram_judgments']])
+        result.append(stream.getvalue()[:-1]+ending)
+    result.extend(lines[end:])
+    require(len(rows)==len(old),'ARTIFACT_EDIT_SCHEMA')
+    encoded=''.join(result).encode()
+    require(raw_ram_rows(encoded)==rows,'ARTIFACT_LAYOUT_UNSUPPORTED')
+    return encoded
+
+
+def raw_ram_judgments(before,op,pass_id):
+    require(documents.sha(before)==op['preimage'],'ARTIFACT_EDIT_PREIMAGE')
+    require(isinstance(pass_id,str) and re.fullmatch('[0-9]+',pass_id) is not None,'ARTIFACT_EDIT_SCHEMA')
+    rows=raw_ram_rows(before);indexed={r['addr_hex']:r for r in rows};seen=set()
+    for change in op['changes']:
+        require(isinstance(change,dict) and set(change)=={'key','preimage','fields'}
+                and isinstance(change['key'],str),'ARTIFACT_EDIT_SCHEMA')
+        key=change['key'];require(key not in seen,'ARTIFACT_ROW_DUPLICATE');seen.add(key)
+        require(key in indexed,'ARTIFACT_ROW_INVALID')
+        row=indexed[key];require(row_hash(row)==change['preimage'],'ARTIFACT_EDIT_PREIMAGE')
+        fields=change['fields']
+        require(isinstance(fields,dict) and fields and set(fields)<=RAW_RAM_AUTHORED
+                and all(isinstance(v,str) and len(v)<=2000 and not any(c in v for c in '\r\n\x00')
+                        for v in fields.values()),'ARTIFACT_EDIT_SCHEMA')
+        require(fields.get('status',row['status']) in RAW_RAM_STATUSES,'ARTIFACT_ROW_INVALID')
+        row.update(fields);row['last_pass_reviewed']=pass_id
+    return raw_ram_bytes(before,rows)
+
+
+def raw_ram_changes(before,after,*,judgment_ops=(),pass_id=None):
+    """Refresh owns facts; authored fields must equal the service-applied operation."""
+    for op in operations(judgment_ops):
+        if op['kind']=='raw_ram_judgments':before=raw_ram_judgments(before,op,pass_id)
     if before==after:return []
     require(before is not None and after is not None,'RAW_RAM_REFRESH_UNSUPPORTED')
     parsed=[]
@@ -73,6 +144,7 @@ def operations(ops):
 
 
 def read_rows(data,kind):
+    if kind=='raw_ram_judgments':return raw_ram_rows(data)
     raw=[line for line in (data or b'').decode().splitlines() if line.strip() and not line.lstrip().startswith('#')]
     reader=csv.DictReader(raw)
     if not raw:return []
@@ -178,11 +250,13 @@ def validate_blob_rows(checkout,project,path,rows,document_changes):
         require(okay,'ARTIFACT_ROW_INVALID')
 
 
-def prepare(checkout,manifest,ops,project,document_changes=()):
+def prepare(checkout,manifest,ops,project,document_changes=(),*,pass_id=None):
     result=[]
     for op in operations(ops):
         path=project+PATHS[op['kind']];before=documents.read(checkout,manifest,path)
         require(documents.sha(before)==op['preimage'],'ARTIFACT_EDIT_PREIMAGE')
+        if op['kind']=='raw_ram_judgments':
+            result.append({'path':path,'before':before,'after':raw_ram_judgments(before,op,pass_id),'op':op});continue
         if op['kind']=='warning_baseline':
             header,_,_=warning_layout(before)
             require(not op['entries'] or not header or header.endswith((b'\n',b'\r')),'WARNING_LAYOUT_UNSUPPORTED')
@@ -236,7 +310,7 @@ def current_lines(data,kind):
 
 
 def entries(data,kind):
-    if kind!='warning_baseline':return {row['label']:row for row in read_rows(data,kind)}
+    if kind!='warning_baseline':return {row[row_key(kind)]:row for row in read_rows(data,kind)}
     rows={}
     for _,line in current_lines(data or b'',kind):
         parts=line.split('|',1);require(len(parts)==2,'ARTIFACT_EDIT_SCHEMA')
@@ -250,22 +324,27 @@ def changes(before,after,op):
     old_positions={key:i for i,key in enumerate(old)};new_positions={key:i for i,key in enumerate(new)}
     for key in sorted(old.keys()|new.keys()):
         for field in sorted(old.get(key,{}).keys()|new.get(key,{}).keys()):
+            if op['kind']=='raw_ram_judgments' and field not in RAW_RAM_PROTECTED:continue
             left=old.get(key,{}).get(field);right=new.get(key,{}).get(field)
             if left!=right:rows.append({'key':key,'field':field,'before':left,'after':right,
                 'row_index_before':old_positions.get(key),'row_index_after':new_positions.get(key)})
     return rows
 
 
-def preview_rows(ops):
+def preview_rows(ops,pass_id=None):
     result=[]
     for op in operations(ops):
         if op['kind']=='warning_baseline':
             result.extend({'kind':op['kind'],'reason':op['reason'],'row':row} for row in op['entries']);continue
         for change in op['changes']:
+            if op['kind']=='raw_ram_judgments':
+                result.append({'kind':op['kind'],'key':change['key'],'field':'last_pass_reviewed',
+                               'after':pass_id,'ownership':'service-derived'})
             result.extend({'kind':op['kind'],'reason':op['reason'],'key':change['key'],
                            'row_preimage':change['preimage'],'field':field,'after':value,
                            'insert_before_key':change.get('before_key')}
-                          for field,value in (change['row'] or {'deleted':True}).items())
+                          for field,value in (change.get('fields') if op['kind']=='raw_ram_judgments'
+                                              else change['row'] or {'deleted':True}).items())
     return result
 
 

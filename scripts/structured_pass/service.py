@@ -121,7 +121,7 @@ def reader_hashes():
         'source-model.schema.json':producer.sha(HERE/'source-model.schema.json'),
         'nes_graphics.py':producer.sha(Path(producer.rom.__file__))} | {
         name:producer.sha(HERE.parent/name) for name in ('data_blob_dispositions_check.py',
-            'runtime_evidence_check.py','data_format_targets_check.py')}
+            'runtime_evidence_check.py','data_format_targets_check.py','raw_ram_review.py')}
 
 
 def capture_hashes(capture):
