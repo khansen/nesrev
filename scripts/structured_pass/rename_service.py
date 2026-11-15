@@ -333,7 +333,7 @@ class RenameService(common.Service):
         prose=self.q09_report(generation,names)
         record=self.state['generations'][generation]
         authored_changes=authored.prepare(record['checkout'],record['manifest'],operations,self.project,self.source,self.ownership)
-        artifact_changes=artifact_edits.prepare(Path(record['checkout']),record['manifest'],operations,self.project,authored_changes)
+        artifact_changes=artifact_edits.prepare(Path(record['checkout']),record['manifest'],operations,self.project,authored_changes,pass_id=self.document_pass_id())
         artifact_text={item['path']:(item['after'] if item['after'] is not None else artifact_edits.preview_warning(m,item['op'],operations)) for item in artifact_changes}
         doc_ops={o['path']:o for o in authored.selected(operations,self.project,self.source,self.ownership)}
         for hit in prose['mentions']:
@@ -371,6 +371,7 @@ class RenameService(common.Service):
             'comment_dispositions':[op for op in operations if op['kind']=='comment_replace'],
             'source_edits':source_edits.previews(m,operations),
             'artifact_edits':artifact_edits.operations(operations),
+            'artifact_pass_id':self.document_pass_id(),
             'mixed_documents':None if documents is None else {
                 'scorecard_before':documents['before'],'scorecard_draft':documents['draft'],
                 'wrapper_owned_fields':sorted(mixed.PROTECTED),
@@ -435,7 +436,7 @@ class RenameService(common.Service):
             path.write_bytes(data+(b'' if data.endswith(b'\n') else b'\n')+stream.getvalue().encode())
         record=self.state['generations'][self.state['current']]
         documents=authored.prepare(checkout,record['manifest'],operations,self.project,self.source,self.ownership)
-        for item in artifact_edits.prepare(checkout,record['manifest'],operations,self.project,documents):
+        for item in artifact_edits.prepare(checkout,record['manifest'],operations,self.project,documents,pass_id=self.document_pass_id()):
             if item['after'] is not None:
                 target=checkout/item['path'];target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(item['after'])
         for item in documents:
@@ -516,10 +517,12 @@ class RenameService(common.Service):
             allowed|={self.project+mixed.SCORECARD,self.project+mixed.DEFERRALS}
         allowed|={self.project+artifact_edits.PATHS[o['kind']] for o in artifact_edits.operations(operations)}
         raw_ram=self.project+artifact_edits.RAW_RAM_PATH
-        if raw_ram in changed_paths:
+        judgments=any(o.get('kind')=='raw_ram_judgments' for o in operations)
+        if raw_ram in changed_paths or judgments:
             artifact_edits.raw_ram_changes(
                 authored.read(base['checkout'],base['manifest'],raw_ram),
-                (checkout/raw_ram).read_bytes() if (checkout/raw_ram).is_file() else None)
+                (checkout/raw_ram).read_bytes() if (checkout/raw_ram).is_file() else None,
+                judgment_ops=operations,pass_id=self.document_pass_id() if judgments else None)
             allowed.add(raw_ram)
         if not changed_paths<=allowed:raise common.ServiceError('FORBIDDEN_PATH',paths=sorted(changed_paths-allowed))
         names=retired_names(operations,model)
@@ -599,7 +602,8 @@ class RenameService(common.Service):
         if old_record['manifest'].get(raw_ram)!=record['manifest'].get(raw_ram):
             rows=artifact_edits.raw_ram_changes(
                 authored.read(old_record['checkout'],old_record['manifest'],raw_ram),
-                authored.read(record['checkout'],record['manifest'],raw_ram))
+                authored.read(record['checkout'],record['manifest'],raw_ram),
+                judgment_ops=record['provenance'],pass_id=self.document_pass_id() if any(o.get('kind')=='raw_ram_judgments' for o in record['provenance']) else None)
             items.extend({'kind':'artifact_change','operation_kind':'raw_ram_refresh','path':raw_ram,
                           'ownership':'refresh-generated','row_offset':i,'total_rows':len(rows),
                           'before_sha256':old_record['manifest'].get(raw_ram),

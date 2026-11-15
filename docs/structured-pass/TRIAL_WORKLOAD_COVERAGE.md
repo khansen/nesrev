@@ -303,8 +303,10 @@ The previously estimated components total **80–176 active hours**, roughly ten
 to 22 eight-hour days, with substantial uncertainty. That subtotal excludes the
 early-pass admission component, now implemented and measured separately after its
 4–8-hour authorization.
-The complete path still needs a revised estimate when the next integrated
-milestone is scoped. Shared implementation may reduce the
+The [FG-1 measurement](FRESH_GAME_PASS_MEASUREMENT.md) now gives a narrower
+26–52-hour conditional engineering subtotal for one static pass after owner-run
+intake, including expected friction import. It excludes policy/runtime additions
+and is not a replacement estimate for this broader path. Shared implementation may reduce the
 subtotal; a failed worker boundary or broader intake contract may exceed it.
 It is not a commitment to build that whole path. In particular, the launcher
 alone is still an 8–16-hour component, not an 8–16-hour fresh-game solution.
@@ -346,6 +348,13 @@ to the measured artifacts or gates. No additional gate failure appeared; this
 supported the authorized mode/evidence implementation, not broader waivers. For the
 eventual first fresh-game milestone, start with owner-run existing intake; add
 intake service operations only where that pass demonstrates a need.
+
+The subsequent [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) applies that
+boundary to one proposed first semantic corridor. It uses retained pass-1
+activity to distinguish existing preparation from missing candidate writers and
+input access, and carries the search-volume gap into the same dependency
+decision. The selected fresh inputs are still pending; the historical subtotal
+above is not an implementation estimate for that case.
 
 Compare this investment with a smaller typed-inspection slice for an already
 admitted project and with attended ordinary operation. The latter preserves

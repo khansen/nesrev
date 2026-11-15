@@ -21,6 +21,15 @@ and [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) describe the bounded
 search slice. Neither the feasibility decision nor offline acceptance authorizes
 a live run or completes the fresh-game path.
 
+The [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) scopes the next
+integration decision after early-pass admission: one independently reviewed
+first semantic corridor, with owner-run intake declared separately. It records
+the remaining dependencies. The [post-intake measurement](FRESH_GAME_PASS_MEASUREMENT.md)
+admits the selected input but finds incomplete judgment/document routes and
+14-request RAM views. It proposes bounded RAM evidence and judgment closure
+before input delivery and launcher integration; no implementation is authorized
+by that report.
+
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
 URL, archive checksum and source-model schema hash. Ordinary CI and structured
@@ -125,11 +134,26 @@ UTF-8 text while leaving untouched comments byte-identical. These views
 present evidence; they do not decide whether a name or constant is semantically
 correct. Addresses retain their producer segment identity.
 
+The `raw_ram_judgments` operation edits existing raw-RAM queue rows. Obtain the
+file and row preimages with `evidence`, view `artifact_rows`, artifact
+`raw_ram_judgments` (optional exact `key`). The operation has `kind`, `preimage`,
+`reason` and at most 256 `changes`; each change has `key`, `preimage` and `fields`.
+The key is the canonical ledger `addr_hex`, retaining mirrored CPU addresses as
+distinct identities. `fields` is a nonempty subset of `status`, `proposed_symbol`
+and `notes`. Text is bounded to 2,000 characters per field, without newline or
+NUL; an empty name or note clears it. Status uses the ordinary queue's values:
+`candidate`, `unreviewed`, `deferred`, `revisit`, `not_semantic_yet`, `symbolized`.
+The service derives and previews `last_pass_reviewed`; callers cannot supply it.
+Rows cannot be created, deleted or rekeyed here. Trusted refresh alone owns
+`active`, counts and top readers/writers. Validation checks the requested
+judgments even if a wrapper restores the entire old file. Review separates
+authored changes from refreshed facts. Untouched records retain their bytes,
+including quoted multiline notes. The [slice record](RAM_JUDGMENT_SLICE.md)
+keeps the unmet complete-RAM evidence request limit visible.
+
 Code/data recovery, project-tool edits, KPI/allowlist changes and runtime capture
 remain unavailable. Authored updates to `policy_baseline.csv`,
-`data_format_targets.csv`, `proof_debt_acknowledged.csv` and the judgment fields
-of `raw_ram_review.csv` have no edit route yet. Trusted refresh may update the
-existing raw-RAM queue's factual fields while preserving its authored judgments.
+`data_format_targets.csv` and `proof_debt_acknowledged.csv` have no edit route yet.
 A rename that requires an unsupported artifact update can fail closed during
 validation or closeout; the service cannot complete it until that writer exists.
 Existing deferral rows also remain protected; closeout supports new-row appends,

@@ -25,7 +25,7 @@ def git(repo,*args):
         '-c','user.name=Fixture','-c','user.email=fixture@example.invalid',*args],text=True).strip()
 
 
-def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project.\n', gate_extra=""):
+def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project.\n', gate_extra="",raw_ram=None):
     root=Path(root);repo=root/'repo';repo.mkdir(parents=True)
     source,reference=fixture(root/'inputs',uses=uses,declarations=declarations)
     for path,original in ((SOURCE,source),(REFERENCE,reference)):
@@ -35,6 +35,7 @@ def prepare(root, *, uses=1, declarations=1, notes='# Notes\n\nSynthetic project
     (docs/'PROGRESS_SCORECARD.md').write_text('| '+' | '.join(fields)+' |\n| '+' | '.join(['---']*len(fields))+' |\n')
     (docs/'inventory/renames.csv').write_text('old_name,new_name,reason,confidence,pass_id\n')
     (docs/'inventory/deferrals.csv').write_text(','.join(mixed.DEFERRAL_FIELDS)+'\n')
+    if raw_ram is not None:(docs/'inventory/raw_ram_review.csv').write_bytes(raw_ram)
     (docs/'WORKING_NOTES.md').write_text(notes)
     (docs/'inventory/pass/current_pass_plan.json').write_text(json.dumps({'intended_pass_id':1,'warning_baseline_count_at_start':0}))
     (docs/'inventory/pass/next_pass.json').write_text('{}\n')
