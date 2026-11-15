@@ -16,7 +16,7 @@ from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
 from . import authored_documents as authored
-from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search
+from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search, ram_evidence
 FIELDS = ('old_name','new_name','reason','confidence','pass_id')
 ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMATCH
     WRONG_DECLARATION_SCOPE INVALID_RENAME DUPLICATE_RENAME INVALID_COMMENT
@@ -674,7 +674,7 @@ class RenameService(common.Service):
         return review_pages.pack(result,groups(),limit)
 
     @common.state_operation()
-    def evidence_query(self,generation,view,offset=0,limit=40,**arguments):
+    def evidence_query(self,generation,view,offset=0,limit=40,*,public_generation=None,**arguments):
         model=self.model(generation)
         analogue=arguments.pop('analogue_index',None)
         if analogue is not None:
@@ -682,6 +682,8 @@ class RenameService(common.Service):
             from .analogue_inputs import project
             model=project(model,analogue)
             return {'generation':generation,'analogue_index':analogue,**evidence_views.query(model,view,offset,limit,**arguments)}
+        if view in ('ram_compact','ram_shared'):
+            return ram_evidence.query(model,public_generation or generation,view,offset,limit,**arguments)
         if view=='prior_reuse':
             common.schema(arguments,('record_id',))
             from .analogue_inputs import rows
@@ -717,7 +719,7 @@ class RenameService(common.Service):
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
-        spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit')),
+        spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit')),
               'inspect':(('generation','symbol'),()),'q09':(('generation','names'),('offset','limit')),
               'search':(('generation','query'),('continuation','limit')),
               'documents':(('generation',),()),'document':(('generation','path'),('offset','limit')),

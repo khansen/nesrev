@@ -95,3 +95,8 @@ The complete RAM-read practicality gap remains a required FG-1 dependency. A
 later decision may compare denser transport with safe indexed-set reuse. This
 slice does not select that work, and the eight-request and 24 KiB limits remain
 fixed. D3 can be reviewed and delivered independently of it.
+
+Subsequent owner decision: a separate two-hour [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md)
+was authorized and reached the unchanged request limit through the service.
+The stopped experiment above remains its historical result; the follow-up has
+separate code, evidence and review.

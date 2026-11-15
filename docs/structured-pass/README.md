@@ -28,7 +28,9 @@ the remaining dependencies. The [post-intake measurement](FRESH_GAME_PASS_MEASUR
 admits the selected input but finds incomplete judgment/document routes and
 14-request RAM views. It proposes bounded RAM evidence and judgment closure
 before input delivery and launcher integration; no implementation is authorized
-by that report.
+by that report. The separately authorized [judgment writer](RAM_JUDGMENT_SLICE.md)
+and [compact-read follow-up](RAM_COMPACT_FOLLOWUP.md) now have offline evidence.
+Input delivery, root-document access and the launcher remain dependencies.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
@@ -149,7 +151,31 @@ Rows cannot be created, deleted or rekeyed here. Trusted refresh alone owns
 judgments even if a wrapper restores the entire old file. Review separates
 authored changes from refreshed facts. Untouched records retain their bytes,
 including quoted multiline notes. The [slice record](RAM_JUDGMENT_SLICE.md)
-keeps the unmet complete-RAM evidence request limit visible.
+preserves its original compaction stop and independent writer acceptance.
+
+For complete RAM evidence, `evidence` view `ram_compact` accepts `generation`
+and exactly one numeric `address` or declaration `record_id`. Its `selection`
+holds the requested address and declaration; `category_counts` counts the full
+evidence, including unresolved possibilities. The result separates address-specific
+rows from unresolved indirect destinations shared by every selected byte. Fetch
+the latter with view `ram_shared`, the same generation and the returned
+`shared.set_id`. Reuse that set only within its generation. Indexed possibilities
+remain address-specific; neither they nor unknown destinations prove an access.
+
+Both views use `ram-columnar-v2`: each row is `constants` merged with the values
+in its `records` array zipped to `columns`, then the compact result's `selection`.
+Apply the selection to shared rows too. Every page carries its own constants and
+columns. Keep every row, even an empty array: it represents one record whose
+fields are all constant. Empty results have no records. The union of all selected
+and shared pages reconstructs every field of the legacy `ram` view.
+
+For these two views only, `limit` accepts 1–128 records (default 40); use 128
+for compact retrieval. Follow each `next_offset` until null. The 24 KiB full
+MCP response ceiling still applies, so a page may contain fewer rows. Shared
+identifiers bind the generation, source and shared facts; stale sets are refused.
+The [follow-up acceptance](RAM_COMPACT_FOLLOWUP.md) measures complete retrieval
+including status and the initial shared fetch, with later reuse reported separately.
+The existing `ram` view keeps its format and limits.
 
 Code/data recovery, project-tool edits, KPI/allowlist changes and runtime capture
 remain unavailable. Authored updates to `policy_baseline.csv`,

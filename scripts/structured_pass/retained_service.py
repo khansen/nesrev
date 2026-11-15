@@ -275,7 +275,7 @@ class RetainedReviewService(RenameService):
     def dispatch(self,operation,arguments,role):
         if operation in ('propose','amend','validate','publish','preview','confirm','start_chain'):
             raise ValueError('REVIEW_READ_ONLY')
-        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'status':((),()),'query':(('generation','symbol'),('offset','limit')),
+        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'status':((),()),'query':(('generation','symbol'),('offset','limit')),
                'review':(('generation','base_generation'),('offset','limit')),
                'reassemble':(('generation',),())}
         if self.config['profile'] in ('rename','source-v2'):

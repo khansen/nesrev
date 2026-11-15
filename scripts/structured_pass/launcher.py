@@ -156,7 +156,7 @@ class Corridor:
         return self.generation_read('document',args)
 
     def generation_read(self,operation,args):
-        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'document':(('generation','path'),('offset','limit')),
+        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'document':(('generation','path'),('offset','limit')),
                'q09':(('generation','names'),('offset','limit')),
                'search':(('generation','query'),('continuation','limit')),
                'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit'))}
@@ -178,6 +178,8 @@ class Corridor:
             else:current=generation
             if operation=='search':
                 return self.editor.search(**{**args,'generation':current},public_generation=generation)
+            if operation=='evidence' and args['view'] in ('ram_compact','ram_shared'):
+                return self.editor.evidence_query(**{**args,'generation':current},public_generation=generation)
             result=self.editor.dispatch(operation,{**args,'generation':current},'reviewer')
             return {**result,'generation':generation}
 
