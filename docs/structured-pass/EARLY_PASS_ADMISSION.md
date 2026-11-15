@@ -62,15 +62,26 @@ preceding check failed, retaining the dependency context. Internal checks after
 a wrapper's first failure remain **not run**; do not infer their success. Keep
 per-check exit codes, modes, elapsed time, log hashes, label counts and changes
 to generated files. Missing prerequisites are recorded as blocked, never passed.
-This measures gate readiness, not full service admission or historical replay.
+Also run preparation's generated-only change check and native source
+certification, preserving their results independently. If prerequisites or the
+bound prevent either, record it as blocked or not run; the four gates alone
+cannot earn a go. This measures preparation readiness, not a newly admitted
+service session or historical replay.
+
+Tag every extra failure with its evidenced cause: a property of early-stage
+code, tooling/artifact drift since the snapshot, or an environment/pin problem.
+Keep uncertain causes explicitly unresolved rather than assuming admission
+scope. A check introduced after a snapshot is not by itself evidence that
+early-stage code needs a weaker contract.
 
 The earlier 11-commit survey was naming-only. Its one preparation refusal
 stopped at verification step 3 of 4; sixteen subsequent checks in
 [`project_verify.sh`](../../scripts/project_verify.sh), plus process/docs gates,
 remain unmeasured by that attempt.
 
-**Go/no-go:** if every selected snapshot passes all non-naming checks, propose
-the bounded mode/evidence integration and its estimate. Any additional failure
+**Go/no-go:** if every selected snapshot passes all non-naming checks and both
+final preparation checks, propose the bounded mode/evidence integration and
+its estimate. Any additional failure
 is a new scope finding: report it and the unrun checks before estimating or
 implementing a fix. Finish the already defined diagnostic matrix within the
 allowance, but add no repair loop. Stop for missing inputs, pin drift, unsafe
@@ -90,6 +101,13 @@ Define one trusted decision from the immutable pass starting source:
   eligibility condition, not evidence that naming is the sole failure.
 - Gold, maturity and semantic-completion checks always run strict, regardless
   of the pass's starting count or inherited environment.
+
+Identify the naming refusal from the verifier's own exit status or a structured
+result, not `make`'s exit status or matching log text: `make` returns 2 for any
+failed recipe, including a verifier exit of 3. A successful relaxed verification
+proves that the naming exception was sufficient, because it retains the same
+preceding and subsequent checks. The strict run is a cross-check; its early
+refusal alone cannot prove that no other failures exist.
 
 The service computes and seals the decision before agent mutations, with the
 base/source identity, canonical naming predicate and starting count. It records
