@@ -243,6 +243,24 @@ gates. It creates an empty editor. It neither edits the operator checkout nor
 authorizes inference. A nonzero baseline refuses preparation rather than masking
 later gate failures.
 
+New preparation writes a `current-project-profile-v2`. Its verification policy
+is derived from the immutable starting source using the verifier's lexical
+naming rule. A source that starts without generic names stays strict. A source
+that already has them is eligible only for the existing naming exception:
+the verifier must first return its own naming-refusal status, then pass its
+complete remaining checks with that exception. No client operation or inherited
+environment variable selects the mode.
+
+Preparation, resume and application validate the policy's base/source binding.
+Gate evidence records the starting and final counts and the actual strict or
+naming-only result. Closeout, review archives and application retain that
+qualification; a relaxed scorecard says `pass (LXXXX allowed)`. Removing the last
+generic name requires a successful strict run before reporting strict-green.
+This is semantic-pass verification, not gold or maturity acceptance. Existing
+profiles gain no exception automatically; retained sessions keep their pinned
+readers, and new eligibility requires preparation with this version. See the
+[implementation evidence and limits](EARLY_PASS_ADMISSION_IMPLEMENTATION.md).
+
 ## Clients and review
 
 The trusted operator starts each bridge with a fixed role. Role, profile and

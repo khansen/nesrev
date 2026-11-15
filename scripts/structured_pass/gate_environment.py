@@ -50,3 +50,9 @@ def closeout_environment(base,explicit):
     require(set(base)==BASE_KEYS and set(explicit)==CLOSEOUT_KEYS)
     require(all(isinstance(v,str) for v in explicit.values()))
     return {**base,**explicit}
+
+
+def verification_environment(base, *, naming_only=False):
+    """Called only with the service's sealed policy, never request/environment input."""
+    require(set(base)==BASE_KEYS and type(naming_only) is bool)
+    return {**base, **({'ALLOW_UNRESOLVED_LXXXX':'1'} if naming_only else {})}

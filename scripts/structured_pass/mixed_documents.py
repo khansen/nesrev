@@ -158,7 +158,7 @@ def bundle_hashes(scripts):
             if p.is_file() and p.suffix in ('.py','.sh')}
 
 
-def run_closeout(checkout, project, slug, operations, pass_id, folder, env, scripts, *, pass_plan_sha256=None):
+def run_closeout(checkout, project, slug, operations, pass_id, folder, env, scripts, *, pass_plan_sha256=None, verification=None):
     scorecard=checkout/project/SCORECARD;deferrals=checkout/project/DEFERRALS
     update,closeout=document_operations(operations)
     # The draft was already prepared by the service. Never accept a client-sent
@@ -183,19 +183,34 @@ def run_closeout(checkout, project, slug, operations, pass_id, folder, env, scri
         'REWORK_ITEMS':str(closeout['rework_items']),
         'DEFERRALS':'; '.join(' :: '.join(entry[key] for key in ('subject','revisit_condition','kind'))
                               for entry in closeout['deferrals'])})
+    mode = 'strict'
+    verification_evidence = None
+    if verification is not None:
+        from . import verification_policy
+        check = verification_policy.run(checkout, slug, folder, env, verification)
+        if check['exit_code'] != 0:
+            return [check]
+        verification_evidence = check['verification']
+        mode = 'relaxed' if verification_evidence['mode'] == 'naming-only' else 'strict'
     hashes=bundle_hashes(scripts);started=time.monotonic();log=folder/'project-pass-closeout.log'
     with log.open('wb') as stream:
-        result=subprocess.run(['/bin/bash',str(scripts/'project_pass_closeout.sh'),slug,pass_id,'strict'],
+        result=subprocess.run(['/bin/bash',str(scripts/'project_pass_closeout.sh'),slug,pass_id,mode],
                               cwd=checkout,env=trusted,stdout=stream,stderr=subprocess.STDOUT)
     gate={'target':'project-pass-closeout','exit_code':result.returncode,
           'seconds':time.monotonic()-started,'log_sha256':sha(log.read_bytes()),'environment':dict(trusted)}
     require(hashes==bundle_hashes(scripts),'CLOSEOUT_TOOLING_CHANGED')
+    if verification_evidence is not None:
+        gate['verification'] = verification_evidence
     if result.returncode:return [gate]
     actual_rows=Scorecard(scorecard.read_bytes()).rows
     require(set(actual_rows)==set(draft_rows) and all(actual_rows[pid]==row
             for pid,row in draft_rows.items() if pid!=pass_id),'CLOSEOUT_RESULT_INVALID')
     actual=actual_rows[pass_id]
-    require(actual['verify']==actual['docs_check']=='pass' and
+    expected_verify = 'pass'
+    if verification_evidence is not None:
+        verification_policy.check_evidence(verification_evidence, verification, (checkout/verification['source']).read_bytes(), env)
+        expected_verify = verification_policy.expected_scorecard(verification_evidence)
+    require(actual['verify']==expected_verify and actual['docs_check']=='pass' and
             actual['rework_items']==str(closeout['rework_items']),'CLOSEOUT_RESULT_INVALID')
     require(actual['focus']==draft['focus'] and actual['notes']==draft['notes'],'CLOSEOUT_RESULT_INVALID')
     require(all(actual[name].strip() and actual[name] not in ('pending',UNMEASURED)
