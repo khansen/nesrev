@@ -52,10 +52,14 @@ project correction, fresh preparation, pinned input delivery to both roles and
 an advisory canonical-notes check, with no expansion of root access.
 Its [input-contract checkpoint](INPUT_DELIVERY_CHECKPOINT.md) records the completed
 correction, successful fresh preparation and the remaining bounded delivery routes.
-Those routes now have [offline acceptance](INPUT_DELIVERY_ACCEPTANCE.md): pinned
-inputs reach both role assemblies and remain available in restored reviews.
-Learning-candidate import, launcher/client admission and one authorized unscripted
-pass remain the next sequence. No live delivery or inference saving is claimed.
+Those routes merged in [PR #195](https://github.com/khansen/nesrev/pull/195), with
+[offline acceptance](INPUT_DELIVERY_ACCEPTANCE.md): pinned inputs reach both role
+assemblies and remain available in restored reviews. The
+[input-delivery retrospective](../retros/2026-11-15-structured-input-delivery.md)
+records the completed milestone. [Learning-candidate import](FRICTION_IMPORT_SLICE.md)
+is proposed next with a four-hour offline bound and a one-hour checkpoint;
+implementation is not authorized. Launcher/client admission and one authorized
+unscripted pass follow. No live delivery or inference saving is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.
 The conditional estimate does not select policy or runtime additions, or authorize

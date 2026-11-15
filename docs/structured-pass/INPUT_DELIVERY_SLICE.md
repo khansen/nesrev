@@ -1,6 +1,6 @@
 # Slice 2: declared input delivery
 
-15 November 2026. **Implemented offline; ready for the agreed review.** This replaces the
+15 November 2026. **Accepted and merged in [PR #195](https://github.com/khansen/nesrev/pull/195).** This replaces the
 root-document extension in the [post-intake proposal](FRESH_GAME_PASS_MEASUREMENT.md).
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records the
 preceding milestone. The owner authorized both the intake correction and this
@@ -8,7 +8,9 @@ bounded slice. The correction and fresh preparation are complete; the
 [checkpoint](INPUT_DELIVERY_CHECKPOINT.md) records the pinned inputs, measured
 existing routes and integration contract. The [implementation contract](DECLARED_INPUTS.md)
 and [acceptance record](INPUT_DELIVERY_ACCEPTANCE.md) cover the service delivery
-and advisory. No provider-backed run has occurred.
+and advisory. The [retrospective](../retros/2026-11-15-structured-input-delivery.md)
+records the completed slice and remaining live obligations. No provider-backed
+run has occurred.
 
 ## Outcome and order
 
@@ -16,7 +18,7 @@ Give the implementer and reviewer the same declared evidence needed for the
 [first structured corridor](FRESH_GAME_PASS_SCOPE.md), with source and version
 identities preserved. Keep role-specific delivery explicit: equivalent evidence
 does not require identical media representations. The remaining sequence is
-input delivery, learning-candidate import, launcher/admission and one separately
+[learning-candidate import](FRICTION_IMPORT_SLICE.md), launcher/admission and one separately
 authorized unscripted pass. Finishing the validation game is not the objective.
 
 Opening the project root would add authority to accommodate incorrect artifacts.
