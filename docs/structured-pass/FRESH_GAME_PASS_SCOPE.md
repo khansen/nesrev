@@ -57,6 +57,52 @@ and readable retained evidence. A canned rename, a scorecard-only transaction,
 green gates without semantic review, or coordinator shell repair during the pass
 does not satisfy it. No pass 2 follows automatically.
 
+## Intake size before authorization
+
+Plan provisionally for **two to four elapsed hours** for ordinary attended intake
+through its independent review and archive, after the owner supplies usable ROM
+and reference inputs. Reserve **30–60 minutes of owner attention** for planning;
+that is a judgment allowance, not measured active time. Recovery discovery,
+curated warnings, reference processing and ordinary review rework are included.
+An unfamiliar input or a new tooling failure can exceed the estimate. It is
+neither a completion guarantee nor authorization to extend a run.
+
+The [retained baseline](../retros/2026-11-13-fresh-game-process-baseline.md)
+provides one interrupted intake, not a representative sample. Its launched
+windows through the intake archive sum to **3 hours 54 minutes**, excluding the
+overnight pause and later semantic passes. This includes **100.2 minutes** waiting
+on the article blocker, **63.5 minutes** on 13 reviewer approvals, and a failed
+69.5-second restart. These are elapsed observations, not agent or owner active
+time. The owner reported 15 active minutes before the resumed review; later
+interventions were not timed, so total owner effort remains unknown. Do not
+subtract those waits and present the remainder as a new-game forecast.
+
+The intake-only provider reduction is:
+
+| Role | Recorded input usage | Recorded output usage |
+| --- | --- | --- |
+| Codex implementer | 11,450,395 input tokens, including 11,103,232 cached | 36,269 tokens, including 7,787 reasoning |
+| Claude reviewer | 102 uncached, 378,419 cache-creation and 10,220,704 cache-read tokens | 60,664 tokens |
+
+These are lower bounds from both roles' three retained sessions, cut off before
+their first semantic-pass work. The failed restart is included in those totals
+and separately identified in the private reduction. Codex uses the last
+cumulative counter; Claude uses distinct assistant IDs and the maximum reported
+usage per category for each ID. Cached and reasoning subsets are not added
+again. Coordinator and external-review usage are excluded. The reduction and
+six source hashes are in `intake-sizing-20261115/RESULTS.json` within the private
+scoping packet; all six whole-session reductions reconcile with the earlier
+assessment before selecting the intake portion.
+
+Expect a substantive two-role provider run, with this usage as its planning
+scale, rather than treating intake as a short setup call. The baseline used
+different clients, Fable 5.2 and ambient permissions; the proposed reviewer is
+Opus 5.5 under explicit settings. There is no calibrated usage forecast for that
+configuration, no demonstrated saving, and these token categories are not price
+or quota units. Pin the actual launch configuration before authorization. The
+owner chooses runtime, provider and active-time allowances for intake itself;
+the later two-hour offline measurement remains a separate decision.
+
 ## What the retained first pass establishes
 
 The private selection pins the two segment-3 transcripts and archived pass-1
