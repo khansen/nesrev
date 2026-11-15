@@ -1,6 +1,9 @@
 # Slice 3: preserve learning candidates through structured closeout
 
-15 November 2026. **Proposal; implementation not authorized.** Input delivery
+15 November 2026. **Authorized offline; first checkpoint complete.** The
+[checkpoint](FRICTION_IMPORT_CHECKPOINT.md) fixes observation submission,
+retention, role instructions and the queue-rebuild decision. Production
+integration awaits checkpoint continuation. Input delivery
 merged in [PR #195](https://github.com/khansen/nesrev/pull/195); its
 [retrospective](../retros/2026-11-15-structured-input-delivery.md) records the
 outcome and limits. The destination remains [one complete first semantic
@@ -57,9 +60,13 @@ remain evidence; they are not accepted rules. Existing manual queue text and
 receipted entries must survive unchanged. No candidate quota or semantic
 deduplication is introduced.
 
-Freeze the derived queue update with the approved closeout evidence, and carry
-it through the trusted application journal with the archive. Check source hashes,
-queue and receipt preimages, current generation and approval before applying.
+Freeze the observation sources with the approved closeout evidence. At application,
+derive the queue update from those sources and the current queue/receipts, then
+freeze it in the trusted application journal with the archive. This preserves
+intervening triage; the [checkpoint](FRICTION_IMPORT_CHECKPOINT.md#application-write-set-and-queue-edits)
+distinguishes that rebuild from a conflicting edit during an unfinished
+transaction. Check source hashes, queue and receipt preimages, current generation
+and approval before applying.
 A conflicting target edit must refuse, not overwrite. Interrupted application
 must be recoverable without duplicate imports or a success receipt for missing
 output. Repeated closeout/application of the same evidence must be idempotent.

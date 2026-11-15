@@ -57,8 +57,10 @@ Those routes merged in [PR #195](https://github.com/khansen/nesrev/pull/195), wi
 assemblies and remain available in restored reviews. The
 [input-delivery retrospective](../retros/2026-11-15-structured-input-delivery.md)
 records the completed milestone. [Learning-candidate import](FRICTION_IMPORT_SLICE.md)
-is proposed next with a four-hour offline bound and a one-hour checkpoint;
-implementation is not authorized. Launcher/client admission and one authorized
+is authorized with a four-hour offline bound. Its
+[first checkpoint](FRICTION_IMPORT_CHECKPOINT.md) records the source mapping,
+role instructions, queue-rebuild decision and component recovery probes;
+production integration awaits continuation. Launcher/client admission and one authorized
 unscripted pass follow. No live delivery or inference saving is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.
