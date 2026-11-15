@@ -17,6 +17,7 @@ from . import service as common
 from . import mixed_documents as mixed
 from .structured_handoff import windows,require
 from . import structured_handoff
+from . import guidance
 from .publication import immutable_file
 from .verdict_bridge import Bridge
 from .retained_service import RetainedReviewService
@@ -123,17 +124,14 @@ class Corridor:
 
     def guidance(self,args):
         common.schema(args,('name',),('offset','limit'))
-        names=['AGENTS.md']+['agent_playbook/'+name+'.md' for name in
-            ('PASS_WORKFLOW','ASM_STYLE','QUALITY_REVIEW','REVIEW_AUDITS','TOOLING','DOCUMENTATION','DATA_RECOVERY')]
-        require(args['name'] in names,'REQUEST_SCHEMA')
+        require(args['name'] in guidance.NAMES,'REQUEST_SCHEMA')
         offset=args.get('offset',0);limit=args.get('limit',200)
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=400,'REQUEST_SCHEMA')
         state=self.checked_editor()
         # Read the pinned pass-start policy, never arbitrary host paths or docs
         # supplied in a request. These are policies, not project source views.
-        root=Path(state['generations'][state['pass_start_generation']]['checkout'])
-        data=subprocess.check_output(['/usr/bin/git','-C',str(root),'show',
-            self.editor.fixture['base_commit']+':'+args['name']])
+        data=guidance.read(self.editor,args['name'])
+        require(data is not None,'SEARCH_INPUT_UNAVAILABLE')
         lines=data.decode().splitlines()
         return {'generation':state['current'],'path':args['name'],'sha256':common.digest(data),
                 'policy_commit':self.editor.fixture['base_commit'],'total_lines':len(lines),'offset':offset,
@@ -159,6 +157,7 @@ class Corridor:
     def generation_read(self,operation,args):
         specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key')),'document':(('generation','path'),('offset','limit')),
                'q09':(('generation','names'),('offset','limit')),
+               'search':(('generation','query'),('continuation','limit')),
                'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit'))}
         common.schema(args,*specs[operation])
         generation=args['generation']
@@ -176,6 +175,8 @@ class Corridor:
                     current=record['base']
                 require(current is not None,'UNKNOWN_GENERATION')
             else:current=generation
+            if operation=='search':
+                return self.editor.search(**{**args,'generation':current},public_generation=generation)
             result=self.editor.dispatch(operation,{**args,'generation':current},'reviewer')
             return {**result,'generation':generation}
 
@@ -260,7 +261,7 @@ class Corridor:
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
-        if operation in ('q09','navigate','evidence'):return self.generation_read(operation,arguments)
+        if operation in ('q09','navigate','evidence','search'):return self.generation_read(operation,arguments)
         if operation=='closeout':
             common.schema(arguments,());return self.closeout()
         if operation=='reready':

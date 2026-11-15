@@ -16,8 +16,10 @@ roles' observed calls with implemented and planned operations, including
 bounded search, early confinement feasibility and the full fresh-game path.
 The [accepted feasibility decision](FEASIBILITY_DECISION.md) records the tested
 macOS worker boundary and reviewer/media results, with the independent
-hook-disabled client check still open. Typed search is the next service slice
-to scope; neither record authorizes implementation or a live run.
+hook-disabled client check still open. The [typed-search contract](TYPED_SEARCH.md)
+and [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) describe the bounded
+search slice. Neither the feasibility decision nor offline acceptance authorizes
+a live run or completes the fresh-game path.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download

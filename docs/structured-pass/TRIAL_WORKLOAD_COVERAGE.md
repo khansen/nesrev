@@ -9,6 +9,8 @@ work are not authorized by this document. Service baseline:
 worked for the declared worker runtimes, and the reviewer/media smoke passed;
 the reviewer's hook-disabled protection remains open. Typed search is the next
 service slice to propose, with implementation still subject to owner approval.
+The subsequently authorized [typed-search implementation and offline results](TYPED_SEARCH_ACCEPTANCE.md)
+are recorded separately; the original census below has not been reclassified.
 The census and recommendation below preserve the assessment that preceded the
 checkpoint; they are not a statement that the investigation remains unstarted.
 
@@ -290,17 +292,36 @@ feasibility checkpoint and once the chosen pass's obligations are explicit.
 | Structured launcher | 8–16 h | Accepted existing scope: admission, profiles, handoff routing, supervised notifier, per-turn messages, visible stops and continuation. Actual-client evidence and separate live authorization are prerequisites to use. |
 | Workflow jobs and generated evidence | 8–16 h | Named trusted jobs, complete paged results, failures and cancellation; next-pass/start, hidden-code findings and non-writing regeneration. Keep worker integration provisional until feasibility. |
 | Isolated worker execution and runtime integration | 16–40 h after feasible boundary | Authored Python/Lua, real emulator resources, captured outputs/media, fixtures and cleanup behind W2/W3. A fixed decoder may replace some observed helpers; it does not cover later authored traces. |
-| Fresh intake contract | 12–24 h | Supplied-input registration, mapper/container checks, reference extraction, initial regeneration, recovery and a transition into normal admission. Intake is outside the current parity-pass roadmap; S6 alone does not provide it. |
+| Fresh intake contract | 12–24 h | Supplied-input registration, mapper/container checks, reference extraction, initial regeneration and recovery. Transition into structured admission depends on the separate early-pass verification component below. Intake is outside the current parity-pass roadmap; S6 alone does not provide it. |
+| Early-pass admission and verification | Unestimated; newly identified blocker | Admit and carry an explicitly declared semantic-pass verification mode through preparation, candidate checks and application while generic names remain. Prove that unresolved names are the sole strict failure and all other checks still reject defects. Scope with intake and the launcher, before claiming a fresh-game path; outside the typed-search slice. |
 | Instruction and text search | 8–16 h | Native instruction predicates and registered-text selection with complete, bounded results. Can be developed offline independently; admission and client delivery are needed for live use. |
 | Guidance, reference and analogue extensions | 4–8 h | Pin the needed guidance, extracted text and comparison corpus; extend the narrow current analogue views. Search does not replace these input/authority decisions. |
 | Candidate writes and publication closure | 8–24 h, pass-dependent | Required recovery hints, raw-RAM judgments, remaining artifact rows, policy migration, deferrals/friction and any attributed amendments. Reuse 2A edits; do not call these existing merely because the read side works. |
 | Integrated independent review and closeout | 8–16 h | Durable partial review, resume, gates, publication/application, evidence retention and one authorized unscripted pass. Missing evidence and ordinary rework remain visible. |
 
-As a serial planning envelope this is **80–176 active hours**, roughly ten to
-22 eight-hour days, with substantial uncertainty. Shared implementation may
-reduce it; a failed worker boundary or broader intake contract may exceed it.
+The previously estimated components total **80–176 active hours**, roughly ten
+to 22 eight-hour days, with substantial uncertainty. That subtotal excludes the
+newly identified early-pass admission component; the complete path needs a
+revised estimate once it is scoped. Shared implementation may reduce the
+subtotal; a failed worker boundary or broader intake contract may exceed it.
 It is not a commitment to build that whole path. In particular, the launcher
 alone is still an 8–16-hour component, not an 8–16-hour fresh-game solution.
+
+**Early-pass blocker, observed 15 November:** preparation
+([`prepare.py`](../../scripts/structured_pass/prepare.py)), candidate checks
+([`service.py`](../../scripts/structured_pass/service.py)) and application
+([`application.py`](../../scripts/structured_pass/application.py)) invoke strict
+verification; the [fixed gate environment](../../scripts/structured_pass/gate_environment.py)
+does not pass through `ALLOW_UNRESOLVED_LXXXX`. Consequently a project retaining
+`LXXXX` placeholders cannot enter this path. The ordinary workflow's
+[semantic-pass mode](../../agent_playbook/PASS_WORKFLOW.md#semantic-pass-verification)
+allows incomplete naming only when it is the sole strict failure. The
+[search-corpus admission attempt](TYPED_SEARCH_CHECKPOINT.md#implementation-admission-follow-up-15-november)
+stopped at verification step 3 of 4: later verification checks and the process
+and documentation gates never ran. It does not prove that unnamed labels were
+the only failure. The future component must establish that condition and test
+rejection of other defects, rather than merely setting the variable. Strict
+semantic-completion and maturity requirements remain unchanged.
 
 Compare this investment with a smaller typed-inspection slice for an already
 admitted project and with attended ordinary operation. The latter preserves
