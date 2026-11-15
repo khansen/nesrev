@@ -118,9 +118,9 @@ guide has three versions, so each segment uses its own copy.
 
 Eleven inspected historical commits exist. The pre-intake commit lacks the two
 project admission documents checked; ten later commits pass the service's
-scorecard and deferral parsing prechecks. **Full current-project admission was
-not run.** Its gates and producer capture are additional requirements; passing
-two parsers does not satisfy them.
+scorecard and deferral parsing prechecks. **At the translation checkpoint, full
+current-project admission had not run.** Its gates and producer capture are
+additional requirements; passing two parsers does not satisfy them.
 
 Reviewer handoff heads are retained, but a recorded head alone does not prove
 the working bytes of every search. Implementer searches often occurred between
@@ -129,10 +129,10 @@ A retained instruction cache lacks a source-hash binding sufficient to identify
 every historical request, so it has not been credited as their oracle.
 
 The ledger therefore makes **zero fully verified historical-call claims** and
-leaves actual service-request counts empty. No full admission refusal was
-observed; none is invented. Subsequent acceptance must record each case as
-verified, missing exact inputs, present but admission-refused (with the reason),
-or still unverified. Synthetic analogues test behavior, not historical coverage.
+leaves actual service-request counts empty. At that checkpoint no full admission
+refusal had been observed; none was invented. Subsequent acceptance must record
+each case as verified, missing exact inputs, present but admission-refused (with
+the reason), or still unverified. Synthetic analogues test behavior, not historical coverage.
 If reconstructing snapshots becomes a separate project, stop under the agreed
 bound rather than quietly substituting newer inputs.
 
@@ -153,6 +153,46 @@ Both paths require full admission without weakening any gate. Establish and pin
 at least one admitted real-code snapshot before building the routes; if neither
 path works within the bound, return that finding before implementation rather
 than silently reducing acceptance to fixtures alone.
+
+### Implementation admission follow-up, 15 November
+
+The owner gave the implementation go. The first real-code proxy then failed
+the unmodified preparation path, before any route implementation. The selected
+commit was the nearest retained preceding state for C4-049. Preparation reached
+`project-verify`: warning-baseline and binary-identity checks passed, but strict
+verification refused 1,301 generic names. No profile or admitted generation was
+created, and the failure logs and shared-lock receipt were retained.
+Verification stopped at step 3 of 4; later verification checks and the process
+and documentation gates did not run. This does not establish that generic names
+were the only failure.
+
+The canonical naming predicate was then checked on all eleven retained
+source-changing commits, representing seven distinct source blobs. Every one
+contains generic names (1,258–1,347). These are lexical gate prechecks, not eleven
+full admission runs. Only one full preparation attempt ran. Changing which
+retained trial commit is selected cannot clear this strict condition.
+
+The ordinary workflow documents a semantic-pass verification mode while naming
+is incomplete. The structured preparer's fixed gate environment does not expose
+that mode. Adding it would be an admission change, outside this search slice;
+neither the source nor the gate has been altered to gain admission.
+It is now a separate blocker in the
+[minimum fresh-game path](TRIAL_WORKLOAD_COVERAGE.md#minimum-path-to-one-fresh-game-pass-through-the-service),
+to scope with intake and the launcher.
+
+**Proposed corpus adjustment, awaiting owner decision:** use an isolated copy of
+the earlier static pilot's real-code corpus. Its retained profile and baseline
+hashes match, with all four baseline checks recorded green. Label new results
+**cross-project proxy**, test the service and independent oracle on identical
+admitted bytes, and keep all 29 trial instruction calls historically unverified.
+This would test correctness and request counts on real code, not reconstruct the
+trial or predict fresh-game throughput. Route implementation remains held until
+the corpus decision; the existing eight- and sixteen-hour bounds still apply.
+Practicality results must say **measured on mature code**: its named operands
+under-represent a new game's raw-operand match volumes. Synthetic later-page and
+full-page tests remain mandatory. A direct query test on unadmitted trial code,
+if used later, is unit-level evidence only, not service admission or verified
+historical coverage.
 
 ## Bounds selected for implementation
 
@@ -191,7 +231,7 @@ checkpoint at eight hours total and a hard ceiling at sixteen. No implementation
 review round or live allowance has been consumed by this translation checkpoint.
 No game pass follows automatically.
 
-## Verification and effort record
+## Verification and effort at the translation checkpoint
 
 The ledger accounts for all 89 original IDs exactly once and agrees with the
 private translations and original capability codes. The original requests and

@@ -13,9 +13,14 @@ The [retained baseline workload](TRIAL_WORKLOAD_COVERAGE.md) now supplies the
 measured capability gaps. The [accepted feasibility checkpoint](FEASIBILITY_DECISION.md)
 establishes a candidate macOS worker boundary and reviewer/media operation,
 with the reviewer's independent hook-disabled protection still open. Typed
-search is the next service slice to scope; implementation requires owner
-approval. New-project intake remains outside this step-2 parity-pass scope
-and needs a separate contract.
+search has an [authorized offline scope](TYPED_SEARCH_SCOPE.md); its
+[admission checkpoint](TYPED_SEARCH_CHECKPOINT.md#implementation-admission-follow-up-15-november)
+records the corpus decision needed before routes are built. New-project intake remains outside this step-2 parity-pass scope
+and needs a separate contract. The
+[minimum fresh-game path](TRIAL_WORKLOAD_COVERAGE.md#minimum-path-to-one-fresh-game-pass-through-the-service)
+also records early-pass admission as a separate, unestimated blocker: strict
+verification currently refuses projects that retain generic names. Resolve its
+verification contract with intake and the launcher; it is outside typed search.
 
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
