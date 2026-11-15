@@ -347,6 +347,13 @@ supported the authorized mode/evidence implementation, not broader waivers. For 
 eventual first fresh-game milestone, start with owner-run existing intake; add
 intake service operations only where that pass demonstrates a need.
 
+The subsequent [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) applies that
+boundary to one proposed first semantic corridor. It uses retained pass-1
+activity to distinguish existing preparation from missing candidate writers and
+input access, and carries the search-volume gap into the same dependency
+decision. The selected fresh inputs are still pending; the historical subtotal
+above is not an implementation estimate for that case.
+
 Compare this investment with a smaller typed-inspection slice for an already
 admitted project and with attended ordinary operation. The latter preserves
 existing capability but accepts the measured permission friction. The owner

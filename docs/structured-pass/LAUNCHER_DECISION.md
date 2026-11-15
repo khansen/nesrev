@@ -1,9 +1,11 @@
 # Opt-in structured launcher: decision record
 
 Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
-implementation not selected. The [process assessment](../PROCESS_BASELINE_PLAN.md#assessment)
-recommends a measured fresh start first; the owner's priority decision remains
-pending. Merging this guidance does not start the work. Provider calls,
+implementation not selected. Following the measured baseline, feasibility,
+search and early-pass admission work, the [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md)
+places this launcher in the dependency path for one complete first semantic
+pass. Its implementation order and fresh-input acceptance remain pending.
+Merging this guidance does not start the work. Provider calls,
 profile admission and another project pass require separate owner authorization.
 
 ## Outcome and boundary

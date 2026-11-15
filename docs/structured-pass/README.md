@@ -21,6 +21,12 @@ and [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) describe the bounded
 search slice. Neither the feasibility decision nor offline acceptance authorizes
 a live run or completes the fresh-game path.
 
+The [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) scopes the next
+integration decision after early-pass admission: one independently reviewed
+first semantic corridor, with owner-run intake declared separately. It records
+the remaining dependencies and requires measurement on the selected input
+before estimating implementation.
+
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
 URL, archive checksum and source-model schema hash. Ordinary CI and structured

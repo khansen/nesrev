@@ -30,6 +30,14 @@ This removes the measured admission barrier, not the remaining fresh-game
 integration work. The four heavy searches still exceed the fixed request limit
 through the admitted service. Their redesign stays separate from admission.
 
+The next proposed milestone is [one first semantic pass on an unfamiliar
+game](FRESH_GAME_PASS_SCOPE.md), after explicit owner-run intake. Its dependency
+assessment includes candidate writers, reference/analogue access, search volume
+and the launcher; it does not select the whole remaining 2B/2C program. The
+fresh input and corridor must be measured before an integration estimate or
+live authorization. The [admission retrospective](../retros/2026-11-15-structured-early-pass-admission.md)
+records the completed milestone and its limits.
+
 The destination is ordinary full-scale project passes in which implementers and
 reviewers work through structured services throughout. Opt-in operation is a
 transition state. The trusted service retains source, Git and wrapper execution;
