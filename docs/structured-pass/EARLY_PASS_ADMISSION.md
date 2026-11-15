@@ -138,6 +138,11 @@ strict completion without an actual strict verification run.
 | Reporting and completion | No relaxed result becomes strict-green in review, closeout or application; gold/maturity/completion remain strict. |
 | Four heavy search questions | Repeat the pinned predicates and context requests through an actually admitted service on the corresponding retained source. Compare complete oracle results and request counts, explicitly recording proxy substitutions or unavailable snapshots. |
 
+Override tests must try `ALLOW_UNRESOLVED_LXXXX` and `VERIFY_MODE` separately
+and together. Also assert that closeout's third argument comes from the pinned
+service policy: neither inherited variables nor caller fields may change that
+argument or confer relaxed eligibility on an initially clean source.
+
 Keep the eight-request limit and 24 KiB response ceiling. A repeated search
 overflow is a recorded usability gap, not a failed admission fix or a complete
 fresh-game acceptance. Compact match lists, grouped summaries and query changes
