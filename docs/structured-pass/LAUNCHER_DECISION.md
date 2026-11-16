@@ -1,7 +1,9 @@
 # Opt-in structured launcher: decision record
 
 Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
-implementation not selected. Following the measured baseline, feasibility,
+implementation not selected. The [FG-1 proposal](FG1_LAUNCHER_SLICE.md)
+specializes implementation and admission after the reviewed service slices;
+it requires owner authorization. Following the measured baseline, feasibility,
 search and early-pass admission work, the [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md)
 places this launcher in the dependency path for one complete first semantic
 pass. Its implementation order and fresh-input acceptance remain pending.
