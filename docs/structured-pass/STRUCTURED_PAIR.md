@@ -66,6 +66,17 @@ the notifier starts; transient busy refusals wait within the original deadline.
 Other watch errors stop the pair. Coordinator busy refusals are retained for
 the smoke's count, alongside bridge refusals in client records.
 
+The watcher passes its polled identity in `AGENT_REVIEW_NOTIFICATION_TOKEN`,
+including the published head even when the status is unchanged. Before waiting
+for the turn lock, the notifier records that identity and the prompt hash it
+observes at entry in `notifications/`. After obtaining the lock, it checks the
+current identity. A superseded notification is recorded as dropped and returns
+success without starting a client or spending an invocation; the watcher polls
+again and delivers the new identity. Accepted notification records refer to the
+authoritative turn record. A changed run, an out-of-handoff message path, an
+already-delivered identity or unexplained prompt drift within one identity still
+refuses. Dropping duplicates after a lost seen marker remains deferred.
+
 Codex receives each recorded message on the existing native thread. Message
 records bind the profile, run, thread and exact bytes. The access-preflight
 probe override remains separate. Claude receives the same message after its

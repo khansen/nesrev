@@ -58,6 +58,37 @@ The standalone pair deliberately stops at unfinished rework. It does not cover
 pair-driven closeout and application end to end; those reuse existing service
 tests and still need integrated acceptance before functional admission.
 
+### Superseded-notification correction
+
+Independent review then reproduced a normal multi-publication turn halting the
+pair: a queued reviewer notification waited behind the implementer, whose next
+publication replaced its head, status and prompt. The correction carries the
+watcher's original identity into the notifier and records a superseded delivery
+as dropped, with exit zero. The next poll delivers the current prompt once;
+the dropped notification consumes no client invocation or response allowance.
+
+The affected pair, structured-handoff and ordinary-launcher suites passed 120
+tests, and all three ordinary watcher shell tests passed. Both concurrent races
+passed: two publications in one turn, and a reready
+followed by publication with no status change. Another test covers the prompt
+changing before notifier entry. Restoring the fatal refusal fails both concurrent
+tests with watcher exit 2 instead of timeout exit 4. The production tmux exercise
+also passed with two publications in its first turn: one recorded drop, exactly
+one reviewer turn with the current prompt, then the same-thread unfinished stop.
+Both panes exited, no halt was recorded and processes were reconciled.
+
+Changed runs, paths outside the handoff, repeated delivered identities and prompt
+drift without a new identity still refuse. The duplicate-after-lost-marker case
+remains deferred. No adapter boundary or media route changed. The earlier full
+structured and repository-suite results above are carried forward, not rerun
+claims for this correction. The separate media feasibility check remains an
+owner decision; no provider calls were made.
+
+Two correction-harness mistakes are retained separately: the disposable mutant
+copy initially lacked its fixture's scratch directory, and a literal shell-test
+filter selected no tests. Neither counts as a passing check or a caught fault;
+the corrected runs above supplied the evidence.
+
 Harness corrections are retained: a busy-lock fixture initially used the wrong
 generation field; a pair fixture placed retention outside its permitted root;
 and a synthetic rollout filename lacked the native scanner's required prefix.

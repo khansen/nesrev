@@ -277,31 +277,62 @@ def apply_closed(root):
         return result
 
 
-def deliver(root, role, path, *, kind='notify', notified_status=None):
+def notification_path(config, state, role, path):
+    require(state['run_id']==config['run_id'], 'PAIR_RUN_CHANGED')
+    handoff=Path(config['handoff']).resolve()
+    source=review.run_dir(handoff,state)/'prompts'/(role+'.md')
+    require(not source.is_symlink() and source.resolve().is_relative_to(handoff)
+            and Path(path).resolve()==source.resolve()
+            and (handoff/state['prompts'][role]).resolve()==source.resolve(), 'PAIR_MESSAGE_CHANGED')
+    return source
+
+
+def deliver(root, role, path, *, kind='notify', notified_status=None, notified_token=None, notified_run_id=None):
     root = Path(root).resolve(); config = verify(root); grant = authority(root,config)
     require(role in ROLES and kind in ('initial','notify','owner'), 'PAIR_TURN_INVALID')
+    incoming=None
+    if kind=='notify':
+        saved=review.read_state(Path(config['handoff']))
+        source=notification_path(config,saved,role,path)
+        require(notified_run_id is None or notified_run_id==config['run_id'], 'PAIR_RUN_CHANGED')
+        observed=source.read_bytes()
+        incoming={'role':role,'run_id':config['run_id'],'status':notified_status,
+                  'token':notified_token if notified_token is not None else review.notify_token(saved,role),
+                  'path':str(source),'message_sha256':codex.hashlib.sha256(observed).hexdigest(),
+                  'received':time.time(),'result':'waiting'}
+        notifications=root/'notifications';notifications.mkdir(exist_ok=True)
+        notification=notifications/(uuid.uuid4().hex+'.json');save(notification,incoming)
     with turn_lock(root,grant['deadline']):
         config = verify(root); grant = authority(root,config); state = read(root/'state.json')
         require(state['stop'] is None and not any(t['result']=='running' for t in state['turns']), 'PAIR_RECOVERY_REQUIRED')
-        require(len(state['turns']) < grant['max_invocations'], 'INVOCATION_LIMIT')
         busy=[]
         before = service_status(config,role,grant['deadline'],busy)
-        data = Path(path).read_bytes()
-        require(bool(data.strip()), 'PAIR_MESSAGE_EMPTY')
         if kind == 'notify':
             saved = review.read_state(Path(config['handoff']))
-            require(saved['run_id'] == config['run_id'] and saved['status'] == notified_status
-                    and review.next_actor_for(saved) == role, 'PAIR_STALE_NOTIFICATION')
-            source = Path(config['handoff'])/saved['prompts'][role]
-            require(Path(path).resolve() == source.resolve() and data == source.read_bytes(), 'PAIR_MESSAGE_CHANGED')
+            source = notification_path(config,saved,role,path)
+            data=source.read_bytes()
             token = review.notify_token(saved,role)
-            require(not any(t.get('notification')==token for t in state['turns']), 'PAIR_DUPLICATE_NOTIFICATION')
+            require(not any(t.get('notification')==incoming['token'] for t in state['turns']), 'PAIR_DUPLICATE_NOTIFICATION')
+            if token!=incoming['token']:
+                incoming.update(result='dropped',reason='superseded',finished=time.time(),
+                    current_token=token,current_status=saved['status'],current_message_sha256=sha(source))
+                save(notification,incoming)
+                print(json.dumps(incoming),flush=True)
+                return incoming
+            require(saved['status']==notified_status and review.next_actor_for(saved)==role, 'PAIR_STALE_NOTIFICATION')
+            require(data==observed, 'PAIR_MESSAGE_CHANGED')
         else:
             token = None
+            data=Path(path).read_bytes()
             if kind == 'initial':
                 require(role == 'implementer' and not state['turns'] and before['handoff'] is None
                         and data == (root/'task.txt').read_bytes(), 'PAIR_ALREADY_STARTED')
+        require(bool(data.strip()), 'PAIR_MESSAGE_EMPTY')
+        require(len(state['turns']) < grant['max_invocations'], 'INVOCATION_LIMIT')
         identifier = uuid.uuid4().hex
+        if incoming is not None:
+            incoming.update(result='accepted',turn_id=identifier)
+            save(notification,incoming)
         message = root/'messages'/(identifier+'.txt');message.write_bytes(data)
         profile = Path(config['profiles'][role])
         thread = read(profile/'state.json')['thread_id'] if role=='implementer' else None
@@ -468,7 +499,9 @@ def main():
         resume_watchers(args.root,tmux);answer={'watchers_resumed':True}
     elif args.action=='worker':return worker(args.root,args.role)
     elif args.action=='continue':answer=continue_turn(args.root,args.role,args.message_file)
-    else:answer=deliver(args.root,args.role,args.message,notified_status=args.status)
+    else:answer=deliver(args.root,args.role,args.message,notified_status=args.status,
+        notified_token=os.environ.get('AGENT_REVIEW_NOTIFICATION_TOKEN'),
+        notified_run_id=os.environ.get('AGENT_REVIEW_RUN_ID'))
     print(json.dumps(answer));return 0
 
 

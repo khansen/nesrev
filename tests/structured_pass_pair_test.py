@@ -1,5 +1,6 @@
 """Offline pair integration: real service/adapters, synthetic local client streams."""
 import copy
+from contextlib import contextmanager
 import io
 import json
 import os
@@ -91,14 +92,39 @@ class PairTests(unittest.TestCase):
 if sys.argv[-2:]==['login','status']:
  print('Logged in using ChatGPT');sys.exit(0)
 message=sys.stdin.read()
+import time,agent_review
+mode_path=Path(__file__).parent/'race-mode'
+mode=mode_path.read_text() if mode_path.exists() else ''
+def publish(c,operations):
+ g=c.editor.state['current'];p=c.dispatch('preview',{'generation':g,'operations':operations},'implementer')
+ cid=c.dispatch('confirm',{'generation':g,'preview_digest':p['preview_digest']},'implementer')['candidate']
+ assert c.dispatch('validate',{'cid':cid},'implementer')['status']=='validated'
+ c.dispatch('publish',{'cid':cid},'implementer');c.status('implementer')
+def publish_after_queued_notification(c):
+ root=Path(__file__).parent/'pair';saved=agent_review.read_state(session/'handoff')
+ token=agent_review.notify_token(saved,'reviewer');deadline=time.monotonic()+15
+ while time.monotonic()<deadline:
+  pending=[json.loads(p.read_bytes()) for p in (root/'notifications').glob('*.json')]
+  if any(r['result']=='waiting' and r['token']==token for r in pending):break
+  time.sleep(.02)
+ else:raise RuntimeError('Reviewer notification never queued')
+ c.dispatch('start_chain',{'generation':c.editor.state['current']},'implementer')
+ publish(c,fixture.closeout_ops(c,c.editor.state['current'],notes='Second publication in this turn.'))
+ current=agent_review.read_state(session/'handoff')
+ proof={'before_status':saved['status'],'after_status':current['status'],'before_token':token,
+        'after_token':agent_review.notify_token(current,'reviewer'),
+        'prompt':(session/'handoff'/current['prompts']['reviewer']).read_text()}
+ (root/'race-proof.json').write_text(json.dumps(proof))
 home=Path(os.environ['CODEX_HOME']);folder=home/'sessions';folder.mkdir(exist_ok=True)
 (folder/'rollout-fixture.jsonl').write_text(json.dumps({'type':'session_meta','payload':{'id':'fixture-thread'}})+'\\n'+json.dumps({'type':'response_item','payload':{'type':'additional_tools','id':'declaration','tools':DECLARATION}})+'\\n')
 emit({'type':'thread.started','thread_id':'fixture-thread'});emit({'type':'turn.started'})
 if message.startswith('Publish'):
- c=Corridor(session);g=c.editor.state['current'];p=c.dispatch('preview',{'generation':g,'operations':fixture.rename_ops(c,g)},'implementer')
- cid=c.dispatch('confirm',{'generation':g,'preview_digest':p['preview_digest']},'implementer')['candidate']
- assert c.dispatch('validate',{'cid':cid},'implementer')['status']=='validated'
- c.dispatch('publish',{'cid':cid},'implementer');c.status('implementer')
+ c=Corridor(session);publish(c,fixture.rename_ops(c,c.editor.state['current']))
+ if mode=='double':publish_after_queued_notification(c)
+elif mode=='reready':
+ c=Corridor(session)
+ c.dispatch('reready',{'response':'Synthetic clarification.\\n\\n## Learning Candidates\\n\\n_None._\\n'},'implementer')
+ publish_after_queued_notification(c)
 emit({'type':'turn.completed','usage':{'input_tokens':100,'cached_input_tokens':0,'output_tokens':10}})
 '''.replace('DECLARATION',repr(declaration)))
         claude_path.write_text('#!'+sys.executable+'\n'+common+'''
@@ -131,11 +157,13 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         patched.start();self.addCleanup(patched.stop)
         notify=self.pair/'notify'
         notify.write_text('#!'+sys.executable+'\n'+
-            f'import sys\nsys.path.insert(0,{str(ROOT/"scripts")!r})\n'+
+            f'import os,sys\nsys.path.insert(0,{str(ROOT/"scripts")!r})\n'+
             'import structured_pair_launcher as p\noriginal=p.adapter_argv\n'+
             'def inherited(*args):\n argv=original(*args);return argv[argv.index("--")+1:]\n'+
             'p.adapter_argv=inherited\n'+
-            f'p.deliver({str(self.pair)!r},sys.argv[1],sys.argv[3],notified_status=sys.argv[2])\n')
+            f'p.deliver({str(self.pair)!r},sys.argv[1],sys.argv[3],notified_status=sys.argv[2],'+
+            'notified_token=os.environ.get("AGENT_REVIEW_NOTIFICATION_TOKEN"),'+
+            'notified_run_id=os.environ.get("AGENT_REVIEW_RUN_ID"))\n')
         launch=pair.read(self.pair/'launch.json');launch['files'][str(notify)]=pair.sha(notify)
         pair.save(self.pair/'launch.json',launch)
 
@@ -181,6 +209,82 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         with self.assertRaisesRegex(ValueError,'RUN_TIME_LIMIT'):
             pair.deliver(self.pair,'implementer',self.task,kind='initial')
         self.assertEqual(pair.read(self.impl/'state.json')['runs'],[])
+
+    def race(self,same_status):
+        self.authorize()
+        if same_status:
+            pair.deliver(self.pair,'implementer',self.task,kind='initial')
+            saved=pair.review.read_state(self.c.root/'handoff')
+            pair.deliver(self.pair,'reviewer',self.c.root/'handoff'/saved['prompts']['reviewer'],notified_status=saved['status'])
+            saved=pair.review.read_state(self.c.root/'handoff')
+            delivery={'kind':'notify','notified_status':saved['status']}
+            path=self.c.root/'handoff'/saved['prompts']['implementer']
+        else:delivery={'kind':'initial'};path=self.task
+        (self.root/'race-mode').write_text('reready' if same_status else 'double')
+        driver=self.root/'deliver.py'
+        driver.write_text(f'import sys\nsys.path.insert(0,{str(ROOT/"scripts")!r})\n'+
+            'import structured_pair_launcher as p\noriginal=p.adapter_argv\n'+
+            'def inherited(*args):\n argv=original(*args);return argv[argv.index("--")+1:]\n'+
+            'p.adapter_argv=inherited\n'+f'p.deliver({str(self.pair)!r},"implementer",{str(path)!r},**{delivery!r})\n')
+        command=[sys.executable,'-B',str(ROOT/'scripts/agent_review.py'),'--repo',str(self.c.root/'handoff'),
+                 '--expected-run-id','sample-pass-1','watch','--role','reviewer','--interval','.05',
+                 '--timeout','8','--notify',str(self.pair/'notify')]
+        with (self.root/'watch.log').open('w+') as log,(self.root/'implementer.log').open('w+') as impl_log:
+            watcher=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT)
+            implementer=subprocess.Popen([sys.executable,'-B',str(driver)],stdout=impl_log,stderr=subprocess.STDOUT)
+            try:
+                self.assertEqual(implementer.wait(timeout=25),0,(impl_log.seek(0),impl_log.read()))
+                self.assertEqual(watcher.wait(timeout=25),4,(log.seek(0),log.read()))
+            finally:
+                for process in (implementer,watcher):
+                    if process.poll() is None:process.kill()
+                    process.wait()
+        proof=pair.read(self.pair/'race-proof.json')
+        self.assertEqual(proof['before_status']==proof['after_status'],same_status)
+        self.assertNotEqual(proof['before_token'],proof['after_token'])
+        notifications=[pair.read(p) for p in (self.pair/'notifications').glob('*.json')]
+        dropped=[r for r in notifications if r['result']=='dropped']
+        self.assertEqual(len(dropped),1)
+        self.assertEqual(dropped[0]['token'],proof['before_token'])
+        self.assertEqual(dropped[0]['current_token'],proof['after_token'])
+        turns=pair.read(self.pair/'state.json')['turns']
+        reviews=[r for r in turns if r['role']=='reviewer']
+        self.assertEqual(len(reviews),2 if same_status else 1)
+        self.assertEqual(Path(reviews[-1]['message']).read_text(),proof['prompt'])
+        self.assertEqual(len(turns),4 if same_status else 2)
+        self.assertEqual(len(pair.read(self.rev/'budget.json')['runs']),len(reviews))
+        self.assertIsNone(pair.read(self.pair/'state.json')['stop'])
+        self.assertFalse((self.pair/'halt.json').exists())
+
+    def test_double_publish_drops_superseded_notification(self):
+        self.race(False)
+
+    def test_reready_then_publish_drops_same_status_notification(self):
+        self.race(True)
+
+    def test_notification_keeps_polled_identity_when_prompt_changes_before_entry(self):
+        self.authorize()
+        def publish(operations):
+            g=self.c.editor.state['current']
+            preview=self.c.dispatch('preview',{'generation':g,'operations':operations},'implementer')
+            cid=self.c.dispatch('confirm',{'generation':g,'preview_digest':preview['preview_digest']},'implementer')['candidate']
+            self.assertEqual(self.c.dispatch('validate',{'cid':cid},'implementer')['status'],'validated')
+            self.c.dispatch('publish',{'cid':cid},'implementer');self.c.status('implementer')
+        publish(fixture.rename_ops(self.c,self.c.editor.state['current']))
+        ticket=self.c.status('reviewer')['ticket']
+        self.c.dispatch('request-changes',{'ticket':ticket,'report':'Verdict: CHANGES_REQUESTED\n\nSynthetic finding.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
+        self.c.dispatch('reready',{'response':'Synthetic response.\n\n## Learning Candidates\n\n_None._\n'},'implementer')
+        polled=pair.review.read_state(self.c.root/'handoff')
+        publish(fixture.closeout_ops(self.c,self.c.editor.state['current'],notes='Later publication.'))
+        current=pair.review.read_state(self.c.root/'handoff')
+        self.assertEqual(polled['status'],current['status'])
+        self.assertNotEqual(pair.review.notify_token(polled,'reviewer'),pair.review.notify_token(current,'reviewer'))
+        pair.review.run_notify(self.c.root/'handoff',Namespace(notify=str(self.pair/'notify')),
+                              polled,'reviewer',polled['prompts']['reviewer'])
+        self.assertEqual(pair.read(self.pair/'state.json')['turns'],[])
+        self.assertEqual(pair.read(self.rev/'budget.json')['runs'],[])
+        records=[pair.read(p) for p in (self.pair/'notifications').glob('*.json')]
+        self.assertEqual([r['result'] for r in records],['dropped'])
 
     def test_wrong_pairing_code_task_and_ancestry_refuse(self):
         path=self.pair/'launch.json';original=path.read_bytes();config=json.loads(original)
@@ -257,7 +361,26 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         pair.save(self.pair/'state.json',state)
         with patch.object(pair,'supervise',side_effect=AssertionError('client started')):
             with self.assertRaisesRegex(ValueError,'INVOCATION_LIMIT'):
-                pair.deliver(self.pair,'reviewer',self.task)
+                pair.deliver(self.pair,'reviewer',self.task,kind='owner')
+
+    def test_notification_run_path_and_unexplained_message_drift_refuse(self):
+        self.authorize()
+        pair.deliver(self.pair,'implementer',self.task,kind='initial')
+        saved=pair.review.read_state(self.c.root/'handoff')
+        prompt=self.c.root/'handoff'/saved['prompts']['reviewer']
+        with self.assertRaisesRegex(ValueError,'PAIR_RUN_CHANGED'):
+            pair.deliver(self.pair,'reviewer',prompt,notified_status=saved['status'],notified_run_id='another-run')
+        outside=self.root/'outside.md';outside.write_bytes(prompt.read_bytes())
+        with self.assertRaisesRegex(ValueError,'PAIR_MESSAGE_CHANGED'):
+            pair.deliver(self.pair,'reviewer',outside,notified_status=saved['status'])
+        original=pair.turn_lock
+        @contextmanager
+        def changed(*args):
+            prompt.write_text('Changed without a new handoff identity.')
+            with original(*args):yield
+        with patch.object(pair,'turn_lock',changed),patch.object(pair,'supervise',side_effect=AssertionError('client started')):
+            with self.assertRaisesRegex(ValueError,'PAIR_MESSAGE_CHANGED'):
+                pair.deliver(self.pair,'reviewer',prompt,notified_status=saved['status'])
 
     def test_notification_identity_survives_a_lost_seen_marker(self):
         self.authorize()

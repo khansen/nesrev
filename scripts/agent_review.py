@@ -1060,6 +1060,7 @@ def run_notify(root: Path, args: argparse.Namespace, state: dict[str, Any], role
             "AGENT_REVIEW_STATUS": state["status"],
             "AGENT_REVIEW_RUN_ID": state["run_id"],
             "AGENT_REVIEW_PROMPT_FILE": str(resolve_path(root, prompt)),
+            "AGENT_REVIEW_NOTIFICATION_TOKEN": notify_token(state, role),
         }
     )
     result = subprocess.run(
