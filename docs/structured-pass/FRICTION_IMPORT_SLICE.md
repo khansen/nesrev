@@ -1,9 +1,11 @@
 # Slice 3: preserve learning candidates through structured closeout
 
-15 November 2026. **Authorized offline; first checkpoint complete.** The
+15 November 2026; implementation 16 November. **Offline implementation complete; awaiting review.** The
 [checkpoint](FRICTION_IMPORT_CHECKPOINT.md) fixes observation submission,
-retention, role instructions and the queue-rebuild decision. Production
-integration awaits checkpoint continuation. Input delivery
+retention, role instructions and the queue-rebuild decision. The authorized
+continuation implements the [contract](FRICTION_IMPORT.md); the
+[acceptance record](FRICTION_IMPORT_ACCEPTANCE.md) records integrated recovery
+tests and retained-text evidence. Input delivery
 merged in [PR #195](https://github.com/khansen/nesrev/pull/195); its
 [retrospective](../retros/2026-11-15-structured-input-delivery.md) records the
 outcome and limits. The destination remains [one complete first semantic

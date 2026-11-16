@@ -2,8 +2,11 @@
 
 15 November 2026. The owner authorized the four-hour offline slice. This is
 the requested first checkpoint, reached before one active hour. **Recommend
-continuing with the contract below; production integration has not begun.**
+continuing with the contract below; production integration had not begun at this checkpoint.**
 The [scope](FRICTION_IMPORT_SLICE.md) and one-review-round limit remain in force.
+The owner subsequently authorized continuation; the
+[implemented contract](FRICTION_IMPORT.md) reuses the canonical instruction text
+as requested in review.
 
 ## Decisions
 
@@ -47,7 +50,7 @@ the same text twice. Preserve the normal importer semantics for repeated content
 
 ## Exact role instructions and refusal checks
 
-The implementer's corridor tool help will say:
+The checkpoint initially proposed the following implementer wording:
 
 > In `preview.operations`, every `kind: closeout` object must include `learning`:
 > the body of your Learning Candidates section. Record unresolved process or
@@ -57,12 +60,18 @@ The implementer's corridor tool help will say:
 > `reready.response` must include `## Learning Candidates` with observations or
 > `_None._` as its only body.
 
-The reviewer's corridor tool help will say:
+The checkpoint initially proposed the following reviewer wording:
 
 > Every `approve.report` or `request-changes.report` must include
 > `## Learning Candidates`. Record unresolved process or tooling observations;
 > use exactly `_None._` as the body when there are none. These are candidates
 > for later triage, not approval to implement a fix or promote a rule.
+
+The accepted review refined both declarations to reuse the existing
+`LEARNING_CANDIDATE_GUIDANCE` string verbatim, including “record a recurrence only
+when it adds new evidence” and the `_None._`-alone rule. Both add “Don't repeat
+observations you already submitted in this pass.” The implemented help then
+names each role's existing submission routes, as above.
 
 Check both actual `tools/list` declarations offline. Reject missing fields,
 missing sections, empty bodies and headings found only inside fenced examples

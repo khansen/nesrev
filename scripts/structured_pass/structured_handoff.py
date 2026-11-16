@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 from .durable_artifact import canonical, digest
-from . import window_coverage as windows
+from . import window_coverage as windows, learning
 REPORT_PAGE_CHARS = 1024
 def require(ok, code):
     if not ok:
@@ -98,6 +98,7 @@ def advance(api, root, state, head):
 
 def checked_coverage(api, root, state):
     config = state['structured_review']
+    learning.checked_responses(root, state)
     previous = None
     history = config['verdict_history']
     for number, event in enumerate(history, 1):
@@ -175,7 +176,8 @@ def initialize(api, root, args):
         implementer='implementer', allow_process_range=True, allow_unresolved_lxxxx=False)
     # Git identifies the coordinator only. The reviewed range is explicitly artifacts.
     state['structured_review'] = {'schema': 'window-verdict-history-v1', 'store': store,
-        'pass_base': args.base_artifact, 'pass_head': args.head_artifact, 'verdict_history': []}
+        'pass_base': args.base_artifact, 'pass_head': args.head_artifact, 'verdict_history': [],
+        'response_history': []}
     if args.editor_state:
         state['structured_review']['editor_state'] = str(Path(args.editor_state).resolve())
     state['status'] = 'READY_FOR_REVIEW'
@@ -198,6 +200,8 @@ def verdict(api, root, state, args):
     source = api.require_file(root, args.review, 'review file')
     api.verdict_in_file(root, source, name)
     data = (root / source).read_bytes()
+    require(len(data) <= 65536, 'REQUEST_SCHEMA')
+    learning.check_report(data.decode())
     sha = digest(data)
     history = config['verdict_history']
     number = len(history) + 1
@@ -290,6 +294,7 @@ def dispatch(api, args):
                 source = api.require_file(root, args.response, 'response file')
                 data = (root / source).read_bytes()
                 require(bool(data.strip()) and len(data) <= 65536, 'REQUEST_SCHEMA')
+                learning.check_report(data.decode())
                 # The launcher input is temporary. Retain accepted bytes under
                 # the verdict lock before the state can reference them.
                 from .publication import immutable_file
@@ -297,6 +302,13 @@ def dispatch(api, args):
                 immutable_file(response, data)
                 state['last_response'] = api.rel(root, response)
                 state['round'] += 1
+                history = config['response_history']
+                event = {'sequence': len(history) + 1, 'round': state['round'],
+                         'previous_event': history[-1]['event_sha256'] if history else None,
+                         'run_id': state['run_id'], 'head': config['pass_head'],
+                         'file': state['last_response'], 'sha256': digest(data)}
+                event['event_sha256'] = digest(canonical(event))
+                history.append(event)
                 state['status'] = 'READY_FOR_REREVIEW'
                 answer = save(api, root, state)
             elif args.command == 'archive':

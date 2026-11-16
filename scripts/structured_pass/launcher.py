@@ -218,6 +218,9 @@ class Corridor:
                 and writer['closed_row']['docs_check']=='pass','CLOSEOUT_EVIDENCE_UNAVAILABLE')
         root=self.root/'handoff'
         answer,data=structured_handoff.archive_document(agent_review,root,review,self.config['pass_id'])
+        from . import learning
+        learning_pin, learning_bundle = learning.freeze(self, review)
+        data += learning.archive_section(learning_bundle)
         if evidence is not None:
             data += ('\n## Service verification\n\n' +
                 'Verification: ' + expected_verify + '. This is a semantic-pass result, not a maturity assessment.\n' +
@@ -247,7 +250,7 @@ class Corridor:
             finally:
                 if temporary is not None and temporary.exists():temporary.unlink()
         require(head==answer['coverage']['pass_head'],'STALE_GENERATION')
-        answer={**answer,'wrapper_receipt_sha256':common.digest(receipt.read_bytes()),
+        answer={**answer,'learning_sources':learning_pin,'wrapper_receipt_sha256':common.digest(receipt.read_bytes()),
                 'archive_sha256':common.digest(data),'archive_snapshot':str(snapshot.relative_to(root)),
                 'closed_generation':state['current'],'application':'Not applied or committed to the user checkout'}
         common.write_json(self.root/'closed.json',answer)

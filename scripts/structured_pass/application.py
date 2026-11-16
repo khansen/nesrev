@@ -5,10 +5,11 @@ import fcntl
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 
 from .launcher import Corridor,common,require
-from . import gate_environment, verification_policy
+from . import gate_environment, verification_policy, learning
 
 
 @contextmanager
@@ -51,10 +52,23 @@ def apply(session,target,*,commit=False):
             desired={p:new['manifest'].get(p) for p in paths};desired[archive]=closed['archive_sha256']
             journal=controller.root/'application.json'
             pending=json.loads(journal.read_text()) if journal.exists() else None
+            friction = (pending['friction'] if pending else
+                        learning.build(controller, closed, target, current, hash_at, disk_hash))
+            learning.check_plan(controller, closed, friction)
+            queue, receipts = learning.paths(controller.editor.slug)
+            require(queue not in desired and receipts not in desired, 'APPLICATION_ARCHIVE_COLLISION')
+            if friction['output_sha256'] != friction['inputs'][queue]:
+                desired[queue] = friction['output_sha256']
+            def check_committed_inputs(commit):
+                require(hash_at(target, commit, receipts) == friction['inputs'][receipts],
+                        'APPLICATION_FRICTION_CHANGED')
+                require(hash_at(target, commit, queue) == friction['output_sha256'],
+                        'APPLICATION_FRICTION_CHANGED')
             if pending and pending.get('status')=='committed':
                 require(pending['generation']==head and pending['target']==str(target),'APPLICATION_ALREADY_COMPLETED')
                 recorded=pending['commit']
                 require(all(hash_at(target,recorded,p)==h for p,h in desired.items()),'APPLICATION_COMMIT_CHANGED')
+                check_committed_inputs(recorded)
                 return pending
             require(subprocess.run(['/usr/bin/git','-C',str(target),'merge-base','--is-ancestor',
                 controller.editor.fixture['base_commit'],current],capture_output=True).returncode==0,'APPLICATION_BASE_DIVERGED')
@@ -67,6 +81,7 @@ def apply(session,target,*,commit=False):
                         git(target,'rev-parse',current+'^').decode().strip()==pending['head'] and
                         changed==set(desired) and all(hash_at(target,current,p)==h for p,h in desired.items()),
                         'APPLICATION_PENDING_CHANGED')
+                check_committed_inputs(current)
                 result={**pending,'status':'committed','commit':current,'pushed':False}
                 common.write_json(journal,result)
                 return result
@@ -75,18 +90,23 @@ def apply(session,target,*,commit=False):
                         'APPLICATION_PENDING_CHANGED')
             else:
                 require(not (target/archive).exists() and hash_at(target,current,archive) is None,'REVIEW_ARCHIVE_EXISTS')
+            require(all(hash_at(target, current, p) == h for p,h in friction['inputs'].items()),
+                    'APPLICATION_FRICTION_CHANGED')
+            learning.check_inputs(target, friction, disk_hash, applying=bool(pending))
             unrelated=set(git(target,'diff','--name-only','HEAD','--',controller.editor.project).decode().splitlines())-set(desired)
             unrelated_hashes={p:disk_hash(target,p) for p in unrelated}
             staged=set(git(target,'diff','--cached','--name-only','-z').decode().split('\0'))-{''}
             require(not staged or pending and staged<=set(desired),'APPLICATION_INDEX_NOT_EMPTY')
             before={p:base['manifest'].get(p) for p in paths};before[archive]=None
+            if queue in desired:before[queue]=friction['inputs'][queue]
             for path in desired:
                 require(hash_at(target,current,path)==before[path],'APPLICATION_OVERLAPPING_CHANGE')
                 actual=disk_hash(target,path)
                 require(actual==before[path] or pending and actual==desired[path],'APPLICATION_DIRTY_PATH')
             plan={'status':'checked','target':str(target),'head':current,'generation':head,
                   'review_ticket':closed['coverage']['pass_head'],'paths':desired,
-                  'archive':archive,'wrapper_receipt_sha256':closed['wrapper_receipt_sha256']}
+                  'archive':archive,'wrapper_receipt_sha256':closed['wrapper_receipt_sha256'],
+                  'friction':friction}
             if not commit:return plan
             # A retry can finish this exact write set after a failed gate/signing
             # command. It cannot silently replace unrelated work or move the base.
@@ -96,7 +116,8 @@ def apply(session,target,*,commit=False):
                 if desired[path] is None:
                     if target_file.exists():target_file.unlink()
                     continue
-                source=controller.root/'handoff'/archive if path==archive else Path(new['checkout'])/path
+                source=(learning.output_path(controller, desired[path]) if path==queue else
+                        controller.root/'handoff'/archive if path==archive else Path(new['checkout'])/path)
                 data=source.read_bytes();require(common.digest(data)==desired[path],'GENERATION_INPUT_CHANGED')
                 with tempfile.NamedTemporaryFile(dir=target_file.parent,delete=False) as temporary:
                     temporary.write(data);temporary_name=temporary.name
@@ -120,6 +141,7 @@ def apply(session,target,*,commit=False):
                 require(gate['exit_code']==0,'APPLICATION_GATE_FAILED')
             require(git(target,'rev-parse','HEAD').decode().strip()==current,'APPLICATION_HEAD_CHANGED')
             require(all(disk_hash(target,p)==h for p,h in desired.items()),'APPLICATION_APPROVED_FILES_CHANGED')
+            learning.check_inputs(target, friction, disk_hash, applying=True)
             # Gates must not change any other tracked path in this project.
             project_paths=set(git(target,'diff','--name-only','HEAD','--',controller.editor.project).decode().splitlines())
             require(project_paths-set(desired)==unrelated and
@@ -130,12 +152,26 @@ def apply(session,target,*,commit=False):
             committed=git(target,'rev-parse','HEAD').decode().strip()
             require(git(target,'rev-parse',committed+'^').decode().strip()==current,'APPLICATION_COMMIT_PARENT_CHANGED')
             require(all(hash_at(target,committed,p)==h for p,h in desired.items()),'APPLICATION_COMMIT_CHANGED')
+            check_committed_inputs(committed)
             result={**plan,'status':'committed','commit':committed,'gates':gates,'pushed':False}
             common.write_json(journal,result)
             return result
 
 
-if __name__=='__main__':
+def main(argv=None):
     parser=argparse.ArgumentParser();parser.add_argument('--session',type=Path,required=True)
     parser.add_argument('--repo',type=Path,required=True);parser.add_argument('--commit',action='store_true')
-    args=parser.parse_args();print(json.dumps(apply(args.session,args.repo,commit=args.commit)))
+    args=parser.parse_args(argv)
+    try:
+        result=apply(args.session,args.repo,commit=args.commit)
+    except ValueError as error:
+        if str(error) != 'APPLICATION_FRICTION_DIRTY':raise
+        print('APPLICATION_FRICTION_DIRTY: Commit intended queue/receipt edits or restore them, '
+              'then retry. No application journal was started.', file=sys.stderr)
+        return 2
+    print(json.dumps(result))
+    return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())

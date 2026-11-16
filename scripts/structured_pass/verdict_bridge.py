@@ -9,6 +9,7 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 from .structured_handoff import windows, require
+from . import learning
 
 
 class Bridge:
@@ -78,7 +79,7 @@ def mcp(config):
                       'serverInfo': {'name': 'handoff-verdicts', 'version': 'prototype-1'}}
         elif method == 'tools/list':
             operations = ['status','review_report'] + (['approve', 'request-changes'] if bridge.config['role'] == 'reviewer' else [])
-            result = {'tools': [{'name': 'operation', 'description': 'Existing handoff status and window verdicts.',
+            result = {'tools': [{'name': 'operation', 'description': 'Existing handoff status and window verdicts.' + (learning.help_text('reviewer') if bridge.config['role']=='reviewer' else ''),
                 'inputSchema': {'type': 'object', 'properties': {'operation': {'type': 'string', 'enum': operations},
                     'arguments': {'type': 'object'}}, 'required': ['operation', 'arguments'], 'additionalProperties': False}}]}
         elif method == 'tools/call':

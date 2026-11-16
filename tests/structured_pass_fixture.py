@@ -93,7 +93,7 @@ def closeout_ops(controller,generation,notes='Synthetic lifecycle exercise.'):
     info=controller.editor.documents(generation)
     return [{'kind':'scorecard_update','pass_id':'1','preimage':info['scorecard']['preimage'],
              'fields':{'focus':'Synthetic corridor','notes':notes}},
-            {'kind':'closeout','pass_id':'1','deferrals_preimage':info['deferrals']['preimage'],'deferrals':[],'rework_items':0}]
+            {'kind':'closeout','pass_id':'1','deferrals_preimage':info['deferrals']['preimage'],'deferrals':[],'rework_items':0,'learning':'_None._'}]
 
 
 def rename_ops(controller,generation):

@@ -46,7 +46,7 @@ def command(root, *args, error=None):
 
 def verdict(root, ticket, name='APPROVED', error=None):
     path = root/'report.md'
-    path.write_text(f'Verdict: {name}\n\nSynthetic permission/coverage fixture, not an actual project review.\n')
+    path.write_text(f'Verdict: {name}\n\nSynthetic permission/coverage fixture, not an actual project review.\n\n## Learning Candidates\n\n_None._\n')
     return command(root, 'approve' if name=='APPROVED' else 'request-changes',
                    '--window', ticket, '--review', str(path), error=error)
 
@@ -85,7 +85,7 @@ class HandoffTests(unittest.TestCase):
         self.assertEqual(rejected['status'],'CHANGES_REQUESTED')
         self.assertEqual(len(rejected['coverage']['uncovered_edges']),7)
         verdict(self.root,self.ids[7],error='REVIEW_NOT_READY')
-        response=self.root/'response.md';response.write_text('Synthetic disposition.\n')
+        response=self.root/'response.md';response.write_text('Synthetic disposition.\n\n## Learning Candidates\n\n_None._\n')
         command(self.root,'reready','--head',self.ids[8],'--response',str(response))
         repaired=verdict(self.root,self.ids[7]);self.assertEqual(repaired['round'],2)
         self.assertEqual(repaired['status'],'APPROVED')
@@ -119,8 +119,8 @@ class HandoffTests(unittest.TestCase):
         config=self.root/'bridge.json'
         config.write_text(json.dumps({'role':'implementer','root':str(self.root),'run_id':'fixture-pass','scripts':SCRIPTS}))
         bridge=Bridge(config);before=(self.root/'.agents/current.json').read_bytes()
-        for request,code in [({'operation':'approve','arguments':{'ticket':self.ids[8],'report':'Verdict: APPROVED\n'}},'REVIEWER_ONLY'),
-                ({'operation':'request-changes','arguments':{'ticket':self.ids[8],'report':'Verdict: CHANGES_REQUESTED\n'}},'REVIEWER_ONLY'),
+        for request,code in [({'operation':'approve','arguments':{'ticket':self.ids[8],'report':'Verdict: APPROVED\n\n\n## Learning Candidates\n\n_None._\n'}},'REVIEWER_ONLY'),
+                ({'operation':'request-changes','arguments':{'ticket':self.ids[8],'report':'Verdict: CHANGES_REQUESTED\n\n\n## Learning Candidates\n\n_None._\n'}},'REVIEWER_ONLY'),
                 ({'operation':'status','arguments':{'role':'reviewer'}},'REQUEST_SCHEMA'),
                 ({'operation':'status','arguments':{'history':[]}},'REQUEST_SCHEMA')]:
             with self.assertRaisesRegex(ValueError,code):bridge.dispatch(request)

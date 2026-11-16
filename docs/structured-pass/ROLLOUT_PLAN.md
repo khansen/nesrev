@@ -59,8 +59,10 @@ assemblies and remain available in restored reviews. The
 records the completed milestone. [Learning-candidate import](FRICTION_IMPORT_SLICE.md)
 is authorized with a four-hour offline bound. Its
 [first checkpoint](FRICTION_IMPORT_CHECKPOINT.md) records the source mapping,
-role instructions, queue-rebuild decision and component recovery probes;
-production integration awaits continuation. Launcher/client admission and one authorized
+role instructions, queue-rebuild decision and component recovery probes.
+The authorized continuation implements [the import contract](FRICTION_IMPORT.md),
+with [integrated offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md); implementation
+review remains pending. Launcher/client admission and one authorized
 unscripted pass follow. No live delivery or inference saving is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.

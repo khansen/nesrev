@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
-from . import gate_environment
+from . import gate_environment, learning
 SCORECARD = 'docs/reverse_engineering/PROGRESS_SCORECARD.md'
 DEFERRALS = 'docs/reverse_engineering/inventory/deferrals.csv'
 GATE_FIELDS = frozenset(('verify', 'docs_check', 'rework_items'))
@@ -22,7 +22,7 @@ AUTHORED = frozenset(('focus','notes'))
 PROTECTED = GATE_FIELDS | SYNCED_FIELDS | UNMEASURED_FIELDS
 UNMEASURED = 'not measured'
 KINDS = frozenset(('scorecard_update', 'closeout'))
-ERRORS = frozenset('''MIXED_DOCUMENT_SCHEMA MIXED_DOCUMENT_PREIMAGE
+ERRORS = learning.ERRORS | frozenset('''MIXED_DOCUMENT_SCHEMA MIXED_DOCUMENT_PREIMAGE
     WRAPPER_OWNED_FIELD WRAPPER_OWNED_ROW MIXED_FILE_REQUIRES_TYPED_UPDATE
     DOCUMENT_PASS_MISMATCH CLOSEOUT_REQUIRED CLOSEOUT_RESULT_INVALID
     CLOSEOUT_TOOLING_CHANGED DEFERRAL_ROW_CONFLICT'''.split())
@@ -116,7 +116,8 @@ def document_operations(operations):
     require(len(updates)==len(closeouts)==1, 'CLOSEOUT_REQUIRED')
     update,closeout=updates[0],closeouts[0]
     schema(update, ('kind','pass_id','preimage','fields'))
-    schema(closeout, ('kind','pass_id','deferrals_preimage','rework_items','deferrals'))
+    schema(closeout, ('kind','pass_id','deferrals_preimage','rework_items','deferrals','learning'))
+    learning.body(closeout['learning'])
     require(isinstance(update['pass_id'],str) and re.fullmatch(r'[1-9][0-9]*',update['pass_id']) is not None)
     require(closeout['pass_id']==update['pass_id'], 'DOCUMENT_PASS_MISMATCH')
     require(type(closeout['rework_items']) is int and closeout['rework_items']>=0)
@@ -241,7 +242,7 @@ def run_closeout(checkout, project, slug, operations, pass_id, folder, env, scri
     receipt={'writer':'project_pass_closeout.sh','gate':gate,'environment':dict(trusted),'wrapper_code_hashes':hashes,
              'wrapper_base_commit':commit,'wrapper_scope':('Pinned current-project tool bundle' if pass_plan_sha256 else 'Pinned fixture-base tool bundle'),
              'pass_plan_sha256':pass_plan_sha256,
-             'pass_id':pass_id,'before_files':before_files,
+             'pass_id':pass_id,'learning':closeout['learning'],'before_files':before_files,
              'after_files':{p:sha((checkout/project/p).read_bytes()) for p in (SCORECARD,DEFERRALS)},
              'draft_row':draft,'closed_row':actual,'unchanged_deferral_rows':len(old_deferrals),
              'added_deferrals':added}

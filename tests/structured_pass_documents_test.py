@@ -21,7 +21,7 @@ def operations(scorecard=SCORECARD,deferrals=DEFERRALS):
     return [
         {'kind':'scorecard_update','pass_id':'2','preimage':mixed.sha(scorecard),
          'fields':{'focus':'fixture corridor','notes':'Fixture input.'}},
-        {'kind':'closeout','pass_id':'2','deferrals_preimage':mixed.sha(deferrals),'rework_items':0,
+        {'kind':'closeout','learning':'_None._','pass_id':'2','deferrals_preimage':mixed.sha(deferrals),'rework_items':0,
          'deferrals':[{'subject':'fixture gap','revisit_condition':'independent evidence','kind':'static'}]}]
 
 
