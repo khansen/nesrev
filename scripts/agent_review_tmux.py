@@ -603,9 +603,19 @@ def launch(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    if '--workflow=structured' in sys.argv or ('--workflow' in sys.argv and sys.argv[sys.argv.index('--workflow')+1:][:1] == ['structured']):
+        import structured_pair_launcher
+        parser = argparse.ArgumentParser(description='Supervised structured Codex/Claude pair')
+        parser.add_argument('--workflow', choices=('structured',), required=True)
+        parser.add_argument('--prepared', type=Path, required=True)
+        parser.add_argument('--session', default='nesrev-structured')
+        parser.add_argument('--check', action='store_true')
+        parser.add_argument('--no-attach', action='store_true')
+        return structured_pair_launcher.tmux_launch(parser.parse_args(), tmux, connect)
     if len(sys.argv) == 4 and sys.argv[1] == "--worker" and sys.argv[3] in ROLES:
         return run_worker(Path(sys.argv[2]), sys.argv[3])
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--workflow', choices=('ordinary',), default='ordinary')
     parser.add_argument("--project", required=True)
     parser.add_argument("--repo", type=Path, default=Path.cwd(), help="project checkout (default: current directory)")
     parser.add_argument("--session", default="nesrev-review", help="session name when creating a new workspace")

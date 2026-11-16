@@ -50,8 +50,12 @@ corridor, including one with published candidates.
 Run `python3 -B scripts/structured_codex_client.py prepare` with explicit
 `--root`, `--session`, `--prompt`, `--message-file`, `--client`, `--interpreter`,
 `--service-root`, `--heavy-lock`, `--model` and `--effort`. Paths in the resulting
-profile are absolute. Use a new profile root. Optional `--media` accepts pinned
-PNG images for `view_image`; PDF intake needs separate, reviewed preparation.
+profile are absolute. Use a new profile root. Optional `--media` copies pinned
+PNG images and enables `view_image`, but this path is **not admitted**: the
+[launcher investigation](FG1_LAUNCHER_INTEGRATION.md#media-admission-stop)
+found that the pinned client places it behind forbidden code-mode execution.
+The declaration and audit guards stop this configuration. PDF intake also needs
+separate, reviewed preparation.
 The model receives the pinned prompt through `model_instructions_file`.
 
 With [declared inputs](DECLARED_INPUTS.md), `--message-file` supplies the current
@@ -71,7 +75,8 @@ symlinked skill roots. `skills.bundled.enabled=false` disables that content;
 native inspection must show zero enabled skills after startup and reopen.
 
 The client environment sets `GIT_CEILING_DIRECTORIES` to the profile root.
-Its workspace therefore cannot discover an enclosing repository. Offline
+Preparation and verification also refuse a Git repository in any workspace
+ancestor. Offline
 capture checks the actual Git invocations and requires null session Git
 metadata; `--skip-git-repo-check` alone does not prevent discovery.
 
@@ -117,8 +122,12 @@ It requires the direct facts operation plus exactly `functions.exec`,
 `functions.request_user_input_async`. Only facts is callable. It also pins the
 whole declaration, including schemas, descriptions and array order, using
 UTF-8 `json.dumps(declaration, sort_keys=True)` with default separators and ASCII
-escaping, without a trailing newline. SHA-256 must equal
-`8df1bc0a8356e4d28df87aba94957298f5113bc1264763d99b70174bb2e1d6ba`.
+escaping, without a trailing newline. The current no-media declaration pin is
+`9964a2c5cfdf78570cb915276b7cfc4411f6fe963806fff0ba28e07009aa6d00`.
+It includes the new service operations and is confirmed by a rejecting offline
+loopback capture, not yet by authenticated admission. The previous admitted
+declaration was `8df1bc0a8356e4d28df87aba94957298f5113bc1264763d99b70174bb2e1d6ba`;
+its live evidence is historical and does not admit the new declaration.
 The installed code-mode host binary is pinned although its feature is off.
 Nested capability headings are not parsed as an access allowlist.
 The shell-on control must add

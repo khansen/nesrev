@@ -64,8 +64,10 @@ The authorized continuation implements [the import contract](FRICTION_IMPORT.md)
 with [integrated offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md); independent
 review accepted it for publication in [PR #196](https://github.com/khansen/nesrev/pull/196).
 The [retrospective](../retros/2026-11-16-structured-friction-import.md) records its
-limits. The [launcher/client-admission slice](FG1_LAUNCHER_SLICE.md) is authorized
-for offline integration past its first checkpoint. Client smoke and the
+limits. The [launcher/client-admission slice](FG1_LAUNCHER_SLICE.md) completed
+the offline transport exercise and stopped on a measured
+[Codex reference-image admission gap](FG1_LAUNCHER_INTEGRATION.md#media-admission-stop).
+The image transport needs a scope decision before smoke preparation continues. Client smoke and the
 unscripted pass each still require separate authorization.
 No live delivery or inference saving is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records

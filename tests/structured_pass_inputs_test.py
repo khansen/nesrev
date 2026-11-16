@@ -235,16 +235,18 @@ class LifecycleTests(unittest.TestCase):
         c=claude.prepare(self.root/'claude',self.c.root,prompts,model='fixture',effort='high',
                          client=client,interpreter=sys.executable,heavy_lock=self.root/'lock',task=task)
         self.addCleanup(shutil.rmtree,Path(c['roles']['reviewer']['workspace']).parent)
-        d=codex.prepare(self.root/'codex',session=self.c.root,prompt=prompts/'implementer.md',model='fixture',effort='high',
+        external=tempfile.TemporaryDirectory(prefix='inputs-client-');self.addCleanup(external.cleanup)
+        codex_root=Path(external.name)/'codex'
+        d=codex.prepare(codex_root,session=self.c.root,prompt=prompts/'implementer.md',model='fixture',effort='high',
                         client=client,interpreter=sys.executable,service_root=ROOT,heavy_lock=self.root/'lock',message=task)
         for profile in (c['roles']['reviewer'],d):
-            prompt_path=Path(profile.get('prompt',self.root/'codex/prompt.md'))
+            prompt_path=Path(profile.get('prompt',codex_root/'prompt.md'))
             self.assertIn(inputs.HISTORICAL,prompt_path.read_text());self.assertIn(task,prompt_path.read_text())
             self.assertNotIn('STOP AFTER PASS 0',prompt_path.read_text())
             self.assertEqual(len(profile['media']),1)
             self.assertEqual(json.loads(Path(profile['input_assembly']).read_text())['items'],
                              [inputs.metadata(i) for i in inputs.load(self.c.editor.model(self.g).capture)['items']])
-        claude.verify(self.root/'claude');codex.verify(self.root/'codex')
+        claude.verify(self.root/'claude');codex.verify(codex_root)
 
 
 class NotesAdvisoryTests(unittest.TestCase):

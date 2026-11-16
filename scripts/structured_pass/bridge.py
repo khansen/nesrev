@@ -21,6 +21,16 @@ def hook(policy):
         'STRUCTURED_PASS_ALLOW' if allowed else 'STRUCTURED_PASS_DENY'}}))
 
 
+def tool_listing(role,profile='corridor'):
+    operations=['status','evidence','query','navigate','inspect','q09','documents','document','review','review_report','candidate_status','validation_evidence','guidance','search','inputs','input']
+    if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
+    elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
+    else:operations+=['approve','request-changes']
+    return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.TOOL_HELP+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else ''),
+        'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
+            'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
+
+
 def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
     from .launcher import Corridor
     from .retained_service import RetainedReviewService
@@ -46,13 +56,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         result={'protocolVersion':request['params']['protocolVersion'],'capabilities':{'tools':{}},
                             'serverInfo':{'name':'structured-pass','version':'1'}}
                     elif method=='tools/list':
-                        operations=['status','evidence','query','navigate','inspect','q09','documents','document','review','review_report','candidate_status','validation_evidence','guidance','search','inputs','input']
-                        if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
-                        elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
-                        else:operations+=['approve','request-changes']
-                        result={'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.TOOL_HELP+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else ''),
-                            'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
-                                'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
+                        result=tool_listing(role,profile)
                     elif method=='ping':result={}
                     elif method=='tools/call':
                         params=request.get('params');service.schema(params,('name','arguments'),('_meta',))

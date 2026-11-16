@@ -351,10 +351,9 @@ compaction behavior and evidence limits are documented there. It can work with
 the existing Claude reviewer and does not change the ordinary launcher defaults.
 
 The [launcher decision record](LAUNCHER_DECISION.md) defines an opt-in structured
-mode in the existing tmux launcher as a bounded option: scope accepted 2026-11-12,
-implementation not selected. The [process assessment](../PROCESS_BASELINE_PLAN.md#assessment)
-recommends a measured fresh start first; the owner's priority decision remains
-pending. Live testing requires separate owner authorization.
+mode in the existing tmux launcher. The FG-1 implementation is authorized;
+[pair preparation, delivery and recovery](STRUCTURED_PAIR.md) describe that
+path. Live testing requires separate owner authorization.
 
 ### Claude subscription client
 
@@ -363,8 +362,10 @@ separation. Both services run as the operator and own source, Git and evidence.
 The agent's workspace contains no checkout, snapshots, Git objects or source-model
 files. Its only tools are `Read` for explicitly selected reference media and the
 role bridge. Native shell, search, edit, agents and connectors are absent. The
-hook allowlists paths; the client's `--restricted` boundary independently denies
-outside reads. A client upgrade must pass the native probe before use.
+hook allowlists paths; the client's `--restricted` boundary is intended to deny
+outside reads independently. The hook-disabled smoke must establish that second
+layer; the earlier live denials all came from the hook. A client upgrade must
+pass the native probe before use.
 
 Prepare subscription settings with explicit model, effort, client and interpreter
 paths. This command makes no model request:

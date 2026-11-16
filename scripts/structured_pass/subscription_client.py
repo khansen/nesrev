@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 import uuid
+import structured_client_workspace as workspace_check
 
 from .launcher import Corridor,common,HERE,SCRIPTS
 from .usage_budget import Budget,require
@@ -54,6 +55,7 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
     declared=controller.editor.state.get('declared_inputs_sha256') is not None
     if declared:require(not media and isinstance(task,str) and bool(task.strip()),'INPUT_SELECTION_INVALID')
     workspace_root=Path(tempfile.mkdtemp(prefix='nesrev-live-clients-')).resolve()
+    workspace_check.require_source_free(workspace_root)
     references=[]
     for path in media:
         path=Path(path).resolve();data=path.read_bytes()
@@ -65,7 +67,7 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
         'client_version':subprocess.check_output([str(client),'--version'],text=True).strip(),
         'heavy_lock':str(Path(heavy_lock).resolve()),
         'code_sha256':{str(p):common.producer.sha(p) for p in (
-            Path(__file__),HERE/'usage_budget.py',HERE/'launcher.py',HERE/'current_project.py',HERE/'application.py',BRIDGE,
+            Path(__file__),Path(workspace_check.__file__),HERE/'usage_budget.py',HERE/'launcher.py',HERE/'current_project.py',HERE/'application.py',BRIDGE,
             HERE/'structured_handoff.py',HERE/'verdict_bridge.py',HERE.parent/'agent_review.py')},
         'roles':{},'phase_response_cap':30}
     if declared:
@@ -118,6 +120,7 @@ def verify(root):
             from . import input_delivery
             input_delivery.verify(config['session'],role['input_assembly'])
         workspace=Path(role['workspace'])
+        workspace_check.require_source_free(workspace)
         expected=role.get('media',{})
         require(workspace.is_dir() and {str(p) for p in workspace.iterdir()}==set(expected),'CLIENT_WORKSPACE_NOT_EMPTY')
         require(all(not Path(p).is_symlink() and common.producer.sha(Path(p))==h for p,h in expected.items()),'LAUNCH_CONFIGURATION_CHANGED')
@@ -146,7 +149,7 @@ def owner_extension(root,responses,minutes,reason):
     return Budget(root,common.producer.sha(root/'launch.json')).extend(responses,minutes*60,reason,recover_interrupted=True)
 
 
-def run_role(root,role,prompt):
+def run_role(root,role,prompt,deadline=None):
     # The documented entry point is inside the shared heavy runner. It owns
     # and reaps the whole client/MCP process group, including timeout leftovers.
     config=verify(root)
@@ -156,6 +159,8 @@ def run_role(root,role,prompt):
     prior=json.loads((root/'budget.json').read_text())
     continuation=any(r['role']==role for r in prior['runs'])
     reservation=budget.reserve(role,config['phase_response_cap'])
+    if deadline is not None:
+        reservation['deadline']=min(reservation['deadline'],deadline)
     current_budget=json.loads((root/'budget.json').read_text())
     limits=('Coordinator allowance: '+str(reservation['reserved'])+' responses for this invocation; '
             +str(current_budget['max_responses'])+' responses authorized across both roles. Wall deadline: '
@@ -163,9 +168,12 @@ def run_role(root,role,prompt):
             +'. Batch independent reads; keep mutations sequential. Only the owner can extend these limits.\n\n')
     folder=root/'runs'/reservation['id'];folder.mkdir(parents=True)
     common.write_json(folder/'auth.json',auth)
+    (folder/'message.txt').write_bytes(prompt.encode())
+    (folder/'delivered.txt').write_bytes((limits+prompt).encode())
     events=[];timed_out=False;failure=None;accounting=None
     try:
-        with (folder/'stderr.log').open('wb') as stderr,(folder/'stdout.jsonl').open('w') as stdout:
+        with (folder/'stderr.log').open('wb') as stderr,(folder/'stdout.jsonl').open('wb') as stdout:
+            require(time.time()<reservation['deadline'],'RUN_TIME_LIMIT')
             process=subprocess.Popen(command(config,role,reservation['reserved'],limits+prompt,continuation),
                 cwd=config['roles'][role]['workspace'],env=environment(root),stdout=subprocess.PIPE,stderr=stderr)
             # Nonblocking byte reads keep the wall limit effective even when
@@ -177,11 +185,12 @@ def run_role(root,role,prompt):
                 for key,_ in selector.select(.25):
                     chunk=os.read(key.fileobj.fileno(),65536)
                     if not chunk:selector.unregister(key.fileobj);continue
+                    stdout.write(chunk);stdout.flush()
                     pending+=chunk
                     while b'\n' in pending:
                         line,pending=pending.split(b'\n',1)
                         if not line:continue
-                        event=json.loads(line);events.append(event);stdout.write(line.decode()+'\n');stdout.flush()
+                        event=json.loads(line);events.append(event)
                         if event.get('subtype')=='init':
                             initialized=True
                             check_initialization(event,config['model'])
@@ -189,6 +198,7 @@ def run_role(root,role,prompt):
                             require(initialized,'MISSING_CLIENT_INITIALIZATION')
                             budget.observe(reservation['id'],event)
             selector.close()
+            if not timed_out:require(not pending.strip(),'CLIENT_PARTIAL_EVENT')
             if timed_out:process.terminate()
             try:process.wait(timeout=5)
             except subprocess.TimeoutExpired:process.kill();process.wait()
@@ -208,6 +218,7 @@ def run_role(root,role,prompt):
            else 'CLIENT_RUN_FAILED' if final.get('subtype')!='success' or final.get('is_error') is not False
            else None)
     common.write_json(folder/'run.json',{'role':role,'reservation':reservation,'failure':failure,'timeout':timed_out,
+        'message_sha256':common.digest(prompt.encode()),'delivered_sha256':common.digest((limits+prompt).encode()),
         'exit_code':process.returncode if 'process' in locals() else None,'error':error,'accounting':accounting})
     require(error is None,error)
     return {'run_id':reservation['id'],'role':role,'exit_code':process.returncode,'result':final.get('result')}
@@ -225,7 +236,10 @@ def main():
     approve=sub.add_parser('authorize');approve.add_argument('--responses',type=int,required=True);approve.add_argument('--minutes',type=int,required=True)
     extend=sub.add_parser('extend');extend.add_argument('--responses',type=int,required=True)
     extend.add_argument('--minutes',type=int,required=True);extend.add_argument('--reason',required=True)
-    run=sub.add_parser('run');run.add_argument('role',choices=('implementer','reviewer'));run.add_argument('--message',required=True)
+    run=sub.add_parser('run');run.add_argument('role',choices=('implementer','reviewer'))
+    message=run.add_mutually_exclusive_group(required=True)
+    message.add_argument('--message');message.add_argument('--message-file',type=Path)
+    run.add_argument('--deadline',type=float)
     args=parser.parse_args();root=args.root.resolve()
     if args.action=='prepare':answer=prepare(root,args.session,args.prompts,model=args.model,effort=args.effort,client=args.client,interpreter=args.interpreter,heavy_lock=args.heavy_lock,media=args.media,task=args.task_file.read_text() if args.task_file else None);answer={'prepared':True,'model':answer['model'],'effort':answer['effort'],'authorized':False}
     elif args.action=='check':verify(root);answer={'profile_valid':True,'auth':authenticate(root)}
@@ -237,7 +251,7 @@ def main():
             state.update(authorized=True,max_responses=args.responses,max_seconds=args.minutes*60,owner_approved_at=time.time())
         answer={'authorized':True,'responses':args.responses,'minutes':args.minutes}
     elif args.action=='extend':answer=owner_extension(root,args.responses,args.minutes,args.reason)
-    else:answer=run_role(root,args.role,args.message)
+    else:answer=run_role(root,args.role,args.message_file.read_bytes().decode() if args.message_file else args.message,args.deadline)
     print(json.dumps(answer))
 
 if __name__=='__main__':main()

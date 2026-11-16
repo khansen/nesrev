@@ -18,13 +18,14 @@ import sys
 import time
 import uuid
 import structured_client_processes as process_tree
+import structured_client_workspace as workspace_check
 
 
 TOOL = 'mcp__facts__operation'
 FORBIDDEN_TOOLS = frozenset('functions__' + name for name in
     ('exec', 'wait', 'request_user_input', 'request_user_input_async'))
 OFFERED_TOOLS = FORBIDDEN_TOOLS | {TOOL}
-DECLARATION_SHA256 = '8df1bc0a8356e4d28df87aba94957298f5113bc1264763d99b70174bb2e1d6ba'
+DECLARATION_SHA256 = '9964a2c5cfdf78570cb915276b7cfc4411f6fe963806fff0ba28e07009aa6d00'
 STARTUP_WARNINGS = {
     '`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.': 2,
     'Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; '
@@ -378,8 +379,20 @@ def phase_expiry(authority, started):
     return min(authority['deadline'], started + 180) if authority['purpose'] == 'access_preflight' and authority.get('probe') is not None else authority['deadline']
 
 
-def phase_message(root, authority, thread_id, probe_message):
+def phase_message(root, authority, thread_id, probe_message, message_record=None):
     probe = authority.get('probe')
+    if message_record is not None:
+        require(probe is None and probe_message is None, 'CODEX_PROBE_FORBIDDEN')
+        path = Path(message_record).resolve(strict=True)
+        require(str(path.parent) == authority.get('message_directory'), 'CODEX_MESSAGE_AUTHORIZATION')
+        record = json.loads(path.read_bytes())
+        require(record.get('launch_sha256') == sha(Path(root)/'launch.json')
+                and record.get('run_id') == authority.get('run_id')
+                and record.get('thread_id') == thread_id, 'CODEX_MESSAGE_AUTHORIZATION')
+        source = path.with_suffix('.txt')
+        require(not source.is_symlink() and sha(source) == record.get('message_sha256'),
+                'CODEX_MESSAGE_CHANGED')
+        return source.read_bytes()
     if probe_message is not None or probe is not None:
         require(authority['purpose'] == 'access_preflight', 'CODEX_PROBE_FORBIDDEN')
         require(probe_message is not None and isinstance(probe, dict), 'CODEX_PROBE_AUTHORIZATION')
@@ -457,6 +470,7 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
             service_root, heavy_lock, message, media=(), compaction_probe=False):
     root = Path(root).resolve()
     require(not root.exists(), 'CODEX_PROFILE_EXISTS')
+    workspace_check.require_source_free(root / 'workspace')
     require(all(isinstance(v, str) and v.strip() for v in (model, effort)), 'MODEL_CONFIGURATION_REQUIRED')
     require(isinstance(message, str) and bool(message.strip()), 'CODEX_MESSAGE_REQUIRED')
     session, client, service_root = (Path(p).resolve(strict=True) for p in (session, client, service_root))
@@ -507,7 +521,7 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
         configuration['model_auto_compact_token_limit'] = 16384
     save(root / 'config.json', configuration)
     pins = {str(p): sha(p) for p in (
-        Path(__file__).resolve(), Path(process_tree.__file__).resolve(), bridge, prompt_path,
+        Path(__file__).resolve(), Path(process_tree.__file__).resolve(), Path(workspace_check.__file__).resolve(), bridge, prompt_path,
         root / 'message.txt', root / 'policy.json', root / 'config.json')}
     pins.update({str(p): sha(p) for p in (service_root / 'scripts/structured_pass').glob('*.py')})
     if assembly is not None:pins[str(root/'inputs/assembly.json')]=sha(root/'inputs/assembly.json')
@@ -560,6 +574,7 @@ def verify(root):
     require(sha(root / 'config.json') == config['configuration_sha256'], 'CODEX_CONFIGURATION_CHANGED')
     compaction_configuration(config, json.loads((root / 'config.json').read_text()))
     workspace = Path(config['workspace'])
+    workspace_check.require_source_free(workspace)
     require(workspace.is_dir() and {str(p) for p in workspace.iterdir()} == set(config['media']),
             'CODEX_WORKSPACE_CHANGED')
     require(all(not Path(p).is_symlink() and sha(p) == expected for p, expected in config['media'].items()),
@@ -635,7 +650,7 @@ def authenticate(root, config):
             'CODEX_SUBSCRIPTION_LOGIN_REQUIRED')
 
 
-def run(root, probe_message=None):
+def run(root, probe_message=None, message_record=None):
     """One owner-authorized phase; an error never starts a replacement phase."""
     root = Path(root).resolve()
     config = verify(root)
@@ -650,7 +665,7 @@ def run(root, probe_message=None):
         require_quiescent_runs(state, config)
         require(not state.get('halted') and not any(r['status'] == 'running' for r in state['runs']),
                 'CODEX_RECOVERY_REQUIRED')
-        message = phase_message(root, authority, state['thread_id'], probe_message)
+        message = phase_message(root, authority, state['thread_id'], probe_message, message_record)
         if not state['runs']:
             require(sha(Path(config['session']) / 'editor/state.json') == config['initial_editor_sha256'],
                     'CODEX_HANDOFF_CHANGED')
@@ -665,6 +680,9 @@ def run(root, probe_message=None):
                'heavy_run_id': os.environ.get('NESREV_HEAVY_RUN_ID'),
                'continuation': state['thread_id'] is not None, 'native_turns': [],
                'probe': authority.get('probe'), 'message_sha256': hashlib.sha256(message).hexdigest()}
+        if message_record is not None:
+            row['message_record_sha256'] = sha(message_record)
+        (folder/'message.txt').write_bytes(message)
         state['runs'].append(row)
         save(root / 'state.json', state)
         events = Events(state['thread_id'])
@@ -865,6 +883,7 @@ def main():
     launch = sub.add_parser('run')
     launch.add_argument('--root', type=Path, required=True)
     launch.add_argument('--probe-message', type=Path)
+    launch.add_argument('--message-record', type=Path)
     prep = sub.add_parser('prepare')
     for name in ('root', 'session', 'prompt', 'client', 'interpreter', 'service-root', 'heavy-lock', 'message-file'):
         prep.add_argument('--' + name, type=Path, required=True)
@@ -902,7 +921,7 @@ def main():
         print(json.dumps({'prepared': True, 'role': config['role'], 'model': config['model'],
                           'inference_admitted': False}))
     else:
-        print(json.dumps(run(args.root, args.probe_message)))
+        print(json.dumps(run(args.root, args.probe_message, args.message_record)))
 
 
 if __name__ == '__main__':
