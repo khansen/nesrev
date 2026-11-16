@@ -236,7 +236,9 @@ class LearningTests(unittest.TestCase):
             mcp(self.c.root, role, 'corridor', io.StringIO('{"id":1,"method":"tools/list"}\n'), output)
             description = json.loads(output.getvalue())['result']['tools'][0]['description']
             self.assertIn(api.LEARNING_CANDIDATE_GUIDANCE, description)
-            self.assertIn("Don't repeat observations you already submitted in this pass.", description)
+            self.assertIn("Don't repeat observations from your earlier published candidates, rework "
+                          "responses or reports in this pass.", description)
+            self.assertIn("Carry forward any from a candidate that did not publish.", description)
         generation = self.c.editor.state['current'];ops = rename_ops(self.c, generation)
         for bad in ('', 'None.', 'x\0y', 'x'*4096):
             with self.subTest(body=bad[:40]):
@@ -249,8 +251,11 @@ class LearningTests(unittest.TestCase):
         published = self.edit(ops)
         before = (self.c.root / 'handoff/.agents/current.json').read_bytes()
         for bad in ('Verdict: APPROVED', 'Verdict: APPROVED\n```md' + section() + '```',
-                    'Verdict: APPROVED' + section('None.')):
+                    'Verdict: APPROVED' + section('None.'),
+                    'Verdict: APPROVED' + section(self.a) + section(self.b)):
             with self.subTest(report=bad):
+                with self.assertRaises(ValueError):
+                    learning.check_report(bad)
                 with self.assertRaises(ValueError):
                     self.c.dispatch('approve', {'ticket': published['review']['artifact_id'], 'report': bad}, 'reviewer')
                 self.assertEqual((self.c.root / 'handoff/.agents/current.json').read_bytes(), before)

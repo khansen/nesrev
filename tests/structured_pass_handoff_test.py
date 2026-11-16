@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import agent_review as review_api
 
 HERE = Path(__file__).resolve().parent
 from structured_pass import structured_handoff as subject
@@ -61,6 +62,53 @@ class HandoffTests(unittest.TestCase):
 
     def state(self):
         return json.loads((self.root/'.agents/current.json').read_text())
+
+    def test_watch_delivers_exact_prompt_without_holding_handoff_lock(self):
+        notifier = self.root / 'notify.py'
+        notifier.write_text('#!' + sys.executable + '\n'
+            'import json,subprocess,sys\nfrom pathlib import Path\n'
+            'Path("delivered.bin").write_bytes(Path(sys.argv[3]).read_bytes())\n'
+            'subprocess.run(' + repr([sys.executable, '-B', str(HERE.parent/'scripts/agent_review.py'),
+                '--repo', str(self.root), 'status', '--json']) + ',check=True,timeout=5,stdout=subprocess.DEVNULL)\n'
+            'print(json.dumps({"delivered":True}))\n')
+        notifier.chmod(0o755)
+        state = self.state()
+        expected = (self.root / state['prompts']['reviewer']).read_bytes()
+        self.assertTrue(command(self.root, 'watch', '--role', 'reviewer', '--worker-id', 'probe',
+                                '--once', '--notify', str(notifier))['delivered'])
+        self.assertEqual((self.root / 'delivered.bin').read_bytes(), expected)
+        self.assertEqual(self.state(), state)
+        marker = review_api.run_dir(self.root, state) / 'workers/probe-reviewer.seen'
+        self.assertEqual(marker.read_text().strip(), review_api.notify_token(state, 'reviewer'))
+
+    def test_watch_checks_history_before_notifying(self):
+        verdict(self.root, self.ids[7])
+        state = self.state()
+        report = self.root / state['structured_review']['verdict_history'][0]['review_file']
+        report.write_text('Changed retained report')
+        command(self.root, 'watch', '--role', 'reviewer', '--once', '--notify', '/usr/bin/false',
+                error='REVIEW_REPORT_CHANGED')
+        self.assertFalse((review_api.run_dir(self.root, state) / 'workers/reviewer.seen').exists())
+
+    def test_watch_token_tracks_structured_head_without_changing_ordinary_tokens(self):
+        state = self.state()
+        state['status'] = 'READY_FOR_REREVIEW'
+        before = review_api.notify_token(state, 'reviewer')
+        state['structured_review']['pass_head'] = self.ids[9]
+        self.assertNotEqual(review_api.notify_token(state, 'reviewer'), before)
+        del state['structured_review']
+        self.assertEqual(review_api.notify_token(state, 'reviewer'), '|'.join(
+            str(state.get(key) or '') for key in
+            ('status', 'round', 'review_head', 'last_review', 'last_response')) + '|reviewer')
+
+    def test_bound_watch_refuses_a_changed_run_or_mode(self):
+        command(self.root, '--expected-run-id', 'other-run', 'watch', '--role', 'reviewer',
+                '--once', '--notify', '/usr/bin/false', error='BRIDGE_RUN_CHANGED')
+        state = self.state()
+        del state['structured_review']
+        (self.root / '.agents/current.json').write_text(json.dumps(state))
+        command(self.root, '--expected-run-id', state['run_id'], 'watch', '--role', 'reviewer',
+                '--once', '--notify', '/usr/bin/false', error='STRUCTURED_MODE_REQUIRED')
 
     def test_commands_cover_every_edge_and_archive_reports(self):
         late = verdict(self.root, self.ids[8])
