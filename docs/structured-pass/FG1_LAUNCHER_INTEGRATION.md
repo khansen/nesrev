@@ -170,7 +170,9 @@ The next decision is the bounded route design: return a selected, hash-checked
 page by fixed ID through the existing facts tool, with an explicit image limit
 separate from the text-response ceiling. The measured sizes include base64 and
 client re-encoding overhead. This keeps the callable boundary intact, but adds a
-transport contract that returns for review before implementation.
+transport contract that returns for review before implementation. The
+[fixed-ID route proposal](FACTS_IMAGE_ROUTE_DESIGN.md) specifies that contract,
+role separation, conversation-cost guidance, pin refresh and readability checks.
 
 Other choices have different costs: attaching all selected pages at startup
 changes on-demand delivery and context cost; exposing a direct native image tool
