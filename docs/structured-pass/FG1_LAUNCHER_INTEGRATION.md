@@ -127,17 +127,50 @@ on-demand delivery statement was too broad for Codex. Claude's separate selected
 media evidence remains unchanged. No tool grant, code-mode setting, boundary or
 acceptance criterion was weakened in response to this finding.
 
+### Offline facts-image feasibility
+
+The owner then authorized a two-hour, credential-free loopback measurement,
+charged to the existing bound, stopping before transport implementation. One
+scripted response asked for a fixed page through `mcp__facts__operation`. A
+disposable MCP stub offered the unchanged production declaration and returned
+that page as image content. The client's next request carried an `input_image`
+inside the corresponding `function_call_output`, alongside a short timing text.
+The base64 was the image item's data-URL encoding, not text presented as evidence.
+
+| Measurement | Observed |
+| --- | --- |
+| Selected page | Largest of eight retained pages; PNG, 2,080 × 794, 1,755,369 bytes |
+| MCP return | Source bytes unchanged; JSON result 2,340,561 bytes; JSON-RPC line 2,340,601 bytes |
+| Image in the next request | PNG, 2,048 × 782, 2,409,323 bytes after client resizing/re-encoding |
+| Entire next request | 3,232,669 bytes |
+| Native model | Explicit `gpt-6-astra`, `xhigh`; embedded catalog allows text and image input |
+| Calls | One facts call, one hook allow, two loopback HTTP requests, zero provider calls |
+
+The full declaration still matches the existing no-media pin. Shell, code-mode
+host and native `view_image` remain disabled, and the session audit reports no
+forbidden calls. The isolated profile contains no credentials or fetched model
+catalog. The second request was deliberately refused with HTTP 400 after capture;
+the adapter therefore records `CODEX_CLIENT_FAILED`, not a successful live turn.
+Raw requests, native output and the MCP response were retained before reduction;
+process cleanup completed with no survivors.
+
+This establishes image transport feasibility for the pinned client and its
+embedded catalog. It does not establish provider acceptance, model readability,
+unchanged image bytes, authenticated catalog behavior or a production service
+route. The live model's use of the page remains an admission check. No declaration
+was re-pinned, no gate changed and no transport was implemented.
+
 ## Decision required and remaining work
 
-Stop under the slice's missing-admission-dependency rule. The draft smoke prompt
+The media measurement is complete; stop before implementing its route. The draft smoke prompt
 and preparer remain private, unexecuted and unsealed. There is no new live
 authorization request to approve yet.
 
-The recommended next decision is a bounded offline media-transport design check:
-can the existing direct facts tool return a selected, hash-checked page by fixed
-ID, with suitable image-size limits and retained evidence? That keeps the callable
-boundary intact, but adds a transport contract and must be scoped explicitly.
-It has not been implemented or claimed feasible here.
+The next decision is the bounded route design: return a selected, hash-checked
+page by fixed ID through the existing facts tool, with an explicit image limit
+separate from the text-response ceiling. The measured sizes include base64 and
+client re-encoding overhead. This keeps the callable boundary intact, but adds a
+transport contract that returns for review before implementation.
 
 Other choices have different costs: attaching all selected pages at startup
 changes on-demand delivery and context cost; exposing a direct native image tool
