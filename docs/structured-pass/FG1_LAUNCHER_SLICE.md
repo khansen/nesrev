@@ -1,7 +1,7 @@
 # FG-1 launcher and client admission proposal
 
-16 November 2026. **Proposed; implementation and provider calls are not
-authorized.** This specializes the accepted [launcher decision](LAUNCHER_DECISION.md)
+16 November 2026. **Scope accepted; offline implementation awaits owner
+authorization, and provider calls remain separately authorized.** This specializes the accepted [launcher decision](LAUNCHER_DECISION.md)
 for the measured [first fresh-game corridor](FRESH_GAME_PASS_SCOPE.md). The
 [friction-import retrospective](../retros/2026-11-16-structured-friction-import.md)
 records the preceding milestone. Base implementation on master after the
@@ -58,10 +58,14 @@ The driving agent reports these before extending integration:
 1. Concrete launch/notify/adapter call graph, watch-store root and exact files
    needing changes. Demonstrate the smallest notifier-to-stub turn, including
    message bytes and recorded result.
-2. Inventory of retained clients/packages and applicable evidence. Use the
-   decision record's exact retained identities when available. Missing packages
-   or changed clients require an explicit admission decision; do not choose the
-   latest installation or quietly substitute a model.
+2. Inventory and privately retain the clients/packages with their applicable
+   evidence. Copy the complete accepted Codex package, including its code host
+   and resources, and the accepted Claude package into the private preparation
+   store outside Homebrew-managed directories. Verify source and copy hashes
+   against the decision record, preserve executable modes and package-relative
+   dependencies, and prepare fresh profiles at the copied paths. Launch from
+   those copies; do not change old profiles or follow current-version links.
+   Missing or mismatched packages require an explicit admission decision.
 3. Literal per-role model/effort choices from accepted profiles, with Opus 5.5
    for Claude, plus complete inputs and tool declarations. Verify identities
    offline; model availability is not established until live admission. No
@@ -69,7 +73,16 @@ The driving agent reports these before extending integration:
 4. State/result table, shared allowance ownership, guard ordering and recovery
    instructions. Demonstrate unchanged-state return, expired deadline and
    notifier failure with stubs and no client invocation.
-5. The smallest sealed live-smoke design and remaining estimate. A need for a
+5. An offline account of the pinned Claude binary's `--restricted` behavior.
+   For each protected-read fixture, name the specific mechanism expected to
+   deny it with the hook disabled: restricted-mode read boundaries, permission
+   rules or another verified client check. Tool selection, `dontAsk`, absence
+   of additional directories and an empty workspace are configuration facts,
+   not interchangeable proof of a filesystem boundary. Place fixtures where
+   the identified rule applies, including outside the workspace in the session
+   directory. Record code evidence, uncertainty and positive controls before
+   requesting the smoke; do not discover an unspecified boundary by inference.
+6. The smallest sealed live-smoke design and remaining estimate. A need for a
    new scheduler, transaction framework, worker boundary or broad client redesign
    stops the slice for a separate scope decision.
 
@@ -102,13 +115,15 @@ Propose a 30-minute shared window with per-invocation bounds, zero retries and
 login completed before the clock starts. The final request must specify exact
 counts and budget records; this planning figure authorizes no usage.
 
-The smallest real path must cover:
+Run the hook-disabled reviewer check **first**. It is the highest-risk admission
+condition; failure stops the window before the remaining client cases and does
+not authorize a replacement attempt. The smallest real path must cover:
 
 - Codex receiving an initial recorded message and a distinct handoff on the
   same thread, using admitted routes and preserving role enforcement.
 - Claude receiving the actual notifier message and declared reference media;
   initialization and retained requests establish model/tool/input delivery.
-- The reviewer's **independent second layer**: on synthetic protected fixtures,
+- The reviewer's **independent second layer**, tested first: on synthetic protected fixtures,
   disable the PreToolUse hook and require restricted-client behavior to deny
   every protected read while sanctioned facts/media access still works. Record
   the absence of hook enforcement. A model refusal without a tool attempt is
