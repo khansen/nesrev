@@ -1457,6 +1457,16 @@ def command_watch(args: argparse.Namespace) -> int:
                 except ValueError as exc:
                     raise UserError(str(exc)) from None
         except UserError as exc:
+            if str(exc) in ("REVIEW_STATE_BUSY", "VALIDATION_IN_PROGRESS", "REVIEW_RESTORE_IN_PROGRESS"):
+                print(f"waiting for {args.role} turn: {exc}", file=sys.stderr, flush=True)
+                if args.once:
+                    return 3
+                if deadline is not None and time.time() >= deadline:
+                    print(f"timed out waiting for {args.role} turn", file=sys.stderr)
+                    return 4
+                time.sleep(args.interval if deadline is None else
+                           max(0, min(args.interval, deadline - time.time())))
+                continue
             if str(exc) != "agent review state is not initialized; run init first" or args.once:
                 raise
             if deadline is not None and time.time() >= deadline:

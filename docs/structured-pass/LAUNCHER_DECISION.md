@@ -1,13 +1,12 @@
 # Opt-in structured launcher: decision record
 
 Date: 12 November 2026. Status: bounded scope accepted 2026-11-12;
-implementation not selected. The [FG-1 proposal](FG1_LAUNCHER_SLICE.md)
-specializes implementation and admission after the reviewed service slices;
-it requires owner authorization. Following the measured baseline, feasibility,
+offline implementation selected on 2026-11-16. The [FG-1 scope](FG1_LAUNCHER_SLICE.md)
+specializes implementation and admission after the reviewed service slices.
+Following the measured baseline, feasibility,
 search and early-pass admission work, the [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md)
 places this launcher in the dependency path for one complete first semantic
-pass. Its implementation order and fresh-input acceptance remain pending.
-Merging this guidance does not start the work. Provider calls,
+pass. Integration is proceeding beyond its first checkpoint. Provider calls,
 profile admission and another project pass require separate owner authorization.
 
 ## Outcome and boundary
@@ -120,14 +119,15 @@ compact RAM views change both declarations; the earlier typed-search change
 affected only the corridor declaration. Preserve the existing sealed profiles.
 Do not rebase the project branch while an active session pins its ancestry.
 Login precedes the separately authorized live window. Leave existing retained
-client directories and sealed profiles untouched. Relocation remains parked;
-if needed later, preserve the whole Codex package and validate fresh profiles
-at the new paths.
+client directories and sealed profiles untouched. The first FG-1 checkpoint
+copied the complete packages into the private preparation store and verified
+hashes, modes and fresh offline profiles. Live admission at those paths remains
+pending.
 
 ## Parked
 
 Other role pairings, interactive confined panes, reference-media expansion,
-client relocation, broader Step 2B/2C work, the shared debt-plan writer,
+broader Step 2B/2C work, the shared debt-plan writer,
 `FORBIDDEN_PATH` detail improvements, preview and raw-RAM follow-ups, and the
 earlier test/performance refinements stay outside this slice. The CI queue
 incident alone does not justify workflow changes. Reopen a parked item only

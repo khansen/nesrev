@@ -1,7 +1,8 @@
 # FG-1 launcher and client admission proposal
 
-16 November 2026. **Offline implementation authorized; stopped at the first
-[checkpoint](FG1_LAUNCHER_CHECKPOINT.md) for review. Provider calls remain
+16 November 2026. **Offline integration authorized beyond the first
+[checkpoint](FG1_LAUNCHER_CHECKPOINT.md), including transient-lock watch recovery.
+Provider calls remain
 separately authorized.** This specializes the accepted [launcher decision](LAUNCHER_DECISION.md)
 for the measured [first fresh-game corridor](FRESH_GAME_PASS_SCOPE.md). The
 [friction-import retrospective](../retros/2026-11-16-structured-friction-import.md)

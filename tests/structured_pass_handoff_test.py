@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import agent_review as review_api
 
@@ -109,6 +110,45 @@ class HandoffTests(unittest.TestCase):
         (self.root / '.agents/current.json').write_text(json.dumps(state))
         command(self.root, '--expected-run-id', state['run_id'], 'watch', '--role', 'reviewer',
                 '--once', '--notify', '/usr/bin/false', error='STRUCTURED_MODE_REQUIRED')
+
+    def test_watch_waits_for_each_busy_lock_and_once_returns_no_turn(self):
+        editor = self.root / 'editor'
+        editor.mkdir()
+        (editor / 'validation.lock').touch()
+        state_path = editor / 'state.json'
+        head_generation = windows.receipt(self.store, self.ids[8])['legacy_generation']
+        state_path.write_text(json.dumps({'retention': {'root': str(self.store)},
+            'current': head_generation, 'pass_start_generation': 'base',
+            'generations': {'base': {'artifact': {'artifact_id': self.ids[0]}},
+                            head_generation: {'artifact': {'artifact_id': self.ids[8]}}}}))
+        state = self.state();state['structured_review']['editor_state'] = str(state_path)
+        (self.root / '.agents/current.json').write_text(json.dumps(state))
+        for index, (path, code) in enumerate(((self.root / '.agents/structured-review.lock', 'REVIEW_STATE_BUSY'),
+                                             (editor / 'validation.lock', 'VALIDATION_IN_PROGRESS'))):
+            with self.subTest(code=code), path.open('a+b') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                argv = [sys.executable, '-B', str(HERE.parent/'scripts/agent_review.py'), '--repo', str(self.root),
+                        'watch', '--role', 'reviewer', '--worker-id', 'busy-' + str(index), '--interval', '.02']
+                once = subprocess.run(argv + ['--once'], capture_output=True, text=True, timeout=5)
+                self.assertEqual(once.returncode, 3, once.stderr)
+                self.assertIn(code, once.stderr)
+                timed = subprocess.run(argv + ['--timeout', '.1'], capture_output=True, text=True, timeout=5)
+                self.assertEqual(timed.returncode, 4, timed.stderr)
+                with (self.root / ('busy-' + str(index) + '.log')).open('w+') as log:
+                    watcher = subprocess.Popen(argv + ['--timeout', '1'], stdout=subprocess.PIPE, stderr=log, text=True)
+                    try:
+                        until = time.monotonic() + 5
+                        while code not in (self.root / ('busy-' + str(index) + '.log')).read_text():
+                            self.assertIsNone(watcher.poll())
+                            self.assertLess(time.monotonic(), until)
+                            time.sleep(.01)
+                        self.assertIsNone(watcher.poll())
+                        fcntl.flock(lock, fcntl.LOCK_UN)
+                        output, _ = watcher.communicate(timeout=5)
+                        self.assertEqual(watcher.returncode, 4, (self.root / ('busy-' + str(index) + '.log')).read_text())
+                        self.assertEqual(output.count('Structured pass review.'), 1)
+                    finally:
+                        if watcher.poll() is None:watcher.kill();watcher.wait()
 
     def test_commands_cover_every_edge_and_archive_reports(self):
         late = verdict(self.root, self.ids[8])
