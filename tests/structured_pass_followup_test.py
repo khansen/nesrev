@@ -54,9 +54,9 @@ class CloseoutAndPreviewTests(unittest.TestCase):
 
     def reapprove(self,ticket):
         c=self.c
-        c.dispatch('request-changes',{'ticket':ticket,'report':'Verdict: CHANGES_REQUESTED\nClarify the report.'},'reviewer')
-        c.dispatch('reready',{'response':'Reviewed clarification; no source edit required.'},'implementer')
-        c.dispatch('approve',{'ticket':ticket,'report':'Verdict: APPROVED\nClarification accepted.'},'reviewer')
+        c.dispatch('request-changes',{'ticket':ticket,'report':'Verdict: CHANGES_REQUESTED\nClarify the report.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
+        c.dispatch('reready',{'response':'Reviewed clarification; no source edit required.\n\n## Learning Candidates\n\n_None._\n'},'implementer')
+        c.dispatch('approve',{'ticket':ticket,'report':'Verdict: APPROVED\nClarification accepted.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
 
     def test_unapplied_archive_is_preserved_across_reapproval_and_application(self):
         p,target=self.approved_target();c=self.c
@@ -87,7 +87,7 @@ class CloseoutAndPreviewTests(unittest.TestCase):
     def test_archive_creation_is_inside_the_application_approval_lock(self):
         p,target=self.approved_target();c=self.c;original=Corridor._closeout
         state=c.root/'handoff/.agents/current.json';before=state.read_bytes()
-        report=c.root/'handoff/revoke.md';report.write_text('Verdict: CHANGES_REQUESTED\nMust repair.')
+        report=c.root/'handoff/revoke.md';report.write_text('Verdict: CHANGES_REQUESTED\nMust repair.\n\n## Learning Candidates\n\n_None._\n')
         attempts=[]
         def revoke(controller,*args):
             closed=original(controller,*args)

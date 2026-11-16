@@ -1090,10 +1090,10 @@ def read_run_artifacts(root: Path, state: dict[str, Any], pattern: str) -> list[
     return artifacts
 
 
-def learning_section_body(text: str) -> str | None:
+def learning_sections(text: str) -> list[tuple[str, str]]:
     lines = text.splitlines()
     structural = {index for index, _ in structural_lines(text)}
-    bodies: list[str] = []
+    sections: list[tuple[str, str]] = []
     i = 0
     while i < len(lines):
         match = LEARNING_HEADING_RE.match(lines[i].strip()) if i in structural else None
@@ -1109,9 +1109,13 @@ def learning_section_body(text: str) -> str | None:
                 break
             body_end += 1
         body = "\n".join(lines[body_start:body_end]).strip()
-        if not learning_body_is_empty(body):
-            bodies.append(body)
+        sections.append((match.group(1), body))
         i = body_end
+    return sections
+
+
+def learning_section_body(text: str) -> str | None:
+    bodies = [body for _, body in learning_sections(text) if not learning_body_is_empty(body)]
     if not bodies:
         return None
     return "\n\n".join(bodies)
@@ -1134,9 +1138,9 @@ def learning_artifacts(root: Path, state: dict[str, Any]) -> list[tuple[str, str
     return artifacts
 
 
-def collected_learning_candidates(root: Path, state: dict[str, Any]) -> list[tuple[str, str]]:
+def collected_learning_candidates(root: Path, state: dict[str, Any], *, artifacts=None) -> list[tuple[str, str]]:
     candidates: list[tuple[str, str]] = []
-    for source, text in learning_artifacts(root, state):
+    for source, text in learning_artifacts(root, state) if artifacts is None else artifacts:
         body = learning_section_body(text)
         if body:
             candidates.append((source, body))
@@ -1194,9 +1198,9 @@ def upsert_learning_block(document: str, state: dict[str, Any], pass_id: str, bl
 
 
 def update_process_friction(
-    root: Path, state: dict[str, Any], pass_id: str, archive_path: str
+    root: Path, state: dict[str, Any], pass_id: str, archive_path: str, *, artifacts=None
 ) -> str | None:
-    candidates = collected_learning_candidates(root, state)
+    candidates = collected_learning_candidates(root, state, artifacts=artifacts)
     if not candidates:
         return None
     try:

@@ -36,7 +36,10 @@ records the corrected baseline, successful preparation and the declared-input
 contract before implementation. [Declared inputs](DECLARED_INPUTS.md) now provide
 the bounded delivery routes and common role assembly; the
 [offline acceptance](INPUT_DELIVERY_ACCEPTANCE.md) records their evidence and limits.
-Friction import, launcher/client admission and the unscripted pass remain.
+[Friction import](FRICTION_IMPORT.md) now retains both roles' observations and
+uses the ordinary importer during application, with
+[offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md) awaiting implementation review.
+Launcher/client admission and the unscripted pass remain.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download

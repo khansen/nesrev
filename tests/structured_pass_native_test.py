@@ -35,7 +35,7 @@ class Scenario:
                   'rows':[{'old_name':'Cell','new_name':'Capacity','reason':'Synthetic client fixture','confidence':'high','pass_id':'1'}]},
                  {'kind':'scorecard_update','pass_id':'1','preimage':docs['scorecard']['preimage'],
                   'fields':{'focus':'Synthetic transport test','notes':'No quality claim.'}},
-                 {'kind':'closeout','pass_id':'1','deferrals_preimage':docs['deferrals']['preimage'],'deferrals':[],'rework_items':0}]
+                 {'kind':'closeout','pass_id':'1','deferrals_preimage':docs['deferrals']['preimage'],'deferrals':[],'rework_items':0,'learning':'_None._'}]
             return call('preview',generation=generation,operations=ops)
         if index==4:return call('confirm',generation=generation,preview_digest=result(3)['preview_digest'])
         if index==5:return call('validate',cid=result(4)['candidate'])

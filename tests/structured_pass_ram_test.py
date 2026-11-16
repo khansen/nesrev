@@ -151,7 +151,7 @@ class JudgmentLifecycleTests(unittest.TestCase):
         judgments=[r for r in found if r.get('operation_kind')=='raw_ram_judgments']
         self.assertTrue(judgments,found)
         self.assertTrue(any(r['row']['field']=='last_pass_reviewed' and r['row']['after']=='1' for r in judgments))
-        c.dispatch('approve',{'ticket':ticket,'report':'Verdict: APPROVED\n\nSynthetic judgment lifecycle.'},'reviewer')
+        c.dispatch('approve',{'ticket':ticket,'report':'Verdict: APPROVED\n\nSynthetic judgment lifecycle.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
         c.closeout()
         target=self.root/'target';git(self.root/'repo','clone','-q','--no-hardlinks',str(self.root/'repo'),str(target))
         reference=target/c.editor.reference;reference.parent.mkdir(parents=True,exist_ok=True)

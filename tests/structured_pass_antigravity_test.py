@@ -78,7 +78,7 @@ class RepairInputTests(unittest.TestCase):
         self.assertEqual(set(folder.rglob('*')),initial)
         self.assertEqual(state_path.read_bytes(),before)
         c.dispatch('request-changes',{'ticket':published['review']['artifact_id'],
-            'report':'Verdict: CHANGES_REQUESTED\nClarify the response.'},'reviewer')
+            'report':'Verdict: CHANGES_REQUESTED\nClarify the response.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
         state=json.loads(state_path.read_text());saved=state_path.read_bytes()
         state['max_rounds']=state['round'];state_path.write_text(json.dumps(state))
         before=state_path.read_bytes();initial=set(folder.rglob('*'))
@@ -87,7 +87,8 @@ class RepairInputTests(unittest.TestCase):
         self.assertEqual(state_path.read_bytes(),before)
         self.assertEqual(set(folder.rglob('*')),initial)
         state_path.write_bytes(saved)
-        response='é'*32768  # Exactly the 64 KiB UTF-8 boundary.
+        section='\n\n## Learning Candidates\n\n_None._\n'
+        response='é'*((65536-len(section))//2)+' '*(len(section)%2)+section  # 64 KiB.
         answer=c.dispatch('reready',{'response':response},'implementer')
         self.assertEqual(answer['status'],'READY_FOR_REREVIEW')
         accepted=json.loads(state_path.read_text())['last_response']

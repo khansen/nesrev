@@ -99,7 +99,7 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def approved_target(self):
         c=self.c;p=self.edit(rename_ops(c,c.editor.state['current']))
-        c.dispatch('approve',{'ticket':p['review']['artifact_id'],'report':'Verdict: APPROVED\nSynthetic gates only.'},'reviewer')
+        c.dispatch('approve',{'ticket':p['review']['artifact_id'],'report':'Verdict: APPROVED\nSynthetic gates only.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
         target=self.root/'target';git(self.root/'repo','clone','-q','--no-hardlinks',str(self.root/'repo'),str(target))
         ref=target/c.editor.reference;ref.parent.mkdir(parents=True,exist_ok=True)
         shutil.copy2(self.root/'repo'/c.editor.reference,ref)
@@ -113,7 +113,7 @@ class ReviewWorkflowTests(unittest.TestCase):
         @contextmanager
         def revoked(controller):
             self.c.dispatch('request-changes',{'ticket':p['review']['artifact_id'],
-                'report':'Verdict: CHANGES_REQUESTED\nRepair required.'},'reviewer')
+                'report':'Verdict: CHANGES_REQUESTED\nRepair required.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
             with original(controller) as approval:yield approval
         with patch.object(Corridor,'approved_state',revoked):
             with self.assertRaisesRegex(ValueError,'^REVIEW_COVERAGE_INCOMPLETE$'):
@@ -125,7 +125,7 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def test_revocation_is_locked_out_through_application_commit(self):
         p,target=self.approved_target();c=self.c;original=subprocess.run;attempts=[]
-        report=c.root/'handoff/revoke.md';report.write_text('Verdict: CHANGES_REQUESTED\nRepair required.')
+        report=c.root/'handoff/revoke.md';report.write_text('Verdict: CHANGES_REQUESTED\nRepair required.\n\n## Learning Candidates\n\n_None._\n')
         state=c.root/'handoff/.agents/current.json';before=state.read_bytes()
         def run(command,*args,**kwargs):
             if isinstance(command,list) and ('project-inventory' in command or 'commit' in command):
@@ -164,7 +164,7 @@ class ReviewWorkflowTests(unittest.TestCase):
 
     def test_long_report_status_and_paging_stay_readable(self):
         p=self.edit(rename_ops(self.c,self.c.editor.state['current']))
-        report='Verdict: CHANGES_REQUESTED\n'+('Repair the \u2603 " \\ row.\n'*1800)
+        report='Verdict: CHANGES_REQUESTED\n'+('Repair the \u2603 " \\ row.\n'*1800)+'\n## Learning Candidates\n\n_None._\n'
         verdict=self.bridge('request-changes',{'ticket':p['review']['artifact_id'],'report':report},role='reviewer')
         self.assertEqual(verdict['status'],'CHANGES_REQUESTED')
         status=self.bridge('status',{})

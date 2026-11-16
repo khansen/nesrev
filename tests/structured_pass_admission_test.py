@@ -82,7 +82,7 @@ if [ -e later-defect ]; then exit 7; fi
         self.assertEqual(result['status'], 'validated', result)
         published = c.dispatch('publish', {'cid':cid}, 'implementer')
         c.dispatch('approve', {'ticket':published['review']['artifact_id'],
-            'report':'Verdict: APPROVED\n\nSimulated gate lifecycle only.'}, 'reviewer')
+            'report':'Verdict: APPROVED\n\nSimulated gate lifecycle only.\n\n## Learning Candidates\n\n_None._\n'}, 'reviewer')
         closed = c.closeout()
         archive = (c.root/'handoff'/closed['archive']).read_text()
         self.assertIn('pass (LXXXX allowed)', archive)

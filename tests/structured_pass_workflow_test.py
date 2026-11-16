@@ -48,7 +48,7 @@ class WorkflowTests(unittest.TestCase):
             'preimage':comment['preimage_sha256'],'text':'; Padding bytes intentionally repeat.',
             'reason':'Synthetic comment-only repair'},*closeout_ops(c,g)])
         c.dispatch('approve',{'ticket':repaired['review']['artifact_id'],
-            'report':'Verdict: APPROVED\n\nSynthetic lifecycle only; quality gates are simulated.'},'reviewer')
+            'report':'Verdict: APPROVED\n\nSynthetic lifecycle only; quality gates are simulated.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
         closed=c.dispatch('closeout',{},'implementer')
         self.assertTrue((c.root/'handoff'/closed['archive']).is_file())
         from structured_pass.application import apply
@@ -548,7 +548,7 @@ class WorkflowTests(unittest.TestCase):
         from structured_pass.application import apply
         from structured_pass_fixture import git
         c=self.controller;g=c.editor.state['current'];published=self.edit(rename_ops(c,g))
-        c.dispatch('approve',{'ticket':published['review']['artifact_id'],'report':'Verdict: APPROVED\n\nSynthetic lifecycle only; quality gates are simulated.'},'reviewer')
+        c.dispatch('approve',{'ticket':published['review']['artifact_id'],'report':'Verdict: APPROVED\n\nSynthetic lifecycle only; quality gates are simulated.\n\n## Learning Candidates\n\n_None._\n'},'reviewer')
         c.dispatch('closeout',{},'implementer')
         for committed,code in ((False,'APPLICATION_DIRTY_PATH'),(True,'APPLICATION_OVERLAPPING_CHANGE')):
             target=self.root/('overlap' if committed else 'dirty')
