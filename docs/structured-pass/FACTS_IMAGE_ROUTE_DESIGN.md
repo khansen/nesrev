@@ -1,7 +1,7 @@
 # Fixed-ID reference-page delivery proposal
 
-16 November 2026. **Design only; implementation awaits review and owner
-authorization.** The [offline measurement](FG1_LAUNCHER_INTEGRATION.md#offline-facts-image-feasibility)
+16 November 2026; implementation authorized 17 November. The
+[offline measurement](FG1_LAUNCHER_INTEGRATION.md#offline-facts-image-feasibility)
 established that the pinned Codex client carries a standard MCP image block into
 its next request as an image item. This proposal closes that reference-delivery
 gap for the selected fresh-game pass. It adds no reference acquisition, runtime

@@ -156,31 +156,13 @@ class ConfigurationTests(ProfileFixture, unittest.TestCase):
         (self.session / 'editor/state.json').write_text('{"reader_hashes": null}')
         with self.assertRaisesRegex(ValueError, '^CODEX_SESSION_INVALID$'): self.prepare_again()
 
-    def test_bad_and_duplicate_media_refuse_before_writes(self):
+    def test_standalone_native_media_refuses_before_writes(self):
         first = self.root / 'reference.png'
-        first.write_bytes(b'not a PNG')
-        with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_REQUIRES_PNG$'):
-            self.prepare_again(media=[first])
-        first.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
-        other = self.root / 'other'; other.mkdir()
-        second = other / first.name; second.write_bytes(first.read_bytes())
-        with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_DUPLICATE$'):
-            self.prepare_again(media=[first, second])
-        self.assertFalse((self.root / 'second-profile').exists())
-
-    def test_changed_or_symlinked_profile_media_refuse(self):
-        first = self.root / 'reference.png'
-        first.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
-        config = self.prepare_again(media=[first])
-        workspace = Path(config['workspace']); target = workspace / first.name
-        try:
-            self.assertEqual(client.verify(self.root / 'second-profile'), config)
-            target.write_bytes(b'changed')
-            with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_CHANGED$'): client.verify(self.root / 'second-profile')
-            target.unlink(); target.symlink_to(first)
-            with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_CHANGED$'): client.verify(self.root / 'second-profile')
-        finally:
-            target.unlink(); workspace.rmdir()
+        for data in (b'not a PNG', b'\x89PNG\r\n\x1a\nfixture'):
+            first.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, '^CODEX_NATIVE_MEDIA_UNSUPPORTED$'):
+                self.prepare_again(media=[first])
+            self.assertFalse((self.root / 'second-profile').exists())
 
     def test_prepare_advanced_session_preserves_it_and_starts_unauthorized(self):
         self.assertEqual(json.loads((self.session / 'editor/state.json').read_text())['candidates'],
@@ -304,10 +286,11 @@ class ConfigurationTests(ProfileFixture, unittest.TestCase):
     def test_native_full_feature_inventory_refuses_any_drift(self):
         rows = [{'name': name, 'enabled': True} for name in sorted(client.ENABLED_FEATURES)]
         self.assertEqual(client.check_native_features(rows), sorted(client.ENABLED_FEATURES))
-        self.assertEqual(client.check_native_features(rows + [{'name': 'view_image', 'enabled': True}], True),
-                         sorted(client.ENABLED_FEATURES | {'view_image'}))
+        with self.assertRaisesRegex(ValueError, '^CODEX_NATIVE_MEDIA_UNSUPPORTED$'):
+            client.check_native_features(rows + [{'name': 'view_image', 'enabled': True}], True)
         for bad in (rows[:-1], rows + [{'name': 'new_default_tool', 'enabled': True}],
-                    rows + [{'name': 'unified_exec_tty', 'enabled': True}]):
+                    rows + [{'name': 'unified_exec_tty', 'enabled': True}],
+                    rows + [{'name': 'view_image', 'enabled': True}]):
             with self.subTest(bad=bad[-1]), self.assertRaisesRegex(ValueError, '^CODEX_FEATURE_SET_CHANGED$'):
                 client.check_native_features(bad)
         for bad in (None, {}, [None], [{'enabled': True}], [{'name': 'hooks', 'enabled': 1}], rows + [rows[0]]):

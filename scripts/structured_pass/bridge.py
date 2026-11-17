@@ -1,4 +1,5 @@
 """Fixed-role JSON-RPC bridge; clients cannot select role, commands or host paths."""
+import base64
 import json
 from pathlib import Path
 import sys
@@ -26,7 +27,7 @@ def tool_listing(role,profile='corridor'):
     if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
     elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
     else:operations+=['approve','request-changes']
-    return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.TOOL_HELP+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else ''),
+    return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.help_text(role,profile)+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else ''),
         'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
             'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
 
@@ -39,7 +40,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
         raise ValueError('REQUEST_SCHEMA')
     instance=(Corridor if profile=='corridor' else RetainedReviewService)(root)
     for line in input_stream or sys.stdin:
-        identifier=None;operation=None
+        identifier=None;operation=None;image_result=None
         try:
             request=json.loads(line)
         except ValueError:
@@ -66,7 +67,16 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         operation=args['operation']
                         candidate=args['arguments'].get('cid')
                         answer=instance.dispatch(args['operation'],args['arguments'],role)
-                        result={'content':[{'type':'text','text':json.dumps(answer)}]}
+                        if isinstance(answer,declared_inputs.ImageResult):
+                            if (role,profile,operation)!=('implementer','corridor','input'):raise ValueError('REQUEST_SCHEMA')
+                            metadata={'content':[{'type':'text','text':json.dumps(answer.metadata)}]}
+                            if len(json.dumps({'jsonrpc':'2.0','id':identifier,'result':metadata}).encode())+1>paging.MAX_BYTES:
+                                raise ValueError('RESPONSE_TOO_LARGE')
+                            declared_inputs.image_dimensions(answer.png)
+                            result={'content':[*metadata['content'],{'type':'image','mimeType':'image/png',
+                                    'data':base64.b64encode(answer.png).decode('ascii')}]}
+                            image_result=answer
+                        else:result={'content':[{'type':'text','text':json.dumps(answer)}]}
                     else:
                         response={'error':{'code':-32601,'message':'Unknown method'}}
                         emit(instance,identifier,response,output_stream or sys.stdout)
@@ -81,12 +91,13 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
                     response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
-        emit(instance,identifier,response,output_stream or sys.stdout,operation)
+        emit(instance,identifier,response,output_stream or sys.stdout,operation,image_result)
 
 
-def emit(instance,identifier,response,output,operation=None):
+def emit(instance,identifier,response,output,operation=None,image_result=None):
     encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
-    if len(encoded.encode())+1>paging.MAX_BYTES:
+    cap=declared_inputs.IMAGE_REPLY_LIMIT if isinstance(image_result,declared_inputs.ImageResult) else paging.MAX_BYTES
+    if len(encoded.encode())+1>cap:
         value={'error':'RESPONSE_TOO_LARGE','retryable':False}
         try:
             answer=json.loads(response['result']['content'][0]['text'])

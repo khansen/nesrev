@@ -25,7 +25,7 @@ TOOL = 'mcp__facts__operation'
 FORBIDDEN_TOOLS = frozenset('functions__' + name for name in
     ('exec', 'wait', 'request_user_input', 'request_user_input_async'))
 OFFERED_TOOLS = FORBIDDEN_TOOLS | {TOOL}
-DECLARATION_SHA256 = '9964a2c5cfdf78570cb915276b7cfc4411f6fe963806fff0ba28e07009aa6d00'
+DECLARATION_SHA256 = 'a402b53a734eba55c52788406b0fc17d00185c02d149e387016abd8903e1514f'
 STARTUP_WARNINGS = {
     '`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.': 2,
     'Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; '
@@ -61,11 +61,12 @@ workspace_dependencies
 
 
 def check_native_features(rows, media=False):
+    require(not media, 'CODEX_NATIVE_MEDIA_UNSUPPORTED')
     require(isinstance(rows, list) and all(isinstance(r, dict) and isinstance(r.get('name'), str)
             and type(r.get('enabled')) is bool for r in rows), 'CODEX_FEATURE_SCHEMA')
     require(len({r['name'] for r in rows}) == len(rows), 'CODEX_FEATURE_SCHEMA')
     enabled = {r['name'] for r in rows if r['enabled']}
-    require(enabled == ENABLED_FEATURES | ({'view_image'} if media else set()), 'CODEX_FEATURE_SET_CHANGED')
+    require(enabled == ENABLED_FEATURES, 'CODEX_FEATURE_SET_CHANGED')
     return sorted(enabled)
 
 
@@ -437,7 +438,8 @@ def settings(root, workspace, bridge, session, interpreter, prompt, model, effor
     hook = shlex.join([interpreter, '-B', str(Path(__file__).resolve()),
                       'hook', '--policy', str(root / 'policy.json')])
     features = {name: False for name in DISABLED}
-    features.update(hooks=True, view_image=bool(media), skip_host_skill_discovery=True)
+    require(not media, 'CODEX_NATIVE_MEDIA_UNSUPPORTED')
+    features.update(hooks=True, view_image=False, skip_host_skill_discovery=True)
     features['code_mode'] = {'enabled': False, 'direct_only_tool_namespaces': ['mcp__facts']}
     return {
         'model': model, 'model_reasoning_effort': effort,
@@ -486,31 +488,21 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     require(isinstance(state.get('reader_hashes'), dict), 'CODEX_SESSION_INVALID')
     declared=state.get('declared_inputs_sha256') is not None
     if declared:require(not media,'INPUT_SELECTION_INVALID')
-    selected = []
-    for path in media:
-        path = Path(path).resolve(strict=True)
-        data = path.read_bytes()
-        require(data.startswith(b'\x89PNG\r\n\x1a\n'), 'CODEX_MEDIA_REQUIRES_PNG')
-        selected.append((path.name, data))
-    require(len({name for name, _ in selected}) == len(selected), 'CODEX_MEDIA_DUPLICATE')
+    require(not media, 'CODEX_NATIVE_MEDIA_UNSUPPORTED')
     root.mkdir(parents=True)
     (root / 'auth-config').mkdir(mode=0o700)
     workspace = root / 'workspace'
     workspace.mkdir()
     assembly=None
     if declared:
-        from structured_pass import input_delivery
+        from structured_pass import input_delivery, declared_inputs
         assembly=input_delivery.assemble(session,root/'inputs','implementer',message)
-        selected=[(Path(m['path']).name,Path(m['path']).read_bytes()) for m in assembly['media']]
+        declared_inputs.image_inventory(assembly)
     images = {}
-    for name, data in selected:
-        target = workspace / name
-        target.write_bytes(data)
-        images[str(target)] = sha(target)
     prompt_path = root / 'prompt.md'
     prompt_path.write_bytes(Path(prompt).read_bytes())
     if assembly is not None:
-        with prompt_path.open('a') as stream:stream.write(input_delivery.prompt(assembly,workspace))
+        with prompt_path.open('a') as stream:stream.write(input_delivery.prompt(assembly,workspace,facts_images=True))
     (root / 'message.txt').write_text(message)
     save(root / 'policy.json', {'tool': TOOL, 'media': images, 'log': str(root / 'hooks.jsonl'),
                               'session_home': str(root / 'auth-config')})
@@ -574,14 +566,16 @@ def verify(root):
     require(sha(root / 'config.json') == config['configuration_sha256'], 'CODEX_CONFIGURATION_CHANGED')
     compaction_configuration(config, json.loads((root / 'config.json').read_text()))
     workspace = Path(config['workspace'])
+    require(not config['media'], 'CODEX_NATIVE_MEDIA_UNSUPPORTED')
     workspace_check.require_source_free(workspace)
     require(workspace.is_dir() and {str(p) for p in workspace.iterdir()} == set(config['media']),
             'CODEX_WORKSPACE_CHANGED')
     require(all(not Path(p).is_symlink() and sha(p) == expected for p, expected in config['media'].items()),
             'CODEX_MEDIA_CHANGED')
     if 'input_assembly' in config:
-        from structured_pass import input_delivery
-        input_delivery.verify(config['session'],config['input_assembly'])
+        from structured_pass import input_delivery, declared_inputs
+        assembly=input_delivery.verify(config['session'],config['input_assembly'])
+        declared_inputs.image_inventory(assembly)
     # The client installs bundled skills even when their loading is disabled.
     # Permit only its real .system directory, never user skill entries/links.
     home = root / 'auth-config'

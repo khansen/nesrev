@@ -1,4 +1,5 @@
 """Declared input admission, integrity, independent restoration and role delivery."""
+import base64
 import copy
 import io
 import json
@@ -34,7 +35,7 @@ def setup_inputs(root,repo,analogues=False):
     scratch=repo/'projects/sample/tmp';scratch.mkdir()
     text=scratch/'manual.txt';text.write_bytes(('Reference\r\n'+('é\\"\n'*2500)+'last').encode())
     empty=scratch/'empty.txt';empty.write_text('')
-    image=scratch/'page.png';image.write_bytes(b'\x89PNG\r\n\x1a\nfixture-page')
+    image=scratch/'page.png';image.write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD6cAAAAASUVORK5CYII='))
     items=[]
     for identity,kind,path in [('reference','reference_text',text),('empty','reference_text',empty),('page','reference_image',image)]:
         items.append({'id':identity,'kind':kind,'path':path.relative_to(repo).as_posix(),'sha256':producer.sha(path),
@@ -92,6 +93,10 @@ class AdmissionTests(unittest.TestCase):
         (target/inputs.FILE).write_bytes(inputs.canonical(catalog))
         full=inputs.read(target,'G-fixed','empty',limit=4096)
         self.assertEqual(len(full['text']),4096);self.assertIsNone(full['next_offset'])
+        tail=inputs.read(target,'G-fixed','empty',offset=4094,limit=1)
+        self.assertEqual(tail['text'],'x');self.assertEqual(tail['next_offset'],4095)
+        last=inputs.read(target,'G-fixed','empty',offset=tail['next_offset'],limit=1)
+        self.assertEqual(last['text'],'x');self.assertIsNone(last['next_offset'])
 
     def test_invalid_selection_and_paths_refuse_without_installing(self):
         original=json.loads(Path(self.options['selection']['path']).read_text())
@@ -131,6 +136,30 @@ class AdmissionTests(unittest.TestCase):
         self.assertIn('STOP AFTER PASS 0',page['text'])
         self.assertEqual(inputs.guidance_bytes(target,'agent_playbook/NEW_PROJECT.md'),
                          (self.repo/'agent_playbook/NEW_PROJECT.md').read_bytes())
+
+    def test_operator_selection_boundaries(self):
+        original=json.loads(Path(self.options['selection']['path']).read_text())
+        other=self.repo/'projects/sample/docs/reference.txt';other.write_text('Evidence')
+        spec=copy.deepcopy(original);spec['items'][0].update(
+            path='projects/sample/tmp/../docs/reference.txt',sha256=producer.sha(other))
+        with self.assertRaisesRegex(ValueError,'INPUT_SELECTION_INVALID'):self.admit(spec)
+        review=next(i for i in original['items'] if i['kind']=='intake_review')
+        other=self.repo/'projects/sample/docs/reverse_engineering/reviews/pass-9.md'
+        other.write_bytes((self.repo/review['path']).read_bytes())
+        git(self.repo,'add','.');git(self.repo,'commit','-qm','Synthetic alternate archive')
+        self.commit=git(self.repo,'rev-parse','HEAD')
+        spec=copy.deepcopy(original);next(i for i in spec['items'] if i['kind']=='intake_review')['path']=other.relative_to(self.repo).as_posix()
+        with self.assertRaisesRegex(ValueError,'INPUT_SELECTION_INVALID'):self.admit(spec)
+        with patch.object(inputs,'TEXT_LIMIT',10):
+            with self.assertRaisesRegex(ValueError,'INPUT_LIMIT_EXCEEDED'):self.admit()
+        for kind,count in (('reference_text',33),('reference_image',17)):
+            entry=next(i for i in original['items'] if i['kind']==kind)
+            spec=copy.deepcopy(original);spec['items']=[{**entry,'id':'item-'+str(n)} for n in range(count)]
+            with self.assertRaisesRegex(ValueError,'INPUT_LIMIT_EXCEEDED'):self.admit(spec)
+        link=self.repo/'link.md';link.symlink_to(other)
+        git(self.repo,'add','link.md');git(self.repo,'commit','-qm','Synthetic symlink blob')
+        with self.assertRaisesRegex(ValueError,'INPUT_SELECTION_INVALID'):
+            inputs.committed(self.repo,git(self.repo,'rev-parse','HEAD'),'link.md')
 
 
 class LifecycleTests(unittest.TestCase):
@@ -218,10 +247,12 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(len(record['items']),14);self.assertEqual(len(record['media']),1)
             self.assertEqual(record['media'][0]['origin']['identity']['pdf_page'],1)
             path=folder/'assembly.json';original=path.read_bytes()
-            for mutate in ('omit','page'):
+            for mutate in ('omit','page','media_hash','pass'):
                 changed=json.loads(original)
                 if mutate=='omit':changed['items'].pop()
-                else:changed['media'][0]['origin']['identity']['pdf_page']=2
+                elif mutate=='page':changed['media'][0]['origin']['identity']['pdf_page']=2
+                elif mutate=='media_hash':changed['media'][0]['sha256']='0'*64
+                else:changed['pass_id']='2'
                 path.write_text(json.dumps(changed))
                 with self.assertRaisesRegex(ValueError,'INPUT_CHANGED'):input_delivery.verify(self.c.root,path)
             path.write_bytes(original)
@@ -243,9 +274,17 @@ class LifecycleTests(unittest.TestCase):
             prompt_path=Path(profile.get('prompt',codex_root/'prompt.md'))
             self.assertIn(inputs.HISTORICAL,prompt_path.read_text());self.assertIn(task,prompt_path.read_text())
             self.assertNotIn('STOP AFTER PASS 0',prompt_path.read_text())
-            self.assertEqual(len(profile['media']),1)
+            self.assertEqual(len(profile['media']),1 if profile is c['roles']['reviewer'] else 0)
             self.assertEqual(json.loads(Path(profile['input_assembly']).read_text())['items'],
                              [inputs.metadata(i) for i in inputs.load(self.c.editor.model(self.g).capture)['items']])
+        self.assertEqual(list(Path(d['workspace']).iterdir()),[])
+        config=json.loads((codex_root/'config.json').read_text())
+        self.assertFalse(config['features']['view_image'])
+        self.assertFalse(config['features']['shell_tool'])
+        self.assertFalse(config['features']['code_mode']['enabled'])
+        self.assertEqual(json.loads((codex_root/'policy.json').read_text())['media'],{})
+        self.assertIn(inputs.IMAGE_GUIDANCE,(codex_root/'prompt.md').read_text())
+        self.assertNotIn(str(Path(d['workspace'])/'page.png'),(codex_root/'prompt.md').read_text())
         claude.verify(self.root/'claude');codex.verify(codex_root)
 
 

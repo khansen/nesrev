@@ -50,20 +50,21 @@ corridor, including one with published candidates.
 Run `python3 -B scripts/structured_codex_client.py prepare` with explicit
 `--root`, `--session`, `--prompt`, `--message-file`, `--client`, `--interpreter`,
 `--service-root`, `--heavy-lock`, `--model` and `--effort`. Paths in the resulting
-profile are absolute. Use a new profile root. Optional `--media` copies pinned
-PNG images and enables `view_image`, but this path is **not admitted**: the
+profile are absolute. Use a new profile root. Standalone `--media` is refused:
+the
 [launcher investigation](FG1_LAUNCHER_INTEGRATION.md#media-admission-stop)
 found that the pinned client places it behind forbidden code-mode execution.
-The declaration and audit guards stop this configuration. PDF intake also needs
-separate, reviewed preparation.
+Declared reference pages use the [fixed-ID facts image route](FACTS_IMAGE_ROUTE_DESIGN.md)
+with no native image grant. PDF rendering belongs to operator preparation.
 The model receives the pinned prompt through `model_instructions_file`.
 
 With [declared inputs](DECLARED_INPUTS.md), `--message-file` supplies the current
 authorized pass scope. Preparation assembles the manifest's PNGs and labeled
 evidence index, and refuses extra `--media` arguments. It pins the assembly and
 checks it again before execution. Historical intake instructions are not copied
-into the task prompt. This integration is tested offline with stub clients;
-updated tool-declaration pins and live delivery require separate admission.
+into the task prompt. The pages stay in the private assembly, while the client
+workspace stays empty. The prompt names facts input IDs and includes the
+eight-delivery conversation guidance. Live readability still needs admission.
 
 The isolated `auth-config` directory starts empty. Authentication uses a
 subscription login with file credential storage in that directory. Never seal,
@@ -101,8 +102,8 @@ named permission profile denies filesystem reads by default, grants the
 platform's minimal runtime paths and the isolated reference workspace read
 access, and denies command network access. It grants no writable paths.
 
-A pre-tool hook denies every local tool except the exact service tool and
-unchanged, explicitly pinned reference images. Broken hook input, policy or log
+A pre-tool hook in the facts-only profile denies every local tool except the
+exact service tool; its native-media allowlist is empty. Broken hook input, policy or log
 exits 2 to deny; an ordinary hook error would not suffice. Hosted tool features
 are disabled separately because hooks do not cover them. The configuration and
 hook are hash-pinned. Trust bypass applies only to these reviewed hook programs;
@@ -122,9 +123,11 @@ It requires the direct facts operation plus exactly `functions.exec`,
 `functions.request_user_input_async`. Only facts is callable. It also pins the
 whole declaration, including schemas, descriptions and array order, using
 UTF-8 `json.dumps(declaration, sort_keys=True)` with default separators and ASCII
-escaping, without a trailing newline. The current no-media declaration pin is
+escaping, without a trailing newline. The current facts-only declaration pin is
+`a402b53a734eba55c52788406b0fc17d00185c02d149e387016abd8903e1514f`.
+Only the facts help changed from the preceding offline pin
 `9964a2c5cfdf78570cb915276b7cfc4411f6fe963806fff0ba28e07009aa6d00`.
-It includes the new service operations and is confirmed by a rejecting offline
+The new pin is confirmed by a rejecting offline
 loopback capture, not yet by authenticated admission. The previous admitted
 declaration was `8df1bc0a8356e4d28df87aba94957298f5113bc1264763d99b70174bb2e1d6ba`;
 its live evidence is historical and does not admit the new declaration.

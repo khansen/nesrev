@@ -160,7 +160,7 @@ unchanged image bytes, authenticated catalog behavior or a production service
 route. The live model's use of the page remains an admission check. No declaration
 was re-pinned, no gate changed and no transport was implemented.
 
-## Decision required and remaining work
+## Decision at the media-feasibility stop
 
 The media measurement is complete; stop before implementing its route. The draft smoke prompt
 and preparer remain private, unexecuted and unsealed. There is no new live
@@ -194,3 +194,12 @@ The released checkpoint fixture and four completed disposable roots were copied,
 hash-checked and removed. The project head, review state, untracked project files
 and four stashes are unchanged. Concurrent article edits were observed and left
 alone. The implementation branch has not been pushed.
+
+## Image-route implementation update
+
+The owner authorized the reviewed fixed-ID design. Its
+[offline result](FACTS_IMAGE_ROUTE_RESULT.md) records bounded derivatives,
+exact eight-page native transport, refreshed role declarations and failure
+tests. This resolves the offline route decision above. Implementation review
+comes before the sealed live smoke; hook-disabled review and image readability
+remain open. No live call or unscripted pass was authorized by this continuation.

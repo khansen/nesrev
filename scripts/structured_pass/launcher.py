@@ -145,7 +145,7 @@ class Corridor:
     def document(self,args):
         return self.generation_read('document',args)
 
-    def generation_read(self,operation,args):
+    def generation_read(self,operation,args,role='reviewer'):
         specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'document':(('generation','path'),('offset','limit')),
                'q09':(('generation','names'),('offset','limit')),
                'search':(('generation','query'),('continuation','limit')),
@@ -172,6 +172,10 @@ class Corridor:
                 return self.editor.search(**{**args,'generation':current},public_generation=generation)
             if operation=='evidence' and args['view'] in ('ram_compact','ram_shared'):
                 return self.editor.evidence_query(**{**args,'generation':current},public_generation=generation)
+            if operation=='input' and role=='implementer':
+                from . import declared_inputs
+                return declared_inputs.implementer_read(self.editor.model(current).capture,
+                    **{**args,'generation':generation})
             result=self.editor.dispatch(operation,{**args,'generation':current},'reviewer')
             return {**result,'generation':generation}
 
@@ -274,7 +278,7 @@ class Corridor:
         if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
-        if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments)
+        if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments,role)
         if operation=='closeout':
             common.schema(arguments,());return self.closeout()
         if operation=='reready':
