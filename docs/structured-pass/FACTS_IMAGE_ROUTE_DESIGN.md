@@ -44,9 +44,11 @@ Do not call it a hash of pixels subsequently processed by a provider or client.
 Before building the route, make one credential-free loopback capture of a bounded
 derivative. The earlier capture proves that an oversized image is resized; it
 does **not** prove that an image below this threshold is passed through unchanged.
-Require the outgoing image to retain the derivative's bytes and dimensions for
-the size accounting below. If it is still transformed, stop and revise that
-accounting before implementation, without changing client feature flags.
+Require unchanged dimensions and an outgoing PNG no larger than 3 MiB. A byte
+change alone is not a stop: record both hashes, use the measured outgoing size
+for conversation accounting and continue. Stop if dimensions change or the
+outgoing PNG exceeds the cap. Keep client feature flags unchanged, and check
+these same conditions for every page in the later eight-page capture.
 
 ## Operation and role behavior
 
@@ -131,6 +133,13 @@ transmitted bytes. Record image deliveries and usage in the smoke and real pass.
 Wire bytes are not an image-token or price estimate; provider processing and
 cache savings remain unmeasured.
 
+Before the live window, read the provider's published request limits and record
+the source, date and applicable endpoint. If the worst case approaches a
+published limit, tighten the eight-fetch guidance with room for the remaining
+conversation. Do not treat an API limit as a guarantee for a subscription
+endpoint; mark undocumented limits as unknown. This documentation check uses no
+inference and does not substitute for live acceptance.
+
 ## Client inputs and declaration pins
 
 For newly prepared Codex declared-input profiles, copy the sealed role assembly
@@ -191,8 +200,9 @@ an image-size bypass, a widened text ceiling and a stale declaration pin. Reuse
 existing tests and capture helpers; no new testing framework or image engine.
 
 The later live smoke adds a **positive readability control for both roles**:
-freeze one unambiguous visual fact from a selected reference page that is absent
-from every declared text extract, guidance item and prompt. Keep the answer key
+freeze one unambiguous fact from an illustration on a selected reference page,
+not from printed text. Check it against the OCR for every manual page and every
+other declared text extract, guidance item and prompt. Keep the answer key
 in coordinator evidence only. The prompt asks for that fact and its page ID;
 Codex must fetch the image through facts, Claude through `Read`, and each must
 answer correctly. Record the attempted call, returned page identity and answer.
@@ -204,12 +214,14 @@ first, and this design grants no live invocation or retry.
 Estimated implementation: **2–4 active hours, hard bound 4**, charged to the
 existing 16-hour launcher bound; this is an engineering estimate. Check at one
 hour, or earlier after bounded-page capture: report normalization provenance,
-native byte preservation, the eight-page inventory and exact code/pin write set.
+native byte preservation or re-encoding, measured outgoing sizes, the eight-page
+inventory and exact code/pin write set.
 Up to three planned credential-free loopback invocations belong in the future
 authorization: bounded-page precheck, rejecting declaration capture, and the
 eight-page real-route capture. Provider calls remain separately authorized.
 
-Stop on unexpected native transformation, a failed inventory limit, new tool
+Stop on changed image dimensions or an outgoing PNG above 3 MiB, a failed
+inventory limit, new tool
 exposure, inability to preserve role separation or restored input identity, a
 new rendering dependency, a required persistent quota/transaction framework,
 or the time bound. A failed live smoke never authorizes another attempt. Return
