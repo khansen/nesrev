@@ -12,6 +12,7 @@ import re
 import sys
 
 HERE = Path(__file__).resolve().parent
+from . import operation_contract as contract
 from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
@@ -747,14 +748,7 @@ class RenameService(common.Service):
 
     def dispatch(self, operation, arguments, role):
         if operation in ('propose','amend'):raise ValueError('PREVIEW_REQUIRED')
-        spec={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'preview_page':(('generation','preview_digest'),('offset','limit')),'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),
-              'inputs':(('generation',),('offset','limit')),'input':(('generation','input_id'),('offset','limit')),
-              'guidance':(('generation','name'),('offset','limit')),
-              'inspect':(('generation','symbol'),()),'q09':(('generation','names'),('offset','limit')),
-              'search':(('generation','query'),('continuation','limit')),
-              'documents':(('generation',),()),'document':(('generation','path'),('offset','limit')),
-              'review':(('generation','base_generation'),('offset','limit')),
-              'preview':(('generation','operations'),('cid',)),'confirm':(('generation','preview_digest'),())}
+        spec = contract.RENAME
         if operation in spec:
             common.schema(arguments,*spec[operation])
             if operation=='evidence':return self.evidence_query(**arguments)

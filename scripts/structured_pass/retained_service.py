@@ -10,6 +10,7 @@ import sys
 import tempfile
 import time
 
+from . import operation_contract as contract
 from . import service as common, review_pages, source_edits, artifact_edits
 from .publication import MAX_REVIEW_STATES
 from .durable_artifact import Store, canonical, digest, require, running_tooling, UNSPECIFIED_BASE
@@ -278,14 +279,7 @@ class RetainedReviewService(RenameService):
     def dispatch(self,operation,arguments,role):
         if operation in ('propose','amend','validate','publish','preview','confirm','start_chain'):
             raise ValueError('REVIEW_READ_ONLY')
-        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'status':((),()),'query':(('generation','symbol'),('offset','limit')),
-               'review':(('generation','base_generation'),('offset','limit')),
-               'reassemble':(('generation',),())}
-        if self.config['profile'] in ('rename','source-v2'):
-            specs.update(navigate=(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),inspect=(('generation','symbol'),()),q09=(('generation','names'),('offset','limit')),
-                         document=(('generation','path'),('offset','limit')),
-                         inputs=(('generation',),('offset','limit')),input=(('generation','input_id'),('offset','limit')),
-                         guidance=(('generation','name'),('offset','limit')))
+        specs = contract.retained(self.config['profile'])
         if operation not in specs:raise ValueError('UNKNOWN_OPERATION')
         common.schema(arguments,*specs[operation])
         if operation=='status':return self.status(role)

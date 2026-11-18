@@ -7,7 +7,7 @@ import subprocess
 import struct
 import zlib
 
-from . import producer, review_pages
+from . import producer, review_pages, operation_contract as contract
 
 SCHEMA = 'declared-inputs-v1'
 FILE = 'inputs.json'
@@ -76,7 +76,7 @@ def implementer_read(capture, generation, input_id, **pagination):
     require(item is not None, 'INPUT_UNKNOWN')
     if item['kind'] != 'reference_image':
         return read(capture, generation, input_id, **pagination)
-    require(not pagination, 'REQUEST_SCHEMA')
+    contract.check({'generation': generation, 'input_id': input_id, **pagination}, contract.IMAGE_INPUT)
     path = Path(capture)/item['file']
     require(not path.is_symlink(), 'INPUT_CHANGED')
     data = path.read_bytes()

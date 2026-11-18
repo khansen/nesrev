@@ -9,7 +9,8 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 from .structured_handoff import windows, require
-from . import learning
+from . import operation_contract as contract
+from . import learning, service as common
 
 
 class Bridge:
@@ -39,14 +40,13 @@ class Bridge:
             require(self.config['role'] == 'reviewer', 'REVIEWER_ONLY')
         elif op not in ('status','review_report'):
             raise ValueError('OPERATION_NOT_AVAILABLE')
+        common.schema(args,*contract.VERDICT[op])
         if op=='review_report':
-            require(set(args)>={'sequence'} and set(args)<={'sequence','offset','limit'}
-                    and all(type(v) is int for v in args.values()), 'REQUEST_SCHEMA')
+            require(all(type(v) is int for v in args.values()), 'REQUEST_SCHEMA')
             return self.command('structured-report','--sequence',str(args['sequence']),
                                 '--offset',str(args.get('offset',0)),
                                 '--limit',str(args.get('limit',1024)))
-        expected = set() if op == 'status' else {'ticket', 'report'}
-        require(set(args) == expected, 'REQUEST_SCHEMA')
+        expected = set(contract.VERDICT[op][0])
         state = self.command('status', '--json')
         require(state['run_id'] == self.config['run_id'], 'BRIDGE_RUN_CHANGED')
         if op == 'status':

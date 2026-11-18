@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 
+from . import operation_contract as contract
 from . import service, paging, review_pages, search, ram_evidence, declared_inputs, learning
 
 TOOL='mcp__facts__operation'
@@ -27,9 +28,9 @@ def tool_listing(role,profile='corridor'):
     if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
     elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
     else:operations+=['approve','request-changes']
-    return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.help_text(role,profile)+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else ''),
+    return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.help_text(role,profile)+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else '')+' See arguments.description for required and optional keys.',
         'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
-            'arguments':{'type':'object'}},'required':['operation','arguments'],'additionalProperties':False}}]}
+            'arguments':{'type':'object','description':contract.describe(operations,role,profile)}},'required':['operation','arguments'],'additionalProperties':False}}]}
 
 
 def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
@@ -87,6 +88,8 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     if isinstance(error,service.ServiceError):
                         value['details']=error.details
                         if code=='RESPONSE_TOO_LARGE' and operation=='review':value.update(review_pages.continuation(error.details))
+                    if code=='REQUEST_SCHEMA' and operation in (contract.corridor() if profile=='corridor' else contract.retained()):
+                        value['expected_arguments']=contract.entry(operation,role,profile)
                     value['retryable']=code in ('VALIDATION_IN_PROGRESS','REVIEW_STATE_BUSY','REVIEW_RESTORE_IN_PROGRESS')
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass

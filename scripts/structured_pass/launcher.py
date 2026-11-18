@@ -13,6 +13,7 @@ import tempfile
 
 HERE=Path(__file__).resolve().parent
 from .rename_service import RenameService
+from . import operation_contract as contract
 from . import service as common
 from . import mixed_documents as mixed
 from .structured_handoff import windows,require
@@ -124,12 +125,12 @@ class Corridor:
                 'scope':'Current project corridor; no quality verdict until independent review.'}
 
     def guidance(self,args):
-        common.schema(args,('name',),('generation','offset','limit'))
+        common.schema(args,*contract.CORRIDOR['guidance'])
         state=self.checked_editor()
         return self.generation_read('guidance',{'generation':state['current'],**args})
 
     def review(self,args):
-        common.schema(args,('ticket','generation','base_generation'),('offset','limit'))
+        common.schema(args,*contract.CORRIDOR['review'])
         status=self.status('reviewer');require(status['handoff'] is not None,'CORRIDOR_NOT_PUBLISHED')
         known=status['handoff']['coverage']['required_edges']
         window=windows.window(self.config['store'],args['ticket'])
@@ -146,12 +147,7 @@ class Corridor:
         return self.generation_read('document',args)
 
     def generation_read(self,operation,args,role='reviewer'):
-        specs={'evidence':(('generation','view'),('offset','limit','record_id','address','decoder','byte_offset','byte_count','artifact','analogue_index','key','set_id')),'document':(('generation','path'),('offset','limit')),
-               'q09':(('generation','names'),('offset','limit')),
-               'search':(('generation','query'),('continuation','limit')),
-               'navigate':(('generation','view'),('symbol','record_id','contains','offset','limit','analogue_index')),
-               'inputs':(('generation',),('offset','limit')),'input':(('generation','input_id'),('offset','limit')),
-               'guidance':(('generation','name'),('offset','limit'))}
+        specs = contract.RENAME
         common.schema(args,*specs[operation])
         generation=args['generation']
         require(isinstance(generation,str),'REQUEST_SCHEMA')
@@ -271,7 +267,7 @@ class Corridor:
         if operation in ('preview','confirm','validate','publish','start_chain','reready','closeout'):
             require(role=='implementer','REVIEWER_MUTATION_DENIED')
         if operation=='status':
-            common.schema(arguments,());return self.status(role)
+            common.schema(arguments,*contract.BASE['status']);return self.status(role)
         if operation=='review_report':
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
             return self.verdicts(role).dispatch({'operation':operation,'arguments':arguments})
@@ -280,9 +276,9 @@ class Corridor:
         if operation=='document':return self.document(arguments)
         if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments,role)
         if operation=='closeout':
-            common.schema(arguments,());return self.closeout()
+            common.schema(arguments,*contract.CORRIDOR['closeout']);return self.closeout()
         if operation=='reready':
-            common.schema(arguments,('response',))
+            common.schema(arguments,*contract.CORRIDOR['reready'])
             require(isinstance(arguments['response'],str) and bool(arguments['response'].strip())
                     and len(arguments['response'].encode())<=65536,'REQUEST_SCHEMA')
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
@@ -292,11 +288,11 @@ class Corridor:
                 source.write(arguments['response'].encode());source.flush()
                 return self.verdicts(role).command('reready','--head',head,'--response',source.name)
         if operation=='preview':
-            common.schema(arguments,('generation','operations'),('cid',))
+            common.schema(arguments,*contract.RENAME['preview'])
             require(isinstance(arguments['operations'],list) and all(isinstance(o,dict) for o in arguments['operations']),'REQUEST_SCHEMA')
             require(mixed.document_operations(arguments['operations']) is not None,'CORRIDOR_WRAPPER_REQUIRED')
         if operation=='publish':
-            common.schema(arguments,('cid',))
+            common.schema(arguments,*contract.BASE['publish'])
             try:answer=self.editor.publish(arguments['cid'])
             except ValueError as exc:
                 if str(exc)!='PUBLICATION_CHAIN_LIMIT':raise

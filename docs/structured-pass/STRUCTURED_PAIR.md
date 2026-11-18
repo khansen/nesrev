@@ -5,8 +5,10 @@ handoff watcher and subscription adapters. The supported pairing is Codex
 implementer / Claude reviewer on the admitted macOS arm64 platform. Offline
 tests do not establish live client admission. The hook-disabled reviewer test
 and the refreshed native declarations require the separately authorized smoke.
-That smoke is currently blocked by the measured
-[Codex reference-media gap](FG1_LAUNCHER_INTEGRATION.md#media-admission-stop).
+The latest admission attempt passed the hook-disabled read-boundary check and
+delivered a reference image, then stopped on a missing client-visible argument
+contract. The [production correction and declaration captures](ARGUMENT_CONTRACT.md)
+require review before another sealed smoke.
 The preparation check is an integrity check, not a claim that media are usable.
 
 ## Preparation and authority
