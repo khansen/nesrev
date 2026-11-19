@@ -124,6 +124,13 @@ class ProfileFixture:
 
 
 class ConfigurationTests(ProfileFixture, unittest.TestCase):
+    def test_git_ancestor_refused_at_preparation_and_launch(self):
+        (self.root/'.git').mkdir()
+        with self.assertRaisesRegex(ValueError,'CLIENT_WORKSPACE_GIT_ANCESTOR'):
+            self.prepare_again()
+        with self.assertRaisesRegex(ValueError,'CLIENT_WORKSPACE_GIT_ANCESTOR'):
+            client.verify(self.profile)
+
     def prepare_again(self, **overrides):
         args = dict(session=self.session, prompt=self.prompt, model='fixture-model', effort='xhigh',
             client=self.client, interpreter=sys.executable, service_root=self.service,
@@ -149,31 +156,13 @@ class ConfigurationTests(ProfileFixture, unittest.TestCase):
         (self.session / 'editor/state.json').write_text('{"reader_hashes": null}')
         with self.assertRaisesRegex(ValueError, '^CODEX_SESSION_INVALID$'): self.prepare_again()
 
-    def test_bad_and_duplicate_media_refuse_before_writes(self):
+    def test_standalone_native_media_refuses_before_writes(self):
         first = self.root / 'reference.png'
-        first.write_bytes(b'not a PNG')
-        with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_REQUIRES_PNG$'):
-            self.prepare_again(media=[first])
-        first.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
-        other = self.root / 'other'; other.mkdir()
-        second = other / first.name; second.write_bytes(first.read_bytes())
-        with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_DUPLICATE$'):
-            self.prepare_again(media=[first, second])
-        self.assertFalse((self.root / 'second-profile').exists())
-
-    def test_changed_or_symlinked_profile_media_refuse(self):
-        first = self.root / 'reference.png'
-        first.write_bytes(b'\x89PNG\r\n\x1a\nfixture')
-        config = self.prepare_again(media=[first])
-        workspace = Path(config['workspace']); target = workspace / first.name
-        try:
-            self.assertEqual(client.verify(self.root / 'second-profile'), config)
-            target.write_bytes(b'changed')
-            with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_CHANGED$'): client.verify(self.root / 'second-profile')
-            target.unlink(); target.symlink_to(first)
-            with self.assertRaisesRegex(ValueError, '^CODEX_MEDIA_CHANGED$'): client.verify(self.root / 'second-profile')
-        finally:
-            target.unlink(); workspace.rmdir()
+        for data in (b'not a PNG', b'\x89PNG\r\n\x1a\nfixture'):
+            first.write_bytes(data)
+            with self.assertRaisesRegex(ValueError, '^CODEX_NATIVE_MEDIA_UNSUPPORTED$'):
+                self.prepare_again(media=[first])
+            self.assertFalse((self.root / 'second-profile').exists())
 
     def test_prepare_advanced_session_preserves_it_and_starts_unauthorized(self):
         self.assertEqual(json.loads((self.session / 'editor/state.json').read_text())['candidates'],
@@ -297,10 +286,11 @@ class ConfigurationTests(ProfileFixture, unittest.TestCase):
     def test_native_full_feature_inventory_refuses_any_drift(self):
         rows = [{'name': name, 'enabled': True} for name in sorted(client.ENABLED_FEATURES)]
         self.assertEqual(client.check_native_features(rows), sorted(client.ENABLED_FEATURES))
-        self.assertEqual(client.check_native_features(rows + [{'name': 'view_image', 'enabled': True}], True),
-                         sorted(client.ENABLED_FEATURES | {'view_image'}))
+        with self.assertRaisesRegex(ValueError, '^CODEX_NATIVE_MEDIA_UNSUPPORTED$'):
+            client.check_native_features(rows + [{'name': 'view_image', 'enabled': True}], True)
         for bad in (rows[:-1], rows + [{'name': 'new_default_tool', 'enabled': True}],
-                    rows + [{'name': 'unified_exec_tty', 'enabled': True}]):
+                    rows + [{'name': 'unified_exec_tty', 'enabled': True}],
+                    rows + [{'name': 'view_image', 'enabled': True}]):
             with self.subTest(bad=bad[-1]), self.assertRaisesRegex(ValueError, '^CODEX_FEATURE_SET_CHANGED$'):
                 client.check_native_features(bad)
         for bad in (None, {}, [None], [{'enabled': True}], [{'name': 'hooks', 'enabled': 1}], rows + [rows[0]]):
@@ -327,6 +317,34 @@ class ConfigurationTests(ProfileFixture, unittest.TestCase):
 
 
 class RunnerTests(ProfileFixture, unittest.TestCase):
+    def test_distinct_recorded_messages_resume_same_thread_and_refuse_drift(self):
+        self.fake()
+        folder=self.root/'messages';folder.mkdir()
+        path=self.profile/'authorization.json';authority=json.loads(path.read_text())
+        authority.update(message_directory=str(folder),run_id='fixture-run');client.save(path,authority)
+        for i,text in enumerate(('First exact task.\r\n','Different handoff.\n')):
+            source=folder/(str(i)+'.txt');source.write_bytes(text.encode())
+            record=source.with_suffix('.json')
+            thread=None if i==0 else 'thread-fixture'
+            client.save(record,{'run_id':'fixture-run','launch_sha256':client.sha(self.profile/'launch.json'),
+                               'thread_id':thread,'message_sha256':client.sha(source)})
+            with patch.dict(os.environ,{'NESREV_HEAVY_RUN_LOCK':str(self.root/'lock')}):
+                row=client.run(self.profile,message_record=record)
+            self.assertEqual((self.profile/'runs'/row['id']/'message.txt').read_bytes(),text.encode())
+            self.assertEqual(row['continuation'],i==1)
+        self.assertEqual(json.loads((self.profile/'state.json').read_text())['thread_id'],'thread-fixture')
+        source.write_text('Changed')
+        with self.assertRaisesRegex(ValueError,'CODEX_MESSAGE_CHANGED'):
+            client.phase_message(self.profile,authority,thread,None,record)
+        source.write_bytes(text.encode())
+        for change in ({'run_id':'other'},{'thread_id':'other'},{'launch_sha256':'0'*64}):
+            value=json.loads(record.read_text());client.save(record,{**value,**change})
+            with self.assertRaisesRegex(ValueError,'CODEX_MESSAGE_AUTHORIZATION'):
+                client.phase_message(self.profile,authority,thread,None,record)
+            client.save(record,value)
+        with self.assertRaisesRegex(ValueError,'CODEX_MESSAGE_AUTHORIZATION'):
+            client.phase_message(self.profile,{**authority,'message_directory':'absent'},thread,None,record)
+
     def fake(self, mode='success'):
         program = '''#!INTERPRETER
 import json,sys,time,os
@@ -869,6 +887,14 @@ class EventTests(unittest.TestCase):
 
 
 class OfferedToolTests(unittest.TestCase):
+    def test_native_declaration_matches_current_service(self):
+        from structured_pass.bridge import tool_listing
+        expected=tool_listing('implementer')['tools'][0]
+        expected['inputSchema']['properties']['arguments']['properties']={}
+        actual=DECLARATION[-1]['tools'][0]
+        self.assertEqual(actual['description'],expected['description'])
+        self.assertEqual(actual['parameters'],expected['inputSchema'])
+
     def test_full_declaration_hash_includes_schema_description_and_order(self):
         self.assertEqual(client.declaration_hash(DECLARATION), client.DECLARATION_SHA256)
         for section in ('description', 'parameters'):

@@ -250,6 +250,20 @@ def archive(api, root, state, args):
     return answer
 
 
+def watch_state(api, root, expected_run_id=None):
+    """Check one watch snapshot; never hold service locks during notification."""
+    with transaction(root):
+        state = api.read_state(root)
+        require(expected_run_id is None or state['run_id'] == expected_run_id, 'BRIDGE_RUN_CHANGED')
+        require('structured_review' in state, 'STRUCTURED_MODE_REQUIRED')
+        checked_coverage(api, root, state)
+        config = state['structured_review']
+        with published_head(config) as live:
+            if live is not None and live != config['pass_head']:
+                advance(api, root, state, live)
+        return state
+
+
 def dispatch(api, args):
     """Called by the real handoff parser before ordinary-mode commands dispatch."""
     root = api.repo_root()
@@ -264,6 +278,10 @@ def dispatch(api, args):
     if (not active and not getattr(args, 'expected_run_id', None)
             and not getattr(args, 'window', None)
             and args.command not in ('init-structured', 'advance-structured', 'structured-report')):
+        return None
+    if args.command == 'watch':
+        # The ordinary watch loop checks each structured snapshot through
+        # watch_state, then runs the notifier after releasing the locks.
         return None
     with transaction(root), ExitStack() as locks:
         if args.command == 'init-structured':

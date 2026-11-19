@@ -11,7 +11,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
+import agent_review as review_api
 
 HERE = Path(__file__).resolve().parent
 from structured_pass import structured_handoff as subject
@@ -61,6 +63,92 @@ class HandoffTests(unittest.TestCase):
 
     def state(self):
         return json.loads((self.root/'.agents/current.json').read_text())
+
+    def test_watch_delivers_exact_prompt_without_holding_handoff_lock(self):
+        notifier = self.root / 'notify.py'
+        notifier.write_text('#!' + sys.executable + '\n'
+            'import json,subprocess,sys\nfrom pathlib import Path\n'
+            'Path("delivered.bin").write_bytes(Path(sys.argv[3]).read_bytes())\n'
+            'subprocess.run(' + repr([sys.executable, '-B', str(HERE.parent/'scripts/agent_review.py'),
+                '--repo', str(self.root), 'status', '--json']) + ',check=True,timeout=5,stdout=subprocess.DEVNULL)\n'
+            'print(json.dumps({"delivered":True}))\n')
+        notifier.chmod(0o755)
+        state = self.state()
+        expected = (self.root / state['prompts']['reviewer']).read_bytes()
+        self.assertTrue(command(self.root, 'watch', '--role', 'reviewer', '--worker-id', 'probe',
+                                '--once', '--notify', str(notifier))['delivered'])
+        self.assertEqual((self.root / 'delivered.bin').read_bytes(), expected)
+        self.assertEqual(self.state(), state)
+        marker = review_api.run_dir(self.root, state) / 'workers/probe-reviewer.seen'
+        self.assertEqual(marker.read_text().strip(), review_api.notify_token(state, 'reviewer'))
+
+    def test_watch_checks_history_before_notifying(self):
+        verdict(self.root, self.ids[7])
+        state = self.state()
+        report = self.root / state['structured_review']['verdict_history'][0]['review_file']
+        report.write_text('Changed retained report')
+        command(self.root, 'watch', '--role', 'reviewer', '--once', '--notify', '/usr/bin/false',
+                error='REVIEW_REPORT_CHANGED')
+        self.assertFalse((review_api.run_dir(self.root, state) / 'workers/reviewer.seen').exists())
+
+    def test_watch_token_tracks_structured_head_without_changing_ordinary_tokens(self):
+        state = self.state()
+        state['status'] = 'READY_FOR_REREVIEW'
+        before = review_api.notify_token(state, 'reviewer')
+        state['structured_review']['pass_head'] = self.ids[9]
+        self.assertNotEqual(review_api.notify_token(state, 'reviewer'), before)
+        del state['structured_review']
+        self.assertEqual(review_api.notify_token(state, 'reviewer'), '|'.join(
+            str(state.get(key) or '') for key in
+            ('status', 'round', 'review_head', 'last_review', 'last_response')) + '|reviewer')
+
+    def test_bound_watch_refuses_a_changed_run_or_mode(self):
+        command(self.root, '--expected-run-id', 'other-run', 'watch', '--role', 'reviewer',
+                '--once', '--notify', '/usr/bin/false', error='BRIDGE_RUN_CHANGED')
+        state = self.state()
+        del state['structured_review']
+        (self.root / '.agents/current.json').write_text(json.dumps(state))
+        command(self.root, '--expected-run-id', state['run_id'], 'watch', '--role', 'reviewer',
+                '--once', '--notify', '/usr/bin/false', error='STRUCTURED_MODE_REQUIRED')
+
+    def test_watch_waits_for_each_busy_lock_and_once_returns_no_turn(self):
+        editor = self.root / 'editor'
+        editor.mkdir()
+        (editor / 'validation.lock').touch()
+        state_path = editor / 'state.json'
+        head_generation = windows.receipt(self.store, self.ids[8])['legacy_generation']
+        state_path.write_text(json.dumps({'retention': {'root': str(self.store)},
+            'current': head_generation, 'pass_start_generation': 'base',
+            'generations': {'base': {'artifact': {'artifact_id': self.ids[0]}},
+                            head_generation: {'artifact': {'artifact_id': self.ids[8]}}}}))
+        state = self.state();state['structured_review']['editor_state'] = str(state_path)
+        (self.root / '.agents/current.json').write_text(json.dumps(state))
+        for index, (path, code) in enumerate(((self.root / '.agents/structured-review.lock', 'REVIEW_STATE_BUSY'),
+                                             (editor / 'validation.lock', 'VALIDATION_IN_PROGRESS'))):
+            with self.subTest(code=code), path.open('a+b') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                argv = [sys.executable, '-B', str(HERE.parent/'scripts/agent_review.py'), '--repo', str(self.root),
+                        'watch', '--role', 'reviewer', '--worker-id', 'busy-' + str(index), '--interval', '.02']
+                once = subprocess.run(argv + ['--once'], capture_output=True, text=True, timeout=5)
+                self.assertEqual(once.returncode, 3, once.stderr)
+                self.assertIn(code, once.stderr)
+                timed = subprocess.run(argv + ['--timeout', '.1'], capture_output=True, text=True, timeout=5)
+                self.assertEqual(timed.returncode, 4, timed.stderr)
+                with (self.root / ('busy-' + str(index) + '.log')).open('w+') as log:
+                    watcher = subprocess.Popen(argv + ['--timeout', '1'], stdout=subprocess.PIPE, stderr=log, text=True)
+                    try:
+                        until = time.monotonic() + 5
+                        while code not in (self.root / ('busy-' + str(index) + '.log')).read_text():
+                            self.assertIsNone(watcher.poll())
+                            self.assertLess(time.monotonic(), until)
+                            time.sleep(.01)
+                        self.assertIsNone(watcher.poll())
+                        fcntl.flock(lock, fcntl.LOCK_UN)
+                        output, _ = watcher.communicate(timeout=5)
+                        self.assertEqual(watcher.returncode, 4, (self.root / ('busy-' + str(index) + '.log')).read_text())
+                        self.assertEqual(output.count('Structured pass review.'), 1)
+                    finally:
+                        if watcher.poll() is None:watcher.kill();watcher.wait()
 
     def test_commands_cover_every_edge_and_archive_reports(self):
         late = verdict(self.root, self.ids[8])

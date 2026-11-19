@@ -20,7 +20,7 @@ import structured_pass_fixture as fixture
 
 
 class ClientCompletionTests(unittest.TestCase):
-    def run_client(self,root,finals,exit_code):
+    def run_client(self,root,finals,exit_code,suffix=''):
         from structured_pass.subscription_client import TOOL
         config={'heavy_lock':os.environ.get('NESREV_HEAVY_RUN_LOCK',str(root/'test.lock')),
                 'model':'fixture-model','phase_response_cap':30,
@@ -33,7 +33,7 @@ class ClientCompletionTests(unittest.TestCase):
                 {'type':'assistant','message':{'id':'one-response'}},
                 {'type':'assistant','message':{'id':'one-response'}},*finals]
         client=root/'fake_client.py'
-        client.write_text('import sys\nsys.stdout.write('+repr(''.join(json.dumps(e)+'\n' for e in events))+')\nsys.exit('+str(exit_code)+')\n')
+        client.write_text('import sys\nsys.stdout.write('+repr(''.join(json.dumps(e)+'\n' for e in events)+suffix)+')\nsys.exit('+str(exit_code)+')\n')
         # Exercise the real CLI, stream reader and accounting with a local child.
         # Only authentication, pinned configuration and the external argv are faked.
         driver=root/'driver.py'
@@ -55,7 +55,8 @@ with patch.object(client,'verify',return_value=config),patch.object(client,'auth
         receipt=json.loads((root/'runs'/row['id']/'run.json').read_text())
         self.assertEqual(row['charged'],1)
         self.assertEqual(receipt['exit_code'],exit_code)
-        self.assertEqual(receipt['accounting']['charged'],1)
+        if suffix:self.assertIsNone(receipt['accounting'])
+        else:self.assertEqual(receipt['accounting']['charged'],1)
         self.assertTrue((root/'runs'/row['id']/'stdout.jsonl').is_file())
         return result,budget,receipt
 
@@ -86,6 +87,15 @@ with patch.object(client,'verify',return_value=config),patch.object(client,'auth
             self.assertEqual(json.loads(result.stdout)['result'],'done')
             self.assertIsNone(receipt['error']);self.assertFalse(budget.get('halted'))
             self.assertEqual(budget['runs'][0]['client_num_turns'],76)
+
+    def test_malformed_trailing_bytes_are_preserved_and_halt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            result,budget,receipt=self.run_client(root,[{'type':'result','subtype':'success','is_error':False}],0,'{')
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('CLIENT_PARTIAL_EVENT',receipt['failure'])
+            self.assertTrue(budget['halted'])
+            self.assertTrue((root/'runs'/budget['runs'][0]['id']/'stdout.jsonl').read_bytes().endswith(b'{'))
 
 
 class ReaderBoundaryTests(unittest.TestCase):

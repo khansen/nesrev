@@ -12,7 +12,8 @@ This is a capability dependency sequence, not an automatic next-work queue.
 The [retained baseline workload](TRIAL_WORKLOAD_COVERAGE.md) now supplies the
 measured capability gaps. The [accepted feasibility checkpoint](FEASIBILITY_DECISION.md)
 establishes a candidate macOS worker boundary and reviewer/media operation,
-with the reviewer's independent hook-disabled protection still open. Typed
+with the reviewer's independent hook-disabled protection subsequently exercised
+in the [accepted launcher smoke](FG1_LAUNCHER_ACCEPTANCE.md). Typed
 search has an [authorized offline scope](TYPED_SEARCH_SCOPE.md) and an
 [implementation acceptance record](TYPED_SEARCH_ACCEPTANCE.md); its
 [admission checkpoint](TYPED_SEARCH_CHECKPOINT.md#implementation-admission-follow-up-15-november)
@@ -61,9 +62,17 @@ is authorized with a four-hour offline bound. Its
 [first checkpoint](FRICTION_IMPORT_CHECKPOINT.md) records the source mapping,
 role instructions, queue-rebuild decision and component recovery probes.
 The authorized continuation implements [the import contract](FRICTION_IMPORT.md),
-with [integrated offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md); implementation
-review remains pending. Launcher/client admission and one authorized
-unscripted pass follow. No live delivery or inference saving is claimed.
+with [integrated offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md); independent
+review accepted it for publication in [PR #196](https://github.com/khansen/nesrev/pull/196).
+The [retrospective](../retros/2026-11-16-structured-friction-import.md) records its
+limits. The [launcher/client-admission slice](FG1_LAUNCHER_SLICE.md) resolved its
+measured image and argument-contract gaps and passed the separately authorized
+[r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md), accepted on 19 November. FG-1 step 3
+is complete; this does not complete step 3 of this broader rollout. The
+[retrospective](../retros/2026-11-19-structured-launcher-admission.md) records the
+evidence and coordination cost. Next is upstream review, then a separately scoped
+readiness check and authorization for one unscripted pass. No inference saving
+or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.
 The conditional estimate does not select policy or runtime additions, or authorize

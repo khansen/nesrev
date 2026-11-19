@@ -56,7 +56,10 @@ Both corridor roles and restored review readers support:
 - `input({generation, input_id, offset?, limit?})`: exact UTF-8 text, with
   offsets measured in Unicode characters. The default is 4,096 characters and
   the maximum is 8,192. Follow `next_offset` until null. Empty input is an
-  explicit complete result. Media IDs return `INPUT_MEDIA_REQUIRED`.
+  explicit complete result. The corridor implementer may fetch an image ID
+  with only `generation` and `input_id`; the reply contains identity metadata
+  and one MCP PNG image. Reviewers and retained readers return
+  `INPUT_MEDIA_REQUIRED` for media IDs; Claude uses its admitted `Read` route.
 - `guidance`: the existing named guidance reader, now including the first-pass
   playbook. Declared sessions use captured bytes, including after restoration;
   older profiles retain their commit-based behavior.
@@ -64,7 +67,11 @@ Both corridor roles and restored review readers support:
   `analogue_index` 0 or 1. Responses identify the selected native model. No
   source-text or arbitrary-project reader is added.
 
-The 24 KiB serialized MCP ceiling remains. Text pages reduce their character
+The 24 KiB serialized MCP ceiling remains for text and image metadata. The
+image reply alone has a 4 MiB + 24 KiB wire cap, with a 3 MiB PNG and dimensions
+at most 2048 × 2048. Preparation renders bounded full-page derivatives before
+sealing; the service never resizes. See the [image contract](FACTS_IMAGE_ROUTE_DESIGN.md).
+Text pages reduce their character
 count when encoding requires it. Other oversized pages are refused with the
 existing reduce-limit response. No successful response silently loses content.
 Stale generations, changed catalogs or payloads, and undeclared IDs are refused.
@@ -91,7 +98,12 @@ for its verdict, findings and gate evidence; its prose is not injected into the
 task prompt. Offline acceptance checks the assembled bytes and labels, not an
 agent's statement that it received them.
 
-The adapters use their existing media mechanisms. Client receipt and decoding,
-startup image cost, updated corridor and retained tool-declaration pins, and
-the reviewer's hook-disabled test remain launcher-admission work. This slice
-does not establish live delivery or token savings.
+Codex retains the sealed page assembly privately but gets an empty workspace,
+fixed page IDs and the facts route. Its preparation admits at most eight bounded
+pages; native image, shell and code-mode tools stay disabled. Claude keeps
+hash-matched workspace files and native `Read`. Both prompts preserve the same
+catalog and task identity. Codex's guidance limits successful image deliveries
+to eight per conversation, including repeats across resume and compaction;
+this is audited guidance, not a service quota. Fetch relevant pages on demand.
+Live readability, provider request limits and the reviewer's hook-disabled test
+remain launcher-admission checks; offline transport is not readability proof.

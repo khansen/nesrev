@@ -19,6 +19,7 @@ import time
 
 from .model import Model, certify, digest, producer
 from .q04_view import constant_uses
+from . import operation_contract as contract
 from . import mixed_documents
 from . import gate_environment
 from . import verification_policy
@@ -33,7 +34,7 @@ REVISION_FIELDS = frozenset((
     'semantic_properties','gates','manifest','capture_hashes','edit_provenance',
     'generated_catalog_row','total_validation_seconds'))
 PUBLIC_ERROR_CODES = verification_policy.ERRORS | producer.ERRORS | mixed_documents.ERRORS | gate_environment.ERRORS | frozenset('''
-RESPONSE_TOO_LARGE OWNERSHIP_MANIFEST_INVALID STALE_VALIDATION_EVIDENCE
+RESPONSE_TOO_LARGE OWNERSHIP_MANIFEST_INVALID STALE_VALIDATION_EVIDENCE REVIEW_NOT_READY
     INTERNAL_SERVICE_ERROR UNKNOWN_RECORD RECORD_ALIGNMENT_FAILED REFERENCE_INVALID REFERENCE_FORMAT_UNSUPPORTED
     CAPTURE_CHANGED INVALID_SYMBOL REQUEST_SCHEMA UNSUPPORTED_EXPRESSION
     INVALID_BATCH MULTI_RECORD_SELECTION_UNSUPPORTED GENERATED_PATH_SERVICE_OWNED
@@ -142,8 +143,7 @@ def name(value):
 
 
 def schema(value, keys, optional=()):
-    if not isinstance(value,dict) or not set(keys)<=set(value) or not set(value)<=set(keys)|set(optional):
-        raise ValueError('REQUEST_SCHEMA')
+    contract.check(value, (keys, optional))
 
 
 def expression(value):
@@ -615,17 +615,9 @@ class Service:
         return result
 
     def dispatch(self, operation, arguments, role):
-        allowed = {
-            'validation_evidence':(('cid','revision','attempt'),('offset','limit')),
-            'candidate_status':(('cid',),()),
-            'query':(('generation','symbol'),('offset','limit')),
-            'propose':(('generation','operations'),()),
-            'amend':(('cid','replacements'),()),
-            'validate':(('cid',),()),'publish':(('cid',),()),
-            'start_chain':(('generation',),()),
-            'review':(('generation','base_generation'),())}
+        allowed = contract.BASE
         if operation=='status':
-            schema(arguments,())
+            schema(arguments,*allowed[operation])
             return self.status(role)
         if operation not in allowed:
             raise ValueError('UNKNOWN_OPERATION')

@@ -21,7 +21,9 @@ def help_text(role):
         'include the section too.' if role == 'implementer' else
         ' Every approve.report and request-changes.report must include the section.')
     return (' ' + api.LEARNING_CANDIDATE_GUIDANCE +
-            " Don't repeat observations you already submitted in this pass." + route +
+            " Don't repeat observations from your earlier published candidates, rework "
+            "responses or reports in this pass. Carry forward any from a candidate that "
+            "did not publish." + route +
             ' Do not edit PROCESS_FRICTION.md or receipts directly.')
 
 

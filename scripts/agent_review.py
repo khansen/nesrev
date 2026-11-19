@@ -1040,10 +1040,13 @@ def command_status(args: argparse.Namespace) -> int:
 
 
 def notify_token(state: dict[str, Any], role: str) -> str:
-    return "|".join(
+    token = "|".join(
         str(state.get(key) or "")
         for key in ("status", "round", "review_head", "last_review", "last_response")
     ) + f"|{role}"
+    if "structured_review" in state:
+        token += "|" + state["structured_review"]["pass_head"]
+    return token
 
 
 def run_notify(root: Path, args: argparse.Namespace, state: dict[str, Any], role: str, prompt: str) -> None:
@@ -1057,6 +1060,7 @@ def run_notify(root: Path, args: argparse.Namespace, state: dict[str, Any], role
             "AGENT_REVIEW_STATUS": state["status"],
             "AGENT_REVIEW_RUN_ID": state["run_id"],
             "AGENT_REVIEW_PROMPT_FILE": str(resolve_path(root, prompt)),
+            "AGENT_REVIEW_NOTIFICATION_TOKEN": notify_token(state, role),
         }
     )
     result = subprocess.run(
@@ -1444,7 +1448,26 @@ def command_watch(args: argparse.Namespace) -> int:
     while True:
         try:
             state = read_state(root)
+            if "structured_review" in state or getattr(args, "expected_run_id", None) is not None:
+                module = structured_module()
+                if module is None:
+                    raise UserError("STRUCTURED_TOOLING_UNAVAILABLE")
+                try:
+                    state = module.watch_state(sys.modules[__name__], root,
+                                               getattr(args, "expected_run_id", None))
+                except ValueError as exc:
+                    raise UserError(str(exc)) from None
         except UserError as exc:
+            if str(exc) in ("REVIEW_STATE_BUSY", "VALIDATION_IN_PROGRESS", "REVIEW_RESTORE_IN_PROGRESS"):
+                print(f"waiting for {args.role} turn: {exc}", file=sys.stderr, flush=True)
+                if args.once:
+                    return 3
+                if deadline is not None and time.time() >= deadline:
+                    print(f"timed out waiting for {args.role} turn", file=sys.stderr)
+                    return 4
+                time.sleep(args.interval if deadline is None else
+                           max(0, min(args.interval, deadline - time.time())))
+                continue
             if str(exc) != "agent review state is not initialized; run init first" or args.once:
                 raise
             if deadline is not None and time.time() >= deadline:
