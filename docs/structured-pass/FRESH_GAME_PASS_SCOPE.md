@@ -1,5 +1,11 @@
 # One fresh-game pass: scoping proposal
 
+19 November update: input delivery and friction import are implemented, and
+[launcher/client admission](FG1_LAUNCHER_ACCEPTANCE.md) passed its live smoke
+and result review. The original dependency assessment below is planning history.
+Final readiness and the separately authorized unscripted pass remain; no
+semantic work has started under this proposal.
+
 15 November 2026. Status: intake accepted; authorized post-intake measurement
 complete; the [slice-1 checkpoint](RAM_JUDGMENT_SLICE.md) delivered the independent
 judgment writer after parking its first compaction experiment. The separately
@@ -37,8 +43,8 @@ and supplied the inputs. Ordinary intake and its independent round-1 review are
 now accepted and archived. ROM/header evidence, reference hashes and the accepted
 commit are pinned in the private `fresh-game-intake-20261115` packet. The actual
 semantic corridor and successful disposable structured preparation are now
-pinned in `fg1-post-intake-20261115`; no semantic pass or structured client has
-launched.
+pinned in `fg1-post-intake-20261115`. Structured clients subsequently ran only
+the separately authorized synthetic admission smoke; no semantic pass launched.
 
 After intake, use native evidence to confirm one connected ownership corridor
 and record its actual target, producers, consumers, reference scope and exclusions.

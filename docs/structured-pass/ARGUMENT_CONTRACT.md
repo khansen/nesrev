@@ -1,5 +1,9 @@
 # Client-visible operation arguments
 
+Current status: the [r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md) used this contract
+successfully and passed independent result review. The dated correction records
+below preserve the earlier stops and their verification limits.
+
 18 November 2026. A live admission attempt stopped at `validate`: the client
 sent a `candidate` field taken from the preceding response, while dispatch
 required `cid`. The facts declaration named the operation but did not deliver

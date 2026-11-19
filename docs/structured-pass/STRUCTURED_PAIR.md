@@ -2,13 +2,12 @@
 
 The [FG-1 launcher slice](FG1_LAUNCHER_SLICE.md) connects the existing corridor,
 handoff watcher and subscription adapters. The supported pairing is Codex
-implementer / Claude reviewer on the admitted macOS arm64 platform. Offline
-tests do not establish live client admission. The hook-disabled reviewer test
-and the refreshed native declarations require the separately authorized smoke.
-The latest admission attempt passed the hook-disabled read-boundary check and
-delivered a reference image, then stopped on a missing client-visible argument
-contract. The [production correction and declaration captures](ARGUMENT_CONTRACT.md)
-require review before another sealed smoke.
+implementer / Claude reviewer on the admitted macOS arm64 platform. The
+[accepted r5 smoke](FG1_LAUNCHER_ACCEPTANCE.md) establishes the exercised live
+path, including hook-disabled protected-read denials, both roles' image reads,
+publication, request-changes and same-thread resume. The
+[generated argument and identity contract](ARGUMENT_CONTRACT.md) was delivered
+and used. Unscripted work and closeout/application remain separately admitted.
 The preparation check is an integrity check, not a claim that media are usable.
 
 ## Preparation and authority

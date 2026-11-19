@@ -1,10 +1,9 @@
 # FG-1 launcher and client admission proposal
 
-16 November 2026. **Offline integration progressed beyond the first
-[checkpoint](FG1_LAUNCHER_CHECKPOINT.md), including transient-lock watch recovery.
-Admission preparation is now stopped on the measured
-[reference-media dependency](FG1_LAUNCHER_INTEGRATION.md#media-admission-stop).
-Provider calls remain separately authorized.** This specializes the accepted [launcher decision](LAUNCHER_DECISION.md)
+16 November 2026 proposal; status updated 19 November. **Launcher and client
+admission passed the separately authorized r5 smoke and independent result
+review. The [acceptance record](FG1_LAUNCHER_ACCEPTANCE.md) states its limits and
+the remaining unscripted-pass readiness work.** This specializes the accepted [launcher decision](LAUNCHER_DECISION.md)
 for the measured [first fresh-game corridor](FRESH_GAME_PASS_SCOPE.md). The
 [friction-import retrospective](../retros/2026-11-16-structured-friction-import.md)
 records the preceding milestone. Base implementation on master after the

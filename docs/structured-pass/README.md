@@ -15,8 +15,10 @@ The [retained trial workload map](TRIAL_WORKLOAD_COVERAGE.md) compares both
 roles' observed calls with implemented and planned operations, including
 bounded search, early confinement feasibility and the full fresh-game path.
 The [accepted feasibility decision](FEASIBILITY_DECISION.md) records the tested
-macOS worker boundary and reviewer/media results, with the independent
-hook-disabled client check still open. The [typed-search contract](TYPED_SEARCH.md)
+macOS worker boundary and reviewer/media results. The later
+[launcher admission](FG1_LAUNCHER_ACCEPTANCE.md) adds the independent
+hook-disabled client check for its pinned configuration and protected fixtures.
+The [typed-search contract](TYPED_SEARCH.md)
 and [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) describe the bounded
 search slice. Neither the feasibility decision nor offline acceptance authorizes
 a live run or completes the fresh-game path.
@@ -38,8 +40,11 @@ the bounded delivery routes and common role assembly; the
 [offline acceptance](INPUT_DELIVERY_ACCEPTANCE.md) records their evidence and limits.
 [Friction import](FRICTION_IMPORT.md) now retains both roles' observations and
 uses the ordinary importer during application, with
-[offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md) awaiting implementation review.
-Launcher/client admission and the unscripted pass remain.
+[offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md) merged in
+[PR #196](https://github.com/khansen/nesrev/pull/196).
+[Launcher/client admission](FG1_LAUNCHER_ACCEPTANCE.md) has now passed its live
+smoke and result review. Final pass readiness and the separately authorized
+unscripted pass remain.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download
@@ -351,7 +356,8 @@ compaction behavior and evidence limits are documented there. It can work with
 the existing Claude reviewer and does not change the ordinary launcher defaults.
 
 The [launcher decision record](LAUNCHER_DECISION.md) defines an opt-in structured
-mode in the existing tmux launcher. The FG-1 implementation is authorized;
+mode in the existing tmux launcher. The FG-1 implementation has
+[accepted live admission evidence](FG1_LAUNCHER_ACCEPTANCE.md);
 [pair preparation, delivery and recovery](STRUCTURED_PAIR.md) describe that
 path. Live testing requires separate owner authorization.
 
@@ -362,9 +368,10 @@ separation. Both services run as the operator and own source, Git and evidence.
 The agent's workspace contains no checkout, snapshots, Git objects or source-model
 files. Its only tools are `Read` for explicitly selected reference media and the
 role bridge. Native shell, search, edit, agents and connectors are absent. The
-hook allowlists paths; the client's `--restricted` boundary is intended to deny
-outside reads independently. The hook-disabled smoke must establish that second
-layer; the earlier live denials all came from the hook. A client upgrade must
+hook allowlists paths; the client's `--restricted` boundary independently denied
+all eight protected-read attempts in the accepted hook-disabled smoke. This
+evidence is limited to its pinned client and tested paths, including the alternate
+spelling; client-owned exemptions remain outside that claim. A client upgrade must
 pass the native probe before use.
 
 Prepare subscription settings with explicit model, effort, client and interpreter
@@ -392,7 +399,8 @@ For a session with [declared inputs](DECLARED_INPUTS.md), supply `--task-file`
 with the current authorized pass scope instead of extra `--media` arguments.
 Both roles receive the manifest's page identities and an explicitly historical
 intake index. The archive itself is read on demand. These assembly changes have
-offline coverage; current client pins and actual delivery still need admission.
+offline coverage; the accepted launcher smoke also demonstrates selected text
+and image delivery for its pinned clients. It does not exercise every input.
 
 Only an explicit operator `authorize --responses N --minutes N` enables a run.
 Run a role under the same heavy runner with `run implementer --message TEXT` or

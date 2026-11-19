@@ -1,5 +1,10 @@
 # FG-1 launcher integration and admission stop
 
+19 November status: the measured gaps below were resolved, and
+[r5 launcher/client admission](FG1_LAUNCHER_ACCEPTANCE.md) passed live and was
+accepted in result review. This dated record preserves the earlier investigation;
+its stop decisions are not the current admission status.
+
 16 November 2026. The [authorized continuation](FG1_LAUNCHER_SLICE.md) fixed
 transient watch failures and connected the existing launcher, notifier and
 adapters offline. A native-client measurement then found a missing reference
