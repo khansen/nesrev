@@ -3,8 +3,9 @@
 19 November update: input delivery and friction import are implemented, and
 [launcher/client admission](FG1_LAUNCHER_ACCEPTANCE.md) passed its live smoke
 and result review. The original dependency assessment below is planning history.
-Final readiness and the separately authorized unscripted pass remain; no
-semantic work has started under this proposal.
+The [final readiness proposal](FG1_PASS_READINESS.md) follows the launcher merge;
+it and the separately authorized unscripted pass remain. No semantic work has
+started under this proposal.
 
 15 November 2026. Status: intake accepted; authorized post-intake measurement
 complete; the [slice-1 checkpoint](RAM_JUDGMENT_SLICE.md) delivered the independent
