@@ -23,6 +23,12 @@ from structured_pass import subscription_client as claude, bridge
 import structured_pass_fixture as fixture
 
 
+def admitted_platform():
+    # Only the pair's admission identity is simulated, including in its test
+    # subprocesses; process supervision still uses the real host facilities.
+    return patch.object(pair,'platform',Namespace(system=lambda:'Darwin',machine=lambda:'arm64'))
+
+
 class WorkspaceTests(unittest.TestCase):
     def test_classification_requires_authoritative_progress(self):
         start={'handoff':None}
@@ -72,6 +78,7 @@ class WorkspaceTests(unittest.TestCase):
 class PairTests(unittest.TestCase):
     def setUp(self):
         if not os.environ.get('STRUCTURED_PASS_XASM'):self.skipTest('Pinned assembler required')
+        platform_patch=admitted_platform();platform_patch.start();self.addCleanup(platform_patch.stop)
         temporary=tempfile.TemporaryDirectory(prefix='structured-pair-test-');self.addCleanup(temporary.cleanup)
         self.root=Path(temporary.name).resolve()
         retained=tempfile.TemporaryDirectory(prefix='pair-retained-',dir=ROOT/'tmp');self.addCleanup(retained.cleanup)
@@ -157,8 +164,9 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         patched.start();self.addCleanup(patched.stop)
         notify=self.pair/'notify'
         notify.write_text('#!'+sys.executable+'\n'+
-            f'import os,sys\nsys.path.insert(0,{str(ROOT/"scripts")!r})\n'+
-            'import structured_pair_launcher as p\noriginal=p.adapter_argv\n'+
+            f'import os,sys\nsys.path[:0]=[{str(ROOT/"scripts")!r},{str(ROOT/"tests")!r}]\n'+
+            'from structured_pass_pair_test import pair as p,admitted_platform\n'+
+            'admitted_platform().start()\noriginal=p.adapter_argv\n'+
             'def inherited(*args):\n argv=original(*args);return argv[argv.index("--")+1:]\n'+
             'p.adapter_argv=inherited\n'+
             f'p.deliver({str(self.pair)!r},sys.argv[1],sys.argv[3],notified_status=sys.argv[2],'+
@@ -170,6 +178,22 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
     def authorize(self, **changes):
         return pair.authorize(self.pair,**{'owner_message':'Synthetic offline test only','deadline':time.time()+90,
             'invocations':4,'responses':5,'turn_seconds':30,'purpose':'access_preflight',**changes})
+
+    def test_prepare_and_verify_require_admitted_platform(self):
+        root=self.root/'platform-pair'
+        for system,machine in (('Linux','x86_64'),('Linux','arm64'),('Darwin','x86_64')):
+            with self.subTest(system=system,machine=machine), \
+                    patch.object(pair,'platform',Namespace(system=lambda:system,machine=lambda:machine)):
+                with self.assertRaisesRegex(ValueError,'^PAIR_PLATFORM_UNADMITTED$'):
+                    pair.prepare(root,self.c.root,self.impl,self.rev,self.task)
+                self.assertFalse(root.exists())
+                with self.assertRaisesRegex(ValueError,'^PAIR_PLATFORM_UNADMITTED$'):
+                    pair.verify(self.pair)
+        with admitted_platform():
+            config=pair.prepare(root,self.c.root,self.impl,self.rev,self.task)
+            self.assertEqual(config['platform'],['Darwin','arm64'])
+            self.assertEqual(pair.verify(root),config)
+            self.assertEqual(pair.read(root/'state.json'),{'turns':[],'stop':None})
 
     def test_real_watch_notifier_adapter_handoff_and_same_thread(self):
         grant=self.authorize()
@@ -222,8 +246,9 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         else:delivery={'kind':'initial'};path=self.task
         (self.root/'race-mode').write_text('reready' if same_status else 'double')
         driver=self.root/'deliver.py'
-        driver.write_text(f'import sys\nsys.path.insert(0,{str(ROOT/"scripts")!r})\n'+
-            'import structured_pair_launcher as p\noriginal=p.adapter_argv\n'+
+        driver.write_text(f'import sys\nsys.path[:0]=[{str(ROOT/"scripts")!r},{str(ROOT/"tests")!r}]\n'+
+            'from structured_pass_pair_test import pair as p,admitted_platform\n'+
+            'admitted_platform().start()\noriginal=p.adapter_argv\n'+
             'def inherited(*args):\n argv=original(*args);return argv[argv.index("--")+1:]\n'+
             'p.adapter_argv=inherited\n'+f'p.deliver({str(self.pair)!r},"implementer",{str(path)!r},**{delivery!r})\n')
         command=[sys.executable,'-B',str(ROOT/'scripts/agent_review.py'),'--repo',str(self.c.root/'handoff'),
