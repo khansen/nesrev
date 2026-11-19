@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -92,8 +93,9 @@ class ContractTests(unittest.TestCase):
                 with self.assertRaises(KeysAccepted):
                     dispatch('validate', {})
             with self.assertRaises(AssertionError):
-                self.assertEqual(frozen['validate'], observed[0])
-            self.assertEqual(delivered('implementer', 'corridor')[1]['validate'], observed[0])
+                self.assertEqual({k: frozen['validate'][k] for k in ('required', 'optional')}, observed[0])
+            changed = delivered('implementer', 'corridor')[1]['validate']
+            self.assertEqual({k: changed[k] for k in ('required', 'optional')}, observed[0])
 
     def test_image_keys_come_from_enforced_conditional_schema(self):
         _, declaration = delivered('implementer', 'corridor')
@@ -145,8 +147,96 @@ class ContractTests(unittest.TestCase):
         result = json.loads(output.getvalue())['result']
         error = json.loads(result['content'][0]['text'])
         self.assertTrue(result['isError'])
-        self.assertEqual(error, {'error': 'REQUEST_SCHEMA', 'expected_arguments': {'required': ['cid'], 'optional': []},
+        self.assertEqual(error, {'error': 'REQUEST_SCHEMA', 'expected_arguments': {
+            'required': ['cid'], 'optional': [], 'sources': {'cid': ['confirm.candidate', 'preview.candidate']}},
                                  'retryable': False, 'generation': 'G-start'})
+
+
+class IdentitySourceTests(unittest.TestCase):
+    def test_advertised_sources_exist_and_drive_real_lifecycle(self):
+        from structured_pass_fixture import prepare, rename_ops
+        from structured_pass_inputs_test import setup_inputs
+
+        def values(results, path):
+            items = [results]
+            for part in path.split('.'):
+                if part.endswith('[]'):
+                    items = [row for item in items for row in item[part[:-2]]]
+                elif part.endswith(']'):
+                    key, index = part[:-1].split('[')
+                    items = [item[key][int(index)] for item in items]
+                else:
+                    items = [item[part] for item in items]
+            self.assertTrue(items, path)
+            self.assertNotIn(None, items, path)
+            return items
+
+        def arguments(declaration, operation, results):
+            sources = declaration[operation]['sources']
+            return {key: values(results, paths[0])[0] for key, paths in sources.items()}
+
+        (ROOT/'tmp').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT/'tmp', prefix='identity-contract-') as tmp:
+            root = Path(tmp).resolve()
+            controller = prepare(root, declared_setup=setup_inputs)
+            implementer = delivered('implementer', 'corridor')[1]
+            reviewer = delivered('reviewer', 'corridor')[1]
+            results = {'status': controller.dispatch('status', {}, 'implementer')}
+            base = results['status']['generation']
+            results['inputs'] = controller.dispatch('inputs', {
+                **arguments(implementer, 'inputs', results), 'limit': 40}, 'implementer')
+            response = controller.dispatch('input', arguments(implementer, 'input', results), 'implementer')
+            self.assertEqual(response['id'], results['inputs']['records'][0]['id'])
+            operations = rename_ops(controller, base)
+            results['preview'] = controller.dispatch('preview', {
+                'generation': base, 'operations': operations}, 'implementer')
+            self.assertIsNone(results['preview']['candidate'])
+            help_text = bridge.tool_listing('implementer')['tools'][0]['inputSchema']['properties']['arguments']['description']
+            self.assertIn('use confirm.candidate first', help_text)
+            results['confirm'] = controller.dispatch('confirm', arguments(implementer, 'confirm', results), 'implementer')
+            cid = results['confirm']['candidate']
+            results['preview'] = controller.dispatch('preview', {
+                **arguments(implementer, 'preview', results), 'operations': operations}, 'implementer')
+            self.assertEqual(results['preview']['candidate'], cid)
+            results['confirm'] = controller.dispatch('confirm', arguments(implementer, 'confirm', results), 'implementer')
+            validated = controller.dispatch('validate', arguments(implementer, 'validate', results), 'implementer')
+            self.assertEqual(validated['candidate'], cid)
+            self.assertEqual(validated['status'], 'validated')
+            published = controller.dispatch('publish', arguments(implementer, 'publish', results), 'implementer')
+            self.assertEqual(published['candidate'], cid)
+
+            results['status'] = controller.dispatch('status', {}, 'reviewer')
+            review_args = arguments(reviewer, 'review', results)
+            self.assertEqual(review_args, {'ticket': published['review']['artifact_id'],
+                'generation': published['review']['artifact_id'], 'base_generation': published['review']['base_artifact']})
+            self.assertNotEqual(review_args['generation'], results['status']['generation'])
+            self.assertNotEqual(review_args['generation'], review_args['base_generation'])
+            controller.dispatch('review', review_args, 'reviewer')
+            report = 'Verdict: CHANGES_REQUESTED\n\nSynthetic finding.\n\n## Learning Candidates\n\n_None._\n'
+            controller.dispatch('request-changes', {
+                **arguments(reviewer, 'request-changes', results), 'report': report}, 'reviewer')
+            results['status'] = controller.dispatch('status', {}, 'implementer')
+            fetched = controller.dispatch('review_report', arguments(implementer, 'review_report', results), 'implementer')
+            self.assertEqual(fetched['report'], report)
+
+            retained = RetainedReviewService.from_publication(root/'reader', controller.config['store'], review_args['ticket'])
+            retained_results = {**results, 'status': retained.dispatch('status', {}, 'reviewer')}
+            retained_contract = delivered('reviewer', 'retained')[1]
+            retained_args = arguments(retained_contract, 'review', retained_results)
+            self.assertEqual(retained_args, {'generation': review_args['generation'], 'base_generation': review_args['base_generation']})
+            retained.dispatch('review', retained_args, 'reviewer')
+
+            for profile, actual in [('corridor', results), ('retained', retained_results)]:
+                for role in ('implementer', 'reviewer'):
+                    for op, spec in delivered(role, profile)[1].items():
+                        with self.subTest(profile=profile, role=role, operation=op):
+                            sources = spec.get('sources', {})
+                            self.assertLessEqual(set(sources), set(spec['required'] + spec['optional']))
+                            identity_keys = {'cid', 'generation', 'base_generation', 'preview_digest', 'input_id', 'ticket', 'sequence'}
+                            self.assertEqual(set(sources), identity_keys & set(spec['required'] + spec['optional']))
+                            for paths in sources.values():
+                                for path in paths:
+                                    values(actual, path)
 
 
 if __name__ == '__main__':

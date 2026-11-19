@@ -82,6 +82,22 @@ def check(value, spec):
 
 def entry(operation, role, profile='corridor'):
     result = keys((corridor() if profile == 'corridor' else retained())[operation])
+    sources = {
+        'cid': ['confirm.candidate', 'preview.candidate'],
+        'preview_digest': ['preview.preview_digest'],
+        'input_id': ['inputs.records[].id'],
+        'generation': ['status.generation'],
+    }
+    if profile == 'corridor':
+        sources.update(ticket=['status.ticket'], sequence=['status.handoff.latest_review.sequence'])
+        if operation == 'review':
+            sources.update(generation=['status.handoff.coverage.pass_head'],
+                           base_generation=['status.handoff.coverage.pass_base'])
+    elif operation == 'review':
+        sources['base_generation'] = ['status.evidence[-2].artifact_id']
+    result['sources'] = {key: sources[key] for key in result['required'] + result['optional'] if key in sources}
+    if not result['sources']:
+        del result['sources']
     if operation == 'input' and role == 'implementer' and profile == 'corridor':
         result['reference_image'] = keys(IMAGE_INPUT)
     return result
@@ -91,5 +107,9 @@ DESCRIPTION_MARKER = '\nArgument contract (required and optional keys; no other 
 
 
 def describe(operations, role, profile='corridor'):
-    return DESCRIPTION_MARKER + json.dumps(
-        {op: entry(op, role, profile) for op in operations}, separators=(',', ':'))
+    return ('Sources are paths in operation results, not argument names; [] means a record in a list. '
+            'Use non-null identities from the current workflow. A new preview has no candidate: '
+            'use confirm.candidate first; preview.candidate refers to an existing candidate. '
+            'A source operation may belong to the other role. Retained review uses the last two evidence entries.'
+            + DESCRIPTION_MARKER + json.dumps(
+        {op: entry(op, role, profile) for op in operations}, separators=(',', ':')))

@@ -25,7 +25,7 @@ TOOL = 'mcp__facts__operation'
 FORBIDDEN_TOOLS = frozenset('functions__' + name for name in
     ('exec', 'wait', 'request_user_input', 'request_user_input_async'))
 OFFERED_TOOLS = FORBIDDEN_TOOLS | {TOOL}
-DECLARATION_SHA256 = 'c72c1e4fbd8a5f13118438a84dae5472aca7222d29d8a8170b9a39e3f97c5fe5'
+DECLARATION_SHA256 = '43fb852102975edfb7bda7a4def191e98bd1a29d40a03583bf3c376cb9551584'
 STARTUP_WARNINGS = {
     '`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.': 2,
     'Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; '
