@@ -115,6 +115,29 @@ def checked_coverage(api, root, state):
                             run_id=state['run_id'], reviewer=state['review_agent'])
 
 
+def published_candidate(config, head):
+    """Read the reviewed head's identity while the caller holds the publisher lock."""
+    if not config.get('editor_state'):
+        return None
+    try:
+        publisher = json.loads(Path(config['editor_state']).read_bytes())
+        generation = publisher['current']
+        require(publisher['generations'][generation]['artifact']['artifact_id'] == head,
+                'PUBLISHER_HEAD_MISMATCH')
+        matches = [(cid, candidate) for cid, candidate in publisher['candidates'].items()
+                   if candidate.get('status') == 'published' and candidate.get('generation') == generation
+                   and candidate.get('review', {}).get('artifact_id') == head]
+        require(len(matches) == 1, 'PUBLISHER_STATE_UNAVAILABLE')
+        cid, candidate = matches[0]
+        revision, attempt = candidate['revision'], candidate['attempt']
+        require(type(revision) is int and revision >= 0 and type(attempt) is int and attempt > 0,
+                'PUBLISHER_STATE_UNAVAILABLE')
+    except (OSError, KeyError, TypeError, json.JSONDecodeError):
+        raise ValueError('PUBLISHER_STATE_UNAVAILABLE') from None
+    return {'cid': cid, 'revision': revision, 'attempt': attempt,
+            'generation': generation, 'ticket': head}
+
+
 def result(api, root, state):
     coverage = checked_coverage(api, root, state)
     history = state['structured_review']['verdict_history']
@@ -122,6 +145,7 @@ def result(api, root, state):
     text = (root / latest['review_file']).read_bytes().decode('utf-8') if latest else ''
     return {'status': state['status'], 'run_id': state['run_id'], 'round': state['round'],
             'reviewer': state['review_agent'], 'coverage': coverage,
+            'published_candidate': published_candidate(state['structured_review'], coverage['pass_head']),
             # Read only the report whose location and digest were checked above,
             # while the handoff lock is held. The implementer has no file access.
             'latest_review': ({'sequence': latest['sequence'], 'verdict': latest['verdict'],
