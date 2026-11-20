@@ -12,7 +12,7 @@ import tempfile
 import time
 import unittest
 from argparse import Namespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
@@ -29,7 +29,42 @@ def admitted_platform():
     return patch.object(pair,'platform',Namespace(system=lambda:'Darwin',machine=lambda:'arm64'))
 
 
+def retry_review_busy(call,*args):
+    deadline=time.monotonic()+5
+    while True:
+        try:
+            return call(*args)
+        except ValueError as error:
+            if str(error)!='REVIEW_STATE_BUSY' or time.monotonic()>=deadline:
+                raise
+            time.sleep(.01)
+
+
 class WorkspaceTests(unittest.TestCase):
+    def test_fake_client_retries_only_review_busy_with_a_deadline(self):
+        clock=Namespace(now=0)
+        timer=Namespace(monotonic=lambda:clock.now,
+                        sleep=lambda delay:setattr(clock,'now',clock.now+delay))
+        with patch(__name__+'.time',timer):
+            call=Mock(side_effect=[ValueError('REVIEW_STATE_BUSY'),ValueError('REVIEW_STATE_BUSY'),'done'])
+            self.assertEqual(retry_review_busy(call,'argument'),'done')
+            self.assertEqual(call.call_count,3)
+            call.assert_called_with('argument')
+            for error in (ValueError('VALIDATION_IN_PROGRESS'),ValueError('CAPTURE_CHANGED'),
+                          RuntimeError('REVIEW_STATE_BUSY')):
+                with self.subTest(error=repr(error)):
+                    call=Mock(side_effect=error);before=clock.now
+                    with self.assertRaises(type(error)) as caught:
+                        retry_review_busy(call)
+                    self.assertIs(caught.exception,error)
+                    call.assert_called_once_with();self.assertEqual(clock.now,before)
+            call=Mock(side_effect=ValueError('REVIEW_STATE_BUSY'));before=clock.now
+            with self.assertRaisesRegex(ValueError,'^REVIEW_STATE_BUSY$'):
+                retry_review_busy(call)
+            self.assertGreater(call.call_count,1)
+            self.assertGreaterEqual(clock.now-before,5)
+            self.assertLess(clock.now-before,5.02)
+
     def test_classification_requires_authoritative_progress(self):
         start={'handoff':None}
         ready={'handoff':{'run_id':'r','status':'READY_FOR_REVIEW','round':1,'coverage':{'pass_head':'h'}}}
@@ -93,6 +128,7 @@ class PairTests(unittest.TestCase):
         common=('import json,os,sys\nfrom pathlib import Path\n'
             f'sys.path[:0]=[{str(ROOT/"scripts")!r},{str(ROOT/"tests")!r}]\n'
             'from structured_pass.launcher import Corridor\nimport structured_pass_fixture as fixture\n'
+            'from structured_pass_pair_test import retry_review_busy\n'
             f'session=Path({str(self.c.root)!r})\n'
             'def emit(x):print(json.dumps(x),flush=True)\n')
         codex_path.write_text('#!'+sys.executable+'\n'+common+'''
@@ -103,10 +139,10 @@ import time,agent_review
 mode_path=Path(__file__).parent/'race-mode'
 mode=mode_path.read_text() if mode_path.exists() else ''
 def publish(c,operations):
- g=c.editor.state['current'];p=c.dispatch('preview',{'generation':g,'operations':operations},'implementer')
- cid=c.dispatch('confirm',{'generation':g,'preview_digest':p['preview_digest']},'implementer')['candidate']
- assert c.dispatch('validate',{'cid':cid},'implementer')['status']=='validated'
- c.dispatch('publish',{'cid':cid},'implementer');c.status('implementer')
+ g=c.editor.state['current'];p=retry_review_busy(c.dispatch,'preview',{'generation':g,'operations':operations},'implementer')
+ cid=retry_review_busy(c.dispatch,'confirm',{'generation':g,'preview_digest':p['preview_digest']},'implementer')['candidate']
+ assert retry_review_busy(c.dispatch,'validate',{'cid':cid},'implementer')['status']=='validated'
+ retry_review_busy(c.dispatch,'publish',{'cid':cid},'implementer');retry_review_busy(c.status,'implementer')
 def publish_after_queued_notification(c):
  root=Path(__file__).parent/'pair';saved=agent_review.read_state(session/'handoff')
  token=agent_review.notify_token(saved,'reviewer');deadline=time.monotonic()+15
@@ -115,7 +151,7 @@ def publish_after_queued_notification(c):
   if any(r['result']=='waiting' and r['token']==token for r in pending):break
   time.sleep(.02)
  else:raise RuntimeError('Reviewer notification never queued')
- c.dispatch('start_chain',{'generation':c.editor.state['current']},'implementer')
+ retry_review_busy(c.dispatch,'start_chain',{'generation':c.editor.state['current']},'implementer')
  publish(c,fixture.closeout_ops(c,c.editor.state['current'],notes='Second publication in this turn.'))
  current=agent_review.read_state(session/'handoff')
  proof={'before_status':saved['status'],'after_status':current['status'],'before_token':token,
@@ -130,7 +166,7 @@ if message.startswith('Publish'):
  if mode=='double':publish_after_queued_notification(c)
 elif mode=='reready':
  c=Corridor(session)
- c.dispatch('reready',{'response':'Synthetic clarification.\\n\\n## Learning Candidates\\n\\n_None._\\n'},'implementer')
+ retry_review_busy(c.dispatch,'reready',{'response':'Synthetic clarification.\\n\\n## Learning Candidates\\n\\n_None._\\n'},'implementer')
  publish_after_queued_notification(c)
 emit({'type':'turn.completed','usage':{'input_tokens':100,'cached_input_tokens':0,'output_tokens':10}})
 '''.replace('DECLARATION',repr(declaration)))
@@ -138,8 +174,8 @@ emit({'type':'turn.completed','usage':{'input_tokens':100,'cached_input_tokens':
 if '--version' in sys.argv:print('offline-fixture');sys.exit(0)
 if 'auth' in sys.argv:print(json.dumps({'loggedIn':True,'authMethod':'claude.ai'}));sys.exit(0)
 emit({'type':'system','subtype':'init','tools':['Read','mcp__facts__operation'],'additional_directories':[],'model':'fixture','permissionMode':'dontAsk'})
-c=Corridor(session);status=c.status('reviewer')
-c.dispatch('request-changes',{'ticket':status['ticket'],'report':'Verdict: CHANGES_REQUESTED\\n\\nSynthetic review finding.\\n\\n## Learning Candidates\\n\\n_None._\\n'},'reviewer')
+c=Corridor(session);status=retry_review_busy(c.status,'reviewer')
+retry_review_busy(c.dispatch,'request-changes',{'ticket':status['ticket'],'report':'Verdict: CHANGES_REQUESTED\\n\\nSynthetic review finding.\\n\\n## Learning Candidates\\n\\n_None._\\n'},'reviewer')
 emit({'type':'assistant','message':{'id':'fixture-response'}})
 emit({'type':'result','subtype':'success','is_error':False,'result':'Review delivered.','num_turns':1})
 ''')

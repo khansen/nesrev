@@ -111,16 +111,25 @@ game edit or live grant occurred. The owner's head, working files and four
 stashes match the protected baseline. Private records retain exact timing,
 source hashes, invocation receipts, raw streams, failure controls and cleanup.
 
-The final structured suite passed on macOS arm64: 409 tests, one opt-in skip.
+Before the fixture correction, the structured suite passed on macOS arm64:
+409 tests, one opt-in skip.
 An earlier full-suite run failed the synthetic same-status notification race
-test with a fake-client exit. A bounded reproduction passed; the cause remains
-unconfirmed. The test now preserves the nested client stderr in its failure
-message. The final suite passed after that diagnostic-only edit; the failed
-run remains in the review packet.
+test with a fake-client exit. Review subsequently confirmed the cause: its fake
+client treated `REVIEW_STATE_BUSY` from a concurrent watcher poll as fatal.
+The loaded control reproduced that error in one of 20 runs before the fix.
+Both fake clients now retry only that exact error for at most five seconds;
+other errors still fail immediately. A deterministic test covers successful
+retry, the deadline and refusal to retry other errors. Production code and the
+native acceptance evidence are unchanged. The failed runs remain retained.
+The same loaded loop passed 20 of 20 runs after the fix: four parallel workers
+with separate scratch locks, five runs each, both race tests in every run.
+The structured suite then passed once on the corrected fixture: 410 tests,
+one opt-in skip, in 232.1 seconds on macOS arm64.
 
-`make test` also passed on macOS arm64: playbook and repository-hygiene gates,
-692 shell tests and 1,206 Java tests. The documentation gates were rerun after
-the final result-text edit. Exact logs and receipts are in the review packet.
+The `make test` result is carried forward from `061cf1726`: playbook and
+repository-hygiene gates, 692 shell tests and 1,206 Java tests passed on macOS
+arm64. The documentation gates were rerun after the final result-text edit.
+Exact logs and receipts are in the review packet.
 Code review comes before publication; Linux and macOS CI on the final head come
 before merge. After merge, fresh preparation and a reviewed packet precede the
 separately authorized single unscripted pass. There is no automatic pass two.
