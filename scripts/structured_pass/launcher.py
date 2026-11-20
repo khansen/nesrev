@@ -271,7 +271,6 @@ class Corridor:
         if operation=='review_report':
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
             return self.verdicts(role).dispatch({'operation':operation,'arguments':arguments})
-        if operation=='guidance':return self.guidance(arguments)
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
         if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments,role)

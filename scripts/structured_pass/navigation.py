@@ -11,6 +11,9 @@ def require(value,code='REQUEST_SCHEMA'):
     if not value:raise ValueError(code)
 
 
+VIEWS=('symbols','records','uses','comments')
+
+
 class Navigation:
     def __init__(self,model):
         self.m=model
@@ -45,7 +48,9 @@ class Navigation:
         return found[0]
 
     def query(self,view,*,symbol=None,record_id=None,contains=None,offset=0,limit=12):
-        require(view in ('symbols','records','uses','comments'))
+        if view not in VIEWS:
+            from .operation_contract import RequestError
+            raise RequestError(field='view',accepted_values=list(VIEWS))
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
         require(contains is None or isinstance(contains,str) and 0<len(contains)<=256)
         m=self.m;items=[];scope=None;comment_records=[]

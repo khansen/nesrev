@@ -372,10 +372,14 @@ class WorkflowTests(unittest.TestCase):
             value=json.loads(reply['content'][0]['text'])
             self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
             if index==0:self.assertEqual((value['offset'],value['total_changes'],value['next_offset']),(3,7,4))
+            elif index==1:
+                self.assertEqual(value['error_class'],'terminal')
+                self.assertNotIn('action',value)
             else:
                 self.assertNotIn('next_offset',value)
                 self.assertEqual(value['offset'],3)
                 self.assertIn('retry the same offset',value['action'])
+                self.assertEqual(value['error_class'],'correctable')
 
     def bridge_request(self,root,profile,operation=None,arguments=None):
         request={'jsonrpc':'2.0','id':1,'method':'tools/call' if operation else 'tools/list'}
@@ -527,6 +531,7 @@ class WorkflowTests(unittest.TestCase):
         value=json.loads(result['content'][0]['text'])
         self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
         for key,val in details.items():self.assertEqual(value[key],val)
+        self.assertEqual(value['error_class'],'terminal')
         request['params']['arguments']['operation']='navigate';output=io.StringIO()
         with patch.object(Corridor,'dispatch',side_effect=service.ServiceError('RESPONSE_TOO_LARGE',**details)):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
@@ -543,6 +548,7 @@ class WorkflowTests(unittest.TestCase):
         value=json.loads(json.loads(output.getvalue())['result']['content'][0]['text'])
         self.assertEqual(value['error'],'RESPONSE_TOO_LARGE')
         self.assertNotIn('action',value);self.assertNotIn('offset',value);self.assertNotIn('next_offset',value)
+        self.assertEqual(value['error_class'],'terminal')
 
     def test_application_refuses_overlap_and_dirty_selected_path(self):
         from structured_pass.application import apply

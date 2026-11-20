@@ -3,8 +3,18 @@ from pathlib import Path, PurePosixPath
 from difflib import SequenceMatcher
 import re
 import hashlib
+from . import edit_contract as contract
 
-KINDS=frozenset(('document_write','document_delete'))
+OPERATION_SCHEMAS={
+    'document_write':contract.fields('kind path preimage reason text', fields='document_fields'),
+    'document_delete':contract.fields('kind path preimage reason', fields='document_fields')}
+KINDS=frozenset(OPERATION_SCHEMAS)
+REFERENCE_TYPES={'document_fields':{
+    'path':{'authored':'registered project-relative docs/*.md path; never source, inventory, reviews or project root'},
+    'preimage':{'source':'document.preimage; null only when document.exists is false'},
+    'reason':{'authored':'nonempty rationale, at most 2000 characters'},
+    'text':{'authored':'complete UTF-8 Markdown, at most 262144 bytes, no NUL'},
+    'document_delete':{'constraint':'existing noncanonical document only'}}}
 ERRORS=frozenset('''DOCUMENT_PATH_FORBIDDEN DOCUMENT_PREIMAGE_MISMATCH
     DOCUMENT_SCHEMA DOCUMENT_NOT_FOUND DOCUMENT_DUPLICATE_OPERATION
     DOCUMENT_DELETE_CANONICAL_FORBIDDEN DOCUMENT_PATH_CASE_MISMATCH'''.split())
@@ -36,8 +46,7 @@ def selected(operations,project,source,ownership):
     found=[];seen=set();spellings={}
     for op in operations:
         if op.get('kind') not in KINDS:continue
-        keys={'kind','path','preimage','reason'}|({'text'} if op['kind']=='document_write' else set())
-        require(set(op)==keys,'DOCUMENT_SCHEMA')
+        contract.check(op,OPERATION_SCHEMAS[op['kind']],'DOCUMENT_SCHEMA')
         path_allowed(op['path'],project,source,ownership)
         folded=op['path'].casefold()
         require(folded not in seen,'DOCUMENT_DUPLICATE_OPERATION');seen.add(folded)
@@ -53,7 +62,8 @@ def selected(operations,project,source,ownership):
             relative=op['path'][len(project):].casefold()
             require(relative not in CANONICAL and not PurePosixPath(relative).name.endswith('_dx_systems.md'),
                     'DOCUMENT_DELETE_CANONICAL_FORBIDDEN')
-            require(op['preimage'] is not None,'DOCUMENT_PREIMAGE_MISMATCH')
+            contract.value(op['preimage'] is not None,'operations[].preimage',
+                REFERENCE_TYPES['document_fields']['preimage'],'DOCUMENT_PREIMAGE_MISMATCH')
         found.append(op)
     return found
 
@@ -87,7 +97,8 @@ def prepare(checkout,manifest,operations,project,source,ownership):
     result=[]
     for op in selected(operations,project,source,ownership):
         before=read(checkout,manifest,op['path'])
-        require(sha(before)==op['preimage'],'DOCUMENT_PREIMAGE_MISMATCH')
+        contract.value(sha(before)==op['preimage'],'operations[].preimage',
+            REFERENCE_TYPES['document_fields']['preimage'],'DOCUMENT_PREIMAGE_MISMATCH')
         after=op.get('text').encode() if op['kind']=='document_write' else None
         result.append({'path':op['path'],'before':before,'after':after,'reason':op['reason']})
     return result

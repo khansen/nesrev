@@ -4,13 +4,17 @@ Only selected descendants/bridges leave the in-memory host snapshot. Sampling
 is not an execution trace and cannot prove absence of arbitrarily short tasks.
 """
 import os
+import ctypes
+import errno
+from functools import lru_cache
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
 
 
-def snapshot():
+def _ps_snapshot():
     result = subprocess.run(['/bin/ps', '-axww', '-o', 'pid=,ppid=,pgid=,lstart=,command='],
                             capture_output=True, text=True, check=True,
                             env={**os.environ, 'LC_ALL': 'C'})
@@ -23,6 +27,169 @@ def snapshot():
         rows[pid] = {'pid': pid, 'ppid': ppid, 'pgid': pgid,
                      'started': ' '.join(parts[3:8]), 'command': parts[8]}
     return rows
+
+
+class _BSDShortInfo(ctypes.Structure):
+    # Public proc_bsdshortinfo ABI; unlike full BSD info this permits other UIDs.
+    _fields_ = [(name, ctypes.c_uint32) for name in ('pid', 'ppid', 'pgid', 'status')
+                ] + [('comm', ctypes.c_char * 16)] + [
+        (name, ctypes.c_uint32) for name in
+        ('flags', 'uid', 'gid', 'ruid', 'rgid', 'svuid', 'svgid', 'reserved')]
+
+
+class _KInfoPrefix(ctypes.Structure):
+    # Public extern_proc prefix in sys/proc.h, through p_pid. The timeval is
+    # padded to pointer alignment, on both supported 64-bit Darwin architectures.
+    _fields_ = [('seconds', ctypes.c_long), ('microseconds', ctypes.c_int),
+                ('vmspace', ctypes.c_void_p), ('sigacts', ctypes.c_void_p),
+                ('flags', ctypes.c_int), ('status', ctypes.c_byte), ('pid', ctypes.c_int)]
+
+
+@lru_cache(maxsize=1)
+def _darwin_api():
+    api = ctypes.CDLL('/usr/lib/libSystem.B.dylib', use_errno=True)
+    api.proc_listallpids.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    api.proc_listallpids.restype = ctypes.c_int
+    api.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64,
+                                ctypes.c_void_p, ctypes.c_int]
+    api.proc_pidinfo.restype = ctypes.c_int
+    api.sysctl.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_uint,
+                          ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t),
+                          ctypes.c_void_p, ctypes.c_size_t]
+    api.sysctl.restype = ctypes.c_int
+    api.strvis.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    api.strvis.restype = ctypes.c_int
+    api.uselocale.argtypes = [ctypes.c_void_p]
+    api.uselocale.restype = ctypes.c_void_p
+    return api
+
+
+def _snapshot_error(stage, *, mib=None, pid=None, error=0):
+    return ValueError('CODEX_PROCESS_SNAPSHOT_INVALID '
+                      f'stage={stage} mib={mib} pid={pid} errno={error}')
+
+
+def _sysctl(api, mib, buffer):
+    keys = (ctypes.c_int * len(mib))(*mib)
+    size = ctypes.c_size_t(ctypes.sizeof(buffer))
+    pid = mib[-1] if mib[:2] in ((1, 14), (1, 49)) else None
+    ctypes.set_errno(0)
+    if api.sysctl(keys, len(keys), ctypes.byref(buffer), ctypes.byref(size), None, 0):
+        error = ctypes.get_errno()
+        raise OSError(error, f'process sysctl failed mib={mib} pid={pid} errno={error}')
+    if size.value > ctypes.sizeof(buffer):
+        raise _snapshot_error('sysctl-size', mib=mib, pid=pid)
+    return size.value
+
+
+def _argv_bytes(data):
+    if len(data) < 4:
+        raise ValueError('CODEX_PROCESS_SNAPSHOT_INVALID')
+    argc = int.from_bytes(data[:4], sys.byteorder, signed=True)
+    end = data.find(b'\0', 4)
+    if argc <= 0 or end < 0:
+        raise ValueError('CODEX_PROCESS_SNAPSHOT_INVALID')
+    start = end
+    while start < len(data) and data[start] == 0:
+        start += 1
+    args = data[start:].split(b'\0')
+    if len(args) <= argc or not args[0]:
+        raise ValueError('CODEX_PROCESS_SNAPSHOT_INVALID')
+    # The sysctl buffer also contains the environment; never render beyond argc.
+    return b' '.join(args[:argc])
+
+
+def _darwin_command(api, info, argmax):
+    fallback = b'(' + bytes(info.comm) + b')'
+    if info.status == 5:  # SZOMB
+        raw = b'<defunct>'
+    else:
+        buffer = ctypes.create_string_buffer(argmax)
+        try:
+            size = _sysctl(api, (1, 49, info.pid), buffer)  # CTL_KERN, KERN_PROCARGS2
+            raw = _argv_bytes(buffer.raw[:size])
+        except (OSError, ValueError):
+            # Exec can make argv unavailable or inconsistent while process
+            # metadata remains valid. Match ps without losing the identity row.
+            raw = fallback
+    visible = ctypes.create_string_buffer(len(raw) * 4 + 1)
+    # Match ps's LC_ALL=C without changing the process-wide Python locale.
+    old_locale = api.uselocale(ctypes.c_void_p.in_dll(api, '_c_locale'))
+    if not old_locale:
+        raise _snapshot_error('uselocale', mib=(1, 49, info.pid), pid=info.pid,
+                              error=ctypes.get_errno())
+    try:
+        if api.strvis(visible, raw, 0x8 | 0x10 | 0x40) < 0:  # TAB | NL | NOSLASH
+            raise _snapshot_error('strvis', mib=(1, 49, info.pid), pid=info.pid,
+                                  error=ctypes.get_errno())
+    finally:
+        api.uselocale(old_locale)
+    return visible.value.decode('utf-8', errors='replace')
+
+
+def _darwin_snapshot():
+    api = _darwin_api()
+    ctypes.set_errno(0)
+    count = api.proc_listallpids(None, 0)
+    if count <= 0:
+        raise _snapshot_error('proc_listallpids', error=ctypes.get_errno())
+    for _ in range(4):
+        capacity = count + 128
+        pids = (ctypes.c_int * capacity)()
+        ctypes.set_errno(0)
+        count = api.proc_listallpids(pids, ctypes.sizeof(pids))
+        if count <= 0:
+            raise _snapshot_error('proc_listallpids', error=ctypes.get_errno())
+        if count < capacity:
+            break
+    else:
+        raise _snapshot_error('proc_listallpids-capacity')
+    argmax = ctypes.c_int()
+    _sysctl(api, (1, 8), argmax)  # CTL_KERN, KERN_ARGMAX
+    if not 0 < argmax.value <= 16 * 1024 * 1024:
+        raise _snapshot_error('argmax', mib=(1, 8))
+    rows = {}
+    for pid in pids[:count]:
+        if pid <= 0:
+            continue
+        info = _BSDShortInfo()
+        ctypes.set_errno(0)
+        size = api.proc_pidinfo(pid, 13, 0, ctypes.byref(info), ctypes.sizeof(info))
+        if size == 0 and ctypes.get_errno() == errno.ESRCH:
+            continue  # Exited between enumeration and inspection.
+        if size != ctypes.sizeof(info) or info.pid != pid:
+            raise _snapshot_error('proc_pidinfo', pid=pid, error=ctypes.get_errno())
+        kernel = ctypes.create_string_buffer(1024)
+        try:
+            size = _sysctl(api, (1, 14, 1, pid), kernel)  # KERN_PROC_PID
+        except OSError as error:
+            if error.errno == errno.ESRCH:
+                continue
+            raise
+        if size == 0:
+            continue  # KERN_PROC_PID also represents an exited PID as no rows.
+        if size < ctypes.sizeof(_KInfoPrefix):
+            raise _snapshot_error('kernel-size', mib=(1, 14, 1, pid), pid=pid)
+        prefix = _KInfoPrefix.from_buffer_copy(kernel)
+        if prefix.pid != pid:
+            raise _snapshot_error('kernel-pid', mib=(1, 14, 1, pid), pid=pid)
+        try:
+            stamp = time.localtime(prefix.seconds)
+        except (ValueError, OverflowError, OSError) as error:
+            raise _snapshot_error('kernel-start-time', mib=(1, 14, 1, pid), pid=pid,
+                                  error=getattr(error, 'errno', 0)) from error
+        started = ('Mon Tue Wed Thu Fri Sat Sun'.split()[stamp.tm_wday] + ' ' +
+                   'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()[stamp.tm_mon - 1] +
+                   f' {stamp.tm_mday} {stamp.tm_hour:02}:{stamp.tm_min:02}:{stamp.tm_sec:02} {stamp.tm_year}')
+        rows[pid] = {'pid': pid, 'ppid': info.ppid, 'pgid': info.pgid,
+                     'started': started, 'command': _darwin_command(api, info, argmax.value)}
+    if os.getpid() not in rows:
+        raise _snapshot_error('self-missing', pid=os.getpid())
+    return rows
+
+
+def snapshot():
+    return _darwin_snapshot() if sys.platform == 'darwin' else _ps_snapshot()
 
 
 def same_process(left, right):

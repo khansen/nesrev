@@ -140,7 +140,10 @@ def data_rows(model,record_id):
 
 
 def decode(model,record_id,decoder,byte_offset=0,byte_count=256):
-    require(decoder in ('bytes','words_le') and type(byte_offset) is int and byte_offset>=0
+    if decoder not in DECODERS:
+        from .operation_contract import RequestError
+        raise RequestError('EVIDENCE_REQUEST_INVALID',field='decoder',accepted_values=list(DECODERS))
+    require(type(byte_offset) is int and byte_offset>=0
             and type(byte_count) is int and 0<byte_count<=4096,'EVIDENCE_REQUEST_INVALID')
     operands=data_rows(model,record_id);start=operands[0]['output_offset']
     end=operands[-1]['output_offset']+operands[-1]['byte_length']
@@ -195,14 +198,20 @@ def expression(model,record_id):
     return rows
 
 
+VIEW_ARGUMENTS={
+    'ram':((),('address','record_id')), 'outgoing':(('record_id',),()),
+    'data':(('record_id',),()), 'decode':(('record_id','decoder'),('byte_offset','byte_count')),
+    'scopes':((),('record_id',)), 'units':((),()), 'expression':(('record_id',),())}
+VIEWS=tuple(VIEW_ARGUMENTS)
+DECODERS=('bytes','words_le')
+
+
 def query(model,view,offset=0,limit=40,**args):
+    from .operation_contract import check, RequestError
     functions={'ram':memory,'outgoing':outgoing,'data':data_rows,'decode':decode,'scopes':scopes,'units':units,'expression':expression}
-    require(view in functions,'EVIDENCE_REQUEST_INVALID')
-    allowed={'ram':{'address','record_id'},'outgoing':{'record_id'},'data':{'record_id'},
-             'decode':{'record_id','decoder','byte_offset','byte_count'},'scopes':{'record_id'},'units':set(),'expression':{'record_id'}}
-    require(set(args)<=allowed[view],'EVIDENCE_REQUEST_INVALID')
-    required={'outgoing':{'record_id'},'data':{'record_id'},'decode':{'record_id','decoder'},'expression':{'record_id'}}
-    require(required.get(view,set())<=set(args),'EVIDENCE_REQUEST_INVALID')
+    if view not in VIEW_ARGUMENTS:
+        raise RequestError('EVIDENCE_REQUEST_INVALID',field='view',accepted_values=list(VIEWS))
+    check(args,VIEW_ARGUMENTS[view],code='EVIDENCE_REQUEST_INVALID',path='evidence.'+view)
     rows=functions[view](model,**args)
     result=page(rows,offset,limit)
     if view=='ram':result['category_counts']=dict(Counter(row['category'] for row in rows))

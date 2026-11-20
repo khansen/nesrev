@@ -9,7 +9,8 @@ NAMES = ('AGENTS.md',) + tuple('agent_playbook/' + name + '.md' for name in
 
 def read(editor, name, generation=None):
     if name not in NAMES:
-        raise ValueError('REQUEST_SCHEMA')
+        from .operation_contract import RequestError
+        raise RequestError(field='name',accepted_values=list(NAMES))
     from . import declared_inputs
     selected = generation or editor.state.get('pass_start_generation', editor.state['current'])
     model = editor.model(selected)

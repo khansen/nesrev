@@ -77,7 +77,7 @@ def prepare(repo, output, selection, executable, store):
     model,certificate=certify(checkout/source,root/'capture',checkout/reference)
     input_hash = None
     if 'declared_inputs' in selection:
-        input_hash = declared_inputs.admit(repo, slug, base, selection['declared_inputs'], root/'capture', selection.get('analogue_models', []))
+        input_hash = declared_inputs.admit(repo, slug, base, selection['declared_inputs'], root/'capture', selection.get('analogue_models', []), selection.get('authored_paths', []))
     common.write_json(root/'baseline.json',{'checks':checks,'producer_sha256':producer.sha(producer.EXE)})
     profile={'schema':'current-project-profile-v2','verification_policy':policy,'slug':slug,'source':source,'reference':reference,
         'source_sha256':digest(model.source),'base_commit':base,'baseline_path':str(root/'baseline.json'),

@@ -13,6 +13,7 @@ from pathlib import Path
 
 from . import authored_documents as authored, guidance, ownership, review_pages
 from .evidence_views import identity
+from . import operation_contract as contract
 
 ERRORS = frozenset(('SEARCH_SCHEMA', 'SEARCH_INPUT_UNKNOWN', 'SEARCH_INPUT_UNAVAILABLE',
     'SEARCH_CONTINUATION_INVALID', 'SEARCH_ITEM_TOO_LARGE'))
@@ -23,6 +24,14 @@ MODES = frozenset(name + '_MODE' for name in ('IMPLIED', 'ACCUMULATOR', 'IMMEDIA
     'ZEROPAGE', 'ZEROPAGE_X', 'ZEROPAGE_Y', 'ABSOLUTE', 'ABSOLUTE_X', 'ABSOLUTE_Y',
     'RELATIVE', 'INDIRECT', 'PREINDEXED_INDIRECT', 'POSTINDEXED_INDIRECT'))
 SHAPES = frozenset(('none', 'literal', 'bound', 'compound'))
+QUERY_SCHEMAS={
+    'catalogue':(('kind',),('kinds',)),
+    'instructions':(('kind','alternatives'),('context','owner_id')),
+    'text':(('kind','inputs'),('terms','prefixes','ignore_case','whole_token','context'))}
+CONTEXT_SCHEMA=((),('before','after'))
+PREDICATE_SCHEMA=((),('mnemonics','modes','operand','shapes','values','ranges'))
+OPERANDS=('immediate','non_immediate','none')
+INPUT_KINDS=('document','guidance')
 WORD = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@')
 SLICE = 512
 TOOL_HELP = (' Search is read-only for either role. arguments: {generation, query, '
@@ -66,8 +75,7 @@ def require(ok, code='SEARCH_SCHEMA'):
 
 
 def keys(value, required=(), optional=()):
-    require(isinstance(value, dict) and set(required) <= set(value)
-            and set(value) <= set(required) | set(optional))
+    contract.check(value,(required,optional),code='SEARCH_SCHEMA',path='query')
 
 
 def packed(value):
@@ -89,19 +97,20 @@ def integer(value):
 
 
 def context(value):
-    keys(value, (), ('before', 'after'))
+    keys(value, *CONTEXT_SCHEMA)
     require(all(type(n) is int and 0 <= n <= 10 for n in value.values()))
     return value.get('before', 0), value.get('after', 0)
 
 
 def predicate(value):
-    keys(value, (), ('mnemonics', 'modes', 'operand', 'shapes', 'values', 'ranges'))
+    keys(value, *PREDICATE_SCHEMA)
     require(bool(value))
     for key, allowed in (('mnemonics', MNEMONICS), ('modes', MODES), ('shapes', SHAPES)):
         if key in value:
             choices(value[key], allowed, 16)
     if 'operand' in value:
-        require(value['operand'] in ('immediate', 'non_immediate', 'none'))
+        if value['operand'] not in OPERANDS:
+            raise contract.RequestError('SEARCH_SCHEMA',field='query.alternatives[][].operand',accepted_values=list(OPERANDS))
     if 'values' in value:
         rows = value['values']
         require(isinstance(rows, list) and 1 <= len(rows) <= 32 and all(map(integer, rows))
@@ -156,7 +165,7 @@ def contiguous(model, left, right):
 
 
 def instruction_rows(model, query):
-    keys(query, ('kind', 'alternatives'), ('context', 'owner_id'))
+    keys(query, *QUERY_SCHEMAS['instructions'])
     alternatives = query['alternatives']
     require(isinstance(alternatives, list) and 1 <= len(alternatives) <= 8)
     for sequence in alternatives:
@@ -291,7 +300,7 @@ def occurrences(line, term, insensitive, whole, prefix, folded=None):
 
 
 def text_rows(items, query):
-    keys(query, ('kind', 'inputs'), ('terms', 'prefixes', 'ignore_case', 'whole_token', 'context'))
+    keys(query, *QUERY_SCHEMAS['text'])
     requested = query['inputs']
     require(isinstance(requested, list) and 1 <= len(requested) <= 32
             and all(isinstance(i, str) for i in requested) and len(set(requested)) == len(requested))
@@ -396,9 +405,9 @@ def execute(editor, generation, query, continuation=None, limit=40, *, public_ge
     elif kind in ('catalogue', 'text'):
         items = input_catalogue(editor, generation)
         if kind == 'catalogue':
-            keys(query, ('kind',), ('kinds',))
+            keys(query, *QUERY_SCHEMAS['catalogue'])
             kinds = query.get('kinds', ['document', 'guidance'])
-            choices(kinds, ('document', 'guidance'), 2)
+            choices(kinds, INPUT_KINDS, 2)
             rows = [r for r, _ in items if r['kind'] in kinds]
             metadata = {'total_inputs': len(rows)}
             inputs = rows
@@ -406,6 +415,6 @@ def execute(editor, generation, query, continuation=None, limit=40, *, public_ge
             rows, metadata = text_rows(items, query)
             inputs = metadata['selected_inputs']
     else:
-        raise ValueError('SEARCH_SCHEMA')
+        raise contract.RequestError('SEARCH_SCHEMA',field='query.kind',accepted_values=list(QUERY_SCHEMAS))
     binding = digest({'generation': generation_name, 'query': query, 'inputs': inputs})
     return page(rows, {'generation': generation_name, 'kind': kind, **metadata}, binding, continuation, limit)

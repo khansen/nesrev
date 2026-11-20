@@ -8,22 +8,76 @@ import re
 
 from .model import digest, translated
 from .producer import require, CONTEXTS, DECLS
+from . import edit_contract as contract
 
-KINDS = frozenset(('declare', 'replace_expression', 'delete_declaration',
-                   'localize', 'reflow_data', 'unit_replace', 'comment_insert'))
+OPERATION_SCHEMAS = {
+    'declare': contract.fields('kind reason anchor_id preimage name declaration_kind',
+        when=[{'field':'declaration_kind','equals':'equ','required':['expression']}]),
+    'replace_expression': contract.fields('kind reason expression_id preimage expression'),
+    'delete_declaration': contract.fields('kind reason declaration_id preimage'),
+    'localize': contract.fields('kind reason declaration_id preimage scope_id new_name'),
+    'reflow_data': contract.fields('kind reason record_ids preimages groups',
+        'boundaries formats continuation_indent'),
+    'unit_replace': contract.fields('kind reason unit_id preimage text'),
+    'comment_insert': contract.fields('kind reason anchor_id preimage text', 'position'),
+}
+KINDS = frozenset(OPERATION_SCHEMAS)
+EXPRESSION_SHAPES = (
+    contract.fields('integer', 'format'), contract.fields('declaration_id'),
+    contract.fields('operator operands'))
+BOUNDARY_SHAPE = contract.fields('operand_id name', 'header')
+FORMATS = ('decimal','hex','binary')
+DECLARATION_KINDS = ('equ','label')
+POSITIONS = ('header','inline')
+UNARY = ('-','~','<','>')
+BINARY = ('+','-','*','/','%','<<','>>','&','|','^')
+REFERENCE_TYPES = {'source_edit_fields': {
+    'reason': {'authored':'nonempty rationale, at most 2000 characters'},
+    'anchor_id': {'source':'navigate.records[].record_id; statement or declaration boundary'},
+    'declaration_id': {'source':'navigate.records[].record_id for a declaration'},
+    'scope_id': {'source':'navigate.records[].record_id for the owning global declaration'},
+    'expression_id': {'source':'navigate.records[].expressions[].record_id and recursive children; inspect with evidence(view=expression)'},
+    'unit_id': {'source':'evidence(view=units).records[].unit_id'},
+    'preimage': {'source':'navigate.records[].preimage_sha256 for statements; evidence(view=expression|units).records[].preimage for expressions or units'},
+    'name': {'authored':'new identifier matching [A-Za-z_][A-Za-z0-9_]*'},
+    'new_name': {'authored':'local identifier matching @@[a-z][A-Za-z0-9]*'},
+    'declaration_kind': {'enum':DECLARATION_KINDS},
+    'expression': {'type':'source_expression'},
+    'text': {'authored':'at most 4096 UTF-8 bytes; comment_insert starts with ; and has no CR/LF/NUL; unit_replace preserves the selected trivia kind'},
+    'position': {'enum':POSITIONS,'default':'header'},
+    'record_ids': {'source':'navigate.records[].record_id for consecutive same-width data records; 1..128 unique IDs in source order'},
+    'preimages': {'source':'the corresponding records preimage_sha256 values, in record_ids order'},
+    'groups': {'source':'data operand record IDs from evidence(view=data); nonempty arrays preserving the exact original operand order'},
+    'boundaries': {'type':'array of source_boundary'},
+    'formats': {'type':'object keyed by operand record ID','values':FORMATS},
+    'continuation_indent': {'authored':'0..16 spaces or tabs'}},
+    'source_expression': {'one_of':EXPRESSION_SHAPES,'maximum_depth':31,
+        'integer':{'authored':'signed 32-bit integer'},'format':{'enum':FORMATS,'default':'decimal','negative':'decimal only'},
+        'declaration_id':{'source':'bound declaration record ID, or new:<name> declared in this same batch'},
+        'operator':{'unary':UNARY,'binary':BINARY},'operands':{'type':'array of source_expression','length':'1 for unary, 2 for binary'}},
+    'source_boundary': {**BOUNDARY_SHAPE,
+        'operand_id':{'source':'first operand ID of a reflow group'},
+        'name':{'authored':'new global identifier'},
+        'header':{'authored':'array of at most 16 semicolon comment lines, 4096 bytes total, no CR/LF/NUL within lines'}}}
+for _spec in OPERATION_SCHEMAS.values():
+    _spec['fields'] = 'source_edit_fields'
 ERRORS = frozenset(('SOURCE_EDIT_SCHEMA', 'SOURCE_EDIT_PREIMAGE', 'SOURCE_EDIT_BOUNDARY',
     'SOURCE_EDIT_BINDING', 'SOURCE_EDIT_LAYOUT', 'SOURCE_EDIT_IDENTITY',
     'SOURCE_EDIT_SCOPE', 'SOURCE_EDIT_LIVE_DECLARATION', 'SOURCE_EDIT_OVERLAP','SOURCE_EDIT_EXPRESSION'))
 
 
-def shape(op, fields):
-    require(set(op)==set(fields.split())|{'kind','reason'}, 'SOURCE_EDIT_SCHEMA')
-    require(isinstance(op['reason'],str) and 0<len(op['reason'].strip())<=2000, 'SOURCE_EDIT_SCHEMA')
+def shape(op):
+    contract.check(op, OPERATION_SCHEMAS[op['kind']], 'SOURCE_EDIT_SCHEMA')
+    field_value(isinstance(op['reason'],str) and 0<len(op['reason'].strip())<=2000, 'reason')
+
+
+def field_value(condition, field, type_name='source_edit_fields', code='SOURCE_EDIT_SCHEMA'):
+    contract.value(condition, 'operations[].'+field, REFERENCE_TYPES[type_name][field], code)
 
 
 def selected(model, ident, preimage):
     n=model.node(ident); lo,hi=model.ranges[n]
-    require(digest(model.source[lo:hi])==preimage, 'SOURCE_EDIT_PREIMAGE')
+    field_value(digest(model.source[lo:hi])==preimage, 'preimage', code='SOURCE_EDIT_PREIMAGE')
     return n
 
 
@@ -66,7 +120,7 @@ def boundary_header(boundary):
 def operand_spelling(model,node,format_,width):
     if format_ is None:
         return model.source[slice(*model.ranges[node])]
-    require(format_ in ('decimal','hex','binary'),'SOURCE_EDIT_SCHEMA')
+    contract.value(format_ in FORMATS,'formats[]',{'enum':FORMATS},'SOURCE_EDIT_SCHEMA')
     expression=model.expression_records[node]
     require(expression['kind']=='integer' and not expression['children'] and
             type(expression['value']) is int and 0<=expression['value']<1<<(8*width),
@@ -79,14 +133,16 @@ def operand_spelling(model,node,format_,width):
 
 def typed_expression(model, value, additions, depth=0):
     require(depth<32 and isinstance(value,dict), 'SOURCE_EDIT_SCHEMA')
-    if set(value) in ({'integer'},{'integer','format'}):
-        v=value['integer'];require(type(v) is int and -(2**31)<=v<2**31,'SOURCE_EDIT_SCHEMA')
+    if 'integer' in value:
+        contract.check(value, EXPRESSION_SHAPES[0], 'SOURCE_EDIT_SCHEMA', path='expression')
+        v=value['integer'];field_value(type(v) is int and -(2**31)<=v<2**31,'integer','source_expression')
         format_=value.get('format','decimal')
-        require(format_ in ('decimal','hex','binary') and (v>=0 or format_=='decimal'),'SOURCE_EDIT_SCHEMA')
+        field_value(format_ in FORMATS and (v>=0 or format_=='decimal'),'format','source_expression')
         if format_=='hex':return ('$'+format(v,'X')).encode(), []
         if format_=='binary':return ('%'+format(v,'b')).encode(), []
         return str(v).encode(), []
-    if set(value)=={'declaration_id'}:
+    if 'declaration_id' in value:
+        contract.check(value, EXPRESSION_SHAPES[1], 'SOURCE_EDIT_SCHEMA', path='expression')
         ident=value['declaration_id']
         if ident in additions:name=additions[ident]
         else:
@@ -94,10 +150,12 @@ def typed_expression(model, value, additions, depth=0):
             name=model.name(n)
             require(model.declaration_records[n]['kind'] in ('global','equ','local'),'SOURCE_EDIT_BINDING')
         return name.encode(), [ident]
-    if set(value)=={'operator','operands'}:
+    if 'operator' in value:
+        contract.check(value, EXPRESSION_SHAPES[2], 'SOURCE_EDIT_SCHEMA', path='expression')
         op=value['operator']; args=value['operands']
-        require(isinstance(args,list) and (op in ('-','~','<','>') and len(args)==1
-                or op in ('+','-','*','/','%','<<','>>','&','|','^') and len(args)==2), 'SOURCE_EDIT_SCHEMA')
+        contract.value(isinstance(args,list) and (op in UNARY and len(args)==1
+                or op in BINARY and len(args)==2), 'expression.operator/operands',
+                {k:REFERENCE_TYPES['source_expression'][k] for k in ('operator','operands')}, 'SOURCE_EDIT_SCHEMA')
         parts=[typed_expression(model,a,additions,depth+1) for a in args]
         right=(parts[1][0] if len(args)==2 and set(args[1])=={'integer'} and args[1]['integer']>=0 else
                b'('+parts[1][0]+b')' if len(args)==2 else b'')
@@ -112,7 +170,7 @@ def localization_scopes(model, operations):
     requests={}
     for op in operations:
         if op['kind']!='localize':continue
-        shape(op,'declaration_id preimage scope_id new_name')
+        shape(op)
         n=selected(model,op['declaration_id'],op['preimage']);owner=model.node(op['scope_id'])
         require(model.declaration_records.get(n,{}).get('kind')=='global'
                 and model.declaration_records.get(owner,{}).get('kind')=='global'
@@ -149,8 +207,7 @@ def plan(model, operations):
         if op['kind']=='reflow_data' and 'boundaries' in op:
             require(isinstance(op['boundaries'],list),'SOURCE_EDIT_SCHEMA')
             for boundary in op['boundaries']:
-                require(isinstance(boundary,dict) and set(boundary) in
-                        ({'operand_id','name'},{'operand_id','name','header'}),'SOURCE_EDIT_SCHEMA')
+                contract.check(boundary, BOUNDARY_SHAPE, 'SOURCE_EDIT_SCHEMA', path='boundaries[]')
                 boundary_header(boundary)
                 names.append(boundary['name'])
         for name in names:
@@ -164,12 +221,10 @@ def plan(model, operations):
     for op in sorted(ops,key=lambda op:op['kind']=='reflow_data'):
         kind=op['kind']
         if kind=='declare':
-            fields='anchor_id preimage name declaration_kind'
-            if op.get('declaration_kind')=='equ':fields+=' expression'
-            shape(op,fields)
+            shape(op)
             n=selected(model,op['anchor_id'],op['preimage'])
             require(model.facts[n]['kind'] in CONTEXTS|{'LABEL_NODE','LOCAL_LABEL_NODE','END_NODE'},'SOURCE_EDIT_BOUNDARY')
-            require(op['declaration_kind'] in ('equ','label'),'SOURCE_EDIT_SCHEMA')
+            field_value(op['declaration_kind'] in DECLARATION_KINDS,'declaration_kind')
             lo=declaration_anchor(model,n)
             refs=[]
             if op['declaration_kind']=='equ':
@@ -178,14 +233,14 @@ def plan(model, operations):
             else:text=op['name'].encode()+b':\n'
             insertions.setdefault(lo,[]).append(text);intents.append(('declare',op['name'],refs))
         elif kind=='replace_expression':
-            shape(op,'expression_id preimage expression')
+            shape(op)
             n=selected(model,op['expression_id'],op['preimage'])
             require(n in model.expression_records,'SOURCE_EDIT_BOUNDARY')
             text,refs=typed_expression(model,op['expression'],additions)
             edits.append((*model.ranges[n],text));replaced.update(descendants(model,n))
             intents.append(('expression',n,refs))
         elif kind=='delete_declaration':
-            shape(op,'declaration_id preimage')
+            shape(op)
             n=selected(model,op['declaration_id'],op['preimage'])
             require(n in model.declaration_records and model.declaration_records[n]['kind'] in ('equ','global','local'), 'SOURCE_EDIT_BOUNDARY')
             edit=(*model.ranges[n],b'');edits.append(edit);cleared.append(edit)
@@ -197,24 +252,24 @@ def plan(model, operations):
             edits.extend((*model.ranges[r],op['new_name'].encode()) for r in refs)
             localized.update([n,*refs]);intents.append(('localize',n,owner))
         elif kind=='unit_replace':
-            shape(op,'unit_id preimage text')
-            require(isinstance(op['unit_id'],str) and re.fullmatch('u[0-9]+',op['unit_id']), 'SOURCE_EDIT_SCHEMA')
+            shape(op)
+            field_value(isinstance(op['unit_id'],str) and re.fullmatch('u[0-9]+',op['unit_id']), 'unit_id')
             i=int(op['unit_id'][1:]);require(i<len(model.units),'SOURCE_EDIT_BOUNDARY')
             unit=model.units[i];text=op['text']
-            require(digest(bytes.fromhex(unit['hex']))==op['preimage'],'SOURCE_EDIT_PREIMAGE')
-            require(isinstance(text,str) and len(text.encode())<=4096,'SOURCE_EDIT_SCHEMA')
+            field_value(digest(bytes.fromhex(unit['hex']))==op['preimage'],'preimage', code='SOURCE_EDIT_PREIMAGE')
+            field_value(isinstance(text,str) and len(text.encode())<=4096,'text')
             require(unit['kind']=='comment' and (text=='' or text.startswith(';') and not any(c in text for c in '\r\n\x00'))
                     or unit['kind']=='whitespace' and all(c in ' \t' for c in text)
                     or unit['kind']=='newline' and all(c in ' \t\n' for c in text),'SOURCE_EDIT_BOUNDARY')
             edit=(unit['byte_start'],unit['byte_end_exclusive'],text.encode());edits.append(edit)
             if text=='':cleared.append(edit)
         elif kind=='comment_insert':
-            shape(op,'anchor_id preimage text'+(' position' if 'position' in op else ''))
+            shape(op)
             n=selected(model,op['anchor_id'],op['preimage']);lo,hi=model.ranges[n]
             require(model.facts[n]['kind'] in CONTEXTS|{'LABEL_NODE','LOCAL_LABEL_NODE','END_NODE'}, 'SOURCE_EDIT_BOUNDARY')
-            text=op['text'];require(isinstance(text,str) and text.startswith(';') and len(text.encode())<=4096
-                                  and not any(c in text for c in '\r\n\x00'),'SOURCE_EDIT_SCHEMA')
-            position=op.get('position','header');require(position in ('header','inline'),'SOURCE_EDIT_SCHEMA')
+            text=op['text'];field_value(isinstance(text,str) and text.startswith(';') and len(text.encode())<=4096
+                                  and not any(c in text for c in '\r\n\x00'),'text')
+            position=op.get('position','header');field_value(position in POSITIONS,'position')
             if position=='header':
                 require(lo==0 or model.source[lo-1:lo]==b'\n','SOURCE_EDIT_BOUNDARY')
                 edits.append((lo,lo,text.encode()+b'\n'))
@@ -223,11 +278,9 @@ def plan(model, operations):
                 require(tail.strip(b' \t')==b'','SOURCE_EDIT_BOUNDARY')
                 edits.append((hi,hi,b' '+text.encode()))
         elif kind=='reflow_data':
-            shape(op,'record_ids preimages groups'+(' boundaries' if 'boundaries' in op else '')+
-                  (' formats' if 'formats' in op else '')+
-                  (' continuation_indent' if 'continuation_indent' in op else ''))
+            shape(op)
             indent=op.get('continuation_indent','')
-            require(isinstance(indent,str) and len(indent)<=16 and all(c in ' \t' for c in indent),'SOURCE_EDIT_SCHEMA')
+            field_value(isinstance(indent,str) and len(indent)<=16 and all(c in ' \t' for c in indent),'continuation_indent')
             ids=op['record_ids'];groups=op['groups']
             require(isinstance(ids,list) and 1<=len(ids)<=128 and len(set(ids))==len(ids)
                     and isinstance(op['preimages'],list) and len(ids)==len(op['preimages'])
@@ -243,7 +296,7 @@ def plan(model, operations):
             require([i for g in groups for i in g]==[model.ids[n] for n in operands],'SOURCE_EDIT_IDENTITY')
             formats=op.get('formats',{})
             require(isinstance(formats,dict) and set(formats)<={model.ids[n] for n in operands}
-                    and all(isinstance(f,str) and f in ('decimal','hex','binary') for f in formats.values()),
+                    and all(isinstance(f,str) and f in FORMATS for f in formats.values()),
                     'SOURCE_EDIT_SCHEMA')
             locs=[model.locations[n] for n in nodes]
             require(len({l['segment_id'] for l in locs})==1 and all(a['output_offset']+a['length']==b['output_offset']

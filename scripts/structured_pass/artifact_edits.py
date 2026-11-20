@@ -12,8 +12,13 @@ import raw_ram_review
 from . import authored_documents as documents
 from .model import digest
 from .producer import require
+from . import edit_contract as contract
 
-KINDS=frozenset(('extent_rows','blob_rows','warning_baseline','raw_ram_judgments'))
+OPERATION_SCHEMAS={
+    kind:contract.fields('kind preimage reason '+('entries' if kind=='warning_baseline' else 'changes'),
+                         fields=kind+'_fields')
+    for kind in ('extent_rows','blob_rows','warning_baseline','raw_ram_judgments')}
+KINDS=frozenset(OPERATION_SCHEMAS)
 ERRORS=frozenset(('ARTIFACT_EDIT_SCHEMA','ARTIFACT_EDIT_PREIMAGE','ARTIFACT_ROW_DUPLICATE',
                  'ARTIFACT_ROW_INVALID','ARTIFACT_LAYOUT_UNSUPPORTED','RAW_RAM_REFRESH_UNSUPPORTED',
                  'RAW_RAM_JUDGMENT_CHANGED','WARNING_NOT_CURRENT','WARNING_RATIONALE_REQUIRED',
@@ -32,6 +37,38 @@ PATHS['raw_ram_judgments']=RAW_RAM_PATH
 FIELDS['raw_ram_judgments']=list(RAW_RAM_PROTECTED+RAW_RAM_GENERATED)
 RAW_RAM_AUTHORED=frozenset(('status','proposed_symbol','notes'))
 RAW_RAM_STATUSES=frozenset(('candidate','unreviewed','deferred','revisit','not_semantic_yet','symbolized'))
+ROW_CHANGE=contract.fields('key preimage row','before_key')
+JUDGMENT_CHANGE=contract.fields('key preimage fields')
+WARNING_ENTRY=contract.fields('declaration_id rationale')
+REFERENCE_TYPES={
+    'artifact_row_change':{**ROW_CHANGE,
+        'key':{'authored':'label identifying the row'},
+        'preimage':{'source':'evidence(view=artifact_rows).records[].row_preimage; null only for a new row'},
+        'row':{'type':'exact artifact row object, all values strings; null deletes existing row'},
+        'before_key':{'source':'existing label key to insert before; only for new non-null rows'}},
+    'raw_ram_change':{**JUDGMENT_CHANGE,
+        'key':{'source':'evidence(view=artifact_rows,artifact=raw_ram_judgments).records[].key'},
+        'preimage':{'source':'same selected record row_preimage'},
+        'fields':{'type':'nonempty object','allowed':sorted(RAW_RAM_AUTHORED),
+            'values':'authored strings, at most 2000 characters, no CR/LF/NUL',
+            'status':{'enum':sorted(RAW_RAM_STATUSES)},'constraint':'existing rows only; pass number is stamped by service'}},
+    'warning_entry':{**WARNING_ENTRY,
+        'declaration_id':{'source':'navigate(view=symbols).records[].record_id for the warned declaration; validation checks current diagnostics'},
+        'rationale':{'authored':'specific nonempty justification, at most 2000 characters, no pipe/CR/LF/NUL; generic retained/unused boilerplate is refused'}}}
+for _kind in KINDS:
+    REFERENCE_TYPES[_kind+'_fields']={
+        'preimage':{'source':'evidence(view=artifact_rows,artifact='+_kind+').preimage'},
+        'reason':{'authored':'nonempty rationale, at most 2000 characters'},
+        ('entries' if _kind=='warning_baseline' else 'changes'):{
+            'type':'array of '+('warning_entry' if _kind=='warning_baseline' else
+                'raw_ram_change' if _kind=='raw_ram_judgments' else 'artifact_row_change'),
+            'maxItems':MAX_WARNING_ENTRIES if _kind=='warning_baseline' else 256}}
+    if _kind in ('extent_rows','blob_rows'):
+        REFERENCE_TYPES[_kind+'_fields']['row']={
+            'required':FIELDS[_kind],'optional':[],
+            'values':'authored strings, at most 2000 characters, no CR/LF/NUL',
+            'constraint':'label equals change.key; extent expected_size is a positive decimal string and reason is nonempty'}
+    OPERATION_SCHEMAS[_kind]['constraint']='At most one operation of this kind in a batch.'
 
 
 def row_key(kind):return 'addr_hex' if kind=='raw_ram_judgments' else 'label'
@@ -84,8 +121,8 @@ def raw_ram_judgments(before,op,pass_id):
     require(isinstance(pass_id,str) and re.fullmatch('[0-9]+',pass_id) is not None,'ARTIFACT_EDIT_SCHEMA')
     rows=raw_ram_rows(before);indexed={r['addr_hex']:r for r in rows};seen=set()
     for change in op['changes']:
-        require(isinstance(change,dict) and set(change)=={'key','preimage','fields'}
-                and isinstance(change['key'],str),'ARTIFACT_EDIT_SCHEMA')
+        contract.check(change,JUDGMENT_CHANGE,'ARTIFACT_EDIT_SCHEMA',path='changes[]')
+        require(isinstance(change['key'],str),'ARTIFACT_EDIT_SCHEMA')
         key=change['key'];require(key not in seen,'ARTIFACT_ROW_DUPLICATE');seen.add(key)
         require(key in indexed,'ARTIFACT_ROW_INVALID')
         row=indexed[key];require(row_hash(row)==change['preimage'],'ARTIFACT_EDIT_PREIMAGE')
@@ -135,7 +172,8 @@ def operations(ops):
     for op in selected:
         field='entries' if op['kind']=='warning_baseline' else 'changes'
         limit=MAX_WARNING_ENTRIES if field=='entries' else 256
-        require(set(op)=={'kind','preimage','reason',field} and isinstance(op['reason'],str)
+        contract.check(op,OPERATION_SCHEMAS[op['kind']],'ARTIFACT_EDIT_SCHEMA')
+        require(isinstance(op['reason'],str)
                 and 0<len(op['reason'].strip())<=2000 and isinstance(op[field],list) and len(op[field])<=limit,'ARTIFACT_EDIT_SCHEMA')
         if field=='entries':
             require(len(json.dumps(op[field],ensure_ascii=False,separators=(',',':')).encode())<=MAX_WARNING_BYTES,
@@ -262,8 +300,8 @@ def prepare(checkout,manifest,ops,project,document_changes=(),*,pass_id=None):
             require(not op['entries'] or not header or header.endswith((b'\n',b'\r')),'WARNING_LAYOUT_UNSUPPORTED')
             # The fresh diagnostic set is available only after certification.
             for row in op['entries']:
-                require(isinstance(row,dict) and set(row)=={'declaration_id','rationale'}
-                        and isinstance(row['declaration_id'],str),'ARTIFACT_EDIT_SCHEMA')
+                contract.check(row,WARNING_ENTRY,'ARTIFACT_EDIT_SCHEMA',path='entries[]')
+                require(isinstance(row['declaration_id'],str),'ARTIFACT_EDIT_SCHEMA')
                 reason=row['rationale']
                 require(isinstance(reason,str) and 0<len(reason.strip())<=2000 and not any(c in reason for c in '|\r\n\x00')
                         and reason.strip().lower() not in ('unused','retained','intentional','baseline',
@@ -271,8 +309,8 @@ def prepare(checkout,manifest,ops,project,document_changes=(),*,pass_id=None):
             result.append({'path':path,'before':before,'after':None,'op':op});continue
         rows=read_rows(before,op['kind']);seen=set();base_keys={row['label'] for row in rows};anchors=set()
         for change in op['changes']:
-            require(isinstance(change,dict) and set(change) in ({'key','preimage','row'},{'key','preimage','row','before_key'})
-                    and isinstance(change['key'],str),'ARTIFACT_EDIT_SCHEMA')
+            contract.check(change,ROW_CHANGE,'ARTIFACT_EDIT_SCHEMA',path='changes[]')
+            require(isinstance(change['key'],str),'ARTIFACT_EDIT_SCHEMA')
             key=change['key'];require(key not in seen,'ARTIFACT_ROW_DUPLICATE');seen.add(key)
             matches=[i for i,row in enumerate(rows) if row['label']==key]
             old=rows[matches[0]] if matches else None
