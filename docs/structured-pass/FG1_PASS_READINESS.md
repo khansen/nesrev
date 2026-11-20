@@ -1,6 +1,9 @@
 # FG-1: final pass-readiness proposal
 
-19 November 2026. **Proposed; execution is not authorized by this document.**
+19 November 2026. **Offline implementation authorized within the bounds below;
+live inference still requires a separate authorization.**
+The [early checkpoint](FG1_READINESS_CHECKPOINT.md) records completed identity
+tests and preparation, and the layout-probe stop before native captures.
 [PR #197](https://github.com/khansen/nesrev/pull/197) merged the accepted launcher
 as `3fb9cd72a`, with both CI jobs passing on reviewed head `4c511b637`.
 The [admission record](FG1_LAUNCHER_ACCEPTANCE.md) and
@@ -19,11 +22,12 @@ coordinator content repairs. It does not mean finishing the game.
 
 This slice is offline preparation and narrowly required readiness fixes.
 It covers the admitted corridor and `source-v2` retained-review profiles.
-It does not perform semantic work on the owner's project, rebase `projects`,
-apply to that checkout, acquire inputs, log in or call a provider. A requested
-`projects` rebase is a separate owner decision; freeze and prepare the intended
-starting commit afterwards. No live launch may use a preparation for a different
-starting state.
+It does not perform semantic work on the owner's project, apply to that checkout,
+acquire inputs, log in or call a provider. The owner separately authorized rebasing
+`projects` onto the launcher merge before layout measurement, preserving working
+files and existing stashes with an archive tag. Freeze the resulting starting
+commit; no live launch may use preparation for a different state. The private
+case record governs the exact corridor when its short descriptions vary.
 
 | Alternative | Effect |
 | --- | --- |
@@ -59,6 +63,11 @@ Resolve required identities from authorized, generation-bound results, without
 guessing counters, pooling both roles' transcripts or treating a field's mere
 presence somewhere in the service as reachability.
 
+The owner authorized adding the published candidate's `cid`, `revision` and
+latest `attempt` to an existing reviewer result, bound to the generation under
+review. This is the specific exception to the access-change stop below; it does
+not authorize new operations or exposing unpublished candidates.
+
 Extend the existing [contract lifecycle test](../../tests/structured_pass_contract_test.py)
 with separate role histories. Cover a revised candidate and more than one
 validation attempt, then rework and rereview. Fetch the intended report both
@@ -80,7 +89,7 @@ If any offered declaration changes, capture what both pinned clients receive,
 compare every description and schema byte, and update the Codex native pin and
 all affected service declarations together. Use the existing four-phase loopback
 recipe through the real watcher, including hook-off, pair review and same-thread
-resume. Proposed native allowance: **at most four credential-free loopback
+resume. Authorized native allowance: **at most four credential-free loopback
 invocations, no provider calls**, with the recipe's existing limits. Unit and
 synthetic-client tests remain offline. A failed native rehearsal stops this
 allowance; no automatic replacement invocation.
@@ -99,11 +108,13 @@ Both role assemblies must carry the same declared inputs, current authorized
 scope and historical-evidence labeling. Retain operator selection and analogue
 choice as manual steps.
 
-Measure preparation and first-use initialization on the actual intended directory
-layout before sealing: the handoff Git exclude block, store/session files,
-watcher state and isolated client/profile paths. A rehearsal on a shadow copy
-alone does not establish these changes. Derive expected mutations from observed
-behavior, with bounded path/content rules; unknown writes must still stop.
+Measure preparation and first-use initialization on a faithful copy of the
+intended layout, including Git metadata, before sealing: the handoff Git exclude
+block, store/session files, watcher state and isolated client/profile paths.
+Retain the observed before/after diff and use it to derive expected mutations,
+with bounded path/content rules; unknown writes must still stop. The prior
+rehearsal did make the exclude append; the mistake was omitting that observation
+from the expected-change list, not using a copy.
 Keep rehearsal history separate from fresh live identities and budgets. Preserve
 the original measurement rather than rewriting expectations after a live run.
 
@@ -123,7 +134,8 @@ At two active hours, return the role-specific identity map, an unequal
 round/sequence witness, the required code/declaration changes, preparation status
 and layout observations obtained so far, plus a revised remaining estimate.
 Continue only within the approved scope and bound. Stop and report if the
-needed fix changes protocol semantics or access, needs a new service operation,
+needed fix changes protocol semantics or access beyond the specifically
+authorized published-candidate metadata, needs a new service operation,
 worker, scheduler or transaction framework, or reveals a new admission failure.
 Missing pins, an unexpected write, a failed native rehearsal, required runtime
 evidence/policy writing, a repeated failure class or exhaustion of the allowance
