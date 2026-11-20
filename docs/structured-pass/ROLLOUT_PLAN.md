@@ -73,10 +73,13 @@ is complete; this does not complete step 3 of this broader rollout. The
 evidence and coordination cost. The launcher merged in
 [PR #197](https://github.com/khansen/nesrev/pull/197) after review and green Linux
 and macOS CI. The authorized [final readiness check](FG1_PASS_READINESS.md)
-now has an [offline result and complete pass matrix](FG1_READINESS_RESULT.md),
-pending final review and CI. Next is separate authorization for one unscripted
-pass after fresh preparation and admission-transition review. No inference saving
-or completed game pass is claimed.
+has an [offline result and complete pass matrix](FG1_READINESS_RESULT.md), merged
+in PR #198 after review and green CI. The first authorized unscripted attempt
+stopped before a candidate or application. The proposed
+[offline correction](FG1_OFFLINE_CORRECTION.md) covers argument discovery,
+actionable refusals and a positive write-rule control through the actual wrapper.
+Another attempt needs reviewed corrections, fresh preparation and a new grant.
+No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.
 The conditional estimate does not select policy or runtime additions, or authorize
