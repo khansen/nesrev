@@ -75,9 +75,10 @@ evidence and coordination cost. The launcher merged in
 and macOS CI. The authorized [final readiness check](FG1_PASS_READINESS.md)
 has an [offline result and complete pass matrix](FG1_READINESS_RESULT.md), merged
 in PR #198 after review and green CI. The first authorized unscripted attempt
-stopped before a candidate or application. The proposed
-[offline correction](FG1_OFFLINE_CORRECTION.md) covers argument discovery,
-actionable refusals and a positive write-rule control through the actual wrapper.
+stopped before a candidate or application. The
+[offline correction](FG1_OFFLINE_CORRECTION_RESULT.md) now demonstrates argument
+discovery, actionable refusals and the actual wrapper through synthetic
+application. Final code review and CI remain pending.
 Another attempt needs reviewed corrections, fresh preparation and a new grant.
 No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records

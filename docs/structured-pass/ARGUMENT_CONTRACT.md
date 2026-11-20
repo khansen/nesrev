@@ -1,10 +1,10 @@
 # Client-visible operation arguments
 
-Current status: the [r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md) used the 19 November
-contract successfully. The [readiness result](FG1_READINESS_RESULT.md) adds
-role-local published-candidate sources, a multi-round witness and new captured
-declaration pins. Those changes have offline evidence; r5 is not relabelled as
-live admission of the new pin. The dated records below preserve earlier limits.
+Current status: the [offline correction](FG1_OFFLINE_CORRECTION.md) adds a
+captured operation reference and explicit recovery classes. Its changed
+declarations have loopback evidence only. The [r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md)
+and [readiness result](FG1_READINESS_RESULT.md) retain their original claims;
+the dated records below preserve earlier limits.
 
 18 November 2026. A live admission attempt stopped at `validate`: the client
 sent a `candidate` field taken from the preceding response, while dispatch
@@ -22,13 +22,15 @@ paths enforce the same tables now used to generate the declaration. Each
 offered operation lists required and optional keys. The image variant of
 `input` uses its own enforced no-pagination schema.
 
-This describes outer argument keys, not a new validation engine. Existing
-value checks, nested query/edit schemas, role checks, generation checks and
-quality gates still apply. `confirm` still returns `candidate`, while
+The declaration describes outer argument keys. The fixed `operation-reference`
+input supplies value constraints and nested query/edit schemas generated from
+their enforcing owners. Role, generation and quality gates still apply.
+`confirm` still returns `candidate`, while
 `validate` and `publish` still accept `cid`; this change does not rename the
 protocol. Unknown keys remain errors. Known-operation `REQUEST_SCHEMA` results
-also return the expected keys from these tables; they remain non-retryable and
-do not override a run's no-retry instruction.
+also return the expected keys from these tables. `error_class`, rather than
+the legacy `retryable` flag, decides whether the caller can correct the request.
+No error class authorizes a replacement client invocation.
 
 The generated contract lives in the tool declaration's
 `inputSchema.properties.arguments.description`. The top-level description
@@ -36,6 +38,43 @@ points to it. This placement is necessary on the pinned Claude client: the
 first offline capture truncated a 4,836-character top-level description at
 4,096 characters, losing required contracts. The failed capture is retained.
 No live attempt was made with that format.
+
+## Value and edit discovery (20 November)
+
+New preparation with declared inputs captures `operation-reference` alongside
+the selected evidence. `inputs` advertises its fixed ID; paged `input` reads
+return its hash-checked bytes, including from restored captures. Existing
+sessions without that record need fresh preparation. No catalog, item or
+response limit is raised.
+
+Every required argument across the three offered profiles identifies an
+authored value, an enum, a role-local result source or a defined structured
+type. The reference includes all 18 edit kinds, conditional fields and nested
+types. Dispatch and the generated reference use the same owner field tables.
+Corridor guidance uses the declared `guidance-*` inputs; the redundant corridor
+`guidance` operation is withdrawn. Retained guidance still lists its accepted
+names. Review pages use each adjacent pair in
+`status.handoff.coverage.required_edges`, rather than treating a multi-publication
+pass as one edge.
+
+Refusals carry one of three classes:
+
+| Class | Rule | Next action |
+|---|---|---|
+| `correctable` | State is unchanged and a valid request can be built from delivered facts or a missing earlier step. | Correct the request within the current turn and budget. |
+| `transient` | A required lock is busy. | Wait and retry unchanged within the deadline. |
+| `terminal` | Access, integrity, provenance, tooling/configuration drift, internal failure or exhausted limits. | Stop and report. |
+
+Schema/value diagnostics identify a field and its expected keys, values or
+reference source without echoing submitted payloads. A response-size refusal
+is terminal unless the route offers a usable paging correction. Identical
+correctable refusals can be summarized as learning candidates from retained
+calls without retaining their argument values in that summary.
+
+The native Codex declaration pin is
+`450e64f25b89c9f4c33cdf9420c8f1e182e1ab17fbd031c21a202f855fcd63ff`.
+Both committed fixtures come from the pinned clients' actual loopback requests.
+Model comprehension and the next semantic pass remain unproven.
 
 ## Initial argument-key delivery (18 November)
 

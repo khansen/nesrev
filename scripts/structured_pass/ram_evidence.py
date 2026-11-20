@@ -52,7 +52,12 @@ def shared_id(model,generation,rows):
                                   separators=(',',':')).encode())
 
 
+VIEW_ARGUMENTS={'ram_shared':(('set_id',),()),'ram_compact':((),('address','record_id'))}
+
+
 def query(model,generation,view,offset=0,limit=40,**arguments):
+    from .operation_contract import check
+    if view in VIEW_ARGUMENTS:check(arguments,VIEW_ARGUMENTS[view],code='EVIDENCE_REQUEST_INVALID',path='evidence.'+view)
     shared=shared_rows(model);ident=shared_id(model,generation,shared)
     metadata={'generation':generation,'encoding':'ram-columnar-v2'}
     if view=='ram_shared':

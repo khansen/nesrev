@@ -1,8 +1,14 @@
 # FG-1: offline correction before another pass attempt
 
-20 November 2026. **Proposed for review and implementation authorization.**
-The owner has selected the client-home write policy below; that decision does
-not authorize implementation or another live attempt.
+20 November 2026. **Offline implementation authorized within the bounds below.**
+The owner approved implementation after review of the amended scope. The
+client-home write policy below is authorized; another live attempt is not.
+
+The [offline result](FG1_OFFLINE_CORRECTION_RESULT.md) now includes the complete
+native wrapper through application. The [early checkpoint](FG1_OFFLINE_CORRECTION_CHECKPOINT.md)
+and [continuation checkpoint](FG1_OFFLINE_CORRECTION_CONTINUATION.md) preserve the
+failed attempts and owner-authorized corrections. Code review, repository gates
+and both CI platforms precede merge; a live pass still requires a fresh grant.
 
 The [readiness work](FG1_READINESS_RESULT.md) merged in PR #198. The subsequent
 authorized unscripted attempt stopped after four facts calls, before any
@@ -24,7 +30,7 @@ path. It does not establish real-model understanding or semantic-pass success.
 
 **Estimate: 4–8 active hours; hard bound 8; checkpoint at 2 hours; one review
 round.** This is a judgment estimate, not a forecast from smoke usage. Record
-active work, execution and waits separately. Proposed native allowance is at
+active work, execution and waits separately. The original native allowance was at
 most **10 credential-free inference loopback invocations**, at most 300 seconds each,
 using only scripted responses on loopback and no provider calls. Failed
 invocations count. Budget five for a complete rework/approval/closeout recipe;
@@ -33,6 +39,11 @@ There are no automatic replacement attempts, and a repeated failure class stops
 for reassessment. Native pre-window `login status` commands perform no inference;
 they are recorded separately and excluded from the ten, but their execution
 counts toward the active-time bound. No account login is needed or authorized.
+
+The owner subsequently authorized the Darwin libproc/sysctl supervisor change
+and two specific fresh recipes, raising the total invocation ceiling first to
+14 and then to 16. The final result uses all 16, including failures; it grants
+no further invocation. The eight-hour bound and no-provider restriction remain.
 
 The alternative is the ordinary attended workflow. Patching the next live task
 with another argument hint leaves the reusable service defect in place. A new

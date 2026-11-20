@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from . import operation_contract as contract
+from . import error_policy
 from . import service, paging, review_pages, search, ram_evidence, declared_inputs, learning
 
 TOOL='mcp__facts__operation'
@@ -24,10 +25,7 @@ def hook(policy):
 
 
 def tool_listing(role,profile='corridor'):
-    operations=['status','evidence','query','navigate','inspect','q09','documents','document','review','review_report','candidate_status','validation_evidence','guidance','search','inputs','input']
-    if profile=='retained':operations=['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
-    elif role=='implementer':operations+=['preview','preview_page','confirm','validate','publish','start_chain','reready','closeout']
-    else:operations+=['approve','request-changes']
+    operations=contract.offered(role,profile)
     return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.help_text(role,profile)+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else '')+' See arguments.description for required and optional keys.',
         'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
             'arguments':{'type':'object','description':contract.describe(operations,role,profile)}},'required':['operation','arguments'],'additionalProperties':False}}]}
@@ -85,12 +83,20 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     response={'result':result}
                 except Exception as error:
                     code=service.public_error_code(error);value={'error':code}
-                    if isinstance(error,service.ServiceError):
+                    if isinstance(error,(service.ServiceError,contract.RequestError)):
                         value['details']=error.details
                         if code=='RESPONSE_TOO_LARGE' and operation=='review':value.update(review_pages.continuation(error.details))
                     if code=='REQUEST_SCHEMA' and operation in (contract.corridor() if profile=='corridor' else contract.retained()):
                         value['expected_arguments']=contract.entry(operation,role,profile)
-                    value['retryable']=code in ('VALIDATION_IN_PROGRESS','REVIEW_STATE_BUSY','REVIEW_RESTORE_IN_PROGRESS')
+                    if code=='UNKNOWN_OPERATION':
+                        value['details']={'field':'operation','accepted_values':contract.offered(role,profile)}
+                    value={**error_policy.describe(code,correction=value.get('action'),
+                        request_error=isinstance(error,contract.RequestError)),**value}
+                    if value['error_class']=='correctable':
+                        value['reference']={'operation':'input','input_id':'operation-reference',
+                            'section':operation if operation in contract.offered(role,profile) else 'arguments'}
+                        if 'details' not in value:
+                            value['details']=error_policy.diagnostics(code,operation,role,profile)
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
                     response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
@@ -101,14 +107,18 @@ def emit(instance,identifier,response,output,operation=None,image_result=None):
     encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
     cap=declared_inputs.IMAGE_REPLY_LIMIT if isinstance(image_result,declared_inputs.ImageResult) else paging.MAX_BYTES
     if len(encoded.encode())+1>cap:
-        value={'error':'RESPONSE_TOO_LARGE','retryable':False}
+        value={'error':'RESPONSE_TOO_LARGE',**error_policy.describe('RESPONSE_TOO_LARGE')}
         try:
             answer=json.loads(response['result']['content'][0]['text'])
             if operation=='review':value.update(review_pages.continuation(answer))
-            elif type(answer.get('offset')) is int:
+            elif (type(answer.get('offset')) is int and
+                  'limit' in {**contract.BASE,**contract.RENAME,**contract.VERDICT}.get(operation,((),()))[1] and
+                  any(isinstance(answer.get(key),(str,list)) and len(answer[key])>1
+                      for key in ('text','records','lines','mentions','rows'))):
                 value['action']='Reduce limit and retry the same offset; no records were delivered.'
                 value['offset']=answer['offset']
         except (KeyError,IndexError,TypeError,ValueError):pass
+        value.update(error_policy.describe('RESPONSE_TOO_LARGE',correction=value.get('action')))
         try:value['generation']=instance.error_context(None)['generation']
         except Exception:pass
         response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}

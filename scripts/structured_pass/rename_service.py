@@ -13,12 +13,35 @@ import sys
 
 HERE = Path(__file__).resolve().parent
 from . import operation_contract as contract
+from . import edit_contract
 from . import service as common
 from .model import Model, digest, producer, translated
 from . import mixed_documents as mixed
 from . import authored_documents as authored
 from . import navigation, review_pages, source_edits, artifact_edits, evidence_views, search, ram_evidence, declared_inputs, guidance
 FIELDS = ('old_name','new_name','reason','confidence','pass_id')
+EVIDENCE_ARGUMENTS={**evidence_views.VIEW_ARGUMENTS,**ram_evidence.VIEW_ARGUMENTS,
+    'prior_reuse':(('record_id',),()),'policy':((),()),'artifact_rows':(('artifact',),('key',))}
+OPERATION_SCHEMAS={
+    'rename':edit_contract.fields('kind declaration_id old_name new_name preimage',fields='rename_fields'),
+    'comment_replace':edit_contract.fields('kind record_id preimage text reason',fields='comment_fields'),
+    'ledger_append':edit_contract.fields('kind path preimage rows',fields='ledger_fields')}
+LEDGER_ROW=edit_contract.fields(' '.join(FIELDS))
+REFERENCE_TYPES={
+    'rename_fields':{
+        'declaration_id':{'source':'navigate.records[].record_id for the declaration'},
+        'old_name':{'source':'navigate.records[].name'},
+        'new_name':{'authored':'new identifier; local names start @@; preserve declaration scope'},
+        'preimage':{'source':'navigate.records[].preimage_sha256'}},
+    'comment_fields':{
+        'record_id':{'source':'navigate(view=comments).records[].record_id'},
+        'preimage':{'source':'navigate(view=comments).records[].preimage_sha256'},
+        'text':{'authored':'single semicolon comment line, no CR/LF'},
+        'reason':{'authored':'nonempty explanation of the non-obvious fact preserved'}},
+    'ledger_fields':{
+        'path':{'source':'inspect.ledger.path'},'preimage':{'source':'inspect.ledger.sha256'},
+        'rows':{'type':'nonempty array of rename_ledger_row','constraint':'ordered old/new pairs must exactly match this batch renames and localizations'}},
+    'rename_ledger_row':{**LEDGER_ROW,'values':{'authored':'nonempty strings, no CR/LF; naming rationale and confidence; current pass_id from documents'}}}
 ERRORS = '''PREVIEW_REQUIRED UNKNOWN_PREVIEW STALE_PREVIEW PREVIEW_DIGEST_MISMATCH
     WRONG_DECLARATION_SCOPE INVALID_RENAME DUPLICATE_RENAME INVALID_COMMENT
     COMMENT_NOT_FOUND COMMENT_PREIMAGE_MISMATCH LEDGER_SCHEMA LEDGER_PREIMAGE_MISMATCH
@@ -63,12 +86,12 @@ def selected_renames(model, operations):
     for op in operations:
         if op.get('kind')!='rename':
             continue
-        common.schema(op,('kind','declaration_id','old_name','new_name','preimage'))
+        edit_contract.check(op,OPERATION_SCHEMAS['rename'],'REQUEST_SCHEMA')
         n = model.node(op['declaration_id']);old = model.name(n);new = op['new_name']
         if old!=op['old_name']:
             raise ValueError('WRONG_DECLARATION_SCOPE')
-        if model.statement(n)['preimage_sha256']!=op['preimage']:
-            raise ValueError('PREIMAGE_MISMATCH')
+        contract.value(model.statement(n)['preimage_sha256']==op['preimage'],
+            'operations[].preimage',REFERENCE_TYPES['rename_fields']['preimage'],'PREIMAGE_MISMATCH')
         local = model.facts[n]['kind']=='LOCAL_LABEL_NODE'
         if not isinstance(new,str) or not re.fullmatch(r'@@[A-Za-z_][A-Za-z0-9_]*' if local else r'[A-Za-z_][A-Za-z0-9_]*',new) or new==old:
             raise ValueError('INVALID_RENAME')
@@ -96,7 +119,7 @@ def edits_for(model, operations, project):
         if kind in ('rename','ledger_append') or kind in mixed.KINDS or kind in authored.KINDS or kind in source_edits.KINDS or kind in artifact_edits.KINDS:
             continue
         if kind=='comment_replace':
-            common.schema(op,('kind','record_id','preimage','text','reason'))
+            edit_contract.check(op,OPERATION_SCHEMAS['comment_replace'],'REQUEST_SCHEMA')
             if not isinstance(op['record_id'],str):raise ValueError('REQUEST_SCHEMA')
             c = comment_map.get(op['record_id'])
             if c is None or op['record_id'] in seen:
@@ -150,14 +173,14 @@ def ledger_operation(operations, project, model=None):
     if len(found)!=1:
         raise ValueError('LEDGER_SCHEMA')
     op, = found
-    common.schema(op,('kind','path','preimage','rows'))
+    edit_contract.check(op,OPERATION_SCHEMAS['ledger_append'],'REQUEST_SCHEMA')
     if not isinstance(op['path'],str):raise ValueError('REQUEST_SCHEMA')
     if op['path']!=ledger:
         raise ValueError('GENERATED_PATH_SERVICE_OWNED' if op['path'] in generated else 'FORBIDDEN_PATH')
     if not isinstance(op['rows'],list) or not op['rows']:
         raise ValueError('LEDGER_SCHEMA')
     for row in op['rows']:
-        common.schema(row,FIELDS)
+        edit_contract.check(row,LEDGER_ROW,'REQUEST_SCHEMA',path='rows[]')
         if any(not isinstance(row[k],str) or not row[k].strip() or '\n' in row[k] or '\r' in row[k] for k in FIELDS):
             raise ValueError('LEDGER_SCHEMA')
     expected = rename_pairs(operations,model)
@@ -352,7 +375,7 @@ class RenameService(common.Service):
     @common.state_operation(write=True)
     def preview(self, generation, operations, cid=None, role='implementer'):
         if role!='implementer':raise ValueError('REVIEWER_MUTATION_DENIED')
-        if generation!=self.state['current']:raise ValueError('STALE_GENERATION')
+        contract.value(generation==self.state['current'],'generation',{'source':'status.generation'},'STALE_GENERATION')
         m = self.model(generation);self.plan(m,operations)
         ledger = ledger_operation(operations,self.project,m)
         if ledger is not None and ledger['preimage']!=self.state['generations'][generation]['manifest'][self.ledger]:
@@ -706,6 +729,9 @@ class RenameService(common.Service):
     def evidence_query(self,generation,view,offset=0,limit=40,*,public_generation=None,**arguments):
         model=self.model(generation)
         analogue=arguments.pop('analogue_index',None)
+        if view not in EVIDENCE_ARGUMENTS:
+            raise contract.RequestError('EVIDENCE_REQUEST_INVALID',field='view',accepted_values=list(EVIDENCE_ARGUMENTS))
+        contract.check(arguments,EVIDENCE_ARGUMENTS[view],code='EVIDENCE_REQUEST_INVALID',path='evidence.'+view)
         if analogue is not None:
             if view not in ('ram','outgoing','data','decode','scopes','units','expression'):raise ValueError('EVIDENCE_REQUEST_INVALID')
             from .analogue_inputs import project
@@ -714,20 +740,21 @@ class RenameService(common.Service):
         if view in ('ram_compact','ram_shared'):
             return ram_evidence.query(model,public_generation or generation,view,offset,limit,**arguments)
         if view=='prior_reuse':
-            common.schema(arguments,('record_id',))
+            common.schema(arguments,*EVIDENCE_ARGUMENTS['prior_reuse'])
             from .analogue_inputs import rows
             return {'generation':generation,**evidence_views.page(rows(model,arguments['record_id']),offset,limit)}
         if view=='policy':
-            common.schema(arguments,())
+            common.schema(arguments,*EVIDENCE_ARGUMENTS['policy'])
             path=model.capture/'gate-results.json'
             rows=json.loads(path.read_text()) if path.exists() else []
             return {'generation':generation,'available':path.exists(),
                     'meaning':'Recorded wrapper outcomes; naming, comment value and maturity still require review.',
                     **evidence_views.page(rows,offset,limit)}
         if view=='artifact_rows':
-            common.schema(arguments,('artifact',),('key',))
+            common.schema(arguments,*EVIDENCE_ARGUMENTS['artifact_rows'])
             kind=arguments['artifact']
-            if kind not in artifact_edits.PATHS:raise ValueError('EVIDENCE_REQUEST_INVALID')
+            if kind not in artifact_edits.PATHS:
+                raise contract.RequestError('EVIDENCE_REQUEST_INVALID',field='artifact',accepted_values=sorted(artifact_edits.PATHS))
             path=self.project+artifact_edits.PATHS[kind];record=self.state['generations'][generation]
             data=authored.read(record['checkout'],record['manifest'],path)
             rows=artifact_edits.entries(data,kind)

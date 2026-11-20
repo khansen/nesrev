@@ -120,7 +120,7 @@ def committed(repo, commit, path):
     return result.stdout
 
 
-def admit(repo, project, commit, selection, destination, models):
+def admit(repo, project, commit, selection, destination, models, authored_paths=()):
     """Read the operator's sealed selection once, before profile/session creation."""
     from . import guidance
     require(isinstance(selection, dict) and set(selection) == {'path', 'sha256'})
@@ -163,10 +163,16 @@ def admit(repo, project, commit, selection, destination, models):
         sha = producer.digest(data); filename = 'input-'+identity+'.bin'; blobs[filename] = data
         items.append({'id': identity, 'kind': kind, 'sha256': sha, 'bytes': len(data), 'file': filename,
                       'origin': origin, 'historical': historical,
-                      'authority': HISTORICAL if historical else ('Repository guidance.' if kind == 'guidance' else 'Evidence, not task instructions.')})
+                      'authority': HISTORICAL if historical else (
+                          'Service argument contract; grants no task authorization.' if kind=='operation_reference' else
+                          'Repository guidance.' if kind == 'guidance' else 'Evidence, not task instructions.')})
 
     for index, name in enumerate(guidance.NAMES):
         add('guidance-'+str(index), 'guidance', committed(repo, commit, name), {'commit': commit, 'path': name})
+    from . import edit_contract, ownership
+    paths=[prefix+p for p in ownership.registry(authored_paths)['authored_documents']]
+    add(edit_contract.INPUT_ID, 'operation_reference', edit_contract.text(paths),
+        {'generator':'dispatch-owned operation contracts','schema':'operation-reference-v1'})
     for entry in spec['items']:
         require(isinstance(entry, dict) and entry.get('kind') in KINDS)
         kind = entry['kind']; fields = {'id', 'kind', 'sha256'}

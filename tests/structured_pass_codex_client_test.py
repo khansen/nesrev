@@ -1165,9 +1165,9 @@ class ProcessAndSessionTests(unittest.TestCase):
         mod=client.process_tree
         valid='10 1 10 Tue Nov 10 01:02:03 2026 client\n'
         with patch.object(mod.subprocess,'run',return_value=SimpleNamespace(stdout=valid)):
-            self.assertEqual(mod.snapshot()[10]['started'],'Tue Nov 10 01:02:03 2026')
+            self.assertEqual(mod._ps_snapshot()[10]['started'],'Tue Nov 10 01:02:03 2026')
         with patch.object(mod.subprocess,'run',return_value=SimpleNamespace(stdout='broken\n')):
-            with self.assertRaisesRegex(ValueError,'^CODEX_PROCESS_SNAPSHOT_INVALID$'):mod.snapshot()
+            with self.assertRaisesRegex(ValueError,'^CODEX_PROCESS_SNAPSHOT_INVALID$'):mod._ps_snapshot()
         for bad in (None,True,0,1,'123'):
             with self.assertRaisesRegex(ValueError,'^CODEX_CLIENT_GROUP_INVALID$'):mod.group_alive(bad)
         for bad in (True,0,1,'123',123.0):

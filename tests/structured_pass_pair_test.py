@@ -258,7 +258,12 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
             watcher=subprocess.Popen(command,stdout=log,stderr=subprocess.STDOUT)
             implementer=subprocess.Popen([sys.executable,'-B',str(driver)],stdout=impl_log,stderr=subprocess.STDOUT)
             try:
-                self.assertEqual(implementer.wait(timeout=25),0,(impl_log.seek(0),impl_log.read()))
+                code=implementer.wait(timeout=25)
+                if code:
+                    impl_log.seek(0)
+                    diagnostics={'driver':impl_log.read(),'client_stderr':{
+                        path.parent.name:path.read_text() for path in (self.impl/'runs').glob('*/stderr.log')}}
+                    self.fail(f'Implementer exit {code}: {diagnostics}')
                 self.assertEqual(watcher.wait(timeout=25),4,(log.seek(0),log.read()))
             finally:
                 for process in (implementer,watcher):

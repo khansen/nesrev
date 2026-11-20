@@ -91,6 +91,16 @@ identities and failures remain in the record. Supervision cannot prove absence
 of arbitrarily short subprocesses, and it does not add an OS boundary to a
 native client.
 
+On Darwin, snapshots use libproc and sysctl rather than the setuid `ps`
+executable, which Seatbelt refuses even with an otherwise permissive profile.
+PID, parent, process group, start time and command rendering retain the existing
+identity contract. Unreadable arguments retain an explicit process-name
+fallback, including any argv-read error or inconsistent buffer during exec.
+Failure to enumerate or inspect required metadata raises instead of claiming
+there are no survivors. Fatal Darwin checks identify the stage, MIB, PID and
+errno; fields that do not apply are explicit. Other platforms retain the
+existing `ps` path.
+
 ## Stops, continuation and application
 
 `status` reports checked service state and the launcher record. A successful

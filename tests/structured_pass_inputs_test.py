@@ -187,10 +187,15 @@ class LifecycleTests(unittest.TestCase):
 
     def test_complete_inputs_both_roles_and_retained_after_originals_removed(self):
         expected=(self.root/'repo/projects/sample/tmp/manual.txt').read_bytes().decode()
+        operation_reference=self.collect(self.c.root,'implementer',self.g,'operation-reference')
         for role in ('implementer','reviewer'):
             self.assertEqual(self.collect(self.c.root,role,self.g,'reference'),expected)
-            guide=self.call(self.c.root,role,'guidance',{'name':'agent_playbook/NEW_PROJECT.md'})
-            self.assertIn('Pinned policy.',guide['lines'])
+            catalog=self.call(self.c.root,role,'inputs',{'generation':self.g,'limit':40})
+            guide=next(row for row in catalog['records'] if row['kind']=='guidance'
+                       and row['origin']['path']=='agent_playbook/NEW_PROJECT.md')
+            self.assertIn('Pinned policy.',self.collect(self.c.root,role,self.g,guide['id']))
+            with self.assertRaisesRegex(ValueError,'UNKNOWN_OPERATION'):
+                self.c.dispatch('guidance',{'name':'agent_playbook/NEW_PROJECT.md'},role)
         notes='projects/sample/docs/reverse_engineering/WORKING_NOTES.md'
         original=self.c.editor.document(self.g,notes)
         ops=[{'kind':'document_write','path':notes,'preimage':original['preimage'],'text':'# Notes\n\nUpdated durable evidence.\n','reason':'Preserve the synthetic evidence conclusion.'},*closeout_ops(self.c,self.g)]
@@ -203,6 +208,7 @@ class LifecycleTests(unittest.TestCase):
             shutil.rmtree(self.root/'repo/projects/sample'/path)
         restored=RetainedReviewService.from_publication(self.root/'restored',self.c.config['store'],ticket)
         self.assertEqual(self.collect(restored.root,'reviewer',ticket,'reference','retained'),expected)
+        self.assertEqual(self.collect(restored.root,'reviewer',ticket,'operation-reference','retained'),operation_reference)
         archive=self.call(restored.root,'reviewer','input',{'generation':ticket,'input_id':'intake'},'retained')
         self.assertTrue(archive['historical']);self.assertEqual(archive['authority'],inputs.HISTORICAL)
         self.assertIn('STOP AFTER PASS 0',archive['text'])
@@ -244,7 +250,7 @@ class LifecycleTests(unittest.TestCase):
             text=input_delivery.prompt(record,self.root/('workspace-'+role))
             self.assertIn('Current authorized pass scope',text);self.assertIn(task,text)
             self.assertIn(inputs.HISTORICAL,text);self.assertNotIn('STOP AFTER PASS 0',text)
-            self.assertEqual(len(record['items']),14);self.assertEqual(len(record['media']),1)
+            self.assertEqual(len(record['items']),15);self.assertEqual(len(record['media']),1)
             self.assertEqual(record['media'][0]['origin']['identity']['pdf_page'],1)
             path=folder/'assembly.json';original=path.read_bytes()
             for mutate in ('omit','page','media_hash','pass'):

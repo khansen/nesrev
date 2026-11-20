@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import subprocess
 import time
-from . import gate_environment, learning
+from . import gate_environment, learning, edit_contract as contract
 SCORECARD = 'docs/reverse_engineering/PROGRESS_SCORECARD.md'
 DEFERRALS = 'docs/reverse_engineering/inventory/deferrals.csv'
 GATE_FIELDS = frozenset(('verify', 'docs_check', 'rework_items'))
@@ -21,7 +21,27 @@ UNMEASURED_FIELDS = frozenset(('warnings_baseline_delta','raw_ptr_immediates_rem
 AUTHORED = frozenset(('focus','notes'))
 PROTECTED = GATE_FIELDS | SYNCED_FIELDS | UNMEASURED_FIELDS
 UNMEASURED = 'not measured'
-KINDS = frozenset(('scorecard_update', 'closeout'))
+OPERATION_SCHEMAS = {
+    'scorecard_update':contract.fields('kind pass_id preimage fields', fields='scorecard_fields'),
+    'closeout':contract.fields('kind pass_id deferrals_preimage rework_items deferrals learning', fields='closeout_fields')}
+KINDS = frozenset(OPERATION_SCHEMAS)
+DEFERRAL_SHAPE=contract.fields('subject revisit_condition kind')
+DEFERRAL_KINDS=('static','runtime')
+REFERENCE_TYPES={
+    'scorecard_fields':{
+        'pass_id':{'source':'documents.pass_id'},'preimage':{'source':'documents.scorecard.preimage'},
+        'fields':{'type':'nonempty object','allowed':sorted(AUTHORED),
+            'values':'authored nonempty table-cell strings, at most 8192 characters; no pipe or line separators',
+            'new_row_required':sorted(AUTHORED)}},
+    'closeout_fields':{
+        'pass_id':{'source':'documents.pass_id'},'deferrals_preimage':{'source':'documents.deferrals.preimage'},
+        'rework_items':{'authored':'nonnegative integer counting addressed review items'},
+        'deferrals':{'type':'array of closeout_deferral','maxItems':64},
+        'learning':{'authored':'one ## Learning Candidates section; _None._ alone if empty; at most 4096 JSON bytes'}},
+    'closeout_deferral':{**DEFERRAL_SHAPE,
+        'subject':{'authored':'nonempty table cell, no semicolon or ::, no surrounding whitespace; unique in this list'},
+        'revisit_condition':{'authored':'nonempty table cell, no semicolon or ::, no surrounding whitespace'},
+        'kind':{'enum':DEFERRAL_KINDS}}}
 ERRORS = learning.ERRORS | frozenset('''MIXED_DOCUMENT_SCHEMA MIXED_DOCUMENT_PREIMAGE
     WRAPPER_OWNED_FIELD WRAPPER_OWNED_ROW MIXED_FILE_REQUIRES_TYPED_UPDATE
     DOCUMENT_PASS_MISMATCH CLOSEOUT_REQUIRED CLOSEOUT_RESULT_INVALID
@@ -115,8 +135,8 @@ def document_operations(operations):
     if not updates and not closeouts:return None
     require(len(updates)==len(closeouts)==1, 'CLOSEOUT_REQUIRED')
     update,closeout=updates[0],closeouts[0]
-    schema(update, ('kind','pass_id','preimage','fields'))
-    schema(closeout, ('kind','pass_id','deferrals_preimage','rework_items','deferrals','learning'))
+    contract.check(update, OPERATION_SCHEMAS['scorecard_update'], 'MIXED_DOCUMENT_SCHEMA')
+    contract.check(closeout, OPERATION_SCHEMAS['closeout'], 'MIXED_DOCUMENT_SCHEMA')
     learning.body(closeout['learning'])
     require(isinstance(update['pass_id'],str) and re.fullmatch(r'[1-9][0-9]*',update['pass_id']) is not None)
     require(closeout['pass_id']==update['pass_id'], 'DOCUMENT_PASS_MISMATCH')
@@ -124,10 +144,10 @@ def document_operations(operations):
     require(isinstance(closeout['deferrals'],list) and len(closeout['deferrals'])<=64)
     seen=set()
     for entry in closeout['deferrals']:
-        schema(entry,('subject','revisit_condition','kind'))
+        contract.check(entry,DEFERRAL_SHAPE,'MIXED_DOCUMENT_SCHEMA',path='deferrals[]')
         for key in ('subject','revisit_condition'):
             text=cell(entry[key]);require(text==entry[key] and ';' not in text and '::' not in text)
-        require(entry['kind'] in ('static','runtime') and entry['subject'] not in seen)
+        require(entry['kind'] in DEFERRAL_KINDS and entry['subject'] not in seen)
         seen.add(entry['subject'])
     return update,closeout
 
@@ -137,8 +157,10 @@ def prepare(scorecard, deferrals, operations, pass_id):
     if selected is None:return None
     update,closeout=selected
     require(update['pass_id']==pass_id,'DOCUMENT_PASS_MISMATCH')
-    require(update['preimage']==sha(scorecard) and closeout['deferrals_preimage']==sha(deferrals),
-            'MIXED_DOCUMENT_PREIMAGE')
+    contract.value(update['preimage']==sha(scorecard) and closeout['deferrals_preimage']==sha(deferrals),
+        'operations[].preimage/deferrals_preimage',
+        {'source':'document.sha256 for the current scorecard and deferrals; same generation'},
+        'MIXED_DOCUMENT_PREIMAGE')
     data,before,row=Scorecard(scorecard).update(pass_id,update['fields'])
     old_rows=deferral_rows(deferrals);expected=list(old_rows)
     for entry in closeout['deferrals']:

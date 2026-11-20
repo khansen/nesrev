@@ -151,9 +151,16 @@ class ContractTests(unittest.TestCase):
         result = json.loads(output.getvalue())['result']
         error = json.loads(result['content'][0]['text'])
         self.assertTrue(result['isError'])
-        self.assertEqual(error, {'error': 'REQUEST_SCHEMA', 'expected_arguments': {
+        self.assertEqual(error['expected_arguments'], {
             'required': ['cid'], 'optional': [], 'sources': {'cid': ['confirm.candidate', 'preview.candidate']}},
-                                 'retryable': False, 'generation': 'G-start'})
+        )
+        self.assertEqual(error['error'],'REQUEST_SCHEMA')
+        self.assertEqual(error['error_class'],'correctable')
+        self.assertEqual(error['details']['missing'],['cid'])
+        self.assertTrue(error['details']['unexpected_keys'])
+        self.assertEqual(error['details']['required'],['cid'])
+        self.assertEqual(error['reference']['input_id'],'operation-reference')
+        self.assertFalse(error['retryable']);self.assertEqual(error['generation'],'G-start')
 
 
 class IdentitySourceTests(unittest.TestCase):
@@ -218,6 +225,8 @@ class IdentitySourceTests(unittest.TestCase):
                 elif part.endswith(']'):
                     key, index = part[:-1].split('[')
                     items = [item[key][int(index)] for item in items]
+                elif part.isdigit():
+                    items = [item[int(part)] for item in items]
                 else:
                     items = [item[part] for item in items]
             self.assertTrue(items, path)
