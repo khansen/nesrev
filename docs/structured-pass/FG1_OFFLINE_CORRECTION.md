@@ -25,12 +25,14 @@ path. It does not establish real-model understanding or semantic-pass success.
 **Estimate: 4–8 active hours; hard bound 8; checkpoint at 2 hours; one review
 round.** This is a judgment estimate, not a forecast from smoke usage. Record
 active work, execution and waits separately. Proposed native allowance is at
-most **10 credential-free loopback invocations**, at most 300 seconds each,
+most **10 credential-free inference loopback invocations**, at most 300 seconds each,
 using only scripted responses on loopback and no provider calls. Failed
 invocations count. Budget five for a complete rework/approval/closeout recipe;
 the remainder covers declaration captures and explicitly diagnosed corrections.
 There are no automatic replacement attempts, and a repeated failure class stops
-for reassessment. No account login is needed or authorized.
+for reassessment. Native pre-window `login status` commands perform no inference;
+they are recorded separately and excluded from the ten, but their execution
+counts toward the active-time bound. No account login is needed or authorized.
 
 The alternative is the ordinary attended workflow. Patching the next live task
 with another argument hint leaves the reusable service defect in place. A new
@@ -45,6 +47,22 @@ an authored value with its type/constraints, a reachable source in that role's
 own results, or an enumerated accepted set. Include conditional requirements
 and required fields inside structured queries and edit operations. Calling an
 opaque JSON object "free text" does not satisfy this rule.
+
+**Chosen edit-operation route:** generate an `operation-reference`
+record from the owners' per-kind field definitions and deliver it to the
+implementer through existing `inputs`/`input` pagination. Convert inline shape
+checks into shared data that dispatch itself enforces; the reference is generated
+from that data, with no second schema. Cover every kind accepted by `preview`,
+including the authored-document and mixed families, exact field sets, conditional
+fields, nested shapes and value sources. A coverage test must fail if an accepted
+kind or shape has no matching reference entry. Pin and capture the generated
+record with the declared inputs so it survives restoration. Existing catalog,
+item and response limits still apply; pagination is not a limit exemption.
+Test that the catalog advertises the ID and paged reads reconstruct the generated
+reference exactly, including after restoration.
+The declaration needs only a short pointer to this fixed ID, available before
+the first `preview`. Correctable errors are backup guidance, not the primary
+delivery route. Reviewer permissions remain unchanged.
 
 Propose removing the redundant `guidance` operation from the two corridor
 declarations and dispatch profiles: fixed-ID `input` already supplies the
@@ -64,8 +82,10 @@ Do not create a second hand-maintained schema merely to make the test pass.
 Keep each description within 4,096 characters and the tool listing within its
 existing byte cap. Measure the complete representation at the checkpoint:
 the implementer's top-level description currently has only 69 characters free.
-Shorten repetition, not required instructions. Capture both pinned clients'
-delivered declarations and refresh native fixtures and all affected service
+Report the space recovered by removing corridor `guidance` as well as the final
+sizes, including the reference pointer. Shorten repetition, not required
+instructions. Capture both pinned clients' delivered declarations and refresh
+native fixtures and all affected service
 pins together. Loopback proves delivery, not model comprehension.
 
 ## 2. Make refusals actionable
@@ -81,7 +101,9 @@ Do not echo sensitive payloads or disclose forbidden paths in diagnostics.
 Update tool instructions and the pass task to distinguish correcting one's own
 malformed request from retrying a client invocation. The former is allowed
 within the existing turn and budgets; the latter still needs authorization.
-The legacy `retryable` flag must not imply that all other errors are terminal.
+The new error class decides behavior, whether the legacy `retryable` flag is
+retained or removed. Report repeated identical correctable refusals as friction
+from the retained call records; this does not authorize replacement invocations.
 Preserve access, integrity, freshness and quality refusals; ordinary validation
 failure still follows the existing candidate-rework workflow.
 
@@ -109,21 +131,36 @@ the positive control: **the complete wrapper run must pass `layout.check`.**
 Removing the tmux rule must fail that control. Unexpected strict-path writes
 must still fail. Net snapshots remain net observations, not continuous tracing.
 
-**Owner-selected exception:** record unknown non-credential files inside the
-isolated `auth-config` homes for review instead of stopping the pass. This is a
-write-audit exception, not permission to read or write more through agent tools.
+**Owner-selected exception:** record added, changed and removed unknown
+non-credential paths inside the isolated `auth-config` homes for review instead
+of stopping the pass. This is a write-audit exception, not permission to read or
+write more through agent tools.
 Credentials and settings, and all workspace, session and target paths, remain
 strict, including protected paths nested under those homes. Define protected
-path classes before the run; ambiguous paths, escaping symlinks and special
-files do not qualify. Retain path/change metadata without credential contents.
-Controls must accept and report an ordinary unknown cache file while rejecting
+path classes before the run; ambiguous paths and special files do not qualify.
+Adding or retargeting an escaping symlink remains a stop. Removal of the recorded
+arg0 launcher symlinks is reviewed as removal of those directory entries, without
+following them or granting access to their targets.
+Retain path/change metadata without credential contents.
+Controls must accept and report cache additions, changes and removals while rejecting
 credential, settings, session, workspace and target changes. The spent packet's
 rules and results stay unchanged.
+
+Add a fixed authenticated-home regression control using the spent r2 attempt's
+`live/LAYOUT_START.json` and the result's `LAYOUT_AFTER_CLEANUP.json`, pinned with
+that attempt's original bound roots and identities. Replay those observations
+through the new rules: `pair/tmux.json` is accepted by its launch rule;
+`models_cache.json` and removal of arg0 `.lock`, `apply_patch` and `applypatch`
+are recorded for review; no unknown change remains outside `auth-config`.
+Removing the tmux rule must fail this replay. Dummy-home rehearsal does not
+replace this authenticated evidence, and this replay does not replace the full
+wrapper positive control.
 
 ## Checkpoint, publication and next grant
 
 At two hours, return the complete argument coverage inventory, error-class map,
-description sizes and intended native replay path, with the smallest working
+description sizes, generated edit-reference coverage and delivery, the fixed
+snapshot replay result and intended native replay path, with the smallest working
 positive control obtained so far and a remaining estimate. Stop for a missing
 capability, required source exposure, a limit increase, a new transaction or
 scheduling framework, an offline authentication obstacle, repeated failure or
