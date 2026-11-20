@@ -90,6 +90,11 @@ def entry(operation, role, profile='corridor'):
     }
     if profile == 'corridor':
         sources.update(ticket=['status.ticket'], sequence=['status.handoff.latest_review.sequence'])
+        if role == 'reviewer':
+            sources.update({key: ['status.handoff.published_candidate.' + key]
+                            for key in ('cid', 'revision', 'attempt')})
+        elif operation == 'validation_evidence':
+            sources.update(cid=['validate.candidate'], revision=['validate.revision'], attempt=['validate.attempt'])
         if operation == 'review':
             sources.update(generation=['status.handoff.coverage.pass_head'],
                            base_generation=['status.handoff.coverage.pass_base'])
@@ -110,6 +115,7 @@ def describe(operations, role, profile='corridor'):
     return ('Sources are paths in operation results, not argument names; [] means a record in a list. '
             'Use non-null identities from the current workflow. A new preview has no candidate: '
             'use confirm.candidate first; preview.candidate refers to an existing candidate. '
-            'A source operation may belong to the other role. Retained review uses the last two evidence entries.'
+            'Use your own role results. validation_evidence returns error details; candidate_status carries gates. '
+            'Retained review uses the last two evidence entries.'
             + DESCRIPTION_MARKER + json.dumps(
         {op: entry(op, role, profile) for op in operations}, separators=(',', ':')))

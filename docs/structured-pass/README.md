@@ -43,8 +43,9 @@ uses the ordinary importer during application, with
 [offline acceptance](FRICTION_IMPORT_ACCEPTANCE.md) merged in
 [PR #196](https://github.com/khansen/nesrev/pull/196).
 [Launcher/client admission](FG1_LAUNCHER_ACCEPTANCE.md) has now passed its live
-smoke and result review. Final pass readiness and the separately authorized
-unscripted pass remain.
+smoke and result review and merged in [PR #197](https://github.com/khansen/nesrev/pull/197).
+The proposed [final readiness check](FG1_PASS_READINESS.md) and the separately
+authorized unscripted pass remain.
 
 The producer is pinned to the official XORcyst 2.1.0 release in
 [producer.json](producer.json), including its immutable release commit, download

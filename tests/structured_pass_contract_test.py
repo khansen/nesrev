@@ -131,6 +131,10 @@ class ContractTests(unittest.TestCase):
             for op, fields in expected.items():
                 if op in declarations:
                     self.assertEqual(set(declarations[op]['required'] + declarations[op]['optional']), fields)
+            retained, _ = delivered(role, 'retained')
+            self.assertLessEqual(len(retained['description']), 4096)
+            self.assertLessEqual(len(retained['inputSchema']['properties']['arguments']['description']), 4096)
+            self.assertLess(len(json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': {'tools': [retained]}}).encode()), 24576)
 
     def test_schema_error_returns_same_expected_keys_without_retry(self):
         requests = [
@@ -153,6 +157,55 @@ class ContractTests(unittest.TestCase):
 
 
 class IdentitySourceTests(unittest.TestCase):
+    def test_only_the_published_head_supplies_candidate_identity(self):
+        from structured_pass_fixture import prepare, rename_ops, closeout_ops
+        from structured_pass import structured_handoff
+
+        (ROOT/'tmp').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=ROOT/'tmp', prefix='published-identity-') as tmp:
+            root = Path(tmp).resolve()
+            controller = prepare(root)
+            self.assertIsNone(controller.dispatch('status', {}, 'reviewer')['handoff'])
+
+            def confirm(operations):
+                generation = controller.editor.state['current']
+                preview = controller.dispatch('preview', {'generation': generation, 'operations': operations}, 'implementer')
+                return controller.dispatch('confirm', {'generation': generation, 'preview_digest': preview['preview_digest']}, 'implementer')['candidate']
+
+            first = confirm(rename_ops(controller, controller.editor.state['current']))
+            self.assertIsNone(controller.dispatch('status', {}, 'reviewer')['handoff'])
+            self.assertEqual(controller.dispatch('validate', {'cid': first}, 'implementer')['status'], 'validated')
+            controller.dispatch('publish', {'cid': first}, 'implementer')
+            original = controller.dispatch('status', {}, 'reviewer')['handoff']['published_candidate']
+            self.assertEqual(original['cid'], first)
+            second = confirm(closeout_ops(controller, controller.editor.state['current'], notes='Synthetic second publication.'))
+            self.assertNotEqual(first, second)
+            self.assertEqual(controller.dispatch('status', {}, 'reviewer')['handoff']['published_candidate'], original)
+            self.assertEqual(controller.dispatch('validate', {'cid': second}, 'implementer')['status'], 'validated')
+            self.assertEqual(controller.dispatch('status', {}, 'reviewer')['handoff']['published_candidate'], original)
+            controller.dispatch('publish', {'cid': second}, 'implementer')
+            status = controller.dispatch('status', {}, 'reviewer')
+            current = status['handoff']['published_candidate']
+            self.assertEqual(current['cid'], second)
+            self.assertEqual(current['generation'], status['generation'])
+            self.assertEqual(current['ticket'], status['handoff']['coverage']['pass_head'])
+            self.assertNotEqual(current['ticket'], original['ticket'])
+
+            snapshot = json.loads(controller.editor.state_path.read_bytes())
+            state_path = root/'publisher-copy.json'
+            config = {'editor_state': str(state_path)}
+            for change in ({'revision': None}, {'attempt': 0}, {'status': 'draft'},
+                           {'generation': original['generation']}, {'review': {'artifact_id': original['ticket']}}):
+                altered = json.loads(json.dumps(snapshot))
+                altered['candidates'][second].update(change)
+                state_path.write_text(json.dumps(altered))
+                with self.subTest(change=change), self.assertRaisesRegex(ValueError, '^PUBLISHER_STATE_UNAVAILABLE$'):
+                    structured_handoff.published_candidate(config, current['ticket'])
+            state_path.write_text(json.dumps(snapshot))
+            with self.assertRaisesRegex(ValueError, '^PUBLISHER_HEAD_MISMATCH$'):
+                structured_handoff.published_candidate(config, original['ticket'])
+            self.assertIsNone(structured_handoff.published_candidate({}, current['ticket']))
+
     def test_advertised_sources_exist_and_drive_real_lifecycle(self):
         from structured_pass_fixture import prepare, rename_ops
         from structured_pass_inputs_test import setup_inputs
@@ -199,40 +252,96 @@ class IdentitySourceTests(unittest.TestCase):
                 **arguments(implementer, 'preview', results), 'operations': operations}, 'implementer')
             self.assertEqual(results['preview']['candidate'], cid)
             results['confirm'] = controller.dispatch('confirm', arguments(implementer, 'confirm', results), 'implementer')
+            original_run = service.subprocess.run
+            clone_failures = []
+            def fail_clone(argv, *args, **kwargs):
+                if len(argv) > 1 and argv[1] == 'clone':
+                    clone_failures.append(argv)
+                    raise OSError('Synthetic setup failure')
+                return original_run(argv, *args, **kwargs)
+            with patch.object(service.subprocess, 'run', side_effect=fail_clone):
+                rejected = controller.dispatch('validate', arguments(implementer, 'validate', results), 'implementer')
+            self.assertEqual(len(clone_failures), 1)
+            self.assertEqual((rejected['status'], rejected['error'], rejected['attempt']),
+                             ('rejected', 'CANDIDATE_SETUP_FAILED', 1))
+            self.assertTrue(rejected['retryable'])
             validated = controller.dispatch('validate', arguments(implementer, 'validate', results), 'implementer')
+            results['validate'] = validated
             self.assertEqual(validated['candidate'], cid)
             self.assertEqual(validated['status'], 'validated')
+            self.assertEqual((validated['revision'], validated['attempt']), (1, 2))
             published = controller.dispatch('publish', arguments(implementer, 'publish', results), 'implementer')
             self.assertEqual(published['candidate'], cid)
 
-            results['status'] = controller.dispatch('status', {}, 'reviewer')
-            review_args = arguments(reviewer, 'review', results)
+            reviewer_results = {'status': controller.dispatch('status', {}, 'reviewer')}
+            reviewer_results['inputs'] = controller.dispatch('inputs',
+                {**arguments(reviewer, 'inputs', reviewer_results), 'limit': 40}, 'reviewer')
+            identity = reviewer_results['status']['handoff']['published_candidate']
+            self.assertEqual(identity, {'cid': cid, 'revision': 1, 'attempt': 2,
+                'generation': published['generation'], 'ticket': published['review']['artifact_id']})
+            candidate = controller.dispatch('candidate_status', arguments(reviewer, 'candidate_status', reviewer_results), 'reviewer')
+            self.assertEqual(candidate['candidate'], cid)
+            self.assertEqual(candidate['revision'], 1)
+            self.assertEqual(candidate['gates'], validated['gates'])
+            self.assertTrue(candidate['gates'])
+            self.assertTrue(all(g['exit_code'] == 0 for g in candidate['gates']))
+            evidence_args = arguments(reviewer, 'validation_evidence', reviewer_results)
+            self.assertEqual(evidence_args, {'cid': cid, 'revision': 1, 'attempt': 2})
+            with self.assertRaisesRegex(ValueError, '^EVIDENCE_UNAVAILABLE$'):
+                controller.dispatch('validation_evidence', evidence_args, 'reviewer')
+            for wrong in ({'revision': 0}, {'attempt': 1}):
+                with self.subTest(wrong=wrong), self.assertRaisesRegex(ValueError, '^STALE_VALIDATION_EVIDENCE$'):
+                    controller.dispatch('validation_evidence', {**evidence_args, **wrong}, 'reviewer')
+
+            review_args = arguments(reviewer, 'review', reviewer_results)
             self.assertEqual(review_args, {'ticket': published['review']['artifact_id'],
                 'generation': published['review']['artifact_id'], 'base_generation': published['review']['base_artifact']})
-            self.assertNotEqual(review_args['generation'], results['status']['generation'])
+            self.assertNotEqual(review_args['generation'], reviewer_results['status']['generation'])
             self.assertNotEqual(review_args['generation'], review_args['base_generation'])
             controller.dispatch('review', review_args, 'reviewer')
             report = 'Verdict: CHANGES_REQUESTED\n\nSynthetic finding.\n\n## Learning Candidates\n\n_None._\n'
             controller.dispatch('request-changes', {
-                **arguments(reviewer, 'request-changes', results), 'report': report}, 'reviewer')
+                **arguments(reviewer, 'request-changes', reviewer_results), 'report': report}, 'reviewer')
             results['status'] = controller.dispatch('status', {}, 'implementer')
             fetched = controller.dispatch('review_report', arguments(implementer, 'review_report', results), 'implementer')
             self.assertEqual(fetched['report'], report)
 
+            controller.dispatch('reready', {'response': 'Synthetic clarification.\n\n## Learning Candidates\n\n_None._\n'}, 'implementer')
+            results['status'] = controller.dispatch('status', {}, 'implementer')
+            self.assertEqual(results['status']['handoff']['round'], 2)
+            self.assertEqual(results['status']['handoff']['latest_review']['sequence'], 1)
+            resumed_args = arguments(implementer, 'review_report', results)
+            self.assertEqual(resumed_args, {'sequence': 1})
+            fetched = controller.dispatch('review_report', resumed_args, 'implementer')
+            self.assertEqual((fetched['sequence'], fetched['report']), (1, report))
+            reviewer_results['status'] = controller.dispatch('status', {}, 'reviewer')
+            controller.dispatch('review', arguments(reviewer, 'review', reviewer_results), 'reviewer')
+            second_report = 'Verdict: APPROVED\n\nSynthetic clarification accepted.\n\n## Learning Candidates\n\n_None._\n'
+            controller.dispatch('approve', {
+                **arguments(reviewer, 'approve', reviewer_results), 'report': second_report}, 'reviewer')
+            results['status'] = controller.dispatch('status', {}, 'implementer')
+            fetched = controller.dispatch('review_report', arguments(implementer, 'review_report', results), 'implementer')
+            self.assertEqual((fetched['sequence'], fetched['report']), (2, second_report))
+            reviewer_results['status'] = controller.dispatch('status', {}, 'reviewer')
+            self.assertNotIn('confirm', reviewer_results)
+            self.assertNotIn('preview', reviewer_results)
+
             retained = RetainedReviewService.from_publication(root/'reader', controller.config['store'], review_args['ticket'])
-            retained_results = {**results, 'status': retained.dispatch('status', {}, 'reviewer')}
+            retained_results = {'status': retained.dispatch('status', {}, 'reviewer')}
             retained_contract = delivered('reviewer', 'retained')[1]
+            retained_results['inputs'] = retained.dispatch('inputs', arguments(retained_contract, 'inputs', retained_results), 'reviewer')
             retained_args = arguments(retained_contract, 'review', retained_results)
             self.assertEqual(retained_args, {'generation': review_args['generation'], 'base_generation': review_args['base_generation']})
             retained.dispatch('review', retained_args, 'reviewer')
 
-            for profile, actual in [('corridor', results), ('retained', retained_results)]:
-                for role in ('implementer', 'reviewer'):
+            for profile, histories in [('corridor', {'implementer': results, 'reviewer': reviewer_results}),
+                                       ('retained', {'implementer': retained_results, 'reviewer': retained_results})]:
+                for role, actual in histories.items():
                     for op, spec in delivered(role, profile)[1].items():
                         with self.subTest(profile=profile, role=role, operation=op):
                             sources = spec.get('sources', {})
                             self.assertLessEqual(set(sources), set(spec['required'] + spec['optional']))
-                            identity_keys = {'cid', 'generation', 'base_generation', 'preview_digest', 'input_id', 'ticket', 'sequence'}
+                            identity_keys = {'cid', 'revision', 'attempt', 'generation', 'base_generation', 'preview_digest', 'input_id', 'ticket', 'sequence'}
                             self.assertEqual(set(sources), identity_keys & set(spec['required'] + spec['optional']))
                             for paths in sources.values():
                                 for path in paths:

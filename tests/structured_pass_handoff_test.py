@@ -120,7 +120,9 @@ class HandoffTests(unittest.TestCase):
         state_path.write_text(json.dumps({'retention': {'root': str(self.store)},
             'current': head_generation, 'pass_start_generation': 'base',
             'generations': {'base': {'artifact': {'artifact_id': self.ids[0]}},
-                            head_generation: {'artifact': {'artifact_id': self.ids[8]}}}}))
+                            head_generation: {'artifact': {'artifact_id': self.ids[8]}}},
+            'candidates': {'C1': {'status': 'published', 'generation': head_generation,
+                'review': {'artifact_id': self.ids[8]}, 'revision': 0, 'attempt': 1}}}))
         state = self.state();state['structured_review']['editor_state'] = str(state_path)
         (self.root / '.agents/current.json').write_text(json.dumps(state))
         for index, (path, code) in enumerate(((self.root / '.agents/structured-review.lock', 'REVIEW_STATE_BUSY'),
@@ -224,18 +226,24 @@ class HandoffTests(unittest.TestCase):
             legacy={artifact:windows.receipt(root/'store',artifact)['legacy_generation'] for artifact in (base,old,new)}
             # Metadata-only fixture uses the real editor's atomic save and lock.
             publisher.state={'current':legacy[old],'pass_start_generation':legacy[base],
-                'candidates':{},'retention':{'root':str(root/'store')},
+                'candidates':{'C1':{'status':'published','generation':legacy[old],
+                    'review':{'artifact_id':old},'revision':0,'attempt':1}},
+                'retention':{'root':str(root/'store')},
                 'generations':{legacy[a]:{'artifact':{'artifact_id':a}} for a in (base,old,new)}}
             publisher._write_locked=True;publisher.save();publisher._write_locked=False
             with publisher.transaction(write=True):pass
             target=root/'coordinator';coordinator(target,root/'store',base,old,project,publisher.state_path)
             self.assertEqual(verdict(target,old)['status'],'APPROVED')
             with publisher.transaction(write=True):
-                publisher.state['current']=legacy[new];publisher.save()
+                publisher.state['current']=legacy[new]
+                publisher.state['candidates']['C2']={'status':'published','generation':legacy[new],
+                    'review':{'artifact_id':new},'revision':0,'attempt':1}
+                publisher.save()
                 command(target,'archive','--pass-id','1',error='VALIDATION_IN_PROGRESS')
             command(target,'archive','--pass-id','1',error='REVIEW_COVERAGE_INCOMPLETE')
             status=command(target,'status','--json')
             self.assertEqual(status['coverage']['uncovered_edges'],[[old,new]])
+            self.assertEqual(status['published_candidate']['cid'],'C2')
             command(target,'advance-structured','--head-artifact',old,error='HEAD_OWNED_BY_PUBLISHER')
             self.assertEqual(verdict(target,new)['status'],'APPROVED')
             publisher.state_path.unlink()
