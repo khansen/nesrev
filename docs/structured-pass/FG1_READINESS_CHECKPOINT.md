@@ -1,5 +1,9 @@
 # FG-1 readiness: early checkpoint
 
+Historical checkpoint. The approved [continuation result](FG1_READINESS_RESULT.md)
+records new native captures, complete write mapping and final checks. The stops
+and results below remain unchanged.
+
 20 November 2026. **Preparation passed; readiness is incomplete.** The
 [approved slice](FG1_PASS_READINESS.md) has reached its repeated-failure stop:
 two successive layout probes omitted requirements of the existing pass

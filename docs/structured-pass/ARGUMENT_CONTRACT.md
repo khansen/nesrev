@@ -1,8 +1,10 @@
 # Client-visible operation arguments
 
-Current status: the [r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md) used this contract
-successfully and passed independent result review. The dated correction records
-below preserve the earlier stops and their verification limits.
+Current status: the [r5 live smoke](FG1_LAUNCHER_ACCEPTANCE.md) used the 19 November
+contract successfully. The [readiness result](FG1_READINESS_RESULT.md) adds
+role-local published-candidate sources, a multi-round witness and new captured
+declaration pins. Those changes have offline evidence; r5 is not relabelled as
+live admission of the new pin. The dated records below preserve earlier limits.
 
 18 November 2026. A live admission attempt stopped at `validate`: the client
 sent a `candidate` field taken from the preceding response, while dispatch

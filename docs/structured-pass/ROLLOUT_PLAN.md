@@ -72,8 +72,10 @@ is complete; this does not complete step 3 of this broader rollout. The
 [retrospective](../retros/2026-11-19-structured-launcher-admission.md) records the
 evidence and coordination cost. The launcher merged in
 [PR #197](https://github.com/khansen/nesrev/pull/197) after review and green Linux
-and macOS CI. Next is the proposed [final readiness check](FG1_PASS_READINESS.md),
-then separate authorization for one unscripted pass. No inference saving
+and macOS CI. The authorized [final readiness check](FG1_PASS_READINESS.md)
+now has an [offline result and complete pass matrix](FG1_READINESS_RESULT.md),
+pending final review and CI. Next is separate authorization for one unscripted
+pass after fresh preparation and admission-transition review. No inference saving
 or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
 the completed capability and this corrected diagnosis.

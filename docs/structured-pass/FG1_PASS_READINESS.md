@@ -4,6 +4,8 @@
 live inference still requires a separate authorization.**
 The [early checkpoint](FG1_READINESS_CHECKPOINT.md) records completed identity
 tests and preparation, and the layout-probe stop before native captures.
+The [continuation result](FG1_READINESS_RESULT.md) completes the offline evidence,
+operation matrix and proposed live limits; code review and final-head CI remain.
 [PR #197](https://github.com/khansen/nesrev/pull/197) merged the accepted launcher
 as `3fb9cd72a`, with both CI jobs passing on reviewed head `4c511b637`.
 The [admission record](FG1_LAUNCHER_ACCEPTANCE.md) and
