@@ -22,6 +22,8 @@ The [typed-search contract](TYPED_SEARCH.md)
 and [offline acceptance record](TYPED_SEARCH_ACCEPTANCE.md) describe the bounded
 search slice. Neither the feasibility decision nor offline acceptance authorizes
 a live run or completes the fresh-game path.
+The [source-span contract](SOURCE_SPANS.md) describes cross-label navigation
+and the current rule for counting unchanged-query continuation pages.
 
 The [fresh-game pass proposal](FRESH_GAME_PASS_SCOPE.md) scopes the next
 integration decision after early-pass admission: one independently reviewed

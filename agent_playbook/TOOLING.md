@@ -320,6 +320,22 @@ dry runs. The adapter itself does not start, supervise, or detect readiness of
 agent sessions. The launcher requires the one-time startup confirmation;
 thereafter the agents must yield at handoff so the receiving pane is idle.
 
+### Structured-service evidence requests
+
+During a structured pass, each independent evidence question has a ceiling of
+eight logical requests. Continuation pages count as one request when the
+operation and all arguments remain unchanged except `offset` or the returned
+continuation token. Count transport calls separately. Changing the selector,
+filters, generation, span or limit starts another logical request. Do not split
+an unchanged question to evade the ceiling, and do not treat incomplete
+evidence as absence.
+
+The `records` view of `navigate` defaults to one global-label block. To cross
+labels within one segment, set `span=segment`, keep the original selector and
+follow `next_offset`. The service still enforces its 40-record and 24 KiB page
+limits and stops before `ORG` or `END`. Read the fixed `operation-reference`
+input for the full contract.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.

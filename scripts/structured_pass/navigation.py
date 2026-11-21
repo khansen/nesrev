@@ -12,6 +12,7 @@ def require(value,code='REQUEST_SCHEMA'):
 
 
 VIEWS=('symbols','records','uses','comments')
+SPANS=('label','segment')
 
 
 class Navigation:
@@ -47,12 +48,18 @@ class Navigation:
         require(len(found)==1,'NAVIGATION_AMBIGUOUS_SYMBOL')
         return found[0]
 
-    def query(self,view,*,symbol=None,record_id=None,contains=None,offset=0,limit=12):
+    def query(self,view,*,symbol=None,record_id=None,contains=None,offset=0,limit=12,span='label'):
         if view not in VIEWS:
             from .operation_contract import RequestError
             raise RequestError(field='view',accepted_values=list(VIEWS))
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
         require(contains is None or isinstance(contains,str) and 0<len(contains)<=256)
+        if span not in SPANS or (view!='records' and span!='label'):
+            from .operation_contract import RequestError
+            raise RequestError(field='span',accepted_values=list(SPANS) if view=='records' else ['label'])
+        if view=='records' and span=='segment':
+            require(contains is None)
+            return self.segment_records(self.select(symbol,record_id),offset,limit)
         m=self.m;items=[];scope=None;comment_records=[]
         if view=='symbols':
             require(symbol is None and record_id is None)
@@ -103,3 +110,45 @@ class Navigation:
         return {'view':view,'offset':offset,'limit':limit,'total':total,'records':items,
                 'next_offset':offset+limit if offset+limit<total else None,'scope':scope,
                 'comments':comment_records}
+
+    def segment_records(self,n,offset,limit):
+        """A lexical span, not a procedure or control-flow completeness claim."""
+        from . import review_pages
+        from .rename_service import comments
+        m=self.m
+        require(n in self.position,'NAVIGATION_RECORD_REQUIRED')
+        start=self.position[n]
+        segment=self.layout.get(n,{}).get('segment_id')
+        if m.facts[n]['kind'] in ('EQU_NODE','ORG_NODE','END_NODE'):
+            end=start+1
+        else:
+            end=next((i for i in range(start+1,len(self.statements))
+                if m.facts[self.statements[i]]['kind'] in ('ORG_NODE','END_NODE') or
+                (self.statements[i] in self.layout and
+                 self.layout[self.statements[i]]['segment_id']!=segment)),len(self.statements))
+        selected=self.statements[start:end]
+        page=selected[offset:offset+limit]
+        all_comments=comments(m)
+        first=m.facts[page[0]]['span'][0] if page else 0
+        if page and offset:
+            first=m.facts[selected[offset-1]]['span'][2]+1
+        elif page:
+            comment_lines={c['line'] for c in all_comments}
+            code_lines={u['line'] for u in m.units if u['kind'] not in ('comment','whitespace','newline')}
+            while first-1 in comment_lines and first-1 not in code_lines:first-=1
+        result={'view':'records','span':'segment','offset':offset,'limit':limit,'total':len(selected),
+                'scope':{'start_record_id':m.ids[n],'segment_id':segment,
+                         'boundary_record_id':m.ids[self.statements[end]] if end<len(self.statements) else None,
+                         'coverage':'Lexical statements across global labels in one segment; stops before ORG/END or a segment change. Not control-flow proof. EQU/ORG/END selections are single records.'}}
+        while True:
+            following=offset+len(page)
+            next_offset=following if following<len(selected) else None
+            answer={**result,'records':[self.record(k) for k in page],
+                    'next_offset':next_offset,
+                    'next_record_id':m.ids[selected[following]] if next_offset is not None else None,
+                    'comments':[c for c in all_comments if page and first<=c['line']<=m.facts[page[-1]]['span'][2]]}
+            # Reserve the same envelope headroom as other evidence views. Shrink
+            # whole records only; an oversized single record is refused intact.
+            if review_pages.wire_size(answer)<=review_pages.BUDGET-4096:return answer
+            require(len(page)>1,'RESPONSE_TOO_LARGE')
+            page.pop()

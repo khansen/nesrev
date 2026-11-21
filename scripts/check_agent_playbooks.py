@@ -368,11 +368,14 @@ ROOT_WORD_CEILING = 6000
 # compressing the mission or weakening the per-pass quality contract.
 # Initial-handoff recovery and article preservation add 6L/64W to TOOLING.
 # Preserve headroom for the affected route maxima; new-project is unchanged.
+# Source-span navigation and pagination accounting add 16L/125W to TOOLING.
+# Preserve data-recovery and project-pass-review headroom for this new contract;
+# the maximum bundles for the other budget keys do not grow.
 ROUTE_BUDGETS = {
     "default": (3654, 26881),
-    "data-recovery": (3292, 24849),
+    "data-recovery": (3308, 24974),
     "new-project": (4380, 32242),
-    "project-pass-review": (4764, 33947),
+    "project-pass-review": (4780, 34072),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

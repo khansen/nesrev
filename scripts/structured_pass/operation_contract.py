@@ -5,6 +5,15 @@ generation integrity and nested edit/query schemas remain with their owners.
 """
 import json
 
+REQUEST_COUNTING = (
+    'The practicality ceiling is eight logical requests per independent evidence question. '
+    'Continuation pages of an unchanged operation and query count as one request: only offset '
+    'or the returned continuation token may differ. Keep generation, selector, filters, span '
+    'and limit unchanged. A changed selector, including record_id, is a new request; use '
+    'next_offset with the original selector to page a segment span. Report logical requests '
+    'and transport calls separately. Retrieve every page needed for the question; an incomplete '
+    'page is not absence evidence. Do not relabel an unchanged question to evade the ceiling.'
+)
 
 class RequestError(ValueError):
     """Public request diagnostics contain expected fields, never submitted values."""
@@ -37,7 +46,7 @@ RENAME = {
     'evidence': (('generation', 'view'), ('offset', 'limit', 'record_id', 'address', 'decoder',
                                         'byte_offset', 'byte_count', 'artifact', 'analogue_index', 'key', 'set_id')),
     'preview_page': (('generation', 'preview_digest'), ('offset', 'limit')),
-    'navigate': (('generation', 'view'), ('symbol', 'record_id', 'contains', 'offset', 'limit', 'analogue_index')),
+    'navigate': (('generation', 'view'), ('symbol', 'record_id', 'contains', 'offset', 'limit', 'analogue_index', 'span')),
     'inputs': INPUTS,
     'input': INPUT,
     'guidance': (('generation', 'name'), ('offset', 'limit')),
@@ -169,6 +178,8 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'key':{'source':'evidence(view=artifact_rows).records[].key'},
         'set_id':{'source':'evidence(view=ram_compact).shared.set_id'},
         'analogue_index':{'enum':[0,1]},
+        'span':{'enum':list(navigation.SPANS),'default':'label',
+                'constraint':'segment is only valid with navigate view=records'},
         'byte_offset':{'authored':'nonnegative integer within the selected data'},
         'byte_count':{'authored':'integer in 1..4096 within the selected data; align offset/count to decoder width'},
         'offset':{'source':'same operation next_offset; 0 for first page'},
