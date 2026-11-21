@@ -16,7 +16,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from structured_pass import declared_inputs as inputs, guidance, producer, bridge, input_delivery
 from structured_pass import subscription_client as claude
-from structured_pass import navigation, analogue_inputs
+from structured_pass import navigation, analogue_inputs, startup_inputs
 from structured_pass.launcher import Corridor
 from structured_pass.model import certify
 from structured_pass.retained_service import RetainedReviewService
@@ -24,10 +24,11 @@ import structured_codex_client as codex
 from structured_pass_fixture import prepare, closeout_ops, git, SOURCE, REFERENCE
 
 
-def setup_inputs(root,repo,analogues=False):
+def setup_inputs(root,repo,analogues=False,startup=False):
     for name in guidance.NAMES:
         path=repo/name;path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text('# '+name+'\nPinned policy.\n')
+        path.write_text('# '+name+'\n<a id="current"></a>\n## Current\nPinned policy.\n'
+                        '<a id="later"></a>\n## Later\nOn-demand policy.\n')
     review=repo/'projects/sample/docs/reverse_engineering/reviews/pass-0.md'
     review.parent.mkdir(parents=True);review.write_text('Verdict: APPROVED\nSTOP AFTER PASS 0\nGate evidence: naming-only.\n')
     reference=repo/'projects/sample/docs/game_reference/manual.pdf'
@@ -55,6 +56,10 @@ def setup_inputs(root,repo,analogues=False):
             selected.append({'source':source.relative_to(repo).as_posix(),'sha256':producer.sha(source),'model_sha256':producer.sha(model_path)})
     git(repo,'add','.');git(repo,'commit','-qm','Synthetic declared inputs')
     spec={'schema':'declared-input-selection-v1','items':items,'analogues':selected}
+    if startup:
+        spec['startup']={'sections':[{'input_id':'guidance-0','anchors':['current']}],
+            'context':{'window_tokens':258400,'startup_tokens':60000,'lifecycle_tokens':48000,
+                       'margin_tokens':25840,'bytes_per_1000_tokens':2580}}
     path=root/'selection.json';path.write_text(json.dumps(spec))
     return {'selection':{'path':str(path),'sha256':producer.sha(path)},'analogue_models':models}
 
@@ -168,7 +173,7 @@ class LifecycleTests(unittest.TestCase):
         (ROOT/'tmp').mkdir(exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'tmp',prefix='inputs-test-');self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name)
-        self.c=prepare(self.root,declared_setup=lambda root,repo:setup_inputs(root,repo,True))
+        self.c=prepare(self.root,declared_setup=lambda root,repo:setup_inputs(root,repo,True,True))
         self.g=self.c.editor.state['current']
 
     def call(self,root,role,operation,args,profile='corridor'):
@@ -193,6 +198,10 @@ class LifecycleTests(unittest.TestCase):
             delivered=self.collect(self.c.root,role,self.g,'operation-reference')
             self.assertEqual(delivered,operation_reference)
             self.assertIn('409600 bytes',json.loads(delivered)['request_counting'])
+            self.assertIn('missing allowance requires a decision',json.loads(delivered)['question_budget']['conversation_allowance'])
+            selected=self.collect(self.c.root,role,self.g,startup_inputs.INPUT_ID)
+            self.assertIn('Pinned policy.',selected);self.assertNotIn('On-demand policy.',selected)
+            self.assertIn('On-demand policy.',self.collect(self.c.root,role,self.g,'guidance-0'))
             self.assertEqual(self.collect(self.c.root,role,self.g,'reference'),expected)
             catalog=self.call(self.c.root,role,'inputs',{'generation':self.g,'limit':40})
             guide=next(row for row in catalog['records'] if row['kind']=='guidance'
@@ -212,9 +221,11 @@ class LifecycleTests(unittest.TestCase):
             shutil.rmtree(self.root/'repo/projects/sample'/path)
         restored=RetainedReviewService.from_publication(self.root/'restored',self.c.config['store'],ticket)
         self.assertEqual(self.collect(restored.root,'reviewer',ticket,'reference','retained'),expected)
+        self.assertEqual(self.collect(restored.root,'reviewer',ticket,startup_inputs.INPUT_ID,'retained'),selected)
         delivered=self.collect(restored.root,'reviewer',ticket,'operation-reference','retained')
         self.assertEqual(delivered,operation_reference)
         self.assertEqual(json.loads(delivered)['question_budget']['text_response_bytes'],409600)
+        self.assertIn('missing allowance requires a decision',json.loads(delivered)['question_budget']['conversation_allowance'])
         archive=self.call(restored.root,'reviewer','input',{'generation':ticket,'input_id':'intake'},'retained')
         self.assertTrue(archive['historical']);self.assertEqual(archive['authority'],inputs.HISTORICAL)
         self.assertIn('STOP AFTER PASS 0',archive['text'])
@@ -256,15 +267,19 @@ class LifecycleTests(unittest.TestCase):
             text=input_delivery.prompt(record,self.root/('workspace-'+role))
             self.assertIn('Current authorized pass scope',text);self.assertIn(task,text)
             self.assertIn(inputs.HISTORICAL,text);self.assertNotIn('STOP AFTER PASS 0',text)
-            self.assertEqual(len(record['items']),15);self.assertEqual(len(record['media']),1)
+            self.assertEqual(len(record['items']),16);self.assertEqual(len(record['media']),1)
+            self.assertIn('321364 bytes',text)
+            self.assertIn('guidance-startup completely at startup',text)
             self.assertEqual(record['media'][0]['origin']['identity']['pdf_page'],1)
             path=folder/'assembly.json';original=path.read_bytes()
-            for mutate in ('omit','page','media_hash','pass'):
+            for mutate in ('omit','page','media_hash','pass','missing_budget','inflated_budget'):
                 changed=json.loads(original)
                 if mutate=='omit':changed['items'].pop()
                 elif mutate=='page':changed['media'][0]['origin']['identity']['pdf_page']=2
                 elif mutate=='media_hash':changed['media'][0]['sha256']='0'*64
-                else:changed['pass_id']='2'
+                elif mutate=='pass':changed['pass_id']='2'
+                elif mutate=='missing_budget':del changed['startup']
+                else:changed['startup']['budget']['response_bytes']+=1
                 path.write_text(json.dumps(changed))
                 with self.assertRaisesRegex(ValueError,'INPUT_CHANGED'):input_delivery.verify(self.c.root,path)
             path.write_bytes(original)
@@ -285,6 +300,8 @@ class LifecycleTests(unittest.TestCase):
         for profile in (c['roles']['reviewer'],d):
             prompt_path=Path(profile.get('prompt',codex_root/'prompt.md'))
             self.assertIn(inputs.HISTORICAL,prompt_path.read_text());self.assertIn(task,prompt_path.read_text())
+            self.assertIn('321364 bytes',prompt_path.read_text())
+            self.assertIn('guidance-startup completely at startup',prompt_path.read_text())
             self.assertNotIn('STOP AFTER PASS 0',prompt_path.read_text())
             self.assertEqual(len(profile['media']),1 if profile is c['roles']['reviewer'] else 0)
             self.assertEqual(json.loads(Path(profile['input_assembly']).read_text())['items'],

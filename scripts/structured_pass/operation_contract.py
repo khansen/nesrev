@@ -26,8 +26,11 @@ REQUEST_COUNTING = (
     'and transport calls separately. Do not relabel an unchanged question to evade either ceiling. '
     'The preparation must budget delivered inputs, question evidence and room for edits, validation '
     'and closeout against the pinned context window. The question ceiling is not a fresh allowance '
-    'when earlier questions already occupy that window. Use a smaller byte allowance when '
-    'the remaining context, after the reserved edit/closeout space, cannot hold 400 KiB.'
+    'when earlier questions already occupy that window. Preparation must deliver a numeric '
+    'conversation allowance with its measured startup cost, lifecycle reserve and at least '
+    '10 percent estimation margin. Use the smaller of 400 KiB and that remaining allowance; '
+    'include analogue reads and additional guidance. If the prepared allowance is missing, '
+    'stop for a decision rather than guessing it. A resumed turn does not reset the allowance.'
 )
 
 class RequestError(ValueError):

@@ -349,8 +349,25 @@ an instruction to read the rest of the segment. The service still enforces its
 Preparation must budget the delivered inputs, evidence and room for editing,
 validation and closeout against the pinned model's context window. Earlier
 questions still occupy that window; a new question does not reset its space.
-Use a smaller byte allowance when needed, and account for images separately.
+The prepared task must state a numeric conversation allowance, its measured
+startup cost, the lifecycle reserve and at least a 10% estimation margin.
+Use the smaller of the remaining allowance and the question ceiling. Analogue
+reads and additional guidance consume the same allowance, including across
+resumed turns. If it is missing, stop for a decision; do not guess it.
+Account for images separately.
 Read the fixed `operation-reference` input for the full contract.
+
+When preparation supplies `guidance-startup`, read its selected sections rather
+than automatically downloading every playbook. They retain the source prose;
+the complete files remain available by their original IDs. Selection belongs
+to preparation and must cover the authorized corridor's requirements.
+
+For RAM access questions, `ram_summary` retains every access, owner, alias proof
+and unresolved destination. Expand its constants and columns, then resolve
+each dictionary-coded field through that page's `dictionaries` entry. Read every
+needed page; no separate shared-set fetch is required. Source-location details
+and edit preimages remain available through `navigate` and the original RAM
+views. A possible alias is still unknown, never evidence of a proven access.
 
 ### Evidence Order (Mandatory)
 

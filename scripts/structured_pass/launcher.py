@@ -166,7 +166,7 @@ class Corridor:
             else:current=generation
             if operation=='search':
                 return self.editor.search(**{**args,'generation':current},public_generation=generation)
-            if operation=='evidence' and args['view'] in ('ram_compact','ram_shared'):
+            if operation=='evidence' and args['view'] in ('ram_compact','ram_shared','ram_summary'):
                 return self.editor.evidence_query(**{**args,'generation':current},public_generation=generation)
             if operation=='input' and role=='implementer':
                 from . import declared_inputs

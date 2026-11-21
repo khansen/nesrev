@@ -371,11 +371,13 @@ ROOT_WORD_CEILING = 6000
 # Source-span navigation and capacity accounting add 32L/282W to TOOLING.
 # Preserve default, data-recovery and project-pass-review headroom for this
 # new contract; the maximum new-project bundle does not grow.
+# The prepared allowance and verbatim-section/RAM-summary guidance adds
+# 17 lines and 155 words to TOOLING routes; retain their prior headroom.
 ROUTE_BUDGETS = {
-    "default": (3686, 27163),
-    "data-recovery": (3324, 25131),
+    "default": (3703, 27318),
+    "data-recovery": (3341, 25286),
     "new-project": (4380, 32242),
-    "project-pass-review": (4796, 34229),
+    "project-pass-review": (4813, 34384),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

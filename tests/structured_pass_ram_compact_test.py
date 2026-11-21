@@ -18,7 +18,11 @@ from structured_pass_fixture import prepare,closeout_ops
 
 
 def expand(page):
-    return [{**page['constants'],**dict(zip(page['columns'],values))} for values in page['records']]
+    rows=[{**page['constants'],**dict(zip(page['columns'],values))} for values in page['records']]
+    if page.get('encoding')=='ram-columnar-summary-v1':
+        for row in rows:
+            for field,values in page['dictionaries'].items():row[field]=values[str(row[field])]
+    return rows
 
 
 class CompactTests(unittest.TestCase):
@@ -63,6 +67,24 @@ class CompactTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
                 ram_evidence.query(self.model,'G-test','ram_shared',set_id=ident)
 
+    def test_summary_preserves_every_access_and_unknown_across_ranges(self):
+        omitted={'preimage','span','cpu_address','output_offset','segment_id'}
+        for selector in [{'address':a} for a in (0,0x40,0xFF,0x100,0x6000,0xFFFF)]+[
+                {'record_id':self.ident('Cell')},{'record_id':self.ident('Alias')}]:
+            with self.subTest(selector=selector):
+                rows,page,_=self.collect('ram_summary',**selector)
+                original=evidence_views.memory(self.model,**selector)
+                self.assertEqual(rows,[{k:v for k,v in row.items() if k not in omitted} for row in original])
+                self.assertEqual(len(rows),page['total_evidence_records'])
+                self.assertEqual(set(page['omitted_fields']),omitted)
+                self.assertNotIn('shared',page)
+                self.assertEqual(page['generation'],'G-test')
+                self.assertIn('not an edit preimage',page['coverage'])
+                for row in rows:self.assertIn(row['record_id'],self.model.nodes)
+        with patch.object(self.model,'instructions',{}):
+            rows,page,_=self.collect('ram_summary',address=0)
+            self.assertEqual(rows,[]);self.assertEqual(page['total_evidence_records'],0)
+
     def test_empty_view_and_shared_set_are_explicit(self):
         with patch.object(self.model,'instructions',{}):
             rows,page,_=self.collect('ram_compact',address=0x6000)
@@ -71,6 +93,26 @@ class CompactTests(unittest.TestCase):
             shared,part,_=self.collect('ram_shared',set_id=page['shared']['set_id'])
             self.assertEqual(shared,[]);self.assertEqual(part['total_records'],0)
             self.assertIsNone(part['next_offset'])
+
+    def test_summary_pages_carry_complete_dictionaries_under_size_limit(self):
+        original=evidence_views.memory(self.model,address=0)[0]
+        rows=[{**original,'record_id':'record-'+str(i),'category':'indexed_other_base_possible',
+               'memory_access':{'data':{'kind':'write','address':i,'index_register':'X',
+                                        'via_pointer':False},'pointer':None}} for i in range(512)]
+        offset=0;actual=[];calls=0
+        with patch.object(evidence_views,'memory',return_value=rows):
+            while offset is not None:
+                page=ram_evidence.query(self.model,'G-test','ram_summary',offset,128,address=0)
+                self.assertLessEqual(review_pages.wire_size(page),24576)
+                decoded=expand(page);actual.extend(decoded);calls+=1
+                for field,values in page['dictionaries'].items():
+                    encoded=[{**page['constants'],**dict(zip(page['columns'],v))}[field]
+                             for v in page['records']]
+                    self.assertEqual(set(values),{str(v) for v in encoded})
+                offset=page['next_offset']
+        self.assertGreater(calls,4)
+        self.assertEqual(actual,[{k:v for k,v in r.items() if k not in
+            {'preimage','span','cpu_address','output_offset','segment_id'}} for r in rows])
 
     def test_exact_full_and_later_pages_and_wire_ceiling(self):
         rows=[{'id':i,'text':str(i)+'\\"\n\u263a'*180,'same':None} for i in range(129)]
@@ -125,6 +167,16 @@ class CompactLifecycleTests(unittest.TestCase):
         delivered=json.loads(responses[1]['result']['content'][0]['text'])
         self.assertEqual(delivered.pop('volume')['response_bytes'],len(lines[1].encode())+1)
         self.assertEqual(delivered,original)
+        for role in ('implementer','reviewer'):
+            request={'jsonrpc':'2.0','id':2,'method':'tools/call','params':{'name':'operation',
+                'arguments':{'operation':'evidence','arguments':{**args,'view':'ram_summary'}}}}
+            output=io.StringIO()
+            bridge.mcp(c.root,role,'corridor',io.StringIO(json.dumps(request)+'\n'),output)
+            wire=output.getvalue();payload=json.loads(wire)['result']
+            self.assertFalse(payload.get('isError'),payload)
+            summary=json.loads(payload['content'][0]['text'])
+            self.assertEqual(summary.pop('volume')['response_bytes'],len(wire.encode()))
+            self.assertEqual(summary,c.dispatch('evidence',{**args,'view':'ram_summary'},role))
         for unsupported in ({'public_generation':'G-forged'},{'analogue_index':0}):
             with self.assertRaises(ValueError):c.dispatch('evidence',{**args,**unsupported},'reviewer')
         old_public=None
@@ -143,6 +195,10 @@ class CompactLifecycleTests(unittest.TestCase):
             second=retained.dispatch('evidence',shared_args,'reviewer')
             self.assertEqual(first,second)
             self.assertEqual(page,retained.dispatch('evidence',{**args,'generation':ticket},'reviewer'))
+            summary_args={**args,'generation':ticket,'view':'ram_summary'}
+            summary=c.dispatch('evidence',summary_args,'reviewer')
+            self.assertEqual(summary['generation'],ticket)
+            self.assertEqual(summary,retained.dispatch('evidence',summary_args,'reviewer'))
             for stale in [original['shared']['set_id']]+([old_public] if old_public else []):
                 with self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
                     c.dispatch('evidence',{**shared_args,'set_id':stale},'reviewer')

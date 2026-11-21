@@ -45,8 +45,14 @@ Narrow an oversized query, or stop for a decision when the required evidence
 cannot fit. Incomplete evidence is not absence evidence. These ceilings take
 precedence over generic paging instructions. Images require separate context
 accounting. Earlier questions remain in the conversation: preparation must
-budget delivered inputs, evidence and room for editing, validation and closeout
-against the pinned model window, and lower the question allowance when needed.
+deliver a numeric investigation allowance derived from the pinned model window,
+measured startup, a lifecycle reserve and at least ten percent estimation margin.
+The caller uses the smaller of that remaining allowance and 400 KiB. Extra
+guidance, analogue reads, refusals and repeated evidence consume the same total;
+neither a new question nor a resumed turn resets it. A missing prepared allowance
+requires a decision, rather than an estimate by the model. Editing, necessary
+document/preimage reads, review, rework and closeout use the separate lifecycle
+reserve. It cannot fund new evidence questions.
 
 The optional match detail returns every matching witness, its certainty and
 relative position, plus the instruction's identity, owner, segment, mnemonic,
@@ -73,9 +79,10 @@ game edits. Acceptance requires neutral dense-label, boundary and generation
 tests; a regression control; and the same real-input replay on the old and new
 service using the new counting rule for both. The old replay must exceed eight
 and the new replay must fit with headroom. A changed declaration needs new pins.
-RAM summarization remains outside this correction. The capacity correction
-reduces search context and repeated field names without trimming the delivered
-guidance or increasing the transport limit.
+The subsequent capacity review brings the optional RAM access summary into
+this correction. The owner authorized selecting relevant canonical sections
+for startup, preserving their prose and keeping complete files on demand.
+Neither change raises the transport or input-item limits.
 Publication, CI, merge and fresh preparation precede any separately authorized
 live attempt.
 
@@ -108,101 +115,142 @@ result alone was insufficient for acceptance.
 
 ## Capacity correction
 
-Fresh disposable preparation delivers the revised operation reference and
-guidance from the proposed tooling. The replay compares the label default,
-the previously proposed span with wide search context, and a span with
-matches-only searches. All use the same frozen question. The first two remain
-negative controls, rather than being credited for their logical counts alone.
+The first volume plan was rejected. Its flat 3.3-byte token estimate left only
+8,066 tokens, omitted the required analogue reads, and underpriced RAM evidence.
+The retained live run measured about 2.6 bytes per token for that format. The
+revised acceptance bar includes both analogue routines and the unchanged
+48,000-token lifecycle reserve, with at least ten percent of the 258,400-token
+window left for estimation error.
 
-| Replay | Logical requests | Calls | Response bytes | Estimated question tokens |
-| --- | ---: | ---: | ---: | ---: |
-| Label default, wide search | 16 | 67 | 1,252,925 | 388,295 |
-| Segment span, wide search | 6 | 62 | 1,265,664 | 391,967 |
-| Segment span, match detail | 6 | 19 | 249,224 | 76,901 |
+Three changes reduce the input volume without shortening canonical prose:
 
-Token estimates include request arguments at the retained run's 3.3 bytes per
-token. The response totals include the new byte counters. The 116 required
-flow records, vector and all local/shared RAM rows remain equal. Every search
-match retains its identity, owner, value and uncertainty. Unneeded neighboring
-rows and detailed instruction fields are intentionally not projected; this is
-not a claim that the complete wide-search response is byte-identical.
+- Preparation selects whole canonical anchor sections and captures them in the
+  fixed `guidance-startup` record. Each section is byte-equal to its source and
+  carries source identity, selected anchors and hashes. All six complete files
+  remain available under their original IDs. Both roles receive the same plan;
+  the retained review restores the same captures.
+- The operation reference uses compact JSON instead of pretty-printed JSON.
+  Its fields, descriptions and argument contracts are unchanged. The final
+  record is 39,999 bytes across five pages, within the existing item limits.
+- `evidence(view=ram_summary)` retains every original access row, native memory
+  fact, owner, alias proof, certainty, indexed possibility and unresolved
+  indirect destination. It omits only `preimage`, `span`, `cpu_address`,
+  `output_offset` and `segment_id`; navigation supplies those when needed.
+  This is an explicit projection, not an assertion that the full views are
+  byte-identical. The original RAM views remain available.
 
-Startup is measured through both roles' real input routes: the full operation
-reference, six applicable guidance documents, every declared text reference,
-the intake receipt and reference decision. The historical intake archive stays
-available on demand, as the assembled prompts already specify. Both roles receive
-identical bytes: 429,988 response bytes across 50 pages. The reference is 64,136 bytes
-across eight pages, within the unchanged catalog and item limits. Startup is
-estimated at 123,433 tokens by adding the delivered growth to the retained
-run's observed 80,694-token startup.
+The summary includes the shared unknowns, so it does not need a second shared
+set download. Decode each page by combining constants and columns, then expand
+its dictionary fields. Each page carries all dictionary entries it needs.
+Dictionary bytes are included before applying the response-size check. All
+310 access rows in the replay remain, including every possible alias and
+unresolved indirect destination; none is promoted to a proven owner.
 
-Reserve 48,000 tokens for editing, validation and closeout. The earlier full
-five-turn fixture delivered 42,774 bytes of lifecycle requests and responses
-across its three implementer turns, estimated at 12,962 tokens. The reserve
-covers twice that traffic plus 16,000 tokens for additional reasoning and
-authoring. A separate 2,000-token framing margin gives a total of **250,334 of
-258,400 tokens**, leaving **8,066 tokens beyond the reserve**. Both wide-search
-controls exceed the window and the 400 KiB question limit. The effective
-question-response allowance is 275,844 bytes after startup, request arguments
-and the reserves. Before every call, the replay leaves room for a full 24 KiB
-response under that smaller allowance. Its worst next-response reservation
-reaches 256,097 tokens, leaving 2,303 beyond the reserves.
+## Final capacity measurement
 
-This is a narrow estimated margin, not a tokenizer measurement or a guarantee
-of semantic completion. No images are included. The historical archive, other
-guidance documents and analogue documents remain available on demand; reading them uses the same
-remaining context, not a new allowance. Fresh post-merge preparation must repeat
-the calculation with its actual delivered inputs. The live task must preserve
-the reserved space and narrow or stop when further evidence would consume it.
+The fresh disposable preparation uses the frozen source and a tooling overlay.
+Both roles read the complete compact operation reference, selected guidance,
+all declared text references, intake receipt and reference decision through
+normal bridge calls. The historical archive remains available on demand.
+Startup delivers 214,070 response bytes across 25 calls. The selected guidance
+record is 103,825 bytes, including provenance headers; its 102,738 source bytes
+are copied verbatim. The assembled prompt carries the exact numeric allowance.
 
-An intermediate dictionary projection was measured and rejected: its total
-estimate was 269,939 tokens with the same reserve. The final columnar encoding
-preserves the projection's fields while removing repeated keys. Both failed
-capacity results and their raw calls are retained.
+The flow replay reads 120 source records to cover the same 116 required records,
+using ordinary 20-record pages and stopping after the return instruction. It
+retains the vector, all projected search matches and all RAM access facts. Both
+analogue reads use `analogue_index`: one complete 63-record frame-service
+routine and one 24-record input routine with its helper. The operator selected
+these analogues manually. Their vocabulary still requires local revalidation;
+the current-project flow, operand searches and RAM facts supply that evidence.
+No semantic decision or game edit is credited by this scripted replay.
 
-Reading the entire historical archive at startup was also measured: its final
-total fit, but reserving a maximum next response would consume lifecycle space.
-That plan is rejected. The passing plan uses the existing on-demand archive
-policy; it does not shorten guidance, text references or the lifecycle reserve.
+| Delivered work | Logical requests | Transport calls | Response bytes |
+| --- | ---: | ---: | ---: |
+| Current-project question | 5 | 15 | 164,175 |
+| First analogue question | 1 | 6 | 68,437 |
+| Second analogue question | 2 | 3 | 28,763 |
 
-The neutral fixture crosses eight global labels in at most two transport calls
-for both roles. Tests also cover the unchanged default, overlaid segment
-boundaries, END, invalid selections and generations, comment-preserving size
-pagination, and restored retained review. Four deliberate regressions were
-caught: restoring the one-label restriction, crossing boundaries, bypassing the
-size limit, and dropping the continuation identity.
+Token accounting uses the retained live rollout's next-request input growth,
+matched to each preceding result. Conservative rates are 2.952 bytes/token for
+source records and 3.86 for prose. Previously measured operation-reference
+text is priced at 2.97 in the rejected-plan comparison. New compact search,
+RAM-summary and operation-reference encodings, structured receipts and request
+arguments use 2.58, rounded below the worst observed RAM rate. The seven RAM
+pages in the retained run grew context by 41,088 tokens. Initial context,
+new prompt growth, declaration allowance and a separate 2,000-token framing
+cushion are included in startup.
 
-Both credential-free native captures received the generated declaration
-exactly. Only the optional `navigate.span` key changes the declaration. The
-native pin is `6d6918483e5c50c1bec6dd80b4e3dc78379a91d91896fca5fe435aadb9e7e54e`.
-Description/argument lengths are 4,027/3,822 for the implementer, 3,403/3,113
-for the reviewer, and 1,211/2,285 for the retained reviewer, against 4,096 each.
-The initial operation reference was 61,688 bytes, below the 256 KiB item limit.
-The volume rule is delivered through that existing paginated record. It changes
-no tool declaration or native pin. Guidance reading budgets grow by the measured
-prose addition, preserving their previous headroom instead of forcing fragments.
-Transport, catalog and item limits are unchanged.
+| Capacity component | Estimated tokens |
+| --- | ---: |
+| Startup, including prompt and framing | 76,181 |
+| Current-project question | 60,175 |
+| Both analogue questions | 33,563 |
+| Edit, validation and closeout reserve | 48,000 |
+| Total | **217,919** |
+| Remaining window | **40,481 (15.7%)** |
 
-This is offline evidence. The revised preparation uses a disposable tooling
-overlay on the frozen project base, so the delivered guidance includes the new
-rule. It does not rebase or alter the owner checkout. Post-merge preparation
-must bind the actual merged project commit and recheck the context calculation.
-Neither the new declaration nor the source-span option has been used by a real
-model yet.
+Preparation budgets 78,000 startup tokens and reserves 25,840 for estimation
+error. At 2.58 bytes/token, the remaining investigation allowance delivered in
+both assembled prompts is **274,924 response bytes**. The replay uses 261,375.
+Before every call, cumulative bytes plus the maximum next 24 KiB response fit;
+the largest such reservation is 274,101 bytes. This check applies across the
+local question and both analogues. It is audited caller accounting, not an
+automatic service counter. The final prompt explicitly separates investigation
+from the lifecycle reserve so the byte allowance cannot block an otherwise
+budgeted edit, validation or closeout.
 
-The retained evidence includes harness corrections: the replay initially used
-the records key for search rows, the retained-review fixture omitted its ledger
-row, and the capture driver omitted its output directory. Each was corrected
-without changing the evidence requirements; the capture setup failed before
-any native invocation. The first full-suite run encountered the command
-sandbox's refusal to execute the process-equivalence test's `ps` baseline;
-the unchanged suite must pass outside that sandbox. All failed logs remain in
-the private evidence. Linux and macOS CI remain publication gates.
+The lifecycle reserve is sized from the earlier successful five-turn fixture's
+complete three implementer turns: 42,774 request/response bytes, about 16,579
+tokens at the worst rate. Adding 16,000 tokens for further reasoning and
+authoring still leaves about 15,421 within the reserve. This fixture establishes
+transport size, not a forecast of semantic reasoning. The reserve was not
+reduced to make the capacity result pass.
 
-The capacity correction's final local structured suite passes 423 tests with
-one opt-in skip. Six additional regression controls cover exact byte counting,
-first-page size bounds, owner and certainty preservation, a segment-identity
-change without `ORG`, and budget delivery through the input lifecycle. Earlier
-span controls are carried forward. The interim suite's two failures compared
-the new transport counter as semantic data; those tests now compare the same
-semantic payload and verify the transport-dependent byte count separately.
+The previous full-startup plan, priced with these rates and including the
+analogue reads, totals 310,437 tokens and fails the margin bar. The unchanged label view with wide searches
+also fails both request and capacity limits. These are retained negative
+controls. Fresh preparation after merge must repeat the calculation with its
+actual inputs; extra evidence, images or changed startup are not free capacity.
+No image allowance or compaction credit is included. This is an estimate with
+explicit headroom, not a tokenizer measurement or a guarantee of pass closure.
+
+## Validation and remaining gates
+
+The neutral span fixture crosses eight global labels in at most two calls for
+both roles. Tests cover the unchanged default, segment changes with and without
+`ORG`, `END`, generation binding, complete comments under size pagination and
+restored retained review. The previously captured declaration changes only by
+`navigate.span`. Its native pin remains
+`6d6918483e5c50c1bec6dd80b4e3dc78379a91d91896fca5fe435aadb9e7e54e`.
+The two corridor listings are byte-equal to their earlier native captures;
+the retained-review listing is unchanged.
+Description/argument lengths remain 4,027/3,822 for the implementer,
+3,403/3,113 for the reviewer and 1,211/2,285 for retained review. No additional
+native invocation was used for the capacity continuation.
+
+New tests cover verbatim selection, invalid anchors, budget arithmetic,
+missing/inflated delivered allowances, both prepared adapter prompts,
+restoration and summary decoding across pages. Six deliberate faults are
+caught: shortened prose, inflated allowance, missing delivered allowance,
+a dropped shared unknown, a wrong dictionary category and a summary size
+bypass. Each has a passing unmodified control. Earlier span and volume fault
+results are carried forward, rather than described as rerun.
+
+The final local structured suite on macOS arm64 passes 429 tests, with one
+opt-in skip. Final `make test` passes the playbook, hygiene and shell checks
+and all 1,206 Java tests. Linux and macOS CI remain required before merge.
+
+The replay records preserve failed intermediate projections and harness
+corrections, including a too-large analogue page, code imports from an older
+preparation, and a comparison decoder that initially omitted the selection
+fields when expanding an old shared set. None is credited as passing evidence.
+Frozen code imports and final preparation pins are checked before the final
+replay. No native clients or provider calls were used by these corrections.
+
+Guidance remains readable. Its addition against master is 49 lines and 437
+words; the three affected reading budgets grow by exactly that amount,
+preserving prior headroom. Catalog, item, response and invocation limits are
+unchanged. The owner checkout and stashes remain untouched, and the isolated
+logins were already retired. Review, publication, Linux and macOS CI, merge,
+project rebase and fresh packet review still precede a separate live grant.

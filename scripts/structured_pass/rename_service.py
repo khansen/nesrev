@@ -737,7 +737,7 @@ class RenameService(common.Service):
             from .analogue_inputs import project
             model=project(model,analogue)
             return {'generation':generation,'analogue_index':analogue,**evidence_views.query(model,view,offset,limit,**arguments)}
-        if view in ('ram_compact','ram_shared'):
+        if view in ram_evidence.VIEW_ARGUMENTS:
             return ram_evidence.query(model,public_generation or generation,view,offset,limit,**arguments)
         if view=='prior_reuse':
             common.schema(arguments,*EVIDENCE_ARGUMENTS['prior_reuse'])
