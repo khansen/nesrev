@@ -12,8 +12,10 @@ def require(value,code='REQUEST_SCHEMA'):
     if not value:raise ValueError(code)
 
 
-VIEWS=('symbols','records','records_compact','uses','comments')
+VIEWS=('symbols','records','records_compact','source','uses','comments')
 SPANS=('label','segment')
+SOURCE_COLUMNS=('record_id','address','label','text')
+SOURCE_LIMIT=128
 LAYOUT_FIELDS=('cpu_address','output_offset','bytes','segment_id')
 COMPACT_HELP=('Each row starts with a schema index. Combine constants with '
     'zip(schemas[row[0]], row[1:]). If layout is present, its value is length; '
@@ -81,6 +83,9 @@ class Navigation:
         if view not in VIEWS:
             from .operation_contract import RequestError
             raise RequestError(field='view',accepted_values=list(VIEWS))
+        if view=='source':
+            require(contains is None)
+            return self.source(symbol,record_id,offset,limit,span)
         compact=view=='records_compact'
         if compact:view='records'
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
@@ -195,3 +200,60 @@ class Navigation:
             if review_pages.wire_size(answer)<=review_pages.BUDGET-4096:return answer
             require(len(page)>1,'RESPONSE_TOO_LARGE')
             page.pop()
+
+    def selection(self,n,span):
+        """Shared lexical bounds for preparation and the reading projection."""
+        require(n in self.position,'NAVIGATION_RECORD_REQUIRED')
+        start=self.position[n];m=self.m;segment=self.layout.get(n,{}).get('segment_id')
+        if m.facts[n]['kind'] in ('EQU_NODE','ORG_NODE','END_NODE'):return [n]
+        end=next((i for i in range(start+1,len(self.statements))
+            if m.facts[self.statements[i]]['kind'] in ('ORG_NODE','END_NODE') or
+            (self.statements[i] in self.layout and
+             self.layout[self.statements[i]]['segment_id']!=segment) or
+            (span=='label' and m.facts[self.statements[i]]['kind']=='LABEL_NODE')),
+            len(self.statements))
+        return self.statements[start:end]
+
+    def source(self,symbol,record_id,offset,limit,span):
+        """Exact producer source spans, without an editing record's metadata."""
+        from . import review_pages
+        from .rename_service import comments
+        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=SOURCE_LIMIT)
+        require(span in SPANS)
+        if isinstance(record_id,list):
+            require(symbol is None and span=='label' and 0<len(record_id)<=128)
+            require(all(isinstance(value,str) for value in record_id) and
+                    len(set(record_id))==len(record_id))
+            roots=[self.select(None,value) for value in record_id]
+        else:roots=[self.select(symbol,record_id)]
+        m=self.m;blocks=[self.selection(n,span) for n in roots]
+        selected=sorted({n for block in blocks for n in block},key=lambda n:m.ranges[n])
+        all_comments=comments(m)
+        # Bind each comment to its following statement (or the final statement
+        # on its own line). This retains gaps once, even for overlapping blocks.
+        attached={n:[] for n in selected};seen=set()
+        code_lines={u['line'] for u in m.units if u['kind'] not in ('comment','whitespace','newline')}
+        comment_lines={c['line'] for c in all_comments}
+        for block in blocks:
+            first=m.facts[block[0]]['span'][0]
+            while first-1 in comment_lines and first-1 not in code_lines:first-=1
+            for n in block:
+                last=m.facts[n]['span'][2]
+                for i,c in enumerate(all_comments):
+                    if i not in seen and first<=c['line']<=last:
+                        attached[n].append(c);seen.add(i)
+                first=last+1
+        page=selected[offset:offset+limit]
+        while True:
+            end=offset+len(page);following=selected[end] if end<len(selected) else None
+            answer={'view':'source','encoding':'source-text-v1','columns':list(SOURCE_COLUMNS),
+                'span':span,'offset':offset,'limit':limit,'total':len(selected),
+                'records':[[m.ids[n],self.layout.get(n,{}).get('cpu_address'),
+                            m.name(n),m.source[slice(*m.ranges[n])].decode('utf-8')]
+                           for n in page],
+                'comments':[c for n in page for c in attached[n]],
+                'next_offset':end if following is not None else None,
+                'next_record_id':m.ids[following] if following is not None else None,
+                'coverage':'Exact source at producer spans, in lexical order. No control-flow or ownership proof. Fetch records by record_id in this generation for editing metadata and preimages.'}
+            if review_pages.wire_size(answer)<=review_pages.BUDGET-4096:return answer
+            require(len(page)>1,'RESPONSE_TOO_LARGE');page.pop()

@@ -56,12 +56,58 @@ def shared_id(model,generation,rows):
 
 
 VIEW_ARGUMENTS={'ram_shared':(('set_id',),()),'ram_compact':((),('address','record_id')),
-                'ram_summary':((),('address','record_id'))}
+                'ram_summary':((),('address','record_id')),'ram_set':(('address',),())}
+
+
+def dictionary_rows(rows,fields=SUMMARY_DICTIONARIES):
+    values={k:[] for k in fields}
+    identities={k:{} for k in fields};selected=[]
+    for row in rows:
+        projected=dict(row)
+        for field in fields:
+            value=row[field];key=json.dumps(value,sort_keys=True,separators=(',',':'))
+            if key not in identities[field]:
+                identities[field][key]=len(values[field]);values[field].append(value)
+            projected[field]=identities[field][key]
+        selected.append(projected)
+    def dictionary(page):
+        tables={}
+        for field in fields:
+            keys=({page['constants'][field]} if field in page['constants'] else
+                  {r[page['columns'].index(field)] for r in page['records']}
+                  if page['records'] else set())
+            tables[field]={str(k):values[field][k] for k in sorted(keys)}
+        return {**page,'dictionaries':tables}
+    return selected,dictionary
+
+
+def set_rows(model,addresses):
+    require(isinstance(addresses,list) and 0<len(addresses)<=128 and
+            all(type(a) is int and 0<=a<=65535 for a in addresses) and
+            len(set(addresses))==len(addresses),'EVIDENCE_REQUEST_INVALID')
+    combined={};counts={}
+    for address in sorted(addresses):
+        rows=evidence_views.memory(model,address=address)
+        counts[str(address)]=dict(Counter(r['category'] for r in rows))
+        for original in rows:
+            row={k:v for k,v in original.items() if k not in CONTEXT}
+            key=json.dumps(row,sort_keys=True,separators=(',',':'))
+            if key not in combined:combined[key]={**row,'addresses':[]}
+            combined[key]['addresses'].append(address)
+    return list(combined.values()),counts
 
 
 def query(model,generation,view,offset=0,limit=40,**arguments):
     from .operation_contract import check
     if view in VIEW_ARGUMENTS:check(arguments,VIEW_ARGUMENTS[view],code='EVIDENCE_REQUEST_INVALID',path='evidence.'+view)
+    if view=='ram_set':
+        rows,counts=set_rows(model,arguments['address'])
+        selected,dictionary=dictionary_rows(rows,(*SUMMARY_DICTIONARIES,'addresses'))
+        return packed(selected,{'generation':generation,'encoding':'ram-set-columnar-v1',
+            'selection':sorted(arguments['address']),
+            **({'category_counts_by_address':counts} if offset==0 else {}),
+            'total_evidence_records':sum(sum(c.values()) for c in counts.values()),
+            'coverage':'Every original RAM evidence fact. Expand constants/columns and page-local dictionaries, then for each address in addresses copy the row without addresses and add requested_address=address and requested_declaration_id=null. Equal facts are stored once with their exact byte membership. Different categories or alias proofs remain separate. Possible indexed and unresolved indirect destinations are not proven accesses. All pages are required; no separate shared-set fetch.'},offset,limit,dictionary)
     if view=='ram_summary':
         require(set(arguments) in ({'address'},{'record_id'}),'EVIDENCE_REQUEST_INVALID')
         rows=evidence_views.memory(model,**arguments)

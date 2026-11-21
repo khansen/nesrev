@@ -44,6 +44,11 @@ def check_inputs(controller, ci, cr, task):
     require(left['task']==right['task']==task.decode(), 'PAIR_TASK_CHANGED')
     require(all(left[key]==right[key] for key in ('items','manifest_sha256','pass_id','objective','historical_label')),
             'PAIR_INPUTS_CHANGED')
+    if left.get('startup') is not None or right.get('startup') is not None:
+        from structured_pass import corridor_capacity
+        require(left.get('startup')==right.get('startup'),'PAIR_INPUTS_CHANGED')
+        corridor_capacity.verify_report(controller,read(controller.root/'corridor-capacity.json'),
+            task.decode(),left['startup']['budget'])
 
 
 def read(path):
@@ -73,6 +78,7 @@ def prepare(root, session, implementer, reviewer, task, application_repo=None):
     files = [Path(__file__).resolve(), HERE/'structured_client_workspace.py', HERE/'structured_client_processes.py',
              HERE/'agent_review.py', HERE/'agent_review_tmux.py', HERE/'structured_pass_heavy_run.py',
              session/'session.json', implementer/'launch.json', reviewer/'launch.json', root/'task.txt', notify]
+    if (session/'corridor-capacity.json').exists():files.append(session/'corridor-capacity.json')
     config = {'schema': 'structured-pair-v1', 'session': str(session),
         'run_id': controller.config['run_id'], 'handoff': str(session/'handoff'),
         'profiles': {'implementer': str(implementer), 'reviewer': str(reviewer)},

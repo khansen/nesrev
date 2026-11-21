@@ -373,11 +373,14 @@ ROOT_WORD_CEILING = 6000
 # new contract; the maximum new-project bundle does not grow.
 # The prepared allowance and verbatim-section/RAM-summary guidance adds
 # 17 lines and 155 words to TOOLING routes; retain their prior headroom.
+# Whole-corridor admission and source/RAM-set reading add 21 lines and 213
+# words to TOOLING. Preserve the affected route maxima's existing headroom;
+# the maximum new-project bundle does not include TOOLING and is unchanged.
 ROUTE_BUDGETS = {
-    "default": (3710, 27380),
-    "data-recovery": (3348, 25348),
+    "default": (3731, 27593),
+    "data-recovery": (3369, 25561),
     "new-project": (4380, 32242),
-    "project-pass-review": (4820, 34446),
+    "project-pass-review": (4841, 34659),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"
