@@ -125,8 +125,13 @@ offer `guidance`. The historical acceptance ledger counted catalogue, search,
 context and continuation calls separately. The current
 [logical-request rule](SOURCE_SPANS.md#counting-and-task-wording) groups unchanged
 query continuations while reporting transport calls separately. The ceiling
-remains eight logical requests per independent question. An overflow stays a
-gap; it does not increase the threshold.
+is eight logical requests and 400 KiB of text responses per independent
+question, reduced when the remaining context window requires it. Search's
+first page exposes total rows and a lower bound on serialized row bytes.
+Use `detail=matches` with zero context for an instruction-match projection;
+each page supplies the columns and constants needed to decode its rows.
+Read necessary source context separately through navigation. An overflow
+requires narrowing the query or stopping for a decision.
 
 ## Limits and interpretation
 

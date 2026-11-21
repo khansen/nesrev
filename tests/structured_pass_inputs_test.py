@@ -188,7 +188,11 @@ class LifecycleTests(unittest.TestCase):
     def test_complete_inputs_both_roles_and_retained_after_originals_removed(self):
         expected=(self.root/'repo/projects/sample/tmp/manual.txt').read_bytes().decode()
         operation_reference=self.collect(self.c.root,'implementer',self.g,'operation-reference')
+        self.assertEqual(json.loads(operation_reference)['question_budget']['text_response_bytes'],409600)
         for role in ('implementer','reviewer'):
+            delivered=self.collect(self.c.root,role,self.g,'operation-reference')
+            self.assertEqual(delivered,operation_reference)
+            self.assertIn('409600 bytes',json.loads(delivered)['request_counting'])
             self.assertEqual(self.collect(self.c.root,role,self.g,'reference'),expected)
             catalog=self.call(self.c.root,role,'inputs',{'generation':self.g,'limit':40})
             guide=next(row for row in catalog['records'] if row['kind']=='guidance'
@@ -208,7 +212,9 @@ class LifecycleTests(unittest.TestCase):
             shutil.rmtree(self.root/'repo/projects/sample'/path)
         restored=RetainedReviewService.from_publication(self.root/'restored',self.c.config['store'],ticket)
         self.assertEqual(self.collect(restored.root,'reviewer',ticket,'reference','retained'),expected)
-        self.assertEqual(self.collect(restored.root,'reviewer',ticket,'operation-reference','retained'),operation_reference)
+        delivered=self.collect(restored.root,'reviewer',ticket,'operation-reference','retained')
+        self.assertEqual(delivered,operation_reference)
+        self.assertEqual(json.loads(delivered)['question_budget']['text_response_bytes'],409600)
         archive=self.call(restored.root,'reviewer','input',{'generation':ticket,'input_id':'intake'},'retained')
         self.assertTrue(archive['historical']);self.assertEqual(archive['authority'],inputs.HISTORICAL)
         self.assertIn('STOP AFTER PASS 0',archive['text'])

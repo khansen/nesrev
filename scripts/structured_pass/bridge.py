@@ -104,7 +104,23 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
 
 
 def emit(instance,identifier,response,output,operation=None,image_result=None):
-    encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
+    def encode(value, ident=identifier):
+        # Count the delivered envelope, including this counter and JSON escaping.
+        # This is an observable per-response measure, not a session budget ledger.
+        if operation is not None and image_result is None and 'result' in value:
+            content=value['result'].get('content',[])
+            if len(content)==1 and content[0].get('type')=='text':
+                answer=json.loads(content[0]['text'])
+                if isinstance(answer,dict):
+                    answer['volume']={'response_bytes':0,'question_limit_bytes':contract.QUESTION_BYTES}
+                    while True:
+                        content[0]['text']=json.dumps(answer)
+                        encoded=json.dumps({'jsonrpc':'2.0','id':ident,**value})
+                        size=len(encoded.encode())+1
+                        if size==answer['volume']['response_bytes']:return encoded
+                        answer['volume']['response_bytes']=size
+        return json.dumps({'jsonrpc':'2.0','id':ident,**value})
+    encoded=encode(response)
     cap=declared_inputs.IMAGE_REPLY_LIMIT if isinstance(image_result,declared_inputs.ImageResult) else paging.MAX_BYTES
     if len(encoded.encode())+1>cap:
         value={'error':'RESPONSE_TOO_LARGE',**error_policy.describe('RESPONSE_TOO_LARGE')}
@@ -122,7 +138,7 @@ def emit(instance,identifier,response,output,operation=None,image_result=None):
         try:value['generation']=instance.error_context(None)['generation']
         except Exception:pass
         response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
-        encoded=json.dumps({'jsonrpc':'2.0','id':identifier,**response})
+        encoded=encode(response)
         if len(encoded.encode())+1>paging.MAX_BYTES:
-            encoded=json.dumps({'jsonrpc':'2.0','id':None,**response})
+            encoded=encode(response,None)
     print(encoded,file=output,flush=True)

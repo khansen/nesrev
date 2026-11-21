@@ -91,6 +91,17 @@ class NavigationSpanTests(unittest.TestCase):
         self.assertEqual([r['kind'] for r in self.span(record_id=origin)[0]],['ORG_NODE'])
         self.assertNotEqual(first[0]['scope']['segment_id'],pages[0]['scope']['segment_id'])
 
+    def test_segment_identity_change_without_origin_stops_span(self):
+        nav=navigation.Navigation(self.c.editor.model(self.g))
+        boundary=nav.select('L9002',None)
+        # Isolate the defensive location check from the separately tested ORG
+        # stop; this control changes native-layout metadata, not source parsing.
+        nav.layout={n:dict(location) for n,location in nav.layout.items()}
+        nav.layout[boundary]['segment_id']='different-segment'
+        page=nav.query('records',symbol='L9000',span='segment',limit=40)
+        self.assertEqual(len(page['records']),8)
+        self.assertEqual(page['scope']['boundary_record_id'],nav.m.ids[boundary])
+
     def test_generation_and_selector_refusals(self):
         for extra,code in [({'generation':'G-unknown'},'UNKNOWN_GENERATION'),
                 ({'symbol':None,'record_id':'unknown'},'NAVIGATION_RECORD_REQUIRED'),
@@ -121,6 +132,9 @@ class NavigationSpanTests(unittest.TestCase):
     def test_reference_delivers_span_values_and_counting_rule(self):
         ref=edit_contract.reference()
         self.assertEqual(ref['request_counting'],operation_contract.REQUEST_COUNTING)
+        self.assertEqual(ref['question_budget']['text_response_bytes'],409600)
+        self.assertIn('409600 bytes',ref['request_counting'])
+        self.assertIn('Narrow',ref['request_counting'])
         for role in ('implementer','reviewer','retained-reviewer'):
             entry=ref['arguments'][role]['navigate']
             self.assertIn('span',entry['optional'])

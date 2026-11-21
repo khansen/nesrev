@@ -322,19 +322,35 @@ thereafter the agents must yield at handoff so the receiving pane is idle.
 
 ### Structured-service evidence requests
 
-During a structured pass, each independent evidence question has a ceiling of
-eight logical requests. Continuation pages count as one request when the
-operation and all arguments remain unchanged except `offset` or the returned
-continuation token. Count transport calls separately. Changing the selector,
-filters, generation, span or limit starts another logical request. Do not split
-an unchanged question to evade the ceiling, and do not treat incomplete
-evidence as absence.
+During a structured pass, each independent evidence question has ceilings of
+**eight logical requests and 400 KiB (409,600 bytes) of text responses**.
+Continuation pages count as one logical request when only `offset` or the
+returned continuation token changes. Add every response's
+`volume.response_bytes`, including refusals and abandoned queries; continuation
+pages still consume bytes. Keep room for the next response's 24 KiB maximum.
+Changing the selector, filters, generation, span or limit starts another
+logical request. Do not split an unchanged question to evade either ceiling.
+
+Inspect the first page's total rows before continuing. Search also reports
+`minimum_response_bytes`, a lower bound for the complete query that excludes
+page overhead. Start instruction searches with `detail=matches` and zero context
+on both sides; each match still includes its owner. Read needed source context through
+navigation. Narrow an oversized query before paging further, or stop for a
+decision if the required evidence cannot fit. Incomplete evidence is not
+absence evidence. These ceilings override generic instructions to follow all
+continuations.
 
 The `records` view of `navigate` defaults to one global-label block. To cross
 labels within one segment, set `span=segment`, keep the original selector and
-follow `next_offset`. The service still enforces its 40-record and 24 KiB page
-limits and stops before `ORG` or `END`. Read the fixed `operation-reference`
-input for the full contract.
+follow `next_offset` until the required path is covered. A continuation is not
+an instruction to read the rest of the segment. The service still enforces its
+40-record and 24 KiB page limits and stops before `ORG` or `END`.
+
+Preparation must budget the delivered inputs, evidence and room for editing,
+validation and closeout against the pinned model's context window. Earlier
+questions still occupy that window; a new question does not reset its space.
+Use a smaller byte allowance when needed, and account for images separately.
+Read the fixed `operation-reference` input for the full contract.
 
 ### Evidence Order (Mandatory)
 

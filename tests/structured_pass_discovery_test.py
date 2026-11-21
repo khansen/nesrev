@@ -120,7 +120,9 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(rows[0]['error_class'],'correctable')
         self.assertEqual(rows[0]['details']['missing'],['cid'])
         self.assertNotIn('private-value',out.getvalue())
-        self.assertEqual(rows[1],{'candidate':'C1','validated':True})
+        self.assertEqual({k:v for k,v in rows[1].items() if k!='volume'},
+                         {'candidate':'C1','validated':True})
+        self.assertEqual(rows[1]['volume']['response_bytes'],len(out.getvalue().splitlines()[1].encode())+1)
         self.assertEqual(rows[2]['error_class'],'transient');self.assertTrue(rows[2]['retryable'])
         self.assertEqual(rows[3]['error_class'],'terminal');self.assertFalse(rows[3]['retryable'])
 

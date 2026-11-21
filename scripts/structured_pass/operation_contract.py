@@ -5,14 +5,29 @@ generation integrity and nested edit/query schemas remain with their owners.
 """
 import json
 
+QUESTION_BYTES = 400 * 1024
 REQUEST_COUNTING = (
-    'The practicality ceiling is eight logical requests per independent evidence question. '
+    'Each independent evidence question has ceilings of eight logical requests and '
+    f'{QUESTION_BYTES} bytes (400 KiB) of text responses. Add volume.response_bytes from every '
+    'response, including refusals and abandoned queries; pagination does not reset the byte total. '
+    'Before another call, leave room for its 24576-byte maximum. Inspect first-page totals '
+    '(total_rows, total_records or total) before paging; search minimum_response_bytes is a '
+    'lower bound for the complete query, not a promise that it fits. Start instruction searches '
+    'with detail=matches and context before=0, after=0: matches include their owners. Read needed source context '
+    'through bounded navigation, stopping when the required path is covered rather than '
+    'automatically reading the rest of a segment. Narrow an oversized query before continuing, '
+    'or stop for a decision if the complete evidence needed cannot fit. An incomplete query '
+    'is not absence evidence. These ceilings take precedence over generic follow-until-complete '
+    'paging help. Images need a separately measured context allowance. '
     'Continuation pages of an unchanged operation and query count as one request: only offset '
     'or the returned continuation token may differ. Keep generation, selector, filters, span '
     'and limit unchanged. A changed selector, including record_id, is a new request; use '
     'next_offset with the original selector to page a segment span. Report logical requests '
-    'and transport calls separately. Retrieve every page needed for the question; an incomplete '
-    'page is not absence evidence. Do not relabel an unchanged question to evade the ceiling.'
+    'and transport calls separately. Do not relabel an unchanged question to evade either ceiling. '
+    'The preparation must budget delivered inputs, question evidence and room for edits, validation '
+    'and closeout against the pinned context window. The question ceiling is not a fresh allowance '
+    'when earlier questions already occupy that window. Use a smaller byte allowance when '
+    'the remaining context, after the reserved edit/closeout space, cannot hold 400 KiB.'
 )
 
 class RequestError(ValueError):

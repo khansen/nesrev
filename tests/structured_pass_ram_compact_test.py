@@ -122,7 +122,9 @@ class CompactLifecycleTests(unittest.TestCase):
         lines=output.getvalue().splitlines();responses=[json.loads(line) for line in lines]
         self.assertTrue(all(len(line.encode())+1<=24576 for line in lines))
         self.assertIn('ram_compact',responses[0]['result']['tools'][0]['description'])
-        self.assertEqual(json.loads(responses[1]['result']['content'][0]['text']),original)
+        delivered=json.loads(responses[1]['result']['content'][0]['text'])
+        self.assertEqual(delivered.pop('volume')['response_bytes'],len(lines[1].encode())+1)
+        self.assertEqual(delivered,original)
         for unsupported in ({'public_generation':'G-forged'},{'analogue_index':0}):
             with self.assertRaises(ValueError):c.dispatch('evidence',{**args,**unsupported},'reviewer')
         old_public=None

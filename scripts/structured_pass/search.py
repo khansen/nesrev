@@ -26,12 +26,18 @@ MODES = frozenset(name + '_MODE' for name in ('IMPLIED', 'ACCUMULATOR', 'IMMEDIA
 SHAPES = frozenset(('none', 'literal', 'bound', 'compound'))
 QUERY_SCHEMAS={
     'catalogue':(('kind',),('kinds',)),
-    'instructions':(('kind','alternatives'),('context','owner_id')),
+    'instructions':(('kind','alternatives'),('context','owner_id','detail')),
     'text':(('kind','inputs'),('terms','prefixes','ignore_case','whole_token','context'))}
 CONTEXT_SCHEMA=((),('before','after'))
 PREDICATE_SCHEMA=((),('mnemonics','modes','operand','shapes','values','ranges'))
 OPERANDS=('immediate','non_immediate','none')
 INPUT_KINDS=('document','guidance')
+DETAILS=('full','matches')
+MATCH_FIELDS=('record_id','owner_id','segment_id','mnemonic','final_mode',
+              'operand_value','evaluation','operand_meaning')
+MATCH_COLUMNS=('witness_id','alternative','certainty','relative_instruction',
+               *('instruction.'+key for key in MATCH_FIELDS))
+MATCH_CONSTANTS={'part':'match','context_before':0,'context_after':0}
 WORD = frozenset('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_@')
 SLICE = 512
 TOOL_HELP = (' Search is read-only for either role. arguments: {generation, query, '
@@ -173,6 +179,11 @@ def instruction_rows(model, query):
         for pred in sequence:
             predicate(pred)
     before, after = context(query.get('context', {}))
+    detail=query.get('detail','full')
+    if detail not in DETAILS:
+        raise contract.RequestError('SEARCH_SCHEMA',field='query.detail',accepted_values=list(DETAILS))
+    if detail=='matches' and (before or after):
+        raise contract.RequestError('SEARCH_SCHEMA',field='query.context',accepted_values=[{'before':0,'after':0}])
     owner = None
     if 'owner_id' in query:
         owner = model.node(query['owner_id'])
@@ -190,12 +201,13 @@ def instruction_rows(model, query):
             'pointer_expression' if 'INDIRECT' in mode else
             'indexed_base' if mode.endswith(('_X_MODE', '_Y_MODE')) else
             'branch_target' if mode == 'RELATIVE_MODE' else 'direct_operand')
-        return {**identity(model, n), 'mnemonic': ins['mnemonic'], 'final_mode': mode,
+        result = {**identity(model, n), 'mnemonic': ins['mnemonic'], 'final_mode': mode,
             'parsed_mode': ins['parsed_mode'], 'operand_value': ins['operand_value'],
             'evaluation': 'not_applicable' if not ins['operands'] else
                 'unresolved' if ins['operand_value'] is None else 'integer',
             'expression_shape': shapes[n], 'operand_meaning': meaning,
             'memory_access': ins['memory_access'], 'control_flow': ins['control_flow']}
+        return {key:result[key] for key in MATCH_FIELDS} if detail=='matches' else result
 
     def witnesses():
         for index, n in enumerate(nodes):
@@ -232,9 +244,14 @@ def instruction_rows(model, query):
             for position in range(lo, hi):
                 yield {**witness, 'part': 'match' if index <= position < index+size else 'context',
                        'relative_instruction': position-index, 'instruction': record(nodes[position])}
-    return Rows(rows, row_count), {'total_matches': total, 'unresolved_candidates': unresolved,
+    metadata={'total_matches': total, 'unresolved_candidates': unresolved,
                   'complete_numeric_answer': unresolved == 0,
                   'adjacency': 'Native order and contiguous segment/output/CPU locations; not control-flow proof.'}
+    if detail=='matches':
+        metadata['detail']='matches'
+        metadata['instruction_fields']=list(MATCH_FIELDS)
+        metadata['context_route']='Use navigate records with record_id or owner_id for source context and preimages; matches alone do not prove ownership or control flow.'
+    return Rows(rows, row_count), metadata
 
 
 def input_catalogue(editor, generation):
@@ -369,6 +386,15 @@ def token(binding, offset):
 
 def page(rows, metadata, binding, continuation, limit):
     require(type(limit) is int and 1 <= limit <= 40)
+    if metadata.get('detail')=='matches':
+        original=rows
+        def values():
+            for row in original:
+                yield [row[key] if '.' not in key else row['instruction'][key.split('.')[1]]
+                       for key in MATCH_COLUMNS]
+        rows=Rows(values,len(original))
+        metadata={**metadata,'encoding':'instruction-matches-columnar-v1',
+                  'columns':list(MATCH_COLUMNS),'constants':dict(MATCH_CONSTANTS)}
     offset = 0
     if continuation is not None:
         require(isinstance(continuation, str) and len(continuation) <= 512, 'SEARCH_CONTINUATION_INVALID')
@@ -379,7 +405,11 @@ def page(rows, metadata, binding, continuation, limit):
         except (ValueError, KeyError, TypeError):
             valid = False
         require(valid, 'SEARCH_CONTINUATION_INVALID')
+    # Every row must occur once on the wire. Exclude envelopes and delimiters,
+    # making this a lower bound even when size-limited pages add more overhead.
+    minimum_bytes = sum(len(json.dumps(json.dumps(row)).encode())-2 for row in rows)
     result = {**metadata, 'selection_sha256': binding, 'offset': offset, 'total_rows': len(rows),
+              'minimum_response_bytes': minimum_bytes,
               'rows': [], 'continuation': None, 'complete': True}
     for row in rows[offset:offset+limit]:
         end = offset + len(result['rows']) + 1

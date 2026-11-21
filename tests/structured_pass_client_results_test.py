@@ -188,8 +188,11 @@ class ReaderBoundaryTests(unittest.TestCase):
             ('navigate',{'generation':base,'view':'comments'}),
             ('q09',{'generation':head,'names':['Cell']})])
         for a,b in zip(base_reads,retained):
-            self.assertEqual({k:v for k,v in a.items() if k!='generation'},
-                             {k:v for k,v in b.items() if k!='generation'})
+            self.assertEqual({k:v for k,v in a.items() if k not in ('generation','volume')},
+                             {k:v for k,v in b.items() if k not in ('generation','volume')})
+            self.assertEqual(b['volume']['response_bytes']-a['volume']['response_bytes'],
+                             len(b['generation'])-len(a['generation'])+
+                             len(str(b['volume']['response_bytes']))-len(str(a['volume']['response_bytes'])))
         self.assertEqual(retained[2]['total_mentions'],0)
 
 

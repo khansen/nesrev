@@ -82,7 +82,9 @@ application. It merged in PR #199 after review and green Linux and macOS CI.
 The next attempt stopped before editing at the evidence-request ceiling.
 The authorized [source-span correction](SOURCE_SPANS.md) adds bounded reads
 across global labels and defines logical-request pagination. Its offline replay
-must fit the same question within eight logical requests before publication.
+must fit the same question within eight logical requests and its byte allowance,
+with startup inputs and an edit/closeout reserve inside the pinned context
+window before publication. See the measured capacity correction in that record.
 Another attempt needs reviewed corrections, fresh preparation and a new grant.
 No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
