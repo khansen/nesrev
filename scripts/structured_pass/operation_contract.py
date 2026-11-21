@@ -5,6 +5,33 @@ generation integrity and nested edit/query schemas remain with their owners.
 """
 import json
 
+QUESTION_BYTES = 400 * 1024
+REQUEST_COUNTING = (
+    'Each independent evidence question has ceilings of eight logical requests and '
+    f'{QUESTION_BYTES} bytes (400 KiB) of text responses. Add volume.response_bytes from every '
+    'response, including refusals and abandoned queries; pagination does not reset the byte total. '
+    'Before another call, leave room for its 24576-byte maximum. Inspect first-page totals '
+    '(total_rows, total_records or total) before paging; search minimum_response_bytes is a '
+    'lower bound for the complete query, not a promise that it fits. Start instruction searches '
+    'with detail=matches and context before=0, after=0: matches include their owners. Read needed source context '
+    'through bounded navigation, stopping when the required path is covered rather than '
+    'automatically reading the rest of a segment. Narrow an oversized query before continuing, '
+    'or stop for a decision if the complete evidence needed cannot fit. An incomplete query '
+    'is not absence evidence. These ceilings take precedence over generic follow-until-complete '
+    'paging help. Images need a separately measured context allowance. '
+    'Continuation pages of an unchanged operation and query count as one request: only offset '
+    'or the returned continuation token may differ. Keep generation, selector, filters, span '
+    'and limit unchanged. A changed selector, including record_id, is a new request; use '
+    'next_offset with the original selector to page a segment span. Report logical requests '
+    'and transport calls separately. Do not relabel an unchanged question to evade either ceiling. '
+    'The preparation must budget delivered inputs, question evidence and room for edits, validation '
+    'and closeout against the pinned context window. The question ceiling is not a fresh allowance '
+    'when earlier questions already occupy that window. Preparation must deliver a numeric '
+    'conversation allowance with its measured startup cost, lifecycle reserve and at least '
+    '10 percent estimation margin. Use the smaller of 400 KiB and that remaining allowance; '
+    'include analogue reads and additional guidance. If the prepared allowance is missing, '
+    'stop for a decision rather than guessing it. A resumed turn does not reset the allowance.'
+)
 
 class RequestError(ValueError):
     """Public request diagnostics contain expected fields, never submitted values."""
@@ -37,7 +64,7 @@ RENAME = {
     'evidence': (('generation', 'view'), ('offset', 'limit', 'record_id', 'address', 'decoder',
                                         'byte_offset', 'byte_count', 'artifact', 'analogue_index', 'key', 'set_id')),
     'preview_page': (('generation', 'preview_digest'), ('offset', 'limit')),
-    'navigate': (('generation', 'view'), ('symbol', 'record_id', 'contains', 'offset', 'limit', 'analogue_index')),
+    'navigate': (('generation', 'view'), ('symbol', 'record_id', 'contains', 'offset', 'limit', 'analogue_index', 'span')),
     'inputs': INPUTS,
     'input': INPUT,
     'guidance': (('generation', 'name'), ('offset', 'limit')),
@@ -169,6 +196,8 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'key':{'source':'evidence(view=artifact_rows).records[].key'},
         'set_id':{'source':'evidence(view=ram_compact).shared.set_id'},
         'analogue_index':{'enum':[0,1]},
+        'span':{'enum':list(navigation.SPANS),'default':'label',
+                'constraint':'segment is only valid with navigate view=records or records_compact'},
         'byte_offset':{'authored':'nonnegative integer within the selected data'},
         'byte_count':{'authored':'integer in 1..4096 within the selected data; align offset/count to decoder width'},
         'offset':{'source':'same operation next_offset; 0 for first page'},

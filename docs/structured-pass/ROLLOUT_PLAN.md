@@ -76,9 +76,16 @@ and macOS CI. The authorized [final readiness check](FG1_PASS_READINESS.md)
 has an [offline result and complete pass matrix](FG1_READINESS_RESULT.md), merged
 in PR #198 after review and green CI. The first authorized unscripted attempt
 stopped before a candidate or application. The
-[offline correction](FG1_OFFLINE_CORRECTION_RESULT.md) now demonstrates argument
+[offline correction](FG1_OFFLINE_CORRECTION_RESULT.md) demonstrates argument
 discovery, actionable refusals and the actual wrapper through synthetic
-application. Final code review and CI remain pending.
+application. It merged in PR #199 after review and green Linux and macOS CI.
+The next attempt stopped before editing at the evidence-request ceiling.
+The authorized [source-span correction](SOURCE_SPANS.md) adds bounded reads
+across global labels and defines logical-request pagination. Its offline replay
+must fit the same question within eight logical requests and its byte allowance,
+with selected startup inputs, both analogue reads, an edit/closeout reserve and
+at least ten percent margin inside the pinned context window before publication.
+See the measured capacity correction and prepared numeric allowance in that record.
 Another attempt needs reviewed corrections, fresh preparation and a new grant.
 No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records

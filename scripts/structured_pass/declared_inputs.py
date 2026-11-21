@@ -128,7 +128,8 @@ def admit(repo, project, commit, selection, destination, models, authored_paths=
     require(path.is_absolute() and path.is_file() and not any(p.is_symlink() for p in (path, *path.parents)))
     raw = path.read_bytes(); require(producer.digest(raw) == selection['sha256'], 'INPUT_CHANGED')
     spec = json.loads(raw)
-    require(isinstance(spec, dict) and set(spec) == {'schema', 'items', 'analogues'}
+    require(isinstance(spec, dict) and {'schema', 'items', 'analogues'} <= set(spec)
+            and set(spec) <= {'schema', 'items', 'analogues', 'startup'}
             and spec['schema'] == 'declared-input-selection-v1')
     require(isinstance(spec['items'], list) and len(spec['items']) <= 48)
     require(isinstance(spec['analogues'], list) and len(spec['analogues']) == len(models) <= 2)
@@ -169,6 +170,14 @@ def admit(repo, project, commit, selection, destination, models, authored_paths=
 
     for index, name in enumerate(guidance.NAMES):
         add('guidance-'+str(index), 'guidance', committed(repo, commit, name), {'commit': commit, 'path': name})
+    startup = None
+    if 'startup' in spec:
+        from . import startup_inputs
+        data, startup = startup_inputs.build(spec['startup'],
+            {i['id']: (i, blobs[i['file']]) for i in items})
+        add(startup_inputs.INPUT_ID, 'guidance', data,
+            {'generator': 'verbatim canonical guidance sections', 'path': 'startup-sections',
+             'selection_sha256': producer.digest(canonical(spec['startup']))})
     from . import edit_contract, ownership
     paths=[prefix+p for p in ownership.registry(authored_paths)['authored_documents']]
     add(edit_contract.INPUT_ID, 'operation_reference', edit_contract.text(paths),
@@ -221,6 +230,7 @@ def admit(repo, project, commit, selection, destination, models, authored_paths=
             and media_bytes + sum(o['bytes'] for o in originals.values()) <= MEDIA_TOTAL, 'INPUT_LIMIT_EXCEEDED')
     catalog = {'schema': SCHEMA, 'base_commit': commit, 'selection_sha256': producer.digest(raw),
                'items': items, 'originals': list(originals.values()), 'analogues': analogues}
+    if startup is not None:catalog['startup'] = startup
     # Nothing is installed until every admitted item validates.
     for filename, data in blobs.items():(destination/filename).write_bytes(data)
     (destination/FILE).write_bytes(canonical(catalog))

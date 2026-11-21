@@ -34,7 +34,7 @@ def reference(document_paths=()):
             if name in types:
                 raise ValueError('DUPLICATE_OPERATION_CONTRACT')
             types[name] = spec
-    from . import search, navigation, rename_service, evidence_views
+    from . import search, navigation, rename_service, evidence_views, ram_evidence
     types['document_fields']={**types['document_fields'],'path':{'enum':list(document_paths)}}
     profiles={name:{operation:contract.complete_entry(operation,role,profile,document_paths)
                     for operation in contract.offered(role,profile)}
@@ -46,6 +46,9 @@ def reference(document_paths=()):
         'kinds':{'enum_items':list(search.INPUT_KINDS),'length':'1..2, unique'},
         'alternatives':{'type':'array of arrays of search_predicate','length':'1..8 alternatives; 1..2 predicates each'},
         'owner_id':{'source':'navigate.records[].record_id for a declaration'},
+        'detail':{'enum':list(search.DETAILS),'default':'full',
+                  'matches':'Zero context only. Keeps every match/unknown and its native owner identity; read source facts and preimages with navigate. Rows use instruction-matches-columnar-v1: zip columns with each row array, place instruction.* keys under instruction, and add constants. Every page decodes independently.',
+                  'instruction_fields':list(search.MATCH_FIELDS)},
         'inputs':{'source':'search(kind=catalogue).rows[].input_id','length':'1..32, unique'},
         'terms':{'authored':'array of nonempty strings, at most 256 characters each'},
         'prefixes':{'authored':'array of nonempty strings, at most 256 characters each'},
@@ -66,14 +69,32 @@ def reference(document_paths=()):
                 'Use record identities and preimages from the same generation. Never infer them from addresses.',
                 'In a corridor preview, include scorecard_update and closeout together.',
                 'After preview, confirm its preview_digest; validate and publish confirm.candidate as cid.'],
+            'request_counting': contract.REQUEST_COUNTING,
+            'question_budget': {'logical_requests':8,'text_response_bytes':contract.QUESTION_BYTES,
+                'page_maximum_bytes':24576,'counter':'volume.response_bytes on every text tool response',
+                'conversation_allowance':'Numeric allowance in the prepared task, including startup cost, lifecycle reserve and at least 10 percent estimation margin. Use the smaller of this remainder and the question ceiling; missing allowance requires a decision.',
+                'first_page':'total_rows for search, total_records for compact RAM, total for navigation; search minimum_response_bytes excludes envelopes and is only a lower bound',
+                'enforcement':'Caller accounting; no automatic question/session counter. Narrow or stop before exceeding either ceiling.'},
             'arguments': profiles,
             'view_arguments': {'evidence':{view:contract.keys(spec) for view,spec in rename_service.EVIDENCE_ARGUMENTS.items()},
-                'navigate':{'views':list(navigation.VIEWS),'selection':'records/uses require exactly one of symbol or record_id; symbols/comments forbid both; contains is for symbols/comments only'},
-                'ram':'exactly one of address or record_id for ram and ram_compact',
+                'navigate':{'views':list(navigation.VIEWS),'selection':'records/uses require exactly one of symbol or record_id; symbols/comments forbid both; contains is for symbols/comments only',
+                    'records_compact':{'encoding':'source-records-columnar-v1',
+                        'decode':navigation.COMPACT_HELP,
+                        'coverage':'Lossless records transport with the same selectors, span and continuation as records. Use it for source and analogue investigation; the original records view remains available.'},
+                    'records_span':{'enum':list(navigation.SPANS),'default':'label',
+                        'segment':'Cross global labels within one segment, stopping before ORG/END or a changed segment. EQU/ORG/END selections stay single records. Up to 40 records, fewer if needed for the response cap. Lexical coverage, not control-flow proof.',
+                        'continuation':'Keep the starting selector and use next_offset. next_record_id identifies the next undelivered statement, or null at the boundary; scope.boundary_record_id names the excluded boundary. A new record_id selector is a new logical request.'}},
+                'ram':'exactly one of address or record_id for ram, ram_compact and ram_summary',
+                'ram_summary':{'limit':'1..128; start with 128',
+                    'coverage':'Every access row, owner, alias proof, possible indexed alias and unresolved indirect destination. Includes shared unknowns; no ram_shared fetch is needed.',
+                    'encoding':'ram-columnar-summary-v1: constants plus columns zipped with each row; then for each field in dictionaries replace row[field] with dictionaries[field][str(row[field])]. Each page contains its own complete dictionaries and decodes independently.',
+                    'omitted_fields':list(ram_evidence.SUMMARY_OMITTED),
+                    'details':'Use navigate records with the same generation and record_id for source locations and edit preimages. The ram/ram_compact views remain unchanged. A possible access is still unknown, never a proven destination.'},
                 'analogue_index':'only the seven base evidence views and navigation; selected models only',
                 'decode':{'decoders':list(evidence_views.DECODERS),'byte_count':'1..4096','default_byte_count':256}},
             'operations': operations, 'types': types}
 
 
 def text(document_paths=()):
-    return (json.dumps(reference(document_paths), ensure_ascii=True, sort_keys=True, indent=2)+'\n').encode()
+    return (json.dumps(reference(document_paths), ensure_ascii=True, sort_keys=True,
+                       separators=(',', ':'))+'\n').encode()

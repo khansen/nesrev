@@ -320,6 +320,62 @@ dry runs. The adapter itself does not start, supervise, or detect readiness of
 agent sessions. The launcher requires the one-time startup confirmation;
 thereafter the agents must yield at handoff so the receiving pane is idle.
 
+### Structured-service evidence requests
+
+During a structured pass, each independent evidence question has ceilings of
+**eight logical requests and 400 KiB (409,600 bytes) of text responses**.
+Continuation pages count as one logical request when only `offset` or the
+returned continuation token changes. Add every response's
+`volume.response_bytes`, including refusals and abandoned queries; continuation
+pages still consume bytes. Keep room for the next response's 24 KiB maximum.
+Changing the selector, filters, generation, span or limit starts another
+logical request. Do not split an unchanged question to evade either ceiling.
+
+Inspect the first page's total rows before continuing. Search also reports
+`minimum_response_bytes`, a lower bound for the complete query that excludes
+page overhead. Start instruction searches with `detail=matches` and zero context
+on both sides; each match still includes its owner. Read needed source context through
+navigation. Narrow an oversized query before paging further, or stop for a
+decision if the required evidence cannot fit. Incomplete evidence is not
+absence evidence. These ceilings override generic instructions to follow all
+continuations.
+
+The `records` view of `navigate` defaults to one global-label block. To cross
+labels within one segment, set `span=segment`, keep the original selector and
+follow `next_offset` until the required path is covered. A continuation is not
+an instruction to read the rest of the segment. The service still enforces its
+40-record and 24 KiB page limits and stops before `ORG` or `END`.
+
+Preparation must budget the delivered inputs, evidence and room for editing,
+validation and closeout against the pinned model's context window. Earlier
+questions still occupy that window; a new question does not reset its space.
+The prepared task must state a numeric conversation allowance, its measured
+startup cost, the lifecycle reserve and at least a 10% estimation margin.
+Use the smaller of the remaining allowance and the question ceiling. Analogue
+reads and additional guidance consume the same allowance, including across
+resumed turns. If it is missing, stop for a decision; do not guess it.
+Account for images separately.
+Read the fixed `operation-reference` input for the full contract.
+
+When preparation supplies `guidance-startup`, read its selected sections rather
+than automatically downloading every playbook. They retain the source prose;
+the complete files remain available by their original IDs. Selection belongs
+to preparation and must cover the authorized corridor's requirements.
+
+For RAM access questions, `ram_summary` retains every access, owner, alias proof
+and unresolved destination. Expand its constants and columns, then resolve
+each dictionary-coded field through that page's `dictionaries` entry. Read every
+needed page; no separate shared-set fetch is required. Source-location details
+and edit preimages remain available through `navigate` and the original RAM
+views. A possible alias is still unknown, never evidence of a proven access.
+
+For source and analogue investigation, `navigate view=records_compact` returns
+all record fields in a lossless page-local encoding. Combine `constants` with
+`schemas[row[0]]` zipped against `row[1:]`. A present `layout` value is its
+length; rebuild the other layout fields from the identical top-level location
+fields. Preimages and comments are retained. The original `records` view stays
+available; both views use the same selectors, spans and continuation rules.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.

@@ -120,10 +120,18 @@ is silently cut off. Overlapping context can repeat a line under different
 witness IDs.
 
 Text context is bounded to ten lines on either side. For larger policy windows,
-use the existing `guidance` read at the discovered location and count those
-requests too. The acceptance ledger includes catalogue, search and context
-requests in its fixed eight-request practicality threshold. An overflow stays
-a gap; it does not increase the threshold.
+use the catalogued fixed-ID `input` in corridor sessions; retained readers also
+offer `guidance`. The historical acceptance ledger counted catalogue, search,
+context and continuation calls separately. The current
+[logical-request rule](SOURCE_SPANS.md#counting-and-task-wording) groups unchanged
+query continuations while reporting transport calls separately. The ceiling
+is eight logical requests and 400 KiB of text responses per independent
+question, reduced when the remaining context window requires it. Search's
+first page exposes total rows and a lower bound on serialized row bytes.
+Use `detail=matches` with zero context for an instruction-match projection;
+each page supplies the columns and constants needed to decode its rows.
+Read necessary source context separately through navigation. An overflow
+requires narrowing the query or stopping for a decision.
 
 ## Limits and interpretation
 

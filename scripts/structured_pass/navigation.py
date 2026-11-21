@@ -1,5 +1,6 @@
 """Paginated producer records for investigation; never recover facts from asm."""
 from bisect import bisect_right
+import json
 
 from .model import producer
 
@@ -11,7 +12,36 @@ def require(value,code='REQUEST_SCHEMA'):
     if not value:raise ValueError(code)
 
 
-VIEWS=('symbols','records','uses','comments')
+VIEWS=('symbols','records','records_compact','uses','comments')
+SPANS=('label','segment')
+LAYOUT_FIELDS=('cpu_address','output_offset','bytes','segment_id')
+COMPACT_HELP=('Each row starts with a schema index. Combine constants with '
+    'zip(schemas[row[0]], row[1:]). If layout is present, its value is length; '
+    'restore layout with that length and the top-level cpu_address, output_offset, '
+    'bytes and segment_id. Every field and preimage is retained. Each page decodes independently.')
+
+
+def compact_records(page):
+    rows=[]
+    for original in page['records']:
+        row=dict(original)
+        if 'layout' in row:
+            require(set(row['layout'])==set(LAYOUT_FIELDS)|{'length'} and
+                    all(key in row and row[key]==row['layout'][key] for key in LAYOUT_FIELDS),
+                    'SOURCE_MODEL_JOIN')
+            row['layout']=row['layout']['length']
+        rows.append(row)
+    keys=set.intersection(*(set(row) for row in rows)) if rows else set()
+    canonical=lambda value:json.dumps(value,sort_keys=True,separators=(',',':'))
+    constants={key:rows[0][key] for key in sorted(keys)
+               if all(canonical(row[key])==canonical(rows[0][key]) for row in rows)}
+    schemas=[];records=[]
+    for row in rows:
+        fields=sorted(set(row)-set(constants))
+        if fields not in schemas:schemas.append(fields)
+        records.append([schemas.index(fields),*[row[key] for key in fields]])
+    return {**page,'view':'records_compact','encoding':'source-records-columnar-v1',
+            'constants':constants,'schemas':schemas,'records':records,'decode':COMPACT_HELP}
 
 
 class Navigation:
@@ -47,12 +77,20 @@ class Navigation:
         require(len(found)==1,'NAVIGATION_AMBIGUOUS_SYMBOL')
         return found[0]
 
-    def query(self,view,*,symbol=None,record_id=None,contains=None,offset=0,limit=12):
+    def query(self,view,*,symbol=None,record_id=None,contains=None,offset=0,limit=12,span='label'):
         if view not in VIEWS:
             from .operation_contract import RequestError
             raise RequestError(field='view',accepted_values=list(VIEWS))
+        compact=view=='records_compact'
+        if compact:view='records'
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
         require(contains is None or isinstance(contains,str) and 0<len(contains)<=256)
+        if span not in SPANS or (view!='records' and span!='label'):
+            from .operation_contract import RequestError
+            raise RequestError(field='span',accepted_values=list(SPANS) if view=='records' else ['label'])
+        if view=='records' and span=='segment':
+            require(contains is None)
+            return self.segment_records(self.select(symbol,record_id),offset,limit,compact=compact)
         m=self.m;items=[];scope=None;comment_records=[]
         if view=='symbols':
             require(symbol is None and record_id is None)
@@ -90,6 +128,7 @@ class Navigation:
                     from .rename_service import comments
                     all_comments=comments(m)
                     first=m.facts[page[0]]['span'][0]
+                    if compact and offset:first=m.facts[selected[offset-1]]['span'][2]+1
                     last=m.facts[page[-1]]['span'][2]
                     # Consecutive comment-only header lines are lexical units.
                     # Do not attach comments across a blank line or code token.
@@ -100,6 +139,59 @@ class Navigation:
                     comment_records=[c for c in all_comments if first<=c['line']<=last]
                 scope={'start_record_id':m.ids[n],'next_record_id':m.ids[self.statements[end]] if end<len(self.statements) else None,
                        'coverage':'Lexical statements through the next global label or segment boundary; follow bound references or next_record_id to continue.'}
-        return {'view':view,'offset':offset,'limit':limit,'total':total,'records':items,
+        answer={'view':view,'offset':offset,'limit':limit,'total':total,'records':items,
                 'next_offset':offset+limit if offset+limit<total else None,'scope':scope,
                 'comments':comment_records}
+        if not compact:return answer
+        from . import review_pages
+        while True:
+            result=compact_records(answer)
+            if review_pages.wire_size(result)<=review_pages.BUDGET-4096:return result
+            require(len(answer['records'])>1,'RESPONSE_TOO_LARGE')
+            answer['records'].pop()
+            answer['next_offset']=offset+len(answer['records'])
+            last=answer['records'][-1]['span'][2]
+            answer['comments']=[c for c in answer['comments'] if c['line']<=last]
+
+    def segment_records(self,n,offset,limit,compact=False):
+        """A lexical span, not a procedure or control-flow completeness claim."""
+        from . import review_pages
+        from .rename_service import comments
+        m=self.m
+        require(n in self.position,'NAVIGATION_RECORD_REQUIRED')
+        start=self.position[n]
+        segment=self.layout.get(n,{}).get('segment_id')
+        if m.facts[n]['kind'] in ('EQU_NODE','ORG_NODE','END_NODE'):
+            end=start+1
+        else:
+            end=next((i for i in range(start+1,len(self.statements))
+                if m.facts[self.statements[i]]['kind'] in ('ORG_NODE','END_NODE') or
+                (self.statements[i] in self.layout and
+                 self.layout[self.statements[i]]['segment_id']!=segment)),len(self.statements))
+        selected=self.statements[start:end]
+        page=selected[offset:offset+limit]
+        all_comments=comments(m)
+        first=m.facts[page[0]]['span'][0] if page else 0
+        if page and offset:
+            first=m.facts[selected[offset-1]]['span'][2]+1
+        elif page:
+            comment_lines={c['line'] for c in all_comments}
+            code_lines={u['line'] for u in m.units if u['kind'] not in ('comment','whitespace','newline')}
+            while first-1 in comment_lines and first-1 not in code_lines:first-=1
+        result={'view':'records','span':'segment','offset':offset,'limit':limit,'total':len(selected),
+                'scope':{'start_record_id':m.ids[n],'segment_id':segment,
+                         'boundary_record_id':m.ids[self.statements[end]] if end<len(self.statements) else None,
+                         'coverage':'Lexical statements across global labels in one segment; stops before ORG/END or a segment change. Not control-flow proof. EQU/ORG/END selections are single records.'}}
+        while True:
+            following=offset+len(page)
+            next_offset=following if following<len(selected) else None
+            answer={**result,'records':[self.record(k) for k in page],
+                    'next_offset':next_offset,
+                    'next_record_id':m.ids[selected[following]] if next_offset is not None else None,
+                    'comments':[c for c in all_comments if page and first<=c['line']<=m.facts[page[-1]]['span'][2]]}
+            if compact:answer=compact_records(answer)
+            # Reserve the same envelope headroom as other evidence views. Shrink
+            # whole records only; an oversized single record is refused intact.
+            if review_pages.wire_size(answer)<=review_pages.BUDGET-4096:return answer
+            require(len(page)>1,'RESPONSE_TOO_LARGE')
+            page.pop()

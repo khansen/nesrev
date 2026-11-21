@@ -67,6 +67,52 @@ class InstructionSearchTests(unittest.TestCase):
         self.assertEqual([r['relative_instruction'] for r in rows], [-2, -1, 0, 1, 2])
         self.assertEqual([r['part'] for r in rows], ['context', 'context', 'match', 'context', 'context'])
 
+    def test_zero_context_keeps_every_match_owner_and_uncertainty(self):
+        query={'kind':'instructions','alternatives':[[{'operand':'non_immediate'}]]}
+        wide,wide_meta=search.instruction_rows(self.model,{**query,'context':{'before':3,'after':3}})
+        narrow,narrow_meta=search.instruction_rows(self.model,{**query,'context':{'before':0,'after':0}})
+        fields=('witness_id','alternative','certainty','relative_instruction','instruction')
+        expected=[{k:r[k] for k in fields} for r in wide if r['part']=='match']
+        self.assertEqual([{k:r[k] for k in fields} for r in narrow],expected)
+        self.assertTrue(all(r['part']=='match' for r in narrow))
+        for key in ('total_matches','unresolved_candidates','complete_numeric_answer'):
+            self.assertEqual(narrow_meta[key],wide_meta[key])
+
+    def test_match_detail_is_an_explicit_projection_of_every_full_match(self):
+        query={'kind':'instructions','alternatives':[[{'operand':'non_immediate','values':[0x40]}]]}
+        def compare():
+            full,meta=search.instruction_rows(self.model,query)
+            small,summary=search.instruction_rows(self.model,{**query,'detail':'matches'})
+            expected=[{**r,'instruction':{k:r['instruction'][k] for k in search.MATCH_FIELDS}} for r in full]
+            self.assertEqual(list(small),expected)
+            self.assertTrue(expected)
+            self.assertIn('owner_id',search.MATCH_FIELDS)
+            self.assertIn('record_id',search.MATCH_FIELDS)
+            for key in ('total_matches','unresolved_candidates','complete_numeric_answer'):
+                self.assertEqual(summary[key],meta[key])
+            self.assertEqual(summary['instruction_fields'],list(search.MATCH_FIELDS))
+            pages,encoded=all_pages(lambda query,continuation,limit:search.page(small,summary,'match-test',continuation,limit),{},limit=2)
+            decoded=[]
+            for page in pages:
+                self.assertEqual(page['encoding'],'instruction-matches-columnar-v1')
+                for values in page['rows']:
+                    row={**page['constants'],'instruction':{}}
+                    self.assertEqual(len(values),len(page['columns']))
+                    for key,value in zip(page['columns'],values):
+                        if key.startswith('instruction.'):row['instruction'][key.split('.')[1]]=value
+                        else:row[key]=value
+                    decoded.append(row)
+            self.assertEqual(decoded,expected)
+            return summary
+        compare()
+        instruction=next(i for i in self.model.instructions.values()
+                         if i['operands'] and i['addressing_mode']!='IMMEDIATE_MODE')
+        with patch.dict(instruction,operand_value=None):
+            self.assertGreater(compare()['unresolved_candidates'],0)
+        for detail,context in [('compact',{}),('matches',{'before':1}),('matches',{'after':1})]:
+            with self.subTest(detail=detail,context=context),self.assertRaisesRegex(ValueError,'SEARCH_SCHEMA'):
+                search.instruction_rows(self.model,{**query,'detail':detail,'context':context})
+
     def test_owner_and_overlay_identities_are_not_cpu_addresses(self):
         rows, _ = self.query({'mnemonics': ['JSR']})
         self.assertGreater(len(rows), 3)
@@ -158,11 +204,16 @@ class TextSearchTests(unittest.TestCase):
     def test_full_page_later_page_and_stale_token(self):
         rows = [{'line': i, 'text': 'unique' if i == 40 else 'common'} for i in range(41)]
         first = search.page(rows, {}, 'A', None, 40)
+        self.assertEqual(first['total_rows'],len(rows))
+        self.assertEqual(first['minimum_response_bytes'],
+            sum(len(json.dumps(json.dumps(r)).encode())-2 for r in rows))
         self.assertFalse(first['complete'])
         self.assertEqual(len(first['rows']), 40)
         last = search.page(rows, {}, 'A', first['continuation'], 40)
         self.assertEqual(last['rows'], [rows[-1]])
         self.assertTrue(last['complete'])
+        self.assertEqual(first['minimum_response_bytes'],last['minimum_response_bytes'])
+        self.assertLess(first['minimum_response_bytes'],sum(review_pages.wire_size(p) for p in (first,last)))
         self.assertIsNone(search.page(rows[:40], {}, 'A', None, 40)['continuation'])
         for token in (first['continuation'], 'not a token', 'W10='):
             with self.assertRaisesRegex(ValueError, 'SEARCH_CONTINUATION_INVALID'):

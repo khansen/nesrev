@@ -71,7 +71,7 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
             HERE/'structured_handoff.py',HERE/'verdict_bridge.py',HERE.parent/'agent_review.py')},
         'roles':{},'phase_response_cap':30}
     if declared:
-        for name in ('input_delivery.py','declared_inputs.py'):
+        for name in ('input_delivery.py','declared_inputs.py','startup_inputs.py'):
             config['code_sha256'][str(HERE/name)]=common.producer.sha(HERE/name)
     for role in ('implementer','reviewer'):
         folder=root/role;folder.mkdir();workspace=workspace_root/role;workspace.mkdir()
