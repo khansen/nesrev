@@ -374,10 +374,10 @@ ROOT_WORD_CEILING = 6000
 # The prepared allowance and verbatim-section/RAM-summary guidance adds
 # 17 lines and 155 words to TOOLING routes; retain their prior headroom.
 ROUTE_BUDGETS = {
-    "default": (3703, 27318),
-    "data-recovery": (3341, 25286),
+    "default": (3710, 27380),
+    "data-recovery": (3348, 25348),
     "new-project": (4380, 32242),
-    "project-pass-review": (4813, 34384),
+    "project-pass-review": (4820, 34446),
 }
 
 DATA_RECOVERY_ROUTE_KEY = "DATA_RECOVERY.md"

@@ -131,7 +131,7 @@ Three changes reduce the input volume without shortening canonical prose:
   the retained review restores the same captures.
 - The operation reference uses compact JSON instead of pretty-printed JSON.
   Its fields, descriptions and argument contracts are unchanged. The final
-  record is 39,999 bytes across five pages, within the existing item limits.
+  record is 40,694 bytes across five pages, within the existing item limits.
 - `evidence(view=ram_summary)` retains every original access row, native memory
   fact, owner, alias proof, certainty, indexed possibility and unresolved
   indirect destination. It omits only `preimage`, `span`, `cpu_address`,
@@ -146,13 +146,39 @@ Dictionary bytes are included before applying the response-size check. All
 310 access rows in the replay remain, including every possible alias and
 unresolved indirect destination; none is promoted to a proven owner.
 
+## Unscripted-work allowance
+
+The previous revision met the token-margin bar but failed the operational byte
+bar: its scripted path used 261,375 of 274,924 bytes. Adding the retained run's
+36,751 bytes of unscripted work and reserving one full 24 KiB response requires
+322,702 bytes. That revision is a negative control, not accepted live readiness.
+The margin for estimation error and the 48K lifecycle reserve cannot pay for
+this additional investigation.
+
+`navigate(view=records_compact)` supplies a lossless encoding of the same
+records, using the same selectors, spans, generations and continuation fields.
+Each row starts with a schema index; combine the page's constants with the
+schema zipped against the remaining values. A present `layout` value encodes
+its length; reconstruct the other four layout fields from their identical
+counterparts at the top level. An unexpected mismatch refuses instead of
+silently discarding a value. Optional missing keys remain distinct from null.
+All record fields, expressions, ownership, native facts, comments and preimages
+survive, including analogue preimages. Each page is independently decodable.
+The original `records` view remains the default. Compaction is applied before
+the size check; whole records are paged, and an oversized single record refuses.
+
+The final byte bar is the complete scripted investigation, plus the measured
+unscripted overhead, plus one maximum next response, inside the unchanged
+prepared allowance. This round is the final planned offline capacity correction.
+A further shortfall would be reported for the owner's separate live-run decision.
+
 ## Final capacity measurement
 
 The fresh disposable preparation uses the frozen source and a tooling overlay.
 Both roles read the complete compact operation reference, selected guidance,
 all declared text references, intake receipt and reference decision through
 normal bridge calls. The historical archive remains available on demand.
-Startup delivers 214,070 response bytes across 25 calls. The selected guidance
+Startup delivers 214,832 response bytes across 25 calls. The selected guidance
 record is 103,825 bytes, including provenance headers; its 102,738 source bytes
 are copied verbatim. The assembled prompt carries the exact numeric allowance.
 
@@ -167,15 +193,15 @@ No semantic decision or game edit is credited by this scripted replay.
 
 | Delivered work | Logical requests | Transport calls | Response bytes |
 | --- | ---: | ---: | ---: |
-| Current-project question | 5 | 15 | 164,175 |
-| First analogue question | 1 | 6 | 68,437 |
-| Second analogue question | 2 | 3 | 28,763 |
+| Current-project question | 5 | 15 | 122,476 |
+| First analogue question | 1 | 6 | 43,520 |
+| Second analogue question | 2 | 3 | 19,806 |
 
 Token accounting uses the retained live rollout's next-request input growth,
 matched to each preceding result. Conservative rates are 2.952 bytes/token for
 source records and 3.86 for prose. Previously measured operation-reference
 text is priced at 2.97 in the rejected-plan comparison. New compact search,
-RAM-summary and operation-reference encodings, structured receipts and request
+RAM-summary, compact-record and operation-reference encodings, structured receipts and request
 arguments use 2.58, rounded below the worst observed RAM rate. The seven RAM
 pages in the retained run grew context by 41,088 tokens. Initial context,
 new prompt growth, declaration allowance and a separate 2,000-token framing
@@ -183,22 +209,33 @@ cushion are included in startup.
 
 | Capacity component | Estimated tokens |
 | --- | ---: |
-| Startup, including prompt and framing | 76,181 |
-| Current-project question | 60,175 |
-| Both analogue questions | 33,563 |
+| Startup, including prompt and framing | 76,568 |
+| Current-project question | 48,955 |
+| Both analogue questions | 25,209 |
+| Observed unscripted responses and request arguments | 14,667 |
 | Edit, validation and closeout reserve | 48,000 |
-| Total | **217,919** |
-| Remaining window | **40,481 (15.7%)** |
+| Total | **213,399** |
+| Remaining window | **45,001 (17.4%)** |
 
 Preparation budgets 78,000 startup tokens and reserves 25,840 for estimation
 error. At 2.58 bytes/token, the remaining investigation allowance delivered in
-both assembled prompts is **274,924 response bytes**. The replay uses 261,375.
-Before every call, cumulative bytes plus the maximum next 24 KiB response fit;
-the largest such reservation is 274,101 bytes. This check applies across the
-local question and both analogues. It is audited caller accounting, not an
-automatic service counter. The final prompt explicitly separates investigation
-from the lifecycle reserve so the byte allowance cannot block an otherwise
-budgeted edit, validation or closeout.
+both assembled prompts is **274,924 response bytes**. The scripted investigation
+uses 185,802 bytes; adding 36,751 unscripted bytes and a 24,576-byte reservation
+reaches **247,129 bytes**, leaving **27,795 bytes**. This checks the required
+extra space even after the complete scripted path. Each intermediate next-call
+reservation also fits when all observed overhead is charged first.
+
+The token estimate prices the overhead and its original request arguments at
+2.58 bytes/token. Including another maximum response raises the estimate to
+222,925 tokens, still leaving **35,475 tokens (13.7%)**, above the 25,840-token
+margin. The byte and token bars both pass. The retained overhead total comes
+from nine response records, including an empty symbol lookup; the review called
+these ten calls, but its 36,751-byte total reconstructs exactly. No reduction is
+credited to that requirement.
+
+This is audited caller accounting, not an automatic service counter. The prompt
+separates investigation from lifecycle work so the byte allowance cannot block
+an otherwise budgeted edit, validation or closeout.
 
 The lifecycle reserve is sized from the earlier successful five-turn fixture's
 complete three implementer turns: 42,774 request/response bytes, about 16,579
@@ -207,8 +244,9 @@ authoring still leaves about 15,421 within the reserve. This fixture establishes
 transport size, not a forecast of semantic reasoning. The reserve was not
 reduced to make the capacity result pass.
 
-The previous full-startup plan, priced with these rates and including the
-analogue reads, totals 310,437 tokens and fails the margin bar. The unchanged label view with wide searches
+The earlier full-startup plan failed the margin bar in the preceding replay.
+The immediately preceding selected-startup plan fails the new unscripted-work
+byte bar by 47,778 bytes. The unchanged label view with wide searches
 also fails both request and capacity limits. These are retained negative
 controls. Fresh preparation after merge must repeat the calculation with its
 actual inputs; extra evidence, images or changed startup are not free capacity.
@@ -237,9 +275,16 @@ a dropped shared unknown, a wrong dictionary category and a summary size
 bypass. Each has a passing unmodified control. Earlier span and volume fault
 results are carried forward, rather than described as rerun.
 
-The final local structured suite on macOS arm64 passes 429 tests, with one
-opt-in skip. Final `make test` passes the playbook, hygiene and shell checks
-and all 1,206 Java tests. Linux and macOS CI remain required before merge.
+The final local structured suite passes 433 tests with one opt-in skip on
+macOS arm64. `make test` exits zero, including 1,206 Java tests. Documentation
+and repository checks are rerun after the final acceptance-text update.
+
+Five new controls drop an inter-record comment, remove compaction, discard a
+preimage, alter a reconstructed layout length and bypass the compact size
+limits. All are caught, and the restored 12 navigation tests pass. The preceding startup/RAM
+controls are carried forward. Every decoded source and analogue record in the
+real replay equals the prior full record, including fields not needed by the
+scripted question. Linux and macOS CI remain required before merge.
 
 The replay records preserve failed intermediate projections and harness
 corrections, including a too-large analogue page, code imports from an older
@@ -248,7 +293,13 @@ fields when expanding an old shared set. None is credited as passing evidence.
 Frozen code imports and final preparation pins are checked before the final
 replay. No native clients or provider calls were used by these corrections.
 
-Guidance remains readable. Its addition against master is 49 lines and 437
+The compact-record round also retains a first-page comparison mistake, an
+initially ineffective size mutant and an uncredited suite run that overlapped
+the comment-continuation fix and refused a runtime hash mismatch. The final
+preparation, replay and suite run use frozen production code. The comment gap
+is covered by a dedicated regression and deliberate fault.
+
+Guidance remains readable. Its addition against master is 56 lines and 499
 words; the three affected reading budgets grow by exactly that amount,
 preserving prior headroom. Catalog, item, response and invocation limits are
 unchanged. The owner checkout and stashes remain untouched, and the isolated

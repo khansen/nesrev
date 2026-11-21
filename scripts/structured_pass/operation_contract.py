@@ -197,7 +197,7 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'set_id':{'source':'evidence(view=ram_compact).shared.set_id'},
         'analogue_index':{'enum':[0,1]},
         'span':{'enum':list(navigation.SPANS),'default':'label',
-                'constraint':'segment is only valid with navigate view=records'},
+                'constraint':'segment is only valid with navigate view=records or records_compact'},
         'byte_offset':{'authored':'nonnegative integer within the selected data'},
         'byte_count':{'authored':'integer in 1..4096 within the selected data; align offset/count to decoder width'},
         'offset':{'source':'same operation next_offset; 0 for first page'},

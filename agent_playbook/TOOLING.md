@@ -369,6 +369,13 @@ needed page; no separate shared-set fetch is required. Source-location details
 and edit preimages remain available through `navigate` and the original RAM
 views. A possible alias is still unknown, never evidence of a proven access.
 
+For source and analogue investigation, `navigate view=records_compact` returns
+all record fields in a lossless page-local encoding. Combine `constants` with
+`schemas[row[0]]` zipped against `row[1:]`. A present `layout` value is its
+length; rebuild the other layout fields from the identical top-level location
+fields. Preimages and comments are retained. The original `records` view stays
+available; both views use the same selectors, spans and continuation rules.
+
 ### Evidence Order (Mandatory)
 
 1. **Generated pass artifacts** (`inventory/pass/`) — use first for corridor selection, consumer identification, pass resumption, and cluster sizing.
