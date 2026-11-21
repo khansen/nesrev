@@ -1,5 +1,8 @@
 """Whole-workload coverage must fail when a cheap subset replaces it."""
 import copy
+import json
+import math
+from pathlib import Path
 import unittest
 import structured_pass_evidence_test as fixture
 from structured_pass import corridor_inventory as inventory, corridor_capacity as capacity
@@ -51,6 +54,55 @@ class InventoryTests(unittest.TestCase):
                 capacity.verify_coverage(actual,changed,False,[])
 
 class CapacityTests(unittest.TestCase):
+    def test_startup_rates_are_the_lowest_measured_pages(self):
+        witness=json.loads((Path(__file__).parent/'fixtures/structured_startup_rates.json').read_text())
+        minima={}
+        totals={}
+        for values in witness['pages']:
+            row=dict(zip(witness['columns'],values))
+            self.assertIn(row['run'],witness['sources'])
+            self.assertLess(row['output_line'],row['before_token_line'])
+            self.assertLess(row['before_token_line'],row['after_token_line'])
+            growth=row['after_input_tokens']-row['before_input_tokens']
+            self.assertGreater(growth,0)
+            rate=row['wire_bytes']*1000//growth
+            identity=row['input_id']
+            minima[identity]=min(minima.get(identity,rate),rate)
+            if row['run']=='r4' and identity!='comparison-document-0':
+                totals[identity]=totals.get(identity,0)+growth
+        self.assertEqual(sum(totals.values()),52349)
+        self.assertEqual(sum(row[-1] for row in witness['pages']
+                             if row[0]=='r4' and row[2]!='comparison-document-0'),213830)
+        self.assertEqual(minima,{
+            'operation-reference':3849,'guidance-0':3331,'guidance-1':2625,
+            'guidance-2':3094,'guidance-3':3642,'guidance-startup':3097,
+            'manual-text':3293,'faq-text':3718,'intake-receipt':3152,
+            'reference-decision':2858,'comparison-document-0':3951})
+        self.assertEqual(capacity.STARTUP_RATES,minima)
+
+    def test_measured_startup_prices_include_increases_and_leave_other_rates_alone(self):
+        budget={'window_tokens':258400,'startup_tokens':82000,'lifecycle_tokens':48000,
+                'margin_tokens':25840,'bytes_per_1000_tokens':2580}
+        def priced(identity,startup=True):
+            call={'job':('startup-' if startup else 'evidence-')+identity,'operation':'input',
+                  'arguments':{'input_id':identity},'wire_bytes':24576}
+            request=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
+            result=capacity.price([call],budget,initial_tokens=0,overhead_bytes=36751,
+                                  overhead_request_bytes=1088)
+            return result,request
+        for identity,rate in [('operation-reference',3849),('guidance-startup',3097),
+                ('manual-text',3293),('faq-text',3718),('intake-receipt',3152),
+                ('reference-decision',2858),('guidance-unmeasured',3860),('unmeasured',2580)]:
+            result,request=priced(identity)
+            self.assertEqual(result['startup_tokens'],math.ceil(24576*1000/rate)+math.ceil(request*1000/2580))
+            if identity in ('manual-text','faq-text','guidance-startup'):
+                self.assertGreater(result['startup_tokens'],math.ceil(24576*1000/3860)+math.ceil(request*1000/2580))
+        # A measured input name does not grant its rate to investigation reads.
+        result,request=priced('operation-reference',startup=False)
+        self.assertEqual(result['startup_tokens'],0)
+        self.assertEqual(result['estimated_tokens'],48000+math.ceil((24576+request)*1000/2580)
+                         +math.ceil((36751+1088+24576)*1000/2580))
+
     def test_all_charges_and_reserves_are_required(self):
         budget={'window_tokens':258400,'startup_tokens':78000,'lifecycle_tokens':48000,
                 'margin_tokens':25840,'bytes_per_1000_tokens':2580}

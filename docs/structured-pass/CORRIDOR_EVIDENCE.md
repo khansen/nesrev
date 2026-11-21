@@ -163,3 +163,37 @@ The byte allowance fits, but the token-margin condition fails. The correction
 therefore reaches the agreed stop-loss: **no new packet or live attempt**.
 Separating investigation from editing requires a separate owner decision and
 scope. There is no further capacity-tuning round in this authorization.
+
+## Measured startup-rate correction
+
+The owner subsequently authorized one rate-only correction and rerun, retaining
+the same stop-loss if it failed. The pricing above is preserved as the original
+result. No tool, workload, allowance, initial-context charge, reserve or margin
+changed in this correction.
+
+Startup rates now use each input's lowest measured page ratio across the two
+retained live runs, rounded down to bytes per 1,000 tokens. The token count
+recorded after call N describes the request that produced that call: output N
+first contributes to the input count for call N+1. Their difference includes
+assistant/reasoning and framing growth. Partial pages are included. The
+[measurement fixture](../../tests/fixtures/structured_startup_rates.json) pins
+the rollout hashes, output/count line numbers, byte counts and token counts;
+it contains no source or reference payloads. Unmeasured inputs keep their prior
+pricing, and new investigation formats still use 2.58 bytes per token.
+The earlier run predates the byte counter, so its wire sizes are reconstructed
+with a one-digit request ID as a lower bound; the later run supplies exact counts.
+
+The minimum must include two low-rate pages. The last operation-reference
+page in the earlier run contains 3,630 wire bytes for 943 tokens of context
+growth (3.849 bytes/token). One startup-guidance page in the later run contains
+9,230 bytes for 2,980 tokens (3.097 bytes/token). Taking the minimum across all
+pages makes the reference cheaper but guidance more expensive. Manual and FAQ
+rates are 3.293 and 3.718, both below the previous 3.86. The same pairing method
+reproduces the later run's complete measured startup growth of 52,349 tokens.
+
+Repricing the identical 49 recorded bridge calls lowers the startup estimate
+from 81,029 to 80,909 tokens: 120 tokens saved overall. The total is 235,867,
+leaving 22,533 against the required 25,840-token margin, a **3,307-token
+shortfall**. Restoring the old rates reproduces the original price exactly.
+The byte charge remains 261,555 of 264,604. This correction still fails the
+agreed bar, so no further adjustment or live packet follows it.

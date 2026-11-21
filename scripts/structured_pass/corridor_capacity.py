@@ -9,6 +9,26 @@ from . import bridge, corridor_inventory, producer, startup_inputs
 from .launcher import Corridor
 
 
+# Lowest page wire-bytes/token rate per measured startup input across the two
+# retained runs, rounded down to bytes per 1000 tokens. The token count after
+# call N describes its input; output N first contributes to call N+1's count.
+# Includes partial pages and assistant/framing growth. Measurement rows and
+# rollout hashes are pinned in tests/fixtures/structured_startup_rates.json.
+STARTUP_RATES = {
+    'operation-reference': 3849,
+    'guidance-0': 3331,
+    'guidance-1': 2625,
+    'guidance-2': 3094,
+    'guidance-3': 3642,
+    'guidance-startup': 3097,
+    'manual-text': 3293,
+    'faq-text': 3718,
+    'intake-receipt': 3152,
+    'reference-decision': 2858,
+    'comparison-document-0': 3951,
+}
+
+
 def check_startup(model,identities):
     from . import declared_inputs
     items=declared_inputs.load(model.capture)['items']
@@ -177,7 +197,8 @@ def price(calls,budget,*,initial_tokens,overhead_bytes,overhead_request_bytes):
         arguments_size=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
         identity=call['arguments'].get('input_id','')
         if call['job'].startswith('startup-'):
-            rate=3860 if identity.startswith('guidance-') or identity in ('manual-text','faq-text') else worst
+            fallback=3860 if identity.startswith('guidance-') or identity in ('manual-text','faq-text') else worst
+            rate=STARTUP_RATES.get(identity,fallback)
             startup+=tokens(call['wire_bytes'],rate)+tokens(arguments_size,worst)
         else:
             response_bytes+=call['wire_bytes'];request_bytes+=arguments_size
