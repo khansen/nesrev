@@ -1,10 +1,28 @@
 # Multi-session structured corridor: design scope
 
-Status: the owner authorized this design only. Implementation, native-client
-rehearsals and live work need subsequent authorization. The approved tooling
-prerequisite is [PR #201](https://github.com/khansen/nesrev/pull/201), containing
-the two reviewed corridor-evidence commits. This proposal adds no code and does
-not authorize another pass or change the accepted capacity rule.
+Status: the owner authorized the narrower implementation below, with a 24-hour
+hard stop, checkpoints at 2 and 8 hours, and at most 10 credential-free loopback
+invocations. Provider calls and a live pass remain unauthorized. The tooling
+prerequisite, [PR #201](https://github.com/khansen/nesrev/pull/201), is merged.
+The accepted capacity rates, margin and reserves remain unchanged.
+The [first implementation checkpoint](MULTI_SESSION_CHECKPOINT.md) records an
+editor-price refusal and the components completed before integration stopped.
+
+## Authorized first build
+
+Build investigation partitions by whole roots or RAM ranges against one frozen
+source, followed by one editing context using the existing edit, review, rework
+and closeout steps. Keep the plan length data-driven. Defer subdividing a single
+root or byte, renewing evidence after publication, and continuing editing or
+review in a new context. The wider design below records those possibilities;
+it does not authorize their implementation now.
+
+The 2-hour checkpoint is a **go/no-go on the editor's complete price**: maximum
+handoffs, decisive re-reads and full records/preimages for its edit envelope,
+with the current rates, 48K lifecycle reserve and at least 10% margin. If that
+does not fit one context, stop for a scope decision before launcher integration.
+Do not silently reduce the corridor or reclaim the reserve. A passing price
+keeps the deferred features deferred and supports a revised effort estimate.
 
 ## Outcome and decision
 
@@ -105,6 +123,14 @@ booleans. Read receipts establish which pages were delivered, not that the
 model understood them. Acceptance checks structural integrity and coverage,
 not semantic truth. Proposed names remain proposals until locally revalidated
 and independently reviewed.
+
+**Compaction voids earlier coverage.** Only pages actually delivered after that
+session's last native compaction count. A call or page retained in replacement
+history is not a new delivery. Check the final native audit at every handoff
+and at the start of every consumer session. A compaction after checkpoint
+submission invalidates its coverage; the investigator must re-read and submit
+a new checkpoint within its existing allowance. Ordinary later calls that do
+not compact the session do not invalidate an accepted checkpoint.
 
 Generate the checkpoint argument shapes and identity sources from dispatch's
 own tables, delivered through the paged operation reference. Show declaration
@@ -257,6 +283,7 @@ independent approval and owner-state/preimage checks, once at final closeout.
 | Variable session count | Partition one neutral inventory into several roots/ranges, including a continued partial partition; union equals the inventory. Omitting a byte, helper, analogue or shared fact fails. |
 | Checkable handoff | Expand citations from real native records/facts and restore captures without the original checkout. Changed source/fact/hash, wrong generation, unknown ID or prose-only claims fail. |
 | Atomic coverage | Interrupt before/after checkpoint publication. The last accepted partial/complete record survives or none exists. A draft cannot satisfy coverage; conflicts and unvisited required pages fail. |
+| Compaction coverage | Both observed native compaction paths discard earlier read coverage, including pages retained in replacement history. A compacted session cannot complete its partition or support an absence claim from those reads. Actual post-compaction re-delivery and a new checkpoint can restore coverage; late compaction before consumer admission still refuses. |
 | Fresh consumer | Script a new native thread that receives only its declared inputs and accepted handoffs, rechecks them, and uses citations for an edit. Old context items or a skipped verification receipt fail. |
 | Per-session capacity | Run the complete partition plan through the actual bridge; price startup, maximum handoffs, re-reads and reserves. Missing charges, an inflated allowance or a single oversized session fails. |
 | Authority and lifecycle | Shared counters/deadline survive fresh contexts and failure. An unlisted transition, investigation-phase edit or early application fails; ordinary review/rework/closeout still gates one application. |
@@ -274,20 +301,22 @@ permission for another attempt or a quiet switch to the ordinary workflow.
 
 Estimate **16–24 active hours**, including tests and one offline acceptance
 round; propose a hard stop at **24 hours**. CI, review and owner waits are
-recorded separately. This is an estimate for implementation, not an authorization
-granted by this document. It does not promise a successful semantic pass.
+recorded separately. The owner approved the bounds for the narrower first build;
+this document does not authorize a live pass or promise semantic success.
 
 - At **2 hours**, show the concrete handoff/fact-identity schema, the coverage
   partition for the retained corridor, initial per-session prices including
   maximum handoff sizes, and the exact fresh-context/login configuration seam.
-  Establish that existing locks/captures can provide atomic publication.
+  Establish that existing locks/captures can provide atomic publication. Apply
+  the editor go/no-go in the authorized first-build section before integration.
 - At **8 hours**, show a neutral interrupted-checkpoint/restart lifecycle and
   a fresh editor consuming checked citations, plus the current effort forecast.
 - Proposed native allowance: **at most 10 credential-free loopback invocations**,
   including failed runs, with no automatic replacements and no provider calls.
   Eight are reserved for the full recipe above; two for the configuration seam.
   Read-only native login-status checks are separate from inference invocations
-  but remain charged work. Implementation approval must settle this allowance.
+  but remain charged work. The owner approved this ceiling; it is not a target
+  to spend when a capacity checkpoint has already stopped the slice.
 
 Stop and reassess if the handoff or necessary re-reads recreate the original
 capacity problem; a partition cannot fit; provenance or coverage needs a new
@@ -296,6 +325,5 @@ atomicity needs another transaction framework; orchestration needs a general
 scheduler; the same failure class recurs; or the 24-hour bound is no longer
 credible. Do not turn those findings into additional slices automatically.
 
-Next: review this design and the proposed bounds, then obtain implementation
-authorization. After offline acceptance and CI, prepare the finite live plan
-for review and a separate owner grant. No new packet is part of this design task.
+Next: review the implementation checkpoints. After offline acceptance and CI,
+prepare the finite live plan for review and a separate owner grant.

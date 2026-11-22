@@ -263,6 +263,41 @@ def audit_session(home, thread_id=None, offered_path=None):
             'calls': session_calls(items, require_declaration=True)}
 
 
+def delivery_window(items):
+    """Actual outputs after the last compaction, excluding replacement history.
+
+    The normal audit still inspects the entire history for forbidden calls.
+    Retaining a call in a compaction summary does not deliver its page again.
+    """
+    require(all(call['allowed'] for call in session_calls(items, require_declaration=True)),
+            'CODEX_FORBIDDEN_SESSION_CALL')
+    calls = {}; completed = set(); deliveries = []; last_compaction = -1
+    for position, item in enumerate(items):
+        kind = item.get('type')
+        if kind == '_compaction_checkpoint':
+            checkpoint_history(item['payload'])
+            last_compaction = position
+            deliveries = []
+        elif kind == 'function_call':
+            call_id = item.get('call_id')
+            require(isinstance(call_id, str) and call_id and call_id not in calls,
+                    'CODEX_SESSION_CALL_INVALID')
+            calls[call_id] = item
+        elif kind == 'function_call_output':
+            call_id = item.get('call_id')
+            require(call_id in calls and call_id not in completed and 'output' in item,
+                    'CODEX_SESSION_CALL_INVALID')
+            completed.add(call_id)
+            deliveries.append({'call_id': call_id, 'position': position,
+                               'arguments': calls[call_id]['arguments'], 'output': item['output']})
+    return {'last_compaction': last_compaction, 'deliveries': deliveries}
+
+
+def session_delivery_window(home, thread_id):
+    identifier, items = session_items(home, thread_id)
+    return {'session_id': identifier, **delivery_window(items)}
+
+
 def poll_session(home, thread_id=None, required=False):
     identifier, items = session_items(home, thread_id, pending=True)
     require(not required or identifier is not None, 'CODEX_SESSION_MISSING_OR_AMBIGUOUS')

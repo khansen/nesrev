@@ -91,9 +91,11 @@ That replay did not cover the whole RAM workload. The authorized
 inventory, offers lean source and set-based RAM reads, and gates startup-budget
 sessions on the complete measured price. The corrected workload still misses
 the required context margin. The owner selected a
-[multi-session design-only scope](MULTI_SESSION_SCOPE.md), with checked handoffs,
-explicit coverage and per-session capacity. Implementation and live work remain
-separately authorized; no new live packet is authorized by that design decision.
+[multi-session scope](MULTI_SESSION_SCOPE.md), with checked handoffs,
+explicit coverage and per-session capacity. The narrower implementation is
+authorized, but its [first checkpoint](MULTI_SESSION_CHECKPOINT.md) stops before
+launcher integration because the editing envelope misses the capacity margin.
+Live work remains separately authorized; no new live packet is authorized.
 Another attempt needs reviewed corrections, fresh preparation and a new grant.
 No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
