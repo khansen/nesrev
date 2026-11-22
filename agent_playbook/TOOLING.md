@@ -362,19 +362,40 @@ than automatically downloading every playbook. They retain the source prose;
 the complete files remain available by their original IDs. Selection belongs
 to preparation and must cover the authorized corridor's requirements.
 
-For RAM access questions, `ram_summary` retains every access, owner, alias proof
-and unresolved destination. Expand its constants and columns, then resolve
-each dictionary-coded field through that page's `dictionaries` entry. Read every
-needed page; no separate shared-set fetch is required. Source-location details
-and edit preimages remain available through `navigate` and the original RAM
-views. A possible alias is still unknown, never evidence of a proven access.
+Before every launch, price the **whole declared corridor** with
+`python3 -B -m structured_pass.corridor_capacity` (with `PYTHONPATH=scripts`).
+The operator selects lexical roots, the RAM ranges and analogues; the command
+derives every explicit RAM operand and pointer byte, all access-owner blocks,
+and each direct called helper interface from the retained assembler model.
+Review those bounds and unresolved transfers. A hand-selected successful call
+sequence is not coverage of a corridor. Bind the inventory and actual bridge
+measurement to the prepared generation and task. Include startup, all selected
+RAM evidence, source, helpers, both analogues, measured unscripted overhead,
+one maximum next response, the lifecycle reserve and the estimation margin.
+Do not launch when this complete workload does not fit.
 
-For source and analogue investigation, `navigate view=records_compact` returns
-all record fields in a lossless page-local encoding. Combine `constants` with
-`schemas[row[0]]` zipped against `row[1:]`. A present `layout` value is its
-length; rebuild the other layout fields from the identical top-level location
-fields. Preimages and comments are retained. The original `records` view stays
-available; both views use the same selectors, spans and continuation rules.
+For RAM ownership, use `evidence view=ram_set` with the selected addresses as an
+array in `address` and `limit=128`. Read every page. Expand constants/columns and
+the page-local dictionaries; each row's `addresses` lists exactly the bytes for
+which that fact applies. A shared unresolved destination is kept once, and an
+indexed site's possibilities retain their exact membership. Different
+categories and alias proofs remain separate. Direct accesses and all original
+fields are retained. Do not repeat a full `ram_summary` for every byte. The
+per-byte views remain available for narrower follow-up. A possible alias remains
+unknown, never proof of an access.
+
+For source and analogue reading, use `navigate view=source`: each record has
+its stable ID, CPU address, label and exact producer-span source text. Zip the
+page's four columns with each row; no field names repeat per instruction. Comments
+are included separately. A single selector supports the usual label/segment
+span. To read several access-owner blocks together, pass their unique statement
+IDs as `record_id` with `span=label`; overlapping blocks are delivered once in
+source order. Keep selectors unchanged while following `next_offset`. This
+reading-only view allows up to 128 statements per page, still within the 24 KiB
+response ceiling; editing views retain their 40-record maximum.
+Fetch `records` or `records_compact` for the particular records being edited,
+in the same generation, to obtain expression trees and preimages. Reading does
+not require carrying all that editing metadata in context.
 
 ### Evidence Order (Mandatory)
 

@@ -19,7 +19,7 @@ from structured_pass_fixture import prepare,closeout_ops
 
 def expand(page):
     rows=[{**page['constants'],**dict(zip(page['columns'],values))} for values in page['records']]
-    if page.get('encoding')=='ram-columnar-summary-v1':
+    if page.get('encoding') in ('ram-columnar-summary-v1','ram-set-columnar-v1'):
         for row in rows:
             for field,values in page['dictionaries'].items():row[field]=values[str(row[field])]
     return rows
@@ -53,6 +53,23 @@ class CompactTests(unittest.TestCase):
                 self.assertEqual(len(shared),page['shared']['total_records'])
                 self.assertTrue(all(r['category']=='unresolved_indirect_destination' for r in shared))
         self.assertEqual(len(identifiers),1)
+
+    def test_set_expansion_equals_every_per_byte_fact(self):
+        addresses=[0,0x40,0xFE,0xFF,0x100,0x400,0x6000,0xFFFF]
+        rows,page,_=self.collect('ram_set',address=addresses)
+        expanded=[{**{k:v for k,v in row.items() if k!='addresses'},
+                   'requested_address':a,'requested_declaration_id':None}
+                  for row in rows for a in row['addresses']]
+        self.assertCountEqual(expanded,[r for a in addresses for r in evidence_views.memory(self.model,address=a)])
+        self.assertEqual(len(expanded),page['total_evidence_records'])
+        indirect=[r for r in rows if r['category']=='unresolved_indirect_destination']
+        self.assertTrue(indirect)
+        self.assertTrue(all(r['addresses']==sorted(addresses) for r in indirect))
+        self.assertEqual(len(indirect),len({r['record_id'] for r in indirect}))
+        self.assertTrue(all('preimage' in r for r in rows))
+        for bad in ([],[1,1],[True],[65536],list(range(129)),1):
+            with self.subTest(bad=bad),self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
+                self.collect('ram_set',address=bad)
 
     def test_stale_foreign_and_changed_shared_set_refused(self):
         page=ram_evidence.query(self.model,'G-test','ram_compact',address=0)
@@ -199,6 +216,10 @@ class CompactLifecycleTests(unittest.TestCase):
             summary=c.dispatch('evidence',summary_args,'reviewer')
             self.assertEqual(summary['generation'],ticket)
             self.assertEqual(summary,retained.dispatch('evidence',summary_args,'reviewer'))
+            set_args={**args,'generation':ticket,'view':'ram_set','address':[0x40,0x41]}
+            grouped=c.dispatch('evidence',set_args,'reviewer')
+            self.assertEqual(grouped['generation'],ticket)
+            self.assertEqual(grouped,retained.dispatch('evidence',set_args,'reviewer'))
             for stale in [original['shared']['set_id']]+([old_public] if old_public else []):
                 with self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
                     c.dispatch('evidence',{**shared_args,'set_id':stale},'reviewer')

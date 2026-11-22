@@ -250,7 +250,7 @@ class NavigationSpanTests(unittest.TestCase):
         request['view']='records_compact'
         compact=reader.dispatch('navigate',{'generation':artifact,**request},'reviewer')
         def complete(view,page):
-            rows=expand(page)
+            rows=list(expand(page))
             while page['next_offset'] is not None:
                 page=reader.dispatch('navigate',{'generation':artifact,**request,
                     'view':view,'offset':page['next_offset']},'reviewer')
@@ -258,6 +258,16 @@ class NavigationSpanTests(unittest.TestCase):
             return rows
         self.assertEqual(complete('records_compact',compact),complete('records',restored))
         self.assertEqual(compact['generation'],artifact)
+        source_args={**request,'view':'source','limit':128}
+        reading=reader.dispatch('navigate',{'generation':artifact,**source_args},'reviewer')
+        from structured_pass.corridor_capacity import expand as source_expand
+        expected=complete('records',restored)
+        actual=source_expand(reading)
+        self.assertEqual([r['record_id'] for r in actual],[r['record_id'] for r in expected])
+        live_read=c.dispatch('navigate',{'generation':published['generation'],**source_args},'reviewer')
+        self.assertEqual({k:v for k,v in reading.items() if k!='generation'},
+                         {k:v for k,v in live_read.items() if k!='generation'})
+
         with self.assertRaisesRegex(ValueError,'UNKNOWN_GENERATION'):
             reader.dispatch('navigate',{'generation':published['generation'],**request},'reviewer')
 

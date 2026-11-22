@@ -1,5 +1,11 @@
 # Source spans and evidence-request counting
 
+Capacity status: the measurements below cover a scripted subset, including only
+one complete RAM-byte investigation. They are retained as historical evidence,
+not a whole-corridor launch clearance. The subsequent
+[whole-corridor check](CORRIDOR_EVIDENCE.md) prices every selected operand and
+access-owner context and currently refuses the single-turn workload.
+
 An unscripted corridor attempt stopped before editing because source
 navigation ended at every global label. Dense early-stage labels divided a
 connected routine into many requests. The bounded correction adds an explicit

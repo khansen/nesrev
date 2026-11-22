@@ -30,7 +30,11 @@ REQUEST_COUNTING = (
     'conversation allowance with its measured startup cost, lifecycle reserve and at least '
     '10 percent estimation margin. Use the smaller of 400 KiB and that remaining allowance; '
     'include analogue reads and additional guidance. If the prepared allowance is missing, '
-    'stop for a decision rather than guessing it. A resumed turn does not reset the allowance.'
+    'stop for a decision rather than guessing it. A resumed turn does not reset the allowance. '
+    'Preparation must price every explicit RAM operand in the declared corridor, all access-owner '
+    'contexts, called helper interfaces and both analogues, not a selected successful script. '
+    'Read source with navigate source and the complete byte set with evidence ram_set; fetch '
+    'editing records separately. The prepared task binds the inventory and complete bridge measurement.'
 )
 
 class RequestError(ValueError):
@@ -188,8 +192,9 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'name':{'enum':list(guidance.NAMES)},
         'query':{'type':'search_query'},
         'view':{'enum':list(navigation.VIEWS if operation=='navigate' else rename_service.EVIDENCE_ARGUMENTS)},
-        'record_id':{'source':'navigate.records[].record_id or their expressions[].record_id and recursive children'},
-        'address':{'authored':'integer in 0..65535'},
+        'record_id':{'source':'navigate.records[].record_id or their expressions[].record_id and recursive children',
+                     'source_view':'For navigate source, also accepts 1..128 unique statement IDs, selecting their lexical label blocks together; span must be label.'},
+        'address':{'authored':'integer in 0..65535; evidence ram_set instead requires 1..128 unique such integers'},
         'contains':{'authored':'nonempty substring up to 256 characters'},
         'decoder':{'enum':list(evidence_views.DECODERS)},
         'artifact':{'enum':sorted(artifact_edits.PATHS)},
@@ -197,12 +202,13 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'set_id':{'source':'evidence(view=ram_compact).shared.set_id'},
         'analogue_index':{'enum':[0,1]},
         'span':{'enum':list(navigation.SPANS),'default':'label',
-                'constraint':'segment is only valid with navigate view=records or records_compact'},
+                'constraint':'segment is only valid with navigate view=records, records_compact or source (single selector)'},
         'byte_offset':{'authored':'nonnegative integer within the selected data'},
         'byte_count':{'authored':'integer in 1..4096 within the selected data; align offset/count to decoder width'},
         'offset':{'source':'same operation next_offset; 0 for first page'},
         'limit':{'authored':'positive integer; omit to use the route default',
-                 'maximum':{'input':8192,'guidance':400,'document':80,'review_report':1024}.get(operation,40)},
+                 'view_limits':'navigate source permits 1..128; other navigate views 1..40. RAM set/summary/compact/shared permit 1..128.',
+                 'maximum':{'navigate':128,'input':8192,'guidance':400,'document':80,'review_report':1024}.get(operation,40)},
         'continuation':{'source':'search.continuation; absent for first page'},
     }
     if operation=='validation_evidence':
