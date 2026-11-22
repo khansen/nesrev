@@ -101,7 +101,7 @@ class EditRecordTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '^RESPONSE_TOO_LARGE$'):
             self.nav.query('edit', record_id=self.model.ids[padding])
 
-    def test_hash_cost_is_one_token_per_character_and_no_discount_elsewhere(self):
+    def test_measured_response_rate_keeps_prior_request_hash_charge(self):
         page = self.nav.query('edit', record_id=self.ids[:10])
         args = {'generation':'G-'+'a'*64,'record_id':self.ids[:10],'view':'edit'}
         call = {'job':'edit','operation':'navigate','arguments':args,'wire_bytes':10000,'result':page}
@@ -109,11 +109,15 @@ class EditRecordTests(unittest.TestCase):
                   'margin_tokens':25840,'bytes_per_1000_tokens':2580}
         prices = {'initial_tokens':100,'overhead_bytes':36751,'overhead_request_bytes':1088}
         result = corridor_capacity.price([call], budget, **prices)
-        hashes = sum(len(s) for s in page['preimages']) + 64
-        self.assertEqual(result['edit_hash_characters_at_one_token_each'], hashes)
+        response_hashes = edit_records.hash_characters(page)
+        hashes = edit_records.hash_characters([page,args])
+        self.assertEqual(result['edit_request_hash_characters_at_one_token_each'],64)
+        self.assertEqual(result['edit_response_hash_characters_at_measured_rate'],response_hashes)
         ordinary = corridor_capacity.price([{**call,'result':{}}], budget, **prices)
         request = len(json.dumps({'operation':'navigate','arguments':args}).encode())
-        extra = math.ceil((10000+request-hashes)/2.58)+hashes-math.ceil((10000+request)/2.58)
+        old_combined=math.ceil((10000+request-hashes)*1000/2580)+hashes
+        old_response=math.ceil((10000-response_hashes)*1000/2580)+response_hashes
+        extra=old_combined-old_response+math.ceil(10000*1000/2398)-math.ceil((10000+request)*1000/2580)
         self.assertEqual(result['estimated_tokens']-ordinary['estimated_tokens'], extra)
         self.assertEqual(result['required_bytes'], ordinary['required_bytes'])
 

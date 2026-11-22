@@ -4,7 +4,8 @@ Status: the owner authorized the narrower implementation below, with a 24-hour
 hard stop, checkpoints at 2 and 8 hours, and at most 10 credential-free loopback
 invocations. Provider calls and a live pass remain unauthorized. The tooling
 prerequisite, [PR #201](https://github.com/khansen/nesrev/pull/201), is merged.
-The accepted capacity rates, margin and reserves remain unchanged.
+The owner-approved [measured-format policy](MULTI_SESSION_RATE_POLICY.md)
+governs capacity. The margin and reserves remain unchanged.
 The [first implementation checkpoint](MULTI_SESSION_CHECKPOINT.md) records an
 editor-price refusal and the components completed before integration stopped.
 The owner subsequently authorized one native lean-edit projection and one reprice,
@@ -210,7 +211,7 @@ planned reconciliation step resolves them or the owner changes the plan.
 
 Extend the current capacity check to validate each partition against its parent
 inventory and to price its complete delivered workload. Retain the current
-measured rates, the worst rate for new formats, at least 10% margin, the 48K
+measured format rates and explicit unmeasured-byte policy, at least 10% margin, the 48K
 lifecycle reserve, observed unscripted overhead and a full next-response
 reservation. **The investigation phase does not reclaim the lifecycle reserve.**
 
