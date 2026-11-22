@@ -393,9 +393,13 @@ IDs as `record_id` with `span=label`; overlapping blocks are delivered once in
 source order. Keep selectors unchanged while following `next_offset`. This
 reading-only view allows up to 128 statements per page, still within the 24 KiB
 response ceiling; editing views retain their 40-record maximum.
-Fetch `records` or `records_compact` for the particular records being edited,
-in the same generation, to obtain expression trees and preimages. Reading does
-not require carrying all that editing metadata in context.
+Fetch `edit` for the particular statements being edited, in the same generation.
+It returns their exact text, names, statement and expression identities, native
+expression fields and preimages. Unlike source reading, an array selector names
+exact statements, not whole label blocks. Decode the page's columns and resolve
+its preimage indexes through the page-local hash table. `records` and
+`records_compact` remain available when full analysis metadata is needed.
+Reading does not require carrying all that editing metadata in context.
 
 ### Evidence Order (Mandatory)
 

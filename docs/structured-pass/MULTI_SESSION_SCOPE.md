@@ -7,6 +7,13 @@ prerequisite, [PR #201](https://github.com/khansen/nesrev/pull/201), is merged.
 The accepted capacity rates, margin and reserves remain unchanged.
 The [first implementation checkpoint](MULTI_SESSION_CHECKPOINT.md) records an
 editor-price refusal and the components completed before integration stopped.
+The owner subsequently authorized one native lean-edit projection and one reprice,
+with the same edit envelope, startup, caps, reserves and margin. Its
+[measured result](MULTI_SESSION_LEAN_EDIT.md) passes, so the narrower build may
+continue toward the 8-hour checkpoint. No live attempt is authorized.
+The [early integration checkpoint](MULTI_SESSION_INTEGRATION_CHECKPOINT.md)
+records the native fresh-editor proof, complete assignment costs and the
+remaining launcher work.
 
 ## Authorized first build
 

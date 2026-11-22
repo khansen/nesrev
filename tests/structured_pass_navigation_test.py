@@ -267,6 +267,15 @@ class NavigationSpanTests(unittest.TestCase):
         live_read=c.dispatch('navigate',{'generation':published['generation'],**source_args},'reviewer')
         self.assertEqual({k:v for k,v in reading.items() if k!='generation'},
                          {k:v for k,v in live_read.items() if k!='generation'})
+        from structured_pass_edit_records_test import decode, full_inputs
+        edit_args={'view':'edit','record_id':[r['record_id'] for r in expected],'limit':40}
+        editing=reader.dispatch('navigate',{'generation':artifact,**edit_args},'reviewer')
+        for role in ('implementer','reviewer'):
+            current=c.dispatch('navigate',{'generation':published['generation'],**edit_args},role)
+            self.assertEqual({k:v for k,v in editing.items() if k!='generation'},
+                             {k:v for k,v in current.items() if k!='generation'})
+        current_model=c.editor.model(published['generation'])
+        self.assertEqual(decode(editing),[full_inputs(current_model,r['record_id']) for r in expected[:40]])
 
         with self.assertRaisesRegex(ValueError,'UNKNOWN_GENERATION'):
             reader.dispatch('navigate',{'generation':published['generation'],**request},'reviewer')

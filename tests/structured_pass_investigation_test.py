@@ -27,11 +27,31 @@ class InvestigationTests(unittest.TestCase):
     def submission(self, absence=False):
         key = next(iter(self.catalog['evidence']))
         return {'claims': [{'id': 'claim-1', 'kind': 'absence' if absence else 'positive',
+                 'subject':'Synthetic native evidence',
                  'statement': 'Synthetic bounded claim, subject to semantic review.', 'confidence': 'inferred',
                  'citations': [{'id': key, 'sha256': self.catalog['evidence'][key]['content_sha256']}],
                  'searched_sets': list(self.catalog['sets']) if absence else [],
                  'unknowns': 'Indirect destinations remain unknown.', 'contrary': []}],
                 'decisions': [{'statement': 'Keep the uncertain name unchanged.', 'claims': ['claim-1']}]}
+
+    def test_input_citation_requires_exact_hash_and_complete_post_compaction_span(self):
+        self.catalog['inputs']={'manual-text':{'sha256':'a'*64,'characters':100}}
+        self.catalog['sha256']=inv.identity({k:v for k,v in self.catalog.items() if k!='sha256'})
+        submission=self.submission()
+        citation={'input_id':'manual-text','sha256':'a'*64,'start':10,'end':30}
+        submission['claims'][0]['citations']=[citation]
+        receipt={**self.receipts[0],'catalog_sha256':self.catalog['sha256'],'input_spans':[
+            {'id':'manual-text','sha256':'a'*64,'start':0,'end':20},
+            {'id':'manual-text','sha256':'a'*64,'start':20,'end':40}]}
+        self.assertEqual(self.save(submission,receipts=[receipt])['completion'],'complete')
+        for mutation in ('hash','gap','missing','compaction'):
+            bad=copy.deepcopy(submission);records=copy.deepcopy([receipt]);audit=copy.deepcopy(self.audit)
+            if mutation=='hash':bad['claims'][0]['citations'][0]['sha256']='b'*64
+            elif mutation=='gap':records[0]['input_spans'][1]['start']=21
+            elif mutation=='missing':records[0]['input_spans']=[]
+            else:audit.update(last_compaction=4,deliveries=[])
+            with self.subTest(mutation=mutation),self.assertRaisesRegex(ValueError,'^INVESTIGATION_CITATION_INVALID$'):
+                self.save(bad,receipts=records,audit=audit)
 
     def save(self, submission=None, receipts=None, audit=None):
         return inv.checkpoint(self.catalog, self.entry, submission or self.submission(),
@@ -57,6 +77,25 @@ class InvestigationTests(unittest.TestCase):
         for field, value in [('addresses', row['addresses'][:1]), ('exact_destination', True)]:
             altered = {**row, field: value}
             self.assertNotEqual(inv.identity(altered), inv.identity(row))
+
+    def test_real_ram_pages_credit_only_delivered_byte_memberships(self):
+        from structured_pass import ram_evidence
+        from structured_pass.investigation_workflow import Workflow
+        flow=Workflow.__new__(Workflow);flow.config={'catalog':self.catalog}
+        addresses=self.inventory['ram_addresses']
+        self.assertGreater(len(addresses),1)
+        all_units=set()
+        for address in addresses:
+            offset=0;units=set()
+            while offset is not None:
+                page=ram_evidence.query(self.model,'G-frozen','ram_set',address=[address],offset=offset,limit=3)
+                units.update(flow.units('evidence',{'view':'ram_set'},page))
+                offset=page['next_offset']
+            self.assertEqual(units,set(self.catalog['sets']['ram:'+str(address)]))
+            self.assertTrue(all(self.catalog['units'][u]['address']==address for u in units))
+            all_units.update(units)
+        expected={u for name,values in self.catalog['sets'].items() if name.startswith('ram:') for u in values}
+        self.assertEqual(all_units,expected)
 
     def test_complete_checkpoint_and_consumer_recheck(self):
         saved = self.save(self.submission(absence=True))
@@ -90,7 +129,7 @@ class InvestigationTests(unittest.TestCase):
             self.save(audit={**compacted, 'deliveries': self.audit['deliveries']})
 
     def test_partial_unknown_cannot_be_consumed_as_complete(self):
-        submission = {'claims': [{'id': 'gap', 'kind': 'unknown', 'statement': 'Unfinished.',
+        submission = {'claims': [{'id': 'gap', 'kind': 'unknown', 'subject':'Unfinished partition', 'statement': 'Unfinished.',
             'confidence': 'unknown', 'citations': [], 'searched_sets': [], 'unknowns': 'All pages remain.', 'contrary': []}],
             'decisions': []}
         saved = self.save(submission, receipts=[])

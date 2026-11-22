@@ -192,7 +192,7 @@ def price(calls,budget,*,initial_tokens,overhead_bytes,overhead_request_bytes):
         'lifecycle_tokens','margin_tokens','bytes_per_1000_tokens')})
     producer.require(budget['lifecycle_tokens']>=48000 and overhead_bytes>=36751,'EVIDENCE_REQUEST_INVALID')
     worst=budget['bytes_per_1000_tokens'];tokens=lambda size,rate:math.ceil(size*1000/rate)
-    startup=initial_tokens;evidence=0;response_bytes=0;request_bytes=0
+    startup=initial_tokens;evidence=0;response_bytes=0;request_bytes=0;hash_characters=0
     for call in calls:
         arguments_size=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
         identity=call['arguments'].get('input_id','')
@@ -202,7 +202,13 @@ def price(calls,budget,*,initial_tokens,overhead_bytes,overhead_request_bytes):
             startup+=tokens(call['wire_bytes'],rate)+tokens(arguments_size,worst)
         else:
             response_bytes+=call['wire_bytes'];request_bytes+=arguments_size
-            evidence+=tokens(call['wire_bytes']+arguments_size,worst)
+            hashes=0
+            if call.get('result',{}).get('encoding')=='source-edit-v1':
+                from . import edit_records
+                hashes=edit_records.hash_characters([call['result'],call['arguments']])
+                producer.require(hashes<=call['wire_bytes']+arguments_size,'EVIDENCE_REQUEST_INVALID')
+            hash_characters+=hashes
+            evidence+=tokens(call['wire_bytes']+arguments_size-hashes,worst)+hashes
     required_bytes=response_bytes+overhead_bytes+24576
     total=startup+evidence+budget['lifecycle_tokens']+tokens(overhead_bytes+overhead_request_bytes+24576,worst)
     return {'startup_tokens':startup,'investigation_response_bytes':response_bytes,
@@ -212,6 +218,7 @@ def price(calls,budget,*,initial_tokens,overhead_bytes,overhead_request_bytes):
         'estimated_tokens':total,'window_tokens':budget['window_tokens'],
         'headroom_tokens':budget['window_tokens']-total,'margin_tokens':budget['margin_tokens'],
         'lifecycle_tokens':budget['lifecycle_tokens'],
+        'edit_hash_characters_at_one_token_each':hash_characters,
         'passed':startup<=budget['startup_tokens'] and required_bytes<=budget['response_bytes'] and
                  total+budget['margin_tokens']<=budget['window_tokens']}
 
