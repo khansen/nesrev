@@ -1,5 +1,9 @@
 # Investigation delivery and fresh-editor checkpoint
 
+Follow-up, 2026-11-22: the [bound editor admission](MULTI_SESSION_EDITOR_ADMISSION.md)
+fails by 373 tokens under the unchanged policy. The figures below describe this
+earlier checkpoint; continuation has stopped before shared budgets and recovery.
+
 This is an early integration checkpoint under the authorized
 [multi-session scope](MULTI_SESSION_SCOPE.md), not offline acceptance or a launch
 packet. The [one lean-edit reprice](MULTI_SESSION_LEAN_EDIT.md) passed. Work then

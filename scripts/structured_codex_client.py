@@ -628,11 +628,18 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
 
 def check_initial_editor(config):
     path=Path(config['session'])/'editor/state.json'
+    state=json.loads(path.read_bytes())
+    if config.get('service_profile','corridor')=='corridor' and state.get('investigation_gate') and config.get('input_assembly'):
+        from structured_pass import editor_admission
+        from structured_pass.launcher import Corridor
+        assembly=json.loads(Path(config['input_assembly']).read_bytes())
+        if assembly.get('startup') is not None:
+            editor_admission.verify(Corridor(config['session']),config)
     if sha(path)==config['initial_editor_sha256']:return
     # Investigation writes its journal elsewhere. Its sole permitted change to
     # the frozen editor is the service-checked admission receipt. Every other
     # field must remain exactly the state sealed with this profile.
-    state=json.loads(path.read_bytes());gate=state.get('investigation_gate',{})
+    gate=state.get('investigation_gate',{})
     require(config.get('service_profile','corridor')=='corridor' and gate.get('editing_admitted'),
             'CODEX_HANDOFF_CHANGED')
     from structured_pass.investigation_workflow import Workflow
