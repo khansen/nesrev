@@ -90,8 +90,10 @@ That replay did not cover the whole RAM workload. The authorized
 [whole-corridor correction](CORRIDOR_EVIDENCE.md) now derives the complete
 inventory, offers lean source and set-based RAM reads, and gates startup-budget
 sessions on the complete measured price. The corrected workload still misses
-the required context margin. No new live packet is authorized; the next decision
-is whether to separate investigation and editing sessions.
+the required context margin. The owner selected a
+[multi-session design-only scope](MULTI_SESSION_SCOPE.md), with checked handoffs,
+explicit coverage and per-session capacity. Implementation and live work remain
+separately authorized; no new live packet is authorized by that design decision.
 Another attempt needs reviewed corrections, fresh preparation and a new grant.
 No inference saving or completed game pass is claimed.
 The [RAM retrospective](../retros/2026-11-15-structured-ram-closure.md) records
