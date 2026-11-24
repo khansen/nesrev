@@ -4,16 +4,16 @@ import io
 import json
 import os
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
+ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
 import structured_pass_fixture as fixture
 from structured_pass import bridge,corridor_inventory,investigation as inv,session_plan
 from structured_pass.investigation_workflow import Workflow
-
-ROOT=Path(__file__).resolve().parents[1]
-
 
 class SessionRecoveryTests(unittest.TestCase):
     def setUp(self):

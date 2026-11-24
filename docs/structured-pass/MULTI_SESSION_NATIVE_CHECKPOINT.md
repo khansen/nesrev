@@ -50,6 +50,14 @@ application or relabel the original run as successful. Application did succeed
 in the separate direct-service rehearsal, with four expected files, but that
 is narrower evidence than application through the complete native wrapper.
 
+A subsequent offline regression closes a prepared investigation workflow and
+calls the pair launcher's `apply_closed`. It exercises session-plan verification,
+the real supervised application subprocess and its commit, then compares every
+applied file with the preview hash. A changed plan refuses before application.
+Only the outer acquisition of the suite's already-held heavy lock is omitted;
+no native inference runs. This covers the application entry point before the
+next recipe, while complete native acceptance remains pending.
+
 Cleanup took 0.111 seconds and found no survivors or tmux session. Both client
 homes contain explicit dummy records only. The ten-invocation allowance is
 fully used: two earlier fresh-context checks and these eight turns. Another
@@ -64,8 +72,9 @@ coverage envelope and all handoff caps are unchanged. The service now also
 checks the combined editor transition and index against its already-priced
 8 KiB cap before admitting editing.
 
-With the captured declaration fixtures, the full structured suite passes
-496 tests with one opt-in skip. Repository tests also pass, including 1,206
+With the captured declaration fixtures and application control, the full
+structured suite passes 497 tests with one opt-in skip. Repository tests also
+pass on the preceding implementation, including 1,206
 Java tests. The first structured-suite run had one process-inspection permission
 error inside the managed sandbox; the retained rerun outside it passes.
 
