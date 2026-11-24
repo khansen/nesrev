@@ -22,13 +22,15 @@ def read(path):
     return json.loads(Path(path).read_bytes())
 
 
-def native_candidate(envelope):
+def native_candidate(envelope, service_profile='corridor'):
     value=copy.deepcopy(envelope)
     groups=[g for g in value if g.get('name')=='mcp__facts']
     require(len(groups)==1 and len(groups[0]['tools'])==1,'PAIR_INPUTS_CHANGED')
-    tool=groups[0]['tools'][0]; listing=bridge.tool_listing('implementer')['tools'][0]
+    tool=groups[0]['tools'][0]; listing=bridge.tool_listing('implementer',service_profile)['tools'][0]
     require(tool['name']==listing['name']=='operation','PAIR_INPUTS_CHANGED')
     tool['description']=listing['description']; tool['parameters']=listing['inputSchema']
+    # The pinned native client materializes this empty object in its schema.
+    tool['parameters']['properties']['arguments'].setdefault('properties',{})
     return value
 
 
@@ -36,24 +38,25 @@ def stamp(data):
     return {'bytes':len(data),'sha256':inv.digest(data)}
 
 
-def artifacts(controller, profile, native_envelope):
+def artifacts(controller, profile, native_envelope, service_profile='corridor'):
     config=read(Path(profile)/'launch.json')
-    require(config['session']==str(controller.root) and config['service_profile']=='corridor',
+    require(config['session']==str(controller.root) and config['service_profile']==service_profile,
             'PAIR_INPUTS_CHANGED')
     assembly=input_delivery.verify(controller.root,config['input_assembly'])
     require(assembly['role']=='implementer','PAIR_INPUTS_CHANGED')
     task=(Path(profile)/'message.txt').read_bytes()
     require(assembly['task'].encode()==task,'PAIR_TASK_CHANGED')
     instructions=(Path(profile)/'prompt.md').read_bytes()
-    suffix=input_delivery.prompt(assembly,Path(config['workspace']),facts_images=True).encode()
+    suffix=input_delivery.prompt(assembly,Path(config['workspace']),facts_images=True,
+                                 images_enabled=service_profile=='corridor').encode()
     require(instructions.endswith(suffix),'PAIR_TASK_CHANGED')
-    declaration=native_candidate(native_envelope)
+    declaration=native_candidate(native_envelope,service_profile)
     model=controller.editor.model(controller.checked_editor()['pass_start_generation'])
     catalog=declared_inputs.load(model.capture)
     return {'instructions':stamp(instructions),'message':stamp(task),
         'native_declaration':stamp(inv.canonical(declaration)),
         'native_declaration_sha256':__import__('structured_codex_client').declaration_hash(declaration),
-        'service_listing':stamp(inv.canonical(bridge.tool_listing('implementer'))),
+        'service_listing':stamp(inv.canonical(bridge.tool_listing('implementer',service_profile))),
         'assembly':stamp(Path(config['input_assembly']).read_bytes()),
         'startup_inputs':{i['id']:i['sha256'] for i in catalog['items'] if i['kind']!='reference_image'},
         'budget':assembly['startup']['budget']}

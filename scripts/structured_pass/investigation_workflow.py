@@ -108,7 +108,8 @@ class Workflow:
         self.store = Store(self.controller.config['store'])
 
     @classmethod
-    def prepare(cls, root, controller, inventory, assignments, *, checkpoint_bytes=65536, checkpoint_caps=None):
+    def prepare(cls, root, controller, inventory, assignments, *, checkpoint_bytes=65536, checkpoint_caps=None,
+                handoff_dependencies=None):
         root = Path(root).resolve()
         require(not root.exists() and type(checkpoint_bytes) is int and 0 < checkpoint_bytes <= 65536,
                 'INVESTIGATION_PLAN_INVALID')
@@ -125,9 +126,15 @@ class Workflow:
             require(isinstance(caps,dict) and set(caps)==set(ids) and
                     all(type(v) is int and v>0 for v in caps.values()) and
                     sum(caps.values())<=checkpoint_bytes,'INVESTIGATION_PLAN_INVALID')
+            dependencies=handoff_dependencies if handoff_dependencies is not None else {ident:[] for ident in ids}
+            require(isinstance(dependencies,dict) and set(dependencies)==set(ids) and
+                    all(isinstance(dependencies[ident],list) and len(set(dependencies[ident]))==len(dependencies[ident])
+                        and set(dependencies[ident])<=set(ids[:index]) for index,ident in enumerate(ids)),
+                    'INVESTIGATION_PLAN_INVALID')
             config = {'schema':'investigation-workflow-v1','corridor':str(controller.root),
                 'run_id':controller.config['run_id'],'inventory':inventory,'catalog':catalog,
                 'partitions':plan,'checkpoint_bytes':checkpoint_bytes,'checkpoint_caps':caps,
+                'handoff_dependencies':dependencies,
                 'edit_targets':inv.edit_targets(model,inventory)}
             root.mkdir(parents=True)
             immutable_file(root/'plan.json', inv.canonical(config))

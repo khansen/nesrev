@@ -540,7 +540,7 @@ def settings(root, workspace, bridge, session, interpreter, prompt, model, effor
 
 def prepare(root, *, session, prompt, model, effort, client, interpreter,
             service_root, heavy_lock, message, media=(), compaction_probe=False,
-            auth_home=None, service_profile='corridor', bridge_root=None):
+            auth_home=None, service_profile='corridor', bridge_root=None, pair_root=None):
     root = Path(root).resolve()
     require(not root.exists(), 'CODEX_PROFILE_EXISTS')
     expected = phase_declaration(service_profile)
@@ -618,6 +618,7 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
         'configuration_sha256': sha(root / 'config.json'),
         'usage_policy': 'report_native_turns_and_tokens_no_response_equivalence',
     }
+    if pair_root is not None:config['pair_root']=str(Path(pair_root).resolve())
     if compaction_probe:
         config['compaction_probe'] = True
     if assembly is not None:config['input_assembly']=str(root/'inputs/assembly.json')
@@ -794,6 +795,9 @@ def run(root, probe_message=None, message_record=None):
         message = phase_message(root, authority, state['thread_id'], probe_message, message_record)
         if not state['runs']:
             check_initial_editor(config)
+        from structured_pass import session_slots
+        slot=session_slots.claim(root,config,message_record,message,'implementer')
+        if slot is not None:authority={**authority,'deadline':min(authority['deadline'],slot['deadline'])}
         authenticate(root, config)
         require(time.time() < authority['deadline'], 'CODEX_DEADLINE_EXPIRED')
         identifier = uuid.uuid4().hex
@@ -805,6 +809,7 @@ def run(root, probe_message=None, message_record=None):
                'heavy_run_id': os.environ.get('NESREV_HEAVY_RUN_ID'),
                'continuation': state['thread_id'] is not None, 'native_turns': [],
                'probe': authority.get('probe'), 'message_sha256': hashlib.sha256(message).hexdigest()}
+        if slot is not None:row['session_slot']=slot
         if message_record is not None:
             row['message_record_sha256'] = sha(message_record)
         (folder/'message.txt').write_bytes(message)
@@ -1024,6 +1029,10 @@ def main():
         prep.add_argument('--' + name, required=True)
     prep.add_argument('--media', type=Path, action='append', default=[])
     prep.add_argument('--compaction-probe', action='store_true')
+    prep.add_argument('--auth-home',type=Path)
+    prep.add_argument('--pair-root',type=Path)
+    prep.add_argument('--service-profile',choices=('corridor','investigation'),default='corridor')
+    prep.add_argument('--bridge-root',type=Path)
     args = parser.parse_args()
     if args.action == 'hook':
         try:
@@ -1050,7 +1059,8 @@ def main():
         config = prepare(args.root, session=args.session, prompt=args.prompt, model=args.model,
             effort=args.effort, client=args.client, interpreter=args.interpreter,
             service_root=args.service_root, heavy_lock=args.heavy_lock,
-            message=args.message_file.read_text(), media=args.media, compaction_probe=args.compaction_probe)
+            message=args.message_file.read_text(), media=args.media, compaction_probe=args.compaction_probe,
+            auth_home=args.auth_home,pair_root=args.pair_root,service_profile=args.service_profile,bridge_root=args.bridge_root)
         print(json.dumps({'prepared': True, 'role': config['role'], 'model': config['model'],
                           'inference_admitted': False}))
     else:

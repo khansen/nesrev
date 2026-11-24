@@ -13,6 +13,12 @@ from structured_pass import startup_inputs
 
 
 class EditorAdmissionTests(unittest.TestCase):
+    def test_candidate_matches_the_retained_native_investigation_schema(self):
+        root=Path(__file__).resolve().parents[1]
+        ordinary=json.loads((root/'tests/fixtures/codex_tool_declaration.json').read_bytes())
+        captured=json.loads((root/'tests/fixtures/codex_investigation_tool_declaration.json').read_bytes())
+        self.assertEqual(admission.native_candidate(ordinary,'investigation'),captured)
+
     def setUp(self):
         self.budget=startup_inputs.allowance({'window_tokens':258400,'startup_tokens':82000,
             'lifecycle_tokens':48000,'margin_tokens':25840,'bytes_per_1000_tokens':2580})

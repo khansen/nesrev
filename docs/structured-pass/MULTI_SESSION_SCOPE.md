@@ -15,6 +15,9 @@ continue toward the 8-hour checkpoint. No live attempt is authorized.
 The [early integration checkpoint](MULTI_SESSION_INTEGRATION_CHECKPOINT.md)
 records the native fresh-editor proof, complete assignment costs and the
 remaining launcher work.
+The [sequential launcher](MULTI_SESSION_EXECUTION.md) now binds phase profiles,
+capacity reports, one-use invocation slots and finished-checkpoint recovery.
+Its complete native recipe remains an acceptance requirement.
 
 ## Authorized first build
 

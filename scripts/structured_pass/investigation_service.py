@@ -18,6 +18,17 @@ class Session:
     def error_context(self, candidate=None):
         return {'generation':self.workflow.config['catalog']['binding']['generation']}
 
+    def status(self):
+        state=read(self.workflow.root/'state.json')
+        parents=state['sessions'].get(self.entry['id'],{}).get('parents')
+        index=self.workflow.config['partitions']['entries'].index(self.entry)
+        return {**self.workflow.controller.status('implementer'),'investigation':{
+            'entry_id':self.entry['id'],'assignment_input_id':'investigation-assignment',
+            'completion':'pending_native_audit','read_only':True,
+            'transition':{'plan_sha256':self.config['plan_sha256'],
+                'catalog_sha256':self.workflow.config['catalog']['sha256'],
+                'verified_predecessors':index,'parents_sha256':inv.identity(parents) if parents is not None else '0'*64}}}
+
     def assignment(self):
         catalog = self.workflow.config['catalog']; inventory = self.workflow.config['inventory']
         model = self.workflow.controller.editor.model(catalog['binding']['generation'])
@@ -61,14 +72,15 @@ class Session:
             'catalog_sha256':catalog['sha256'],
             'checkpoint_wire_cap':self.workflow.config['checkpoint_caps'][self.entry['id']],
             'sets':{name:{'coverage_units':len(catalog['sets'][name])} for name in self.entry['sets']},
-            'reads':reads,
+            'reads':reads,'handoff_inputs':['investigation-handoff-'+p for p in
+                self.workflow.config.get('handoff_dependencies',{}).get(self.entry['id'],[])],
             'reading_rule':'Add generation and paging arguments. Source reads stop at the named last record; '
                 'reduce the final limit to the remaining record count. These lexical boundaries are not proof of semantics.',
             'completion_rule':'Only delivered pages in the final context count. A staged checkpoint is not accepted coverage.'}
 
     def inputs(self,state):
         from . import edit_contract
-        parents=state['sessions'][self.entry['id']]['parents']
+        parents=self.workflow.config.get('handoff_dependencies',{}).get(self.entry['id'],[])
         handoffs=self.workflow.handoffs(state)
         return {'investigation-assignment':self.assignment(),
                 'investigation-contract':edit_contract.investigation_reference(),
@@ -107,9 +119,7 @@ class Session:
                 return flow.stage(self.entry['id'],{k:arguments[k] for k in ('claims','decisions')})
             if operation=='citation':return self.citation(arguments,state)
             if operation=='status':
-                return {**flow.controller.status(role),'investigation':{
-                    'entry_id':self.entry['id'],'assignment_input_id':'investigation-assignment',
-                    'completion':'pending_native_audit','read_only':True}}
+                return self.status()
             if operation=='input' and arguments['input_id'].startswith('investigation-'):
                 inputs=self.inputs(state);key=arguments['input_id']
                 require(key in inputs,'INPUT_UNKNOWN')

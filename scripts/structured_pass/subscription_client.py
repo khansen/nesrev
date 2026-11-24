@@ -45,7 +45,7 @@ def check_initialization(event,model):
     require(event.get('model')==model and event.get('permissionMode')=='dontAsk','CLIENT_PROFILE_CHANGED')
 
 
-def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,media=(),task=None):
+def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,media=(),task=None,pair_root=None):
     client=Path(client).resolve();interpreter=str(Path(interpreter).resolve())
     require(all(isinstance(x,str) and x.strip() for x in (model,effort)), 'MODEL_CONFIGURATION_CHANGED')
     root=Path(root).resolve();root.mkdir(exist_ok=True)
@@ -70,6 +70,9 @@ def prepare(root,session,prompts,*,model,effort,client,interpreter,heavy_lock,me
             Path(__file__),Path(workspace_check.__file__),HERE/'usage_budget.py',HERE/'launcher.py',HERE/'current_project.py',HERE/'application.py',BRIDGE,
             HERE/'structured_handoff.py',HERE/'verdict_bridge.py',HERE.parent/'agent_review.py')},
         'roles':{},'phase_response_cap':30}
+    if pair_root is not None:
+        config['pair_root']=str(Path(pair_root).resolve())
+        config['code_sha256'][str(HERE/'session_slots.py')]=common.producer.sha(HERE/'session_slots.py')
     if declared:
         for name in ('input_delivery.py','declared_inputs.py','startup_inputs.py'):
             config['code_sha256'][str(HERE/name)]=common.producer.sha(HERE/name)
@@ -149,11 +152,14 @@ def owner_extension(root,responses,minutes,reason):
     return Budget(root,common.producer.sha(root/'launch.json')).extend(responses,minutes*60,reason,recover_interrupted=True)
 
 
-def run_role(root,role,prompt,deadline=None):
+def run_role(root,role,prompt,deadline=None,message_record=None):
     # The documented entry point is inside the shared heavy runner. It owns
     # and reaps the whole client/MCP process group, including timeout leftovers.
     config=verify(root)
     require(os.environ.get('NESREV_HEAVY_RUN_LOCK')==config['heavy_lock'],'SHARED_HEAVY_RUN_REQUIRED')
+    from . import session_slots
+    slot=session_slots.claim(root,config,message_record,prompt.encode(),role)
+    if slot is not None:deadline=min(deadline if deadline is not None else slot['deadline'],slot['deadline'])
     auth=authenticate(root)
     budget=Budget(root,common.producer.sha(root/'launch.json'))
     prior=json.loads((root/'budget.json').read_text())
@@ -168,6 +174,7 @@ def run_role(root,role,prompt,deadline=None):
             +'. Batch independent reads; keep mutations sequential. Only the owner can extend these limits.\n\n')
     folder=root/'runs'/reservation['id'];folder.mkdir(parents=True)
     common.write_json(folder/'auth.json',auth)
+    if slot is not None:common.write_json(folder/'session-slot.json',slot)
     (folder/'message.txt').write_bytes(prompt.encode())
     (folder/'delivered.txt').write_bytes((limits+prompt).encode())
     events=[];timed_out=False;failure=None;accounting=None
@@ -232,6 +239,7 @@ def main():
         prep.add_argument('--'+name,required=True)
     prep.add_argument('--media',type=Path,action='append',default=[],help='Operator-selected PNG or PDF; copied and pinned')
     prep.add_argument('--task-file',type=Path,help='Current authorized pass scope; required with declared inputs')
+    prep.add_argument('--pair-root',type=Path)
     sub.add_parser('check')
     approve=sub.add_parser('authorize');approve.add_argument('--responses',type=int,required=True);approve.add_argument('--minutes',type=int,required=True)
     extend=sub.add_parser('extend');extend.add_argument('--responses',type=int,required=True)
@@ -240,8 +248,9 @@ def main():
     message=run.add_mutually_exclusive_group(required=True)
     message.add_argument('--message');message.add_argument('--message-file',type=Path)
     run.add_argument('--deadline',type=float)
+    run.add_argument('--message-record',type=Path)
     args=parser.parse_args();root=args.root.resolve()
-    if args.action=='prepare':answer=prepare(root,args.session,args.prompts,model=args.model,effort=args.effort,client=args.client,interpreter=args.interpreter,heavy_lock=args.heavy_lock,media=args.media,task=args.task_file.read_text() if args.task_file else None);answer={'prepared':True,'model':answer['model'],'effort':answer['effort'],'authorized':False}
+    if args.action=='prepare':answer=prepare(root,args.session,args.prompts,model=args.model,effort=args.effort,client=args.client,interpreter=args.interpreter,heavy_lock=args.heavy_lock,media=args.media,task=args.task_file.read_text() if args.task_file else None,pair_root=args.pair_root);answer={'prepared':True,'model':answer['model'],'effort':answer['effort'],'authorized':False}
     elif args.action=='check':verify(root);answer={'profile_valid':True,'auth':authenticate(root)}
     elif args.action=='authorize':
         verify(root);require(args.responses>0 and args.minutes>0,'INVALID_BUDGET')
@@ -251,7 +260,7 @@ def main():
             state.update(authorized=True,max_responses=args.responses,max_seconds=args.minutes*60,owner_approved_at=time.time())
         answer={'authorized':True,'responses':args.responses,'minutes':args.minutes}
     elif args.action=='extend':answer=owner_extension(root,args.responses,args.minutes,args.reason)
-    else:answer=run_role(root,args.role,args.message_file.read_bytes().decode() if args.message_file else args.message,args.deadline)
+    else:answer=run_role(root,args.role,args.message_file.read_bytes().decode() if args.message_file else args.message,args.deadline,args.message_record)
     print(json.dumps(answer))
 
 if __name__=='__main__':main()
