@@ -224,6 +224,20 @@ class WorkflowTests(unittest.TestCase):
         result=restored.admit_editor(self.audits)
         self.assertEqual(restored.admit_editor(self.audits),result)
 
+    def test_editor_transition_cannot_exceed_its_priced_cap(self):
+        from structured_pass import investigation_workflow as workflow
+        self.begin('first');self.deliver('first',self.records());self.finish('first')
+        self.begin('second');self.finish('second')
+        original=workflow.input_wire_bytes
+        def oversized(value,ident,generation):
+            return 8193 if ident=='investigation-transition' else original(value,ident,generation)
+        with patch.object(workflow,'input_wire_bytes',side_effect=oversized):
+            with self.assertRaisesRegex(ValueError,'^INVESTIGATION_CHECKPOINT_TOO_LARGE$'):
+                self.flow.admit_editor(self.audits)
+        self.assertFalse(json.loads((self.flow.root/'state.json').read_bytes())['editing'])
+        self.assertFalse(self.flow.controller.editor.state['investigation_gate']['editing_admitted'])
+        self.assertTrue(self.flow.admit_editor(self.audits))
+
     def test_declared_conflict_preserves_handoff_but_stops_editor(self):
         self.begin('first');self.deliver('first',self.records());self.finish('first')
         self.begin('second');submission=self.unknown()

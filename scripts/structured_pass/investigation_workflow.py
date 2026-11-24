@@ -349,6 +349,16 @@ class Workflow:
             receipt = {'plan_sha256':service.producer.sha(self.root/'plan.json'),
                        'checkpoints':checkpoints,'coverage_sha256':inv.identity(sorted(completed))}
             self.check_handoff_cap(state)
+            from .editor_admission import CAPS
+            generation = self.config['catalog']['binding']['generation']
+            index = [{'id':key,'kind':'investigation','generation':generation,
+                      'sha256':inv.identity(value)} for key,value in
+                     {'investigation-transition':receipt,**self.handoffs(state),
+                      'investigation-edit-targets':self.edit_target_index()}.items()]
+            transition_bytes = input_wire_bytes(receipt,'investigation-transition',generation)
+            require(transition_bytes + input_wire_bytes(index,'investigation-index',generation) <=
+                    CAPS['transition-index-and-receipt-wire-cap'],
+                    'INVESTIGATION_CHECKPOINT_TOO_LARGE')
             require(not state['editing'] or state['editing'] == receipt, 'INVESTIGATION_CHANGED')
             state['editing'] = receipt
             service.write_json(self.root/'state.json', state)
@@ -362,9 +372,12 @@ class Workflow:
         require(state['editing'] and gate['editing_admitted']==inv.identity(state['editing']),
                 'INVESTIGATION_READ_ONLY')
         return {'investigation-transition':state['editing'],**self.handoffs(state),
-                'investigation-edit-targets':{'encoding':'source-edit-v1','records':len(self.config['edit_targets']),
-                    'selection_sha256':inv.identity(self.config['edit_targets']),
-                    'paging':'Record offsets, default/max limit 40. Typed record pages, not text.'}}
+                'investigation-edit-targets':self.edit_target_index()}
+
+    def edit_target_index(self):
+        return {'encoding':'source-edit-v1','records':len(self.config['edit_targets']),
+                'selection_sha256':inv.identity(self.config['edit_targets']),
+                'paging':'Record offsets, default/max limit 40. Typed record pages, not text.'}
 
     def editor_records(self,offset=0,limit=40):
         self.editor_inputs()
