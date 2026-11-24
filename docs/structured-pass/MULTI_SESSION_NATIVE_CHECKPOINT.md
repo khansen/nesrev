@@ -38,8 +38,9 @@ investigators have distinct native threads; the three editing turns share one.
 ## Stop and offline correction
 
 The wrapper rejects exactly two new reviewer slot receipts at its write check.
-Each is byte-identical to its authorized one-use claim. The offline correction
-adds only their exact path class, for additions. Replaying the retained
+Each has the same JSON content as its authorized one-use claim; the files use
+different serialization. The offline correction adds only their exact path
+class, for additions. Replaying the retained
 snapshots then passes. Removing the tmux rule still fails on `pair/tmux.json`;
 an unknown reviewer run file and a credential change still fail. No arg0
 entries remain after the native turns.
@@ -68,7 +69,8 @@ With the captured declaration fixtures, the full structured suite passes
 Java tests. The first structured-suite run had one process-inspection permission
 error inside the managed sandbox; the retained rerun outside it passes.
 
-Before publication, the final declaration pin must pass the fresh bound gate.
+The fresh bound gate with the captured declaration pin passes all five sessions;
+the editor and tightest investigator retain the margins reported above.
 Complete native acceptance still needs the corrected write rules exercised
 through application. CI on both platforms and independent review remain
 necessary before merge. None of these offline results authorizes a real pass
