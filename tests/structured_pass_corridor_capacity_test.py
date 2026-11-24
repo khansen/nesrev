@@ -101,7 +101,40 @@ class CapacityTests(unittest.TestCase):
         result,request=priced('operation-reference',startup=False)
         self.assertEqual(result['startup_tokens'],0)
         self.assertEqual(result['estimated_tokens'],48000+math.ceil((24576+request)*1000/2580)
-                         +math.ceil((36751+1088+24576)*1000/2580))
+                         +math.ceil((36751+1088+24576)*1000/2035))
+
+    def test_format_rates_use_every_measured_page_and_keep_handoff_reservation(self):
+        witness=json.loads((Path(__file__).parent/'fixtures/structured_format_rates.json').read_text())
+        minima={}
+        for row in witness['pages']:
+            growth=row['following_input_tokens']-row['preceding_input_tokens']
+            self.assertGreater(growth,0)
+            rate=min(row['sealed_wire_bytes'],row['delivered_wire_bytes'])*1000//growth
+            kind=row['encoding']
+            minima[kind]=min(minima.get(kind,rate),rate)
+        self.assertEqual({k:minima[k] for k in capacity.FORMAT_RATES},capacity.FORMAT_RATES)
+        self.assertEqual(minima['synthetic-handoff'],2826)
+        self.assertNotIn('synthetic-handoff',capacity.FORMAT_RATES)
+        self.assertEqual(capacity.OVERHEAD_RATE,min(capacity.FORMAT_RATES.values()))
+        self.assertEqual(capacity.UNMEASURED_RATE,2580)
+        self.assertEqual(len(witness['pages']),17)
+
+    def test_unknown_page_reserve_can_hold_the_densest_measured_response(self):
+        budget={'window_tokens':258400,'startup_tokens':82000,'lifecycle_tokens':48000,
+                'margin_tokens':25840,'bytes_per_1000_tokens':2580}
+        priced=capacity.price([],budget,initial_tokens=0,overhead_bytes=36751,overhead_request_bytes=1088)
+        self.assertEqual(priced['estimated_tokens'],48000+30671)
+        self.assertEqual(priced['pricing_policy'],'measured-formats-v2')
+        for encoding,rate in [('source-text-v1',2113),('ram-set-columnar-v1',2035),('unknown',2580)]:
+            call={'job':'read','operation':'navigate','arguments':{},'wire_bytes':20000,
+                  'result':{'encoding':encoding}}
+            request=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
+            prior=math.ceil((20000+request)*1000/2580)
+            expected=prior-math.ceil(20000*1000/2580)+math.ceil(20000*1000/rate)
+            self.assertEqual(capacity.call_tokens(call)[0],expected)
+        with self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
+            capacity.price([],{**budget,'bytes_per_1000_tokens':3000},initial_tokens=0,
+                           overhead_bytes=36751,overhead_request_bytes=1088)
 
     def test_all_charges_and_reserves_are_required(self):
         budget={'window_tokens':258400,'startup_tokens':78000,'lifecycle_tokens':48000,

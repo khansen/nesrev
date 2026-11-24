@@ -124,6 +124,41 @@ class ProfileFixture:
 
 
 class ConfigurationTests(ProfileFixture, unittest.TestCase):
+    def test_captured_investigation_declaration_and_wrong_phase_pin(self):
+        from structured_pass import bridge
+        capture=json.loads((Path(__file__).parent/'fixtures/codex_investigation_tool_declaration.json').read_bytes())
+        client.check_offered_tools(capture,expected=client.INVESTIGATION_DECLARATION_SHA256)
+        with self.assertRaisesRegex(ValueError,'^CODEX_TOOL_DECLARATION_CHANGED$'):
+            client.check_offered_tools(capture)
+        actual=next(t for group in capture if group['name']=='mcp__facts' for t in group['tools'])
+        listing=bridge.tool_listing('implementer','investigation')['tools'][0]
+        expected=copy.deepcopy(listing['inputSchema']);expected['properties']['arguments']['properties']={}
+        self.assertEqual(actual['description'],listing['description'])
+        self.assertEqual(actual['parameters'],expected)
+
+    def test_shared_home_keeps_profiles_and_threads_separate(self):
+        home=self.profile/'auth-config'
+        sessions=home/'sessions';sessions.mkdir()
+        (sessions/'rollout-old.jsonl').write_text(json.dumps({
+            'type':'session_meta','payload':{'id':'prior-context'}})+'\n')
+        second=self.prepare_again(auth_home=home)
+        root=self.root/'second-profile'
+        self.assertEqual(client.environment(root)['CODEX_HOME'],str(home))
+        self.assertFalse((root/'auth-config').exists())
+        self.assertIsNone(json.loads((root/'state.json').read_bytes())['thread_id'])
+        self.assertNotIn('resume',client.command(root))
+        self.assertEqual(client.native_thread_ids(home),{'prior-context'})
+        self.assertNotEqual(second['workspace'],self.config['workspace'])
+        (home/'config.toml').write_text('ambient=true\n')
+        for profile in (self.profile,root):
+            with self.subTest(profile=profile),self.assertRaisesRegex(ValueError,'^CODEX_AMBIENT_CONFIGURATION$'):
+                client.verify(profile)
+
+    def test_uncaptured_phase_cannot_prepare(self):
+        with patch.object(client,'INVESTIGATION_DECLARATION_SHA256',None), self.assertRaisesRegex(ValueError,'^CODEX_PHASE_UNADMITTED$'):
+            self.prepare_again(service_profile='investigation')
+        self.assertFalse((self.root/'second-profile').exists())
+
     def test_git_ancestor_refused_at_preparation_and_launch(self):
         (self.root/'.git').mkdir()
         with self.assertRaisesRegex(ValueError,'CLIENT_WORKSPACE_GIT_ANCESTOR'):
@@ -388,6 +423,13 @@ MODE_CODE
         with patch.dict(os.environ, {'NESREV_HEAVY_RUN_LOCK': str(self.root / 'lock'), 'NESREV_HEAVY_RUN_ID': 'synthetic'}):
             return client.run(self.profile, probe_message)
 
+    def reset_scenario(self, name):
+        # Each independent failure case starts with fresh native history. A
+        # normal continuation deliberately keeps it and uses resume instead.
+        sessions=self.profile/'auth-config/sessions'
+        if sessions.exists():sessions.rename(self.root/('previous-sessions-'+name))
+        client.save(self.profile/'state.json',{'thread_id':None,'runs':[]})
+
     def test_run_and_resume_preserve_native_thread_and_usage(self):
         self.fake()
         with patch.object(client,'stop_group',side_effect=AssertionError('exited root signalled again')):
@@ -403,6 +445,11 @@ MODE_CODE
         self.assertTrue(all(r['processes_reconciled'] is True for r in state['runs']))
         self.assertEqual(state['runs'][0]['native_turns'][0]['usage']['output_tokens'], 1000000)
         self.assertNotIn('charged', state['runs'][0])
+
+    def test_old_thread_cannot_be_announced_as_fresh(self):
+        self.fake();self.invoke()
+        client.save(self.profile/'state.json',{'thread_id':None,'runs':[]})
+        with self.assertRaisesRegex(ValueError,'^CODEX_THREAD_NOT_FRESH$'):self.invoke()
 
     def test_private_forbidden_call_halts_while_stdout_is_silent(self):
         self.fake('silent_call')
@@ -558,13 +605,13 @@ MODE_CODE
         for mode, code in (('nonzero', 'CODEX_CLIENT_FAILED'), ('unfinished', 'CODEX_STREAM_INCOMPLETE'),
                            ('trailing', 'CODEX_PARTIAL_EVENT'), ('oversize', 'CODEX_EVENT_TOO_LARGE')):
             self.fake(mode)
-            client.save(self.profile / 'state.json', {'thread_id': None, 'runs': []})
+            self.reset_scenario(mode)
             with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, '^' + code + '$'): self.invoke()
 
     def test_failures_preserve_logs_and_block_automatic_resume(self):
         for mode in ('quota', 'partial', 'wrong_tool', 'nonfatal_error'):
             self.fake(mode)
-            client.save(self.profile / 'state.json', {'thread_id': None, 'runs': []})
+            self.reset_scenario(mode)
             with self.subTest(mode=mode), self.assertRaises(ValueError): self.invoke()
             state = json.loads((self.profile / 'state.json').read_text())
             self.assertTrue(state['halted'])
@@ -620,7 +667,7 @@ MODE_CODE
     def test_session_only_call_refuses_success_and_is_audited_on_halt(self):
         for mode, code in (('silent_call','CODEX_FORBIDDEN_SESSION_CALL'),('silent_call_halt','CODEX_FORBIDDEN_SESSION_CALL|CODEX_CLIENT_FAILED')):
             self.fake(mode)
-            client.save(self.profile/'state.json', {'thread_id':None,'runs':[]})
+            self.reset_scenario(mode)
             with self.subTest(mode=mode), self.assertRaisesRegex(ValueError, '^'+code+'$'): self.invoke()
             state = json.loads((self.profile/'state.json').read_text())
             folder = self.profile/'runs'/state['runs'][0]['id']

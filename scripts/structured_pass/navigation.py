@@ -12,7 +12,7 @@ def require(value,code='REQUEST_SCHEMA'):
     if not value:raise ValueError(code)
 
 
-VIEWS=('symbols','records','records_compact','source','uses','comments')
+VIEWS=('symbols','records','records_compact','source','edit','uses','comments')
 SPANS=('label','segment')
 SOURCE_COLUMNS=('record_id','address','label','text')
 SOURCE_LIMIT=128
@@ -86,6 +86,9 @@ class Navigation:
         if view=='source':
             require(contains is None)
             return self.source(symbol,record_id,offset,limit,span)
+        if view=='edit':
+            require(contains is None and span=='label')
+            return self.edit(symbol,record_id,offset,limit)
         compact=view=='records_compact'
         if compact:view='records'
         require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
@@ -157,6 +160,25 @@ class Navigation:
             answer['next_offset']=offset+len(answer['records'])
             last=answer['records'][-1]['span'][2]
             answer['comments']=[c for c in answer['comments'] if c['line']<=last]
+
+    def edit(self,symbol,record_id,offset,limit):
+        from . import edit_records, review_pages
+        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
+        if isinstance(record_id,list):
+            require(symbol is None and 0<len(record_id)<=128 and
+                    all(isinstance(r,str) for r in record_id) and len(set(record_id))==len(record_id))
+            nodes=[self.select(None,r) for r in record_id]
+        else:nodes=[self.select(symbol,record_id)]
+        require(all(n in self.position for n in nodes),'NAVIGATION_RECORD_REQUIRED')
+        selected=sorted(nodes,key=lambda n:self.m.ranges[n])
+        rows=[edit_records.project(self.m,n) for n in selected[offset:offset+limit]]
+        while True:
+            end=offset+len(rows)
+            result=edit_records.encode({'offset':offset,'limit':limit,'total':len(selected),
+                'records':rows,'next_offset':end if end<len(selected) else None})
+            if review_pages.wire_size(result)<=review_pages.BUDGET-4096:return result
+            require(len(rows)>1,'RESPONSE_TOO_LARGE')
+            rows.pop()
 
     def segment_records(self,n,offset,limit,compact=False):
         """A lexical span, not a procedure or control-flow completeness claim."""

@@ -47,15 +47,19 @@ def check_inputs(controller, ci, cr, task):
     if left.get('startup') is not None or right.get('startup') is not None:
         from structured_pass import corridor_capacity
         require(left.get('startup')==right.get('startup'),'PAIR_INPUTS_CHANGED')
-        corridor_capacity.verify_report(controller,read(controller.root/'corridor-capacity.json'),
-            task.decode(),left['startup']['budget'])
+        if controller.editor.state.get('investigation_gate'):
+            from structured_pass import editor_admission
+            editor_admission.verify(controller,ci)
+        else:
+            corridor_capacity.verify_report(controller,read(controller.root/'corridor-capacity.json'),
+                task.decode(),left['startup']['budget'])
 
 
 def read(path):
     return json.loads(Path(path).read_bytes())
 
 
-def prepare(root, session, implementer, reviewer, task, application_repo=None):
+def prepare(root, session, implementer, reviewer, task, application_repo=None, investigators=None):
     root = Path(root).resolve()
     require(not root.exists(), 'PAIR_ALREADY_PREPARED')
     require_source_free(root)
@@ -79,6 +83,7 @@ def prepare(root, session, implementer, reviewer, task, application_repo=None):
              HERE/'agent_review.py', HERE/'agent_review_tmux.py', HERE/'structured_pass_heavy_run.py',
              session/'session.json', implementer/'launch.json', reviewer/'launch.json', root/'task.txt', notify]
     if (session/'corridor-capacity.json').exists():files.append(session/'corridor-capacity.json')
+    if (session/'editor-admission.json').exists():files.append(session/'editor-admission.json')
     config = {'schema': 'structured-pair-v1', 'session': str(session),
         'run_id': controller.config['run_id'], 'handoff': str(session/'handoff'),
         'profiles': {'implementer': str(implementer), 'reviewer': str(reviewer)},
@@ -90,6 +95,12 @@ def prepare(root, session, implementer, reviewer, task, application_repo=None):
         'platform': [platform.system(), platform.machine()],
         'declarations': declarations(),
         'files': {str(p): sha(p) for p in files}}
+    if controller.editor.state.get('investigation_gate'):
+        from structured_pass import session_plan
+        config['session_plan']=session_plan.bind(root,controller,investigators,ci,cr,config['files'])
+    else:
+        require(not investigators and ci.get('pair_root') is None and cr.get('pair_root') is None,
+                'PAIR_PROFILE_MISMATCH')
     save(root/'launch.json', config)
     save(root/'state.json', {'turns': [], 'stop': None})
     return config
@@ -110,6 +121,9 @@ def verify(root):
     controller = Corridor(config['session'])
     check_inputs(controller,ci,cr,(root/'task.txt').read_bytes())
     require(controller.config['run_id'] == config['run_id'] and config['handoff'] == str(controller.root/'handoff'), 'PAIR_RUN_CHANGED')
+    if 'session_plan' in config:
+        from structured_pass import session_plan
+        session_plan.verify(root,config,controller)
     return config
 
 
@@ -153,6 +167,12 @@ def authorize(root, *, owner_message, deadline, invocations, responses, turn_sec
         require(not read(root/'state.json')['turns'], 'PAIR_ALREADY_STARTED')
         ci = Path(config['profiles']['implementer']); cr = Path(config['profiles']['reviewer'])
         require(not read(ci/'state.json')['runs'] and not read(cr/'budget.json')['runs'], 'PAIR_PROFILES_NOT_FRESH')
+        profiles=[ci]
+        if 'session_plan' in config:
+            from structured_pass.session_slots import entries
+            require(invocations<=len(entries(config)),'INVALID_BUDGET')
+            profiles += [Path(e['profile']) for e in config['session_plan']['investigators']]
+            require(all(not read(p/'state.json')['runs'] for p in profiles),'PAIR_PROFILES_NOT_FRESH')
         evidence = evidence or {}
         if purpose == 'pilot_takeover':
             for name in ('access_preflight','transition_review'):
@@ -161,14 +181,17 @@ def authorize(root, *, owner_message, deadline, invocations, responses, turn_sec
         grant = {'authorized': True, 'owner_message': owner_message, 'deadline': deadline,
                  'max_invocations': invocations, 'claude_responses': responses, 'turn_seconds': turn_seconds,
                  'purpose': purpose, 'apply':apply, 'launch_sha256': sha(root/'launch.json'), 'authorized_at': time.time()}
-        save(ci/'authorization.json', {**evidence, 'authorized': True, 'owner_message': owner_message,
-            'launch_sha256': sha(ci/'launch.json'), 'purpose': purpose,
-            'token_response_caps': 'none_usage_reporting_only', 'deadline': deadline,
-            'message_directory': str(root/'messages'), 'run_id': config['run_id']})
+        for profile in profiles:
+            save(profile/'authorization.json', {**evidence, 'authorized': True, 'owner_message': owner_message,
+                'launch_sha256': sha(profile/'launch.json'), 'purpose': purpose,
+                'token_response_caps': 'none_usage_reporting_only', 'deadline': deadline,
+                'message_directory': str(root/'messages'), 'run_id': config['run_id']})
         with Budget(cr,sha(cr/'launch.json')).transaction() as budget:
             require(not budget['runs'], 'PAIR_PROFILES_NOT_FRESH')
             budget.update(authorized=True, max_responses=responses, max_seconds=deadline-time.time(), deadline=deadline)
         grant['adapter_authorization_sha256'] = sha(ci/'authorization.json')
+        if 'session_plan' in config:
+            grant['profile_authorizations']={str(p):sha(p/'authorization.json') for p in profiles}
         save(root/'authorization.json', grant)
     return grant
 
@@ -258,6 +281,7 @@ def adapter_argv(root, config, role, message, deadline):
     else:
         command = [sys.executable,'-B','-m','structured_pass.subscription_client','--root',str(profile),
                    'run','reviewer','--message-file',str(message),'--deadline',str(deadline)]
+        if 'session_plan' in config:command += ['--message-record',str(message.with_suffix('.json'))]
     return heavy_argv(root,config,command,role)
 
 
@@ -311,6 +335,11 @@ def deliver(root, role, path, *, kind='notify', notified_status=None, notified_t
     with turn_lock(root,grant['deadline']):
         config = verify(root); grant = authority(root,config); state = read(root/'state.json')
         require(state['stop'] is None and not any(t['result']=='running' for t in state['turns']), 'PAIR_RECOVERY_REQUIRED')
+        if 'session_plan' in config:
+            from structured_pass import session_plan,session_slots
+            slot=session_slots.expected(config,state)
+            require(slot['phase']=='editing' and slot['role']==role and kind!='owner','PAIR_TURN_INVALID')
+            session_plan.admit_editor(config)
         busy=[]
         before = service_status(config,role,grant['deadline'],busy)
         if kind == 'notify':
@@ -331,7 +360,7 @@ def deliver(root, role, path, *, kind='notify', notified_status=None, notified_t
             token = None
             data=Path(path).read_bytes()
             if kind == 'initial':
-                require(role == 'implementer' and not state['turns'] and before['handoff'] is None
+                require(role == 'implementer' and not any(t.get('phase')!='investigation' for t in state['turns']) and before['handoff'] is None
                         and data == (root/'task.txt').read_bytes(), 'PAIR_ALREADY_STARTED')
         require(bool(data.strip()), 'PAIR_MESSAGE_EMPTY')
         require(len(state['turns']) < grant['max_invocations'], 'INVOCATION_LIMIT')
@@ -347,8 +376,9 @@ def deliver(root, role, path, *, kind='notify', notified_status=None, notified_t
             'notification':token,'authority_sha256':sha(root/'authorization.json')})
         row = {'id':identifier,'role':role,'kind':kind,'message':str(message),'message_sha256':sha(message),
                'notification':token,'before':before,'result':'running','started':time.time(),'coordinator_busy':busy}
-        state['turns'].append(row); save(root/'state.json',state)
         deadline = min(grant['deadline'],time.time()+grant['turn_seconds'])
+        if 'session_plan' in config:row.update(phase='editing',profile=str(profile),deadline=deadline)
+        state['turns'].append(row); save(root/'state.json',state)
         try:
             require(sha(Path(config['profiles']['implementer'])/'authorization.json') == grant['adapter_authorization_sha256'],
                     'PAIR_AUTHORIZATION_CHANGED')
@@ -358,6 +388,7 @@ def deliver(root, role, path, *, kind='notify', notified_status=None, notified_t
                              stop=lambda:(root/'halt.json').exists())
             row['exit_code'] = code
             require(code == 0, 'CLIENT_RUN_FAILED')
+            if 'session_plan' in config:session_slots.finish(root,row)
             after = service_status(config,role,grant['deadline'],busy);row['after'] = after
             closed_path = Path(config['session'])/'closed.json'
             closed = False
@@ -379,6 +410,7 @@ def deliver(root, role, path, *, kind='notify', notified_status=None, notified_t
 def continue_turn(root, role, message):
     """Owner steering after an ordinary unfinished return; never repairs uncertain runs."""
     root=Path(root).resolve();config=verify(root);grant=authority(root,config)
+    require('session_plan' not in config,'PAIR_TURN_INVALID')
     with turn_lock(root,grant['deadline']):
         state=read(root/'state.json')
         require(state['stop']=='unfinished' and state['turns'][-1]['role']==role, 'PAIR_RECOVERY_REQUIRED')
@@ -389,6 +421,7 @@ def continue_turn(root, role, message):
 def extend(root, *, owner_message, deadline, invocations=0, responses=0):
     """Extend an idle allowance without clearing failed/uncertain evidence."""
     root=Path(root).resolve();config=verify(root)
+    require('session_plan' not in config,'PAIR_TURN_INVALID')
     require(owner_message.strip() and deadline>time.time() and type(invocations) is int and invocations>=0
             and type(responses) is int and responses>=0,'INVALID_BUDGET')
     with turn_lock(root,deadline):
@@ -416,7 +449,10 @@ def extend(root, *, owner_message, deadline, invocations=0, responses=0):
 
 def worker(root, role):
     root=Path(root).resolve();config=verify(root);grant=authority(root,config)
-    if role=='implementer' and not read(root/'state.json')['turns']:
+    if role=='implementer' and 'session_plan' in config:
+        from structured_pass import session_plan
+        session_plan.investigate(root)
+    if role=='implementer' and not any(t.get('phase')!='investigation' for t in read(root/'state.json')['turns']):
         deliver(root,role,root/'task.txt',kind='initial')
     if read(root/'state.json')['stop'] is not None:return 0
     argv=[sys.executable,'-B',str(HERE/'agent_review.py'),'--repo',config['handoff'],
@@ -481,6 +517,7 @@ def main():
     prep=sub.add_parser('prepare')
     for name in ('session','implementer','reviewer','task'):prep.add_argument('--'+name,type=Path,required=True)
     prep.add_argument('--application-repo',type=Path)
+    prep.add_argument('--investigators',type=Path,help='Frozen ordered investigation profiles and admission records')
     sub.add_parser('check')
     sub.add_parser('status')
     sub.add_parser('resume-watchers')
@@ -491,7 +528,8 @@ def main():
     note=sub.add_parser('notify');note.add_argument('role',choices=ROLES);note.add_argument('status');note.add_argument('message',type=Path)
     cont=sub.add_parser('continue');cont.add_argument('role',choices=ROLES);cont.add_argument('--message-file',type=Path,required=True)
     args=parser.parse_args()
-    if args.action=='prepare':answer=prepare(args.root,args.session,args.implementer,args.reviewer,args.task,args.application_repo)
+    if args.action=='prepare':answer=prepare(args.root,args.session,args.implementer,args.reviewer,args.task,args.application_repo,
+        read(args.investigators) if args.investigators else None)
     elif args.action=='check':verify(args.root);answer={'prepared':True,'inference_admitted':False}
     elif args.action=='authorize':answer=authorize(args.root,**read(args.record))
     elif args.action=='extend':answer=extend(args.root,**read(args.record))

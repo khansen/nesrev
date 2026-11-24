@@ -18,11 +18,21 @@ import structured_pass_inputs_test as input_tests
 
 
 class DiscoveryTests(unittest.TestCase):
+    def argument_profile(self,reference,profile):
+        value=(edit_contract.investigation_reference()['arguments'] if profile=='investigation'
+               else reference['arguments'][profile])
+        if 'inherits' not in value:return value
+        parent=reference['arguments'][value['inherits']]
+        return {name:value['overrides'].get(name,parent.get(name)) for name in value['offered']}
+
     def assert_complete(self,reference):
         for profile,role,mode in (('implementer','implementer','corridor'),
-                ('reviewer','reviewer','corridor'),('retained-reviewer','reviewer','retained')):
-            self.assertEqual(set(reference['arguments'][profile]),set(contract.offered(role,mode)))
-            for operation,spec in reference['arguments'][profile].items():
+                ('reviewer','reviewer','corridor'),('retained-reviewer','reviewer','retained'),
+                ('investigation','implementer','investigation')):
+            arguments=self.argument_profile(reference,profile)
+            self.assertEqual(set(arguments),set(contract.offered(role,mode)))
+            for operation,spec in arguments.items():
+                self.assertIsInstance(spec,dict)
                 for key in spec['required']:
                     self.assertTrue(key in spec.get('sources',{}) or key in spec.get('values',{}),
                                     (profile,operation,key))
@@ -36,7 +46,7 @@ class DiscoveryTests(unittest.TestCase):
         for owner in edit_contract.owners():
             kinds.update(owner.KINDS if hasattr(owner,'KINDS') else ('rename','comment_replace','ledger_append'))
         self.assertEqual(set(reference['operations']),kinds)
-        types=reference['types']
+        types={**reference['types'],**edit_contract.investigation_reference()['types']}
         for kind,spec in reference['operations'].items():
             fields=types[spec['fields']]
             required=spec['required']+spec['optional']
@@ -60,7 +70,7 @@ class DiscoveryTests(unittest.TestCase):
         full=edit_contract.reference(['docs/allowed.md']);self.assert_complete(full)
         for profile in full['arguments']:
             bad=copy.deepcopy(full)
-            bad['arguments'][profile]['document']['values'].pop('path')
+            self.argument_profile(bad,profile)['document']['values'].pop('path')
             with self.assertRaises(AssertionError):self.assert_complete(bad)
         bad=copy.deepcopy(full);bad['operations'].pop('declare')
         with self.assertRaises(AssertionError):self.assert_complete(bad)
@@ -69,6 +79,22 @@ class DiscoveryTests(unittest.TestCase):
             bad=copy.deepcopy(full)
             fields=bad['types'][name].get('fields',bad['types'][name]);fields.pop(key)
             with self.assertRaises(AssertionError):self.assert_complete(bad)
+
+    def test_phase_reference_uses_dispatch_shapes_and_delivers_all_sources(self):
+        from structured_pass import investigation
+        phase=edit_contract.investigation_reference()
+        self.assertEqual(phase['types']['investigation_claim']['required'],
+                         contract.keys(investigation.CLAIM_SCHEMA)['required'])
+        self.assertEqual(phase['types']['investigation_decision']['required'],
+                         contract.keys(investigation.DECISION_SCHEMA)['required'])
+        bad=copy.deepcopy(phase)
+        bad['types']['investigation_claim'].pop('subject')
+        with patch.object(edit_contract,'investigation_reference',return_value=bad):
+            with self.assertRaises(AssertionError):self.assert_complete(edit_contract.reference())
+        bad=copy.deepcopy(phase)
+        bad['arguments']['overrides']['checkpoint']['values'].pop('claims')
+        with patch.object(edit_contract,'investigation_reference',return_value=bad):
+            with self.assertRaises(AssertionError):self.assert_complete(edit_contract.reference())
 
     def test_owner_shape_change_changes_reference_and_real_shape_check(self):
         op={'kind':'declare','reason':'Describe constant','anchor_id':'n1','preimage':'0'*64,

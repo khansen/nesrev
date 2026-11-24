@@ -193,10 +193,21 @@ class LifecycleTests(unittest.TestCase):
     def test_complete_inputs_both_roles_and_retained_after_originals_removed(self):
         expected=(self.root/'repo/projects/sample/tmp/manual.txt').read_bytes().decode()
         operation_reference=self.collect(self.c.root,'implementer',self.g,'operation-reference')
+        def check_edit_sources(text):
+            reference=json.loads(text)
+            self.assertIn('edit',reference['view_arguments']['navigate']['views'])
+            self.assertIn('preimages array',reference['view_arguments']['navigate']['edit']['decode'])
+            for table,fields in [('rename_fields',('declaration_id','old_name','preimage')),
+                    ('source_edit_fields',('anchor_id','declaration_id','scope_id','expression_id',
+                                          'preimage','record_ids','preimages','groups'))]:
+                for field in fields:
+                    self.assertIn('navigate(view=edit)',reference['types'][table][field]['source'])
+        check_edit_sources(operation_reference)
         self.assertEqual(json.loads(operation_reference)['question_budget']['text_response_bytes'],409600)
         for role in ('implementer','reviewer'):
             delivered=self.collect(self.c.root,role,self.g,'operation-reference')
             self.assertEqual(delivered,operation_reference)
+            check_edit_sources(delivered)
             self.assertIn('409600 bytes',json.loads(delivered)['request_counting'])
             self.assertIn('missing allowance requires a decision',json.loads(delivered)['question_budget']['conversation_allowance'])
             selected=self.collect(self.c.root,role,self.g,startup_inputs.INPUT_ID)
@@ -224,6 +235,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(self.collect(restored.root,'reviewer',ticket,startup_inputs.INPUT_ID,'retained'),selected)
         delivered=self.collect(restored.root,'reviewer',ticket,'operation-reference','retained')
         self.assertEqual(delivered,operation_reference)
+        check_edit_sources(delivered)
         self.assertEqual(json.loads(delivered)['question_budget']['text_response_bytes'],409600)
         self.assertIn('missing allowance requires a decision',json.loads(delivered)['question_budget']['conversation_allowance'])
         archive=self.call(restored.root,'reviewer','input',{'generation':ticket,'input_id':'intake'},'retained')

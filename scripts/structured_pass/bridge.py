@@ -26,6 +26,14 @@ def hook(policy):
 
 def tool_listing(role,profile='corridor'):
     operations=contract.offered(role,profile)
+    if profile=='investigation':
+        return {'tools':[{'name':'operation','description':
+            'Read-only investigation of the frozen corridor. Read operation-reference for contracts. '
+            'Read investigation-assignment for the planned coverage. Submit claims with checkpoint; '
+            'completion is accepted only after the final native audit. Reference images are not admitted in this phase.',
+            'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
+                'arguments':{'type':'object','description':contract.describe(operations,role,profile)}},
+                'required':['operation','arguments'],'additionalProperties':False}}]}
     return {'tools':[{'name':'operation','description':'Structured pass records and controlled mutations.'+ram_evidence.TOOL_HELP+declared_inputs.help_text(role,profile)+(search.TOOL_HELP+learning.help_text(role) if profile=='corridor' else '')+' See arguments.description for required and optional keys.',
         'inputSchema':{'type':'object','properties':{'operation':{'type':'string','enum':operations},
             'arguments':{'type':'object','description':contract.describe(operations,role,profile)}},'required':['operation','arguments'],'additionalProperties':False}}]}
@@ -35,11 +43,12 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
     from .launcher import Corridor
     from .retained_service import RetainedReviewService
     service.schema({'role':role},('role',))
-    if role not in ('implementer','reviewer') or profile not in ('corridor','retained'):
+    if role not in ('implementer','reviewer') or profile not in ('corridor','retained','investigation') or (profile=='investigation' and role!='implementer'):
         raise ValueError('REQUEST_SCHEMA')
-    instance=(Corridor if profile=='corridor' else RetainedReviewService)(root)
+    from .investigation_service import Session
+    instance=(Session if profile=='investigation' else Corridor if profile=='corridor' else RetainedReviewService)(root)
     for line in input_stream or sys.stdin:
-        identifier=None;operation=None;image_result=None
+        identifier=None;operation=None;image_result=None;request_arguments=None
         try:
             request=json.loads(line)
         except ValueError:
@@ -64,6 +73,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         args=params['arguments'];service.schema(args,('operation','arguments'))
                         if not isinstance(args['operation'],str) or not isinstance(args['arguments'],dict):raise ValueError('REQUEST_SCHEMA')
                         operation=args['operation']
+                        request_arguments=args['arguments']
                         candidate=args['arguments'].get('cid')
                         answer=instance.dispatch(args['operation'],args['arguments'],role)
                         if isinstance(answer,declared_inputs.ImageResult):
@@ -86,7 +96,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     if isinstance(error,(service.ServiceError,contract.RequestError)):
                         value['details']=error.details
                         if code=='RESPONSE_TOO_LARGE' and operation=='review':value.update(review_pages.continuation(error.details))
-                    if code=='REQUEST_SCHEMA' and operation in (contract.corridor() if profile=='corridor' else contract.retained()):
+                    if code=='REQUEST_SCHEMA' and operation in (contract.investigating() if profile=='investigation' else contract.corridor() if profile=='corridor' else contract.retained()):
                         value['expected_arguments']=contract.entry(operation,role,profile)
                     if code=='UNKNOWN_OPERATION':
                         value['details']={'field':'operation','accepted_values':contract.offered(role,profile)}
@@ -100,10 +110,10 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                     try:value.update(instance.error_context(candidate))
                     except Exception:pass
                     response={'result':{'isError':True,'content':[{'type':'text','text':json.dumps(value)}]}}
-        emit(instance,identifier,response,output_stream or sys.stdout,operation,image_result)
+        emit(instance,identifier,response,output_stream or sys.stdout,operation,image_result,request_arguments)
 
 
-def emit(instance,identifier,response,output,operation=None,image_result=None):
+def emit(instance,identifier,response,output,operation=None,image_result=None,request_arguments=None):
     def encode(value, ident=identifier):
         # Count the delivered envelope, including this counter and JSON escaping.
         # This is an observable per-response measure, not a session budget ledger.
@@ -141,4 +151,7 @@ def emit(instance,identifier,response,output,operation=None,image_result=None):
         encoded=encode(response)
         if len(encoded.encode())+1>paging.MAX_BYTES:
             encoded=encode(response,None)
+    callback=getattr(instance,'record_delivery',None)
+    if callback is not None and operation is not None and request_arguments is not None:
+        callback(operation,request_arguments,json.loads(encoded)['result'])
     print(encoded,file=output,flush=True)

@@ -28,6 +28,34 @@ STARTUP_RATES = {
     'comparison-document-0': 3951,
 }
 
+PRICE_POLICY = 'measured-formats-v2'
+UNMEASURED_RATE = 2580
+FORMAT_RATES = {'source-edit-v1':2398, 'source-text-v1':2113,
+                'ram-set-columnar-v1':2035}
+OVERHEAD_RATE = 2035
+
+
+def call_tokens(call):
+    """Keep prior request charges while replacing measured response prices."""
+    from . import edit_records
+    tokens=lambda size,rate:(size*1000+rate-1)//rate
+    size=call['wire_bytes']
+    arguments_size=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
+    encoding=call.get('result',{}).get('encoding')
+    response_hashes=all_hashes=0
+    if encoding=='source-edit-v1':
+        response_hashes=edit_records.hash_characters(call['result'])
+        all_hashes=edit_records.hash_characters([call['result'],call['arguments']])
+        producer.require(response_hashes<=size and all_hashes<=size+arguments_size,
+                         'EVIDENCE_REQUEST_INVALID')
+    previous=tokens(size+arguments_size-all_hashes,UNMEASURED_RATE)+all_hashes
+    if encoding in FORMAT_RATES:
+        previous_response=tokens(size-response_hashes,UNMEASURED_RATE)+response_hashes
+        result=previous-previous_response+tokens(size,FORMAT_RATES[encoding])
+    else:
+        result=previous
+    return result,arguments_size,all_hashes-response_hashes,response_hashes
+
 
 def check_startup(model,identities):
     from . import declared_inputs
@@ -190,28 +218,34 @@ def verify_coverage(inventory,calls,legacy,startup_ids):
 def price(calls,budget,*,initial_tokens,overhead_bytes,overhead_request_bytes):
     budget=startup_inputs.allowance({k:budget[k] for k in ('window_tokens','startup_tokens',
         'lifecycle_tokens','margin_tokens','bytes_per_1000_tokens')})
-    producer.require(budget['lifecycle_tokens']>=48000 and overhead_bytes>=36751,'EVIDENCE_REQUEST_INVALID')
-    worst=budget['bytes_per_1000_tokens'];tokens=lambda size,rate:math.ceil(size*1000/rate)
+    producer.require(budget['lifecycle_tokens']>=48000 and overhead_bytes>=36751 and
+        budget['bytes_per_1000_tokens']==UNMEASURED_RATE,'EVIDENCE_REQUEST_INVALID')
+    fallback_rate=UNMEASURED_RATE;tokens=lambda size,rate:math.ceil(size*1000/rate)
     startup=initial_tokens;evidence=0;response_bytes=0;request_bytes=0
+    request_hash_characters=response_hash_characters=0
     for call in calls:
         arguments_size=len(json.dumps({k:call[k] for k in ('operation','arguments')}).encode())
         identity=call['arguments'].get('input_id','')
         if call['job'].startswith('startup-'):
-            fallback=3860 if identity.startswith('guidance-') or identity in ('manual-text','faq-text') else worst
+            fallback=3860 if identity.startswith('guidance-') or identity in ('manual-text','faq-text') else fallback_rate
             rate=STARTUP_RATES.get(identity,fallback)
-            startup+=tokens(call['wire_bytes'],rate)+tokens(arguments_size,worst)
+            startup+=tokens(call['wire_bytes'],rate)+tokens(arguments_size,fallback_rate)
         else:
             response_bytes+=call['wire_bytes'];request_bytes+=arguments_size
-            evidence+=tokens(call['wire_bytes']+arguments_size,worst)
+            charged,_,request_hashes,response_hashes=call_tokens(call)
+            request_hash_characters+=request_hashes;response_hash_characters+=response_hashes
+            evidence+=charged
     required_bytes=response_bytes+overhead_bytes+24576
-    total=startup+evidence+budget['lifecycle_tokens']+tokens(overhead_bytes+overhead_request_bytes+24576,worst)
-    return {'startup_tokens':startup,'investigation_response_bytes':response_bytes,
+    total=startup+evidence+budget['lifecycle_tokens']+tokens(overhead_bytes+overhead_request_bytes+24576,OVERHEAD_RATE)
+    return {'pricing_policy':PRICE_POLICY,'startup_tokens':startup,'investigation_response_bytes':response_bytes,
         'investigation_request_bytes':request_bytes,'overhead_bytes':overhead_bytes,
         'overhead_request_bytes':overhead_request_bytes,'next_response_bytes':24576,
         'required_bytes':required_bytes,'allowance_bytes':budget['response_bytes'],
         'estimated_tokens':total,'window_tokens':budget['window_tokens'],
         'headroom_tokens':budget['window_tokens']-total,'margin_tokens':budget['margin_tokens'],
         'lifecycle_tokens':budget['lifecycle_tokens'],
+        'edit_request_hash_characters_at_one_token_each':request_hash_characters,
+        'edit_response_hash_characters_at_measured_rate':response_hash_characters,
         'passed':startup<=budget['startup_tokens'] and required_bytes<=budget['response_bytes'] and
                  total+budget['margin_tokens']<=budget['window_tokens']}
 

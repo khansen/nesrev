@@ -98,6 +98,15 @@ RETAINED = {
     'review': (('generation', 'base_generation'), ('offset', 'limit')),
     'reassemble': (('generation',), ()),
 }
+INVESTIGATION = {
+    'citation': (('generation','kind','record_id'), ('analogue_index','offset','limit')),
+    'checkpoint': (('generation','claims','decisions'), ()),
+}
+
+
+def investigating():
+    reads=('status','evidence','query','navigate','inspect','q09','documents','document','search','inputs','input')
+    return {**{k:corridor()[k] for k in reads}, **INVESTIGATION}
 
 
 def corridor():
@@ -105,6 +114,7 @@ def corridor():
 
 
 def offered(role, profile='corridor'):
+    if profile=='investigation':return list(investigating())
     if profile=='retained':
         return ['status','evidence','query','review','reassemble','inspect','navigate','q09','document','guidance','inputs','input']
     names=['status','evidence','query','navigate','inspect','q09','documents','document','review',
@@ -137,7 +147,7 @@ def check(value, spec, *, code='REQUEST_SCHEMA', path='arguments'):
 
 
 def entry(operation, role, profile='corridor'):
-    result = keys((corridor() if profile == 'corridor' else retained())[operation])
+    result = keys((investigating() if profile=='investigation' else corridor() if profile == 'corridor' else retained())[operation])
     sources = {
         'cid': ['confirm.candidate', 'preview.candidate'],
         'preview_digest': ['preview.preview_digest'],
@@ -170,6 +180,12 @@ DESCRIPTION_MARKER = '\nArgument contract (required and optional keys; no other 
 
 def describe(operations, role, profile='corridor'):
     from .error_policy import HELP
+    if profile=='investigation':
+        return ('Read operation-reference and investigation-assignment through input. '
+                'This phase is read-only. citation resolves delivered native record IDs to checked citations. '
+                'checkpoint stages claims; only the final native audit can accept coverage. '
+                'Generation comes from status.generation; input IDs from inputs.records[].id.'+HELP+
+                DESCRIPTION_MARKER+json.dumps({op:entry(op,role,profile) for op in operations},separators=(',',':')))
     return ('Read input input_id=operation-reference for value contracts and edit/query shapes before editing. '
             'Sources are paths in your role results; [] selects a record, .0/.1 an array element. Review every required edge, taking all three identities from the same pair. '
             'A new preview has no candidate: '
@@ -183,6 +199,9 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
     from . import guidance, navigation, evidence_views, artifact_edits, rename_service
     result=entry(operation,role,profile)
     values={
+        'kind':{'enum':['record','ram']},
+        'claims':{'type':'array of investigation_claim'},
+        'decisions':{'type':'array of investigation_decision'},
         'symbol':{'authored':'nonempty symbol spelling; use navigate symbols to discover names'},
         'names':{'authored':'array of symbol spellings to check in prose'},
         'report':{'authored':'review Markdown with exactly one Learning Candidates section'},
@@ -193,7 +212,7 @@ def complete_entry(operation, role, profile='corridor', document_paths=()):
         'query':{'type':'search_query'},
         'view':{'enum':list(navigation.VIEWS if operation=='navigate' else rename_service.EVIDENCE_ARGUMENTS)},
         'record_id':{'source':'navigate.records[].record_id or their expressions[].record_id and recursive children',
-                     'source_view':'For navigate source, also accepts 1..128 unique statement IDs, selecting their lexical label blocks together; span must be label.'},
+                     'source_view':'For navigate source, also accepts 1..128 unique statement IDs, selecting their lexical label blocks together; span must be label. For navigate edit, the same array selects exactly those statements, not their blocks; span must be label.'},
         'address':{'authored':'integer in 0..65535; evidence ram_set instead requires 1..128 unique such integers'},
         'contains':{'authored':'nonempty substring up to 256 characters'},
         'decoder':{'enum':list(evidence_views.DECODERS)},

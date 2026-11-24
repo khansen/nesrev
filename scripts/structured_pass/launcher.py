@@ -19,6 +19,7 @@ from . import mixed_documents as mixed
 from .structured_handoff import windows,require
 from . import structured_handoff
 from . import guidance
+from . import investigation
 from .publication import immutable_file
 from .verdict_bridge import Bridge
 from .retained_service import RetainedReviewService
@@ -34,7 +35,7 @@ ERRORS=frozenset('''CORRIDOR_NOT_PUBLISHED CORRIDOR_NOT_STARTED CORRIDOR_CONFIG_
     PUBLISHER_STORE_MISMATCH PUBLISHER_HEAD_MISMATCH PASS_BASE_NOT_ANCESTOR
     VERDICT_OUTSIDE_PASS CORRIDOR_OUTSIDE_PASS CORRIDOR_ROLE_INVALID REVIEW_ARCHIVE_EXISTS
     APPLICATION_APPROVAL_CHANGED CLOSEOUT_ALREADY_APPLIED'''.split())
-common.PUBLIC_ERROR_CODES|=ERRORS|frozenset(RETRYABLE)
+common.PUBLIC_ERROR_CODES|=ERRORS|frozenset(RETRYABLE)|investigation.ERRORS
 
 
 class Corridor:
@@ -259,7 +260,12 @@ class Corridor:
     def dispatch(self,operation,arguments,role):
         require(role in ('implementer','reviewer'),'CORRIDOR_ROLE_INVALID')
         require(isinstance(operation,str) and isinstance(arguments,dict),'REQUEST_SCHEMA')
-        self.checked_editor()
+        state=self.checked_editor()
+        gate=state.get('investigation_gate')
+        if gate and not gate.get('editing_admitted') and operation in (
+                'preview','confirm','validate','publish','start_chain','reready','closeout',
+                'approve','request-changes'):
+            raise ValueError('INVESTIGATION_READ_ONLY')
         if operation in ('approve','request-changes'):
             require(role=='reviewer','REVIEWER_ONLY')
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
@@ -267,12 +273,37 @@ class Corridor:
         if operation in ('preview','confirm','validate','publish','start_chain','reready','closeout'):
             require(role=='implementer','REVIEWER_MUTATION_DENIED')
         if operation=='status':
-            common.schema(arguments,*contract.BASE['status']);return self.status(role)
+            common.schema(arguments,*contract.BASE['status'])
+            answer=self.status(role)
+            if gate and gate.get('editing_admitted'):
+                from .investigation_workflow import Workflow
+                inputs=Workflow(gate['root'],self).editor_inputs()
+                answer['investigation']={'verification':inputs['investigation-transition'],
+                    'input_ids':list(inputs),'binding':'Frozen pre-edit evidence; proposed names still require local revalidation.'}
+            return answer
         if operation=='review_report':
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
             return self.verdicts(role).dispatch({'operation':operation,'arguments':arguments})
         if operation=='review':return self.review(arguments)
         if operation=='document':return self.document(arguments)
+        if gate and gate.get('editing_admitted') and operation in ('inputs','input'):
+            from .investigation_workflow import Workflow, input_page
+            from . import declared_inputs, evidence_views
+            common.schema(arguments,*contract.corridor()[operation])
+            generation=arguments['generation']
+            require(generation==self.editor.state['current'],'STALE_GENERATION')
+            inputs=Workflow(gate['root'],self).editor_inputs()
+            if operation=='inputs':
+                capture=self.editor.model(generation).capture
+                items=[declared_inputs.metadata(i) for i in declared_inputs.load(capture)['items']]
+                items.extend({'id':key,'kind':'investigation','generation':generation,
+                              'sha256':investigation.identity(value)} for key,value in inputs.items())
+                return {'generation':generation,**evidence_views.page(items,arguments.get('offset',0),arguments.get('limit',12))}
+            if isinstance(arguments['input_id'],str) and arguments['input_id'].startswith('investigation-'):
+                key=arguments['input_id'];require(key in inputs,'INPUT_UNKNOWN')
+                if key=='investigation-edit-targets':
+                    return Workflow(gate['root'],self).editor_records(arguments.get('offset',0),arguments.get('limit',40))
+                return input_page(inputs[key],key,generation,arguments.get('offset',0),arguments.get('limit',4096))
         if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments,role)
         if operation=='closeout':
             common.schema(arguments,*contract.CORRIDOR['closeout']);return self.closeout()

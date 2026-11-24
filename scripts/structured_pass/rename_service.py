@@ -29,10 +29,10 @@ OPERATION_SCHEMAS={
 LEDGER_ROW=edit_contract.fields(' '.join(FIELDS))
 REFERENCE_TYPES={
     'rename_fields':{
-        'declaration_id':{'source':'navigate.records[].record_id for the declaration'},
-        'old_name':{'source':'navigate.records[].name'},
+        'declaration_id':{'source':'navigate(view=edit), decoded records[].record_id for the declaration; or full records'},
+        'old_name':{'source':'navigate(view=edit), decoded records[].name; or full records'},
         'new_name':{'authored':'new identifier; local names start @@; preserve declaration scope'},
-        'preimage':{'source':'navigate.records[].preimage_sha256'}},
+        'preimage':{'source':'navigate(view=edit), decoded record preimage resolved through preimages; or full records preimage_sha256'}},
     'comment_fields':{
         'record_id':{'source':'navigate(view=comments).records[].record_id'},
         'preimage':{'source':'navigate(view=comments).records[].preimage_sha256'},

@@ -25,7 +25,9 @@ TOOL = 'mcp__facts__operation'
 FORBIDDEN_TOOLS = frozenset('functions__' + name for name in
     ('exec', 'wait', 'request_user_input', 'request_user_input_async'))
 OFFERED_TOOLS = FORBIDDEN_TOOLS | {TOOL}
-DECLARATION_SHA256 = '6d6918483e5c50c1bec6dd80b4e3dc78379a91d91896fca5fe435aadb9e7e54e'
+DECLARATION_SHA256 = '630f35fb550aa5ed0a265fb4ecbe5e1f9ca514392f4ae3e8c12654ae8cc99900'
+# Captured from the pinned client in a credential-free investigation context.
+INVESTIGATION_DECLARATION_SHA256 = '47c6916cc2032e083e73c602b8178cc88a17363331e775027ec1cd3d97b26df1'
 STARTUP_WARNINGS = {
     '`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation.': 2,
     'Code Mode is unavailable because code-mode host is disabled. Code mode will fail closed; '
@@ -91,11 +93,11 @@ def offered_tool_names(rows, prefix=''):
     return names
 
 
-def check_offered_tools(rows):
+def check_offered_tools(rows, expected=None):
     names = offered_tool_names(rows)
     require(len(names) == len(OFFERED_TOOLS) and set(names) == OFFERED_TOOLS,
             'CODEX_OFFERED_TOOLS_CHANGED')
-    require(declaration_hash(rows) == DECLARATION_SHA256, 'CODEX_TOOL_DECLARATION_CHANGED')
+    require(declaration_hash(rows) == (expected or DECLARATION_SHA256), 'CODEX_TOOL_DECLARATION_CHANGED')
     return names
 
 
@@ -142,6 +144,32 @@ def checkpoint_history(payload):
     require((bool(payload['message']) and not opaque) or
             (payload['message'] == '' and len(opaque) == 1), 'CODEX_COMPACTION_PATH')
     return history
+
+
+def native_thread_ids(home, pending=False):
+    """Pre-launch identities only; credential files are never read here."""
+    found=set()
+    for path in (Path(home)/'sessions').rglob('rollout-*.jsonl'):
+        with path.open('rb') as stream:
+            first=stream.readline()
+        if pending and not first.endswith(b'\n'):continue
+        require(first.endswith(b'\n'), 'CODEX_SESSION_INVALID')
+        event=json.loads(first)
+        identifier=event.get('payload',{}).get('id')
+        require(event.get('type')=='session_meta' and isinstance(identifier,str) and identifier,
+                'CODEX_SESSION_INVALID')
+        require(identifier not in found, 'CODEX_SESSION_MISSING_OR_AMBIGUOUS')
+        found.add(identifier)
+    return found
+
+
+def current_thread(home, announced, previous, pending=False):
+    if announced is not None:
+        require(announced not in previous, 'CODEX_THREAD_NOT_FRESH')
+        return announced
+    current=native_thread_ids(home,pending=pending)-previous
+    require(len(current)<=1, 'CODEX_SESSION_MISSING_OR_AMBIGUOUS')
+    return next(iter(current)) if current else None
 
 
 def session_items(home, thread_id=None, pending=False):
@@ -229,18 +257,18 @@ def resolve_call(item, declaration):
             'allowed': (namespace, name, kind) == ('mcp__facts', 'operation', 'function_call')}
 
 
-def session_calls(items, require_declaration=False):
+def session_calls(items, require_declaration=False, expected=None):
     calls = []
     declaration = None
     for item in items:
         kind = item.get('type', '')
         if kind == 'additional_tools':
             declaration = item.get('tools')
-            check_offered_tools(declaration)
+            check_offered_tools(declaration, expected)
         elif kind == '_compaction_checkpoint':
             require(declaration is not None, 'CODEX_TOOL_LIST_MISSING')
             history = checkpoint_history(item['payload'])
-            retained = session_calls([v for v in history if v['type'] != 'compaction'], require_declaration=True)
+            retained = session_calls([v for v in history if v['type'] != 'compaction'], require_declaration=True, expected=expected)
             require(all(v['allowed'] for v in retained), 'CODEX_FORBIDDEN_SESSION_CALL')
         elif kind in ('function_call', 'custom_tool_call'):
             require(declaration is not None, 'CODEX_TOOL_LIST_MISSING')
@@ -252,7 +280,7 @@ def session_calls(items, require_declaration=False):
     return calls
 
 
-def audit_session(home, thread_id=None, offered_path=None):
+def audit_session(home, thread_id=None, offered_path=None, expected=None):
     identifier, items = session_items(home, thread_id)
     tools = session_tool_records(home, identifier)
     if offered_path is not None:
@@ -260,21 +288,62 @@ def audit_session(home, thread_id=None, offered_path=None):
         # Preserve its offered set before a resolver/declaration refusal.
         save(offered_path, tools)
     return {'thread_id': identifier, 'tools': tools,
-            'calls': session_calls(items, require_declaration=True)}
+            'calls': session_calls(items, require_declaration=True, expected=expected)}
 
 
-def poll_session(home, thread_id=None, required=False):
+def delivery_window(items, *, expected=None, retain_pre_compaction=False):
+    """Actual outputs after the last compaction, excluding replacement history.
+
+    The normal audit still inspects the entire history for forbidden calls.
+    Retaining a call in a compaction summary does not deliver its page again.
+    """
+    require(all(call['allowed'] for call in session_calls(items, require_declaration=True, expected=expected)),
+            'CODEX_FORBIDDEN_SESSION_CALL')
+    calls = {}; completed = set(); deliveries = []; last_compaction = -1
+    for position, item in enumerate(items):
+        kind = item.get('type')
+        if kind == '_compaction_checkpoint':
+            checkpoint_history(item['payload'])
+            last_compaction = position
+            if not retain_pre_compaction: deliveries = []
+        elif kind == 'function_call':
+            call_id = item.get('call_id')
+            require(isinstance(call_id, str) and call_id and call_id not in calls,
+                    'CODEX_SESSION_CALL_INVALID')
+            calls[call_id] = item
+        elif kind == 'function_call_output':
+            call_id = item.get('call_id')
+            require(call_id in calls and call_id not in completed and 'output' in item,
+                    'CODEX_SESSION_CALL_INVALID')
+            completed.add(call_id)
+            deliveries.append({'call_id': call_id, 'position': position,
+                               'arguments': calls[call_id]['arguments'], 'output': item['output']})
+    return {'last_compaction': last_compaction, 'deliveries': deliveries}
+
+
+def investigation_audit(home, thread_id, expected=None):
+    identifier, items = session_items(home, thread_id)
+    result = delivery_window(items, expected=expected, retain_pre_compaction=True)
+    return {'session_id':identifier,'last_compaction':result['last_compaction'],'calls':result['deliveries']}
+
+
+def session_delivery_window(home, thread_id):
+    identifier, items = session_items(home, thread_id)
+    return {'session_id': identifier, **delivery_window(items)}
+
+
+def poll_session(home, thread_id=None, required=False, expected=None):
     identifier, items = session_items(home, thread_id, pending=True)
     require(not required or identifier is not None, 'CODEX_SESSION_MISSING_OR_AMBIGUOUS')
-    require(all(c['allowed'] for c in session_calls(items, require_declaration=required)),
+    require(all(c['allowed'] for c in session_calls(items, require_declaration=required, expected=expected)),
             'CODEX_FORBIDDEN_SESSION_CALL')
 
 
-def enforce_session(audit):
+def enforce_session(audit, expected=None):
     require(all(c['allowed'] for c in audit['calls']), 'CODEX_FORBIDDEN_SESSION_CALL')
     require(all(len(r['names']) == len(OFFERED_TOOLS) and set(r['names']) == OFFERED_TOOLS
                 for r in audit['tools']), 'CODEX_OFFERED_TOOLS_CHANGED')
-    require(all(r['declaration_sha256'] == DECLARATION_SHA256 for r in audit['tools']),
+    require(all(r['declaration_sha256'] == (expected or DECLARATION_SHA256) for r in audit['tools']),
             'CODEX_TOOL_DECLARATION_CHANGED')
 
 
@@ -434,7 +503,8 @@ def toml(value):
     raise ValueError('CODEX_CONFIG_VALUE')
 
 
-def settings(root, workspace, bridge, session, interpreter, prompt, model, effort, media):
+def settings(root, workspace, bridge, session, interpreter, prompt, model, effort, media,
+             service_profile='corridor'):
     hook = shlex.join([interpreter, '-B', str(Path(__file__).resolve()),
                       'hook', '--policy', str(root / 'policy.json')])
     features = {name: False for name in DISABLED}
@@ -459,7 +529,7 @@ def settings(root, workspace, bridge, session, interpreter, prompt, model, effor
             {'type': 'command', 'command': hook, 'timeout': 10}]}]},
         'mcp_servers': {'facts': {
             'command': interpreter,
-            'args': ['-B', str(bridge), '--mcp', str(session), 'implementer', 'corridor'],
+            'args': ['-B', str(bridge), '--mcp', str(session), 'implementer', service_profile],
             'env': {'PYTHONPATH': str(bridge.parent), 'PYTHONDONTWRITEBYTECODE': '1'},
             'enabled_tools': ['operation'], 'required': True,
             'tools': {'operation': {'approval_mode': 'approve'}},
@@ -469,9 +539,14 @@ def settings(root, workspace, bridge, session, interpreter, prompt, model, effor
 
 
 def prepare(root, *, session, prompt, model, effort, client, interpreter,
-            service_root, heavy_lock, message, media=(), compaction_probe=False):
+            service_root, heavy_lock, message, media=(), compaction_probe=False,
+            auth_home=None, service_profile='corridor', bridge_root=None, pair_root=None):
     root = Path(root).resolve()
     require(not root.exists(), 'CODEX_PROFILE_EXISTS')
+    expected = phase_declaration(service_profile)
+    home = Path(auth_home).resolve() if auth_home is not None else root/'auth-config'
+    require(not home.is_symlink(), 'CODEX_AMBIENT_CONFIGURATION')
+    workspace_check.require_source_free(home)
     workspace_check.require_source_free(root / 'workspace')
     require(all(isinstance(v, str) and v.strip() for v in (model, effort)), 'MODEL_CONFIGURATION_REQUIRED')
     require(isinstance(message, str) and bool(message.strip()), 'CODEX_MESSAGE_REQUIRED')
@@ -489,8 +564,14 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     declared=state.get('declared_inputs_sha256') is not None
     if declared:require(not media,'INPUT_SELECTION_INVALID')
     require(not media, 'CODEX_NATIVE_MEDIA_UNSUPPORTED')
+    endpoint = Path(bridge_root).resolve(strict=True) if bridge_root is not None else session
+    require(service_profile != 'corridor' or endpoint == session, 'CODEX_CONFIGURATION_CHANGED')
+    if service_profile == 'investigation':
+        from structured_pass.investigation_service import Session
+        phase = Session(endpoint)
+        require(phase.workflow.controller.root == session, 'CODEX_SESSION_INVALID')
     root.mkdir(parents=True)
-    (root / 'auth-config').mkdir(mode=0o700)
+    home.mkdir(mode=0o700, parents=True, exist_ok=auth_home is not None)
     workspace = root / 'workspace'
     workspace.mkdir()
     assembly=None
@@ -502,12 +583,14 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
     prompt_path = root / 'prompt.md'
     prompt_path.write_bytes(Path(prompt).read_bytes())
     if assembly is not None:
-        with prompt_path.open('a') as stream:stream.write(input_delivery.prompt(assembly,workspace,facts_images=True))
+        with prompt_path.open('a') as stream:
+            stream.write(input_delivery.prompt(assembly,workspace,facts_images=True,
+                                               images_enabled=service_profile=='corridor'))
     (root / 'message.txt').write_text(message)
     save(root / 'policy.json', {'tool': TOOL, 'media': images, 'log': str(root / 'hooks.jsonl'),
-                              'session_home': str(root / 'auth-config')})
-    configuration = settings(root, workspace, bridge, session, str(Path(interpreter).resolve()),
-                             prompt_path, model, effort, images)
+                              'session_home': str(home), 'declaration_sha256':expected})
+    configuration = settings(root, workspace, bridge, endpoint, str(Path(interpreter).resolve()),
+                             prompt_path, model, effort, images, service_profile)
     require(type(compaction_probe) is bool, 'CODEX_COMPACTION_CONFIGURATION')
     if compaction_probe:
         configuration['model_auto_compact_token_limit'] = 16384
@@ -517,25 +600,68 @@ def prepare(root, *, session, prompt, model, effort, client, interpreter,
         root / 'message.txt', root / 'policy.json', root / 'config.json')}
     pins.update({str(p): sha(p) for p in (service_root / 'scripts/structured_pass').glob('*.py')})
     if assembly is not None:pins[str(root/'inputs/assembly.json')]=sha(root/'inputs/assembly.json')
+    if service_profile == 'investigation':
+        pins[str(endpoint/'investigation-profile.json')]=sha(endpoint/'investigation-profile.json')
+        pins[str(phase.workflow.root/'plan.json')]=sha(phase.workflow.root/'plan.json')
     config = {
         'schema': 'structured-codex-client-preparation-v1', 'client': str(client),
         'client_sha256': sha(client), 'service_root': str(service_root),
         'code_host': str(code_host), 'code_host_sha256': sha(code_host),
-        'tool_declaration_sha256': DECLARATION_SHA256,
+        'tool_declaration_sha256': expected, 'auth_home':str(home),
+        'service_profile':service_profile, 'bridge_root':str(endpoint),
         'session': str(session), 'role': 'implementer', 'model': model, 'effort': effort,
         'workspace': str(workspace), 'media': images, 'files': pins,
         'heavy_lock': str(Path(heavy_lock).resolve()),
         'initial_editor_sha256': sha(state_path),
+        'initial_editor_identity':hashlib.sha256(json.dumps(state,sort_keys=True,separators=(',',':')).encode()).hexdigest(),
         'initial_reader_hashes': state['reader_hashes'],
         'configuration_sha256': sha(root / 'config.json'),
         'usage_policy': 'report_native_turns_and_tokens_no_response_equivalence',
     }
+    if pair_root is not None:config['pair_root']=str(Path(pair_root).resolve())
     if compaction_probe:
         config['compaction_probe'] = True
     if assembly is not None:config['input_assembly']=str(root/'inputs/assembly.json')
     save(root / 'launch.json', config)
     save(root / 'state.json', {'authorized': False, 'thread_id': None, 'runs': []})
     return config
+
+
+def check_initial_editor(config):
+    path=Path(config['session'])/'editor/state.json'
+    state=json.loads(path.read_bytes())
+    if config.get('service_profile','corridor')=='corridor' and state.get('investigation_gate') and config.get('input_assembly'):
+        from structured_pass import editor_admission
+        from structured_pass.launcher import Corridor
+        assembly=json.loads(Path(config['input_assembly']).read_bytes())
+        if assembly.get('startup') is not None:
+            editor_admission.verify(Corridor(config['session']),config)
+    if sha(path)==config['initial_editor_sha256']:return
+    # Investigation writes its journal elsewhere. Its sole permitted change to
+    # the frozen editor is the service-checked admission receipt. Every other
+    # field must remain exactly the state sealed with this profile.
+    gate=state.get('investigation_gate',{})
+    require(config.get('service_profile','corridor')=='corridor' and gate.get('editing_admitted'),
+            'CODEX_HANDOFF_CHANGED')
+    from structured_pass.investigation_workflow import Workflow
+    workflow=Workflow(gate['root'])
+    workflow.editor_inputs()
+    require(workflow.controller.root==Path(config['session']).resolve(),'CODEX_HANDOFF_CHANGED')
+    state['investigation_gate']={**gate,'editing_admitted':False}
+    expected=hashlib.sha256(json.dumps(state,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+    require(expected==config.get('initial_editor_identity'),'CODEX_HANDOFF_CHANGED')
+
+
+def phase_declaration(profile):
+    require(profile in ('corridor','investigation'), 'CODEX_CONFIGURATION_CHANGED')
+    expected = DECLARATION_SHA256 if profile == 'corridor' else INVESTIGATION_DECLARATION_SHA256
+    require(isinstance(expected,str) and len(expected)==64, 'CODEX_PHASE_UNADMITTED')
+    return expected
+
+
+def auth_home(root, config=None):
+    config = config or json.loads((Path(root)/'launch.json').read_bytes())
+    return Path(config.get('auth_home',Path(root)/'auth-config'))
 
 
 def compaction_configuration(config, settings, authority=None):
@@ -561,7 +687,8 @@ def verify(root):
     config = json.loads((root / 'launch.json').read_text())
     require(sha(config['client']) == config['client_sha256'], 'CODEX_CLIENT_CHANGED')
     require(sha(config['code_host']) == config['code_host_sha256'], 'CODEX_CODE_HOST_CHANGED')
-    require(config['tool_declaration_sha256'] == DECLARATION_SHA256, 'CODEX_TOOL_DECLARATION_CHANGED')
+    require(config['tool_declaration_sha256'] == phase_declaration(config.get('service_profile','corridor')),
+            'CODEX_TOOL_DECLARATION_CHANGED')
     require(all(sha(p) == expected for p, expected in config['files'].items()), 'CODEX_CONFIGURATION_CHANGED')
     require(sha(root / 'config.json') == config['configuration_sha256'], 'CODEX_CONFIGURATION_CHANGED')
     compaction_configuration(config, json.loads((root / 'config.json').read_text()))
@@ -578,7 +705,13 @@ def verify(root):
         declared_inputs.image_inventory(assembly)
     # The client installs bundled skills even when their loading is disabled.
     # Permit only its real .system directory, never user skill entries/links.
-    home = root / 'auth-config'
+    home = auth_home(root,config)
+    require(home.is_absolute() and home.is_dir() and not home.is_symlink(), 'CODEX_AMBIENT_CONFIGURATION')
+    workspace_check.require_source_free(home)
+    policy=json.loads((root/'policy.json').read_bytes())
+    require(policy['session_home']==str(home) and
+            policy.get('declaration_sha256',DECLARATION_SHA256)==config['tool_declaration_sha256'],
+            'CODEX_CONFIGURATION_CHANGED')
     require(not any((home / p).exists() or (home / p).is_symlink()
                     for p in ('config.toml', 'hooks.json', 'plugins')),
             'CODEX_AMBIENT_CONFIGURATION')
@@ -592,7 +725,7 @@ def verify(root):
 
 def environment(root):
     result = {k: v for k, v in os.environ.items() if k in ('PATH', 'HOME', 'TMPDIR', 'USER', 'SHELL', 'LANG')}
-    result.update(CODEX_HOME=str(Path(root).resolve() / 'auth-config'), PYTHONDONTWRITEBYTECODE='1')
+    result.update(CODEX_HOME=str(auth_home(Path(root).resolve())), PYTHONDONTWRITEBYTECODE='1')
     result['GIT_CEILING_DIRECTORIES'] = str(Path(root).resolve())
     return result
 
@@ -661,8 +794,10 @@ def run(root, probe_message=None, message_record=None):
                 'CODEX_RECOVERY_REQUIRED')
         message = phase_message(root, authority, state['thread_id'], probe_message, message_record)
         if not state['runs']:
-            require(sha(Path(config['session']) / 'editor/state.json') == config['initial_editor_sha256'],
-                    'CODEX_HANDOFF_CHANGED')
+            check_initial_editor(config)
+        from structured_pass import session_slots
+        slot=session_slots.claim(root,config,message_record,message,'implementer')
+        if slot is not None:authority={**authority,'deadline':min(authority['deadline'],slot['deadline'])}
         authenticate(root, config)
         require(time.time() < authority['deadline'], 'CODEX_DEADLINE_EXPIRED')
         identifier = uuid.uuid4().hex
@@ -674,12 +809,15 @@ def run(root, probe_message=None, message_record=None):
                'heavy_run_id': os.environ.get('NESREV_HEAVY_RUN_ID'),
                'continuation': state['thread_id'] is not None, 'native_turns': [],
                'probe': authority.get('probe'), 'message_sha256': hashlib.sha256(message).hexdigest()}
+        if slot is not None:row['session_slot']=slot
         if message_record is not None:
             row['message_record_sha256'] = sha(message_record)
         (folder/'message.txt').write_bytes(message)
         state['runs'].append(row)
         save(root / 'state.json', state)
         events = Events(state['thread_id'])
+        home = auth_home(root,config)
+        previous_threads = native_thread_ids(home) if state['thread_id'] is None else set()
         process = None
         error = None
         monitor = HookMonitor(root / 'hooks.jsonl')
@@ -705,7 +843,9 @@ def run(root, probe_message=None, message_record=None):
                         if process_tree.observe(row, config)[0]:
                             save(root / 'state.json', state)
                         monitor.poll()
-                        poll_session(root / 'auth-config', events.thread)
+                        observed_thread=current_thread(home,events.thread,previous_threads,pending=True)
+                        if observed_thread is not None:
+                            poll_session(home, observed_thread, expected=config['tool_declaration_sha256'])
                         require(time.time() < authority['deadline'], 'CODEX_DEADLINE_EXPIRED')
                         require(time.time() < phase_deadline, 'CODEX_PHASE_TIMEOUT')
                         for key, _ in selector.select(.1):
@@ -720,6 +860,7 @@ def run(root, probe_message=None, message_record=None):
                                 line, pending = pending.split(b'\n', 1)
                                 if not line: continue
                                 events.accept(json.loads(line))
+                                require(events.thread not in previous_threads, 'CODEX_THREAD_NOT_FRESH')
                                 state['thread_id'] = events.thread
                                 row['native_turns'] = list(events.turns)
                                 save(root / 'state.json', state)
@@ -755,11 +896,13 @@ def run(root, probe_message=None, message_record=None):
             if process is not None and process.stdout is not None:
                 process.stdout.close()
             try:
-                audit = audit_session(root / 'auth-config', events.thread,
-                                      offered_path=folder / 'offered-tools.json')
+                observed_thread=current_thread(home,events.thread,previous_threads)
+                require(observed_thread is not None, 'CODEX_SESSION_MISSING_OR_AMBIGUOUS')
+                audit = audit_session(home, observed_thread,
+                                      offered_path=folder / 'offered-tools.json', expected=config['tool_declaration_sha256'])
                 state['thread_id'] = audit['thread_id']
                 save(folder / 'session-audit.json', audit)
-                enforce_session(audit)
+                enforce_session(audit,expected=config['tool_declaration_sha256'])
             except Exception as exc:
                 audit_errors.append(str(exc))
             try:
@@ -789,7 +932,8 @@ def hook_decision(policy, request):
     allowed = request.get('hook_event_name') == 'PreToolUse' and tool == TOOL
     if allowed and policy.get('session_home'):
         try:
-            poll_session(policy['session_home'], request.get('session_id'), required=True)
+            poll_session(policy['session_home'], request.get('session_id'), required=True,
+                         expected=policy.get('declaration_sha256'))
         except (ValueError, OSError):
             allowed = False
     if request.get('hook_event_name') == 'PreToolUse' and tool == 'view_image':
@@ -885,6 +1029,10 @@ def main():
         prep.add_argument('--' + name, required=True)
     prep.add_argument('--media', type=Path, action='append', default=[])
     prep.add_argument('--compaction-probe', action='store_true')
+    prep.add_argument('--auth-home',type=Path)
+    prep.add_argument('--pair-root',type=Path)
+    prep.add_argument('--service-profile',choices=('corridor','investigation'),default='corridor')
+    prep.add_argument('--bridge-root',type=Path)
     args = parser.parse_args()
     if args.action == 'hook':
         try:
@@ -911,7 +1059,8 @@ def main():
         config = prepare(args.root, session=args.session, prompt=args.prompt, model=args.model,
             effort=args.effort, client=args.client, interpreter=args.interpreter,
             service_root=args.service_root, heavy_lock=args.heavy_lock,
-            message=args.message_file.read_text(), media=args.media, compaction_probe=args.compaction_probe)
+            message=args.message_file.read_text(), media=args.media, compaction_probe=args.compaction_probe,
+            auth_home=args.auth_home,pair_root=args.pair_root,service_profile=args.service_profile,bridge_root=args.bridge_root)
         print(json.dumps({'prepared': True, 'role': config['role'], 'model': config['model'],
                           'inference_admitted': False}))
     else:

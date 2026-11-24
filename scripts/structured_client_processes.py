@@ -202,7 +202,8 @@ def bridge_matches(row, config):
     # ps renders argv with spaces. Match the complete fixed script/argument
     # suffix, including the absolute session and role, never a substring slug.
     bridge = Path(config['service_root']) / 'scripts/structured_pass_bridge.py'
-    return row['command'].endswith(' ' + str(bridge) + ' --mcp ' + config['session'] + ' implementer corridor')
+    return row['command'].endswith(' ' + str(bridge) + ' --mcp ' +
+        config.get('bridge_root',config['session']) + ' implementer ' + config.get('service_profile','corridor'))
 
 
 def descendants(rows, root_pid, known=(), config=None):
