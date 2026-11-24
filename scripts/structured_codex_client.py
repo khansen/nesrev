@@ -25,7 +25,7 @@ TOOL = 'mcp__facts__operation'
 FORBIDDEN_TOOLS = frozenset('functions__' + name for name in
     ('exec', 'wait', 'request_user_input', 'request_user_input_async'))
 OFFERED_TOOLS = FORBIDDEN_TOOLS | {TOOL}
-DECLARATION_SHA256 = '6d6918483e5c50c1bec6dd80b4e3dc78379a91d91896fca5fe435aadb9e7e54e'
+DECLARATION_SHA256 = '630f35fb550aa5ed0a265fb4ecbe5e1f9ca514392f4ae3e8c12654ae8cc99900'
 # Captured from the pinned client in a credential-free investigation context.
 INVESTIGATION_DECLARATION_SHA256 = '47c6916cc2032e083e73c602b8178cc88a17363331e775027ec1cd3d97b26df1'
 STARTUP_WARNINGS = {

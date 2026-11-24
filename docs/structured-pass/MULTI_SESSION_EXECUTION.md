@@ -2,7 +2,8 @@
 
 The [multi-session scope](MULTI_SESSION_SCOPE.md) uses one frozen investigation
 plan, followed by the existing editing and independent-review pair. This page
-describes the integrated launcher. Native acceptance of the complete recipe is
+describes the integrated launcher. The [native checkpoint](MULTI_SESSION_NATIVE_CHECKPOINT.md) reaches closed state
+but stops at an omitted write rule before application. Complete acceptance is
 still pending; a passing capacity calculation does not authorize inference.
 
 Preparation creates a separate immutable Codex profile for each investigator
@@ -55,9 +56,10 @@ checkpoint stays partial. An interrupted client, uncertain usage, missing
 cleanup evidence or late compaction refuses recovery. Normal pair closeout and
 application checks remain necessary before the approved candidate is applied.
 
-The next acceptance step is the reserved eight-invocation offline recipe:
-three investigation contexts, including a partial continuation, followed by
-the existing five-turn review/rework/closeout path. It must exercise the actual
-tmux launcher, watcher, shared budgets, final declarations, write checks and
-application. Until that succeeds, this is implementation evidence, not complete
-native admission.
+The eight-invocation recipe exercised the actual tmux launcher, watcher, shared
+budgets and final declarations through closeout. It stopped at the write check
+before application; the [native checkpoint](MULTI_SESSION_NATIVE_CHECKPOINT.md)
+records the omitted receipt rule and its offline correction. The invocation
+allowance is exhausted. Application through the corrected native wrapper
+remains an acceptance requirement, with a new allowance needed before another
+native run.

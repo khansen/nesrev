@@ -19,6 +19,10 @@ The [sequential launcher](MULTI_SESSION_EXECUTION.md) now binds phase profiles,
 capacity reports, one-use invocation slots and finished-checkpoint recovery.
 Its complete native recipe remains an acceptance requirement.
 
+The [native checkpoint](MULTI_SESSION_NATIVE_CHECKPOINT.md) records the completed
+eight-turn sequence and the write-rule stop before application. All ten
+authorized native invocations are used; no replacement is authorized.
+
 ## Authorized first build
 
 Build investigation partitions by whole roots or RAM ranges against one frozen
