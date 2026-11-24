@@ -1,5 +1,46 @@
 # Multi-session native checkpoint
 
+## Accepted application run — 24 November 2026
+
+Independent result review accepted the fresh eight-turn recipe on code
+`594bbda9d`: three investigation contexts, followed by editing, review, rework,
+approval and closeout, then application through the pair launcher's
+`apply_closed`. Both actual write checks pass. The disposable application
+commit contains exactly the four previewed files, with matching committed
+bytes. This completes scripted native acceptance; model judgment and real
+operating cost remain unproven.
+
+The separately authorized recipe completed in 77.5 seconds with 122 facts
+calls and 130 scripted requests. Cleanup took 0.113 seconds and left no
+surviving processes or tmux session. Fresh investigator and initial editor
+requests contain no earlier conversation; rework and closeout continue the
+editor's thread. All native declarations match the committed fixtures.
+The two reviewer receipts pass the rule sealed before launch. Four
+non-credential home observations are retained for review, including the three
+arg0 removals; no arg0 entries remain.
+
+The owner increased the cumulative loopback allowance from ten to eighteen;
+all eighteen are used, with no replacement runs or provider calls. The original
+stopped attempt below is unchanged. The accepted recipe's 594 pins and that
+attempt's 540 pins still match, and the owner's checkout is unchanged.
+The result evidence index is sealed by SHA-256
+`44dbf850b94548c66964ae892cbad179fa10efb5c6adc9fa9950c44e43f1f5df`.
+
+The existing Rule 2 prices are unchanged: the editor has 1,112 tokens beyond
+the required margin, and the tightest investigation partition has 339. This
+scripted run does not measure those margins. Before a live grant, fresh
+preparation must price all five actual corridor sessions on merged code and
+carry the reviewer receipt rule into the live packet.
+
+The full structured suite passed on this code during preparation: 497 tests,
+one opt-in skip, on macOS arm64. The earlier repository-test result is carried
+from the preceding implementation; no production code changed in the final
+test-only correction. CI on Linux and macOS and publication review remain
+required before merge. See the
+[milestone retrospective](../retros/2026-11-24-structured-multi-session.md).
+
+## Earlier stopped attempt
+
 The native sequence reaches a closed pair: three fresh investigation contexts,
 then the existing five-turn edit, review, rework, review and closeout sequence.
 The wrapper stops before application because its private write rules omitted
@@ -7,7 +48,7 @@ The wrapper stops before application because its private write rules omitted
 This is not complete native acceptance. The original stopped result and its
 seal remain unchanged, and no replacement client has been started.
 
-## What ran
+### What ran
 
 The credential-free recipe uses the real tmux launcher, watchers, shared
 heavy-run lock, process supervisor and pinned native clients. A network sandbox
@@ -35,7 +76,7 @@ the investigation pin is unchanged. Each investigator and the initial editor
 request has no earlier tool history or previous response ID. All three
 investigators have distinct native threads; the three editing turns share one.
 
-## Stop and offline correction
+### Stop and offline correction
 
 The wrapper rejects exactly two new reviewer slot receipts at its write check.
 Each has the same JSON content as its authorized one-use claim; the files use
@@ -63,7 +104,7 @@ homes contain explicit dummy records only. The ten-invocation allowance is
 fully used: two earlier fresh-context checks and these eight turns. Another
 native recipe requires an explicit allowance; it is not an automatic retry.
 
-## Admission and remaining work
+### Admission and remaining work at that checkpoint
 
 [Rule 2](MULTI_SESSION_RATE_POLICY.md) remains fixed. The last complete bound
 calculation passes the editor by 1,112 tokens beyond its required margin and
