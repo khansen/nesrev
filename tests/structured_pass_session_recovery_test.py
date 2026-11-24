@@ -4,6 +4,7 @@ import io
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 import structured_pass_fixture as fixture
+import structured_client_processes as processes
 from structured_pass import bridge,corridor_inventory,investigation as inv,session_plan
 from structured_pass.investigation_workflow import Workflow
 
@@ -45,10 +47,23 @@ class SessionRecoveryTests(unittest.TestCase):
         self.row={'id':'slot','entry_id':'first','profile':'unused-native-profile','result':'running'}
 
     def complete(self):
+        popen=subprocess.Popen
+        def observe_only(command,*args,**kwargs):
+            if command!=['/bin/ps','-axww','-o','pid=,ppid=,pgid=,lstart=,command=']:
+                raise AssertionError('Recovery must not spawn clients')
+            return popen(command,*args,**kwargs)
         with patch.object(session_plan,'finished_audit',return_value=self.audit),\
                 patch.object(session_plan.session_slots,'finish'),\
-                patch('subprocess.Popen',side_effect=AssertionError('Recovery must not spawn')):
+                patch('subprocess.Popen',side_effect=observe_only):
             return session_plan.complete(self.pair,self.config,self.row)
+
+    def test_recovery_observes_ps_but_still_forbids_client_launch(self):
+        with patch.object(processes,'snapshot',processes._ps_snapshot):
+            self.assertEqual(self.complete()['completion'],'partial')
+        def forbidden_launch(*args,**kwargs):subprocess.Popen(['unexpected-client'])
+        with patch.object(processes,'snapshot',side_effect=forbidden_launch):
+            with self.assertRaisesRegex(AssertionError,'^Recovery must not spawn clients$'):
+                self.complete()
 
     def test_crash_after_finished_client_recovers_exactly_one_partial_checkpoint(self):
         self.assertEqual(self.complete()['completion'],'partial')

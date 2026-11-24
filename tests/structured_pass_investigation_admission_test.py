@@ -130,6 +130,9 @@ class InvestigationAdmissionTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree,Path(reviewer['roles']['reviewer']['workspace']).parent)
         target=self.root/'fixture/repo'
         fixture.git(target,'branch','-m','projects')
+        fixture.git(target,'config','user.name','Fixture')
+        fixture.git(target,'config','user.email','fixture@example.invalid')
+        fixture.git(target,'config','user.useConfigOnly','true')
         with admitted_platform():
             pair.prepare(pair_root,self.c.root,impl,rev,task,application_repo=target,
                 investigators=[{'entry_id':'first','profile':str(self.profile),'admission':str(self.path)}])
@@ -180,7 +183,8 @@ class InvestigationAdmissionTests(unittest.TestCase):
             # Inherit the suite's existing heavy lock; retain real supervision
             # and the real application subprocess and its internal gate lock.
             with patch.object(pair,'heavy_argv',side_effect=lambda root,config,command:command),\
-                    patch.object(session_plan,'verify',wraps=verify) as checked:
+                    patch.object(session_plan,'verify',wraps=verify) as checked,\
+                    patch.dict(os.environ,{'GIT_CONFIG_GLOBAL':os.devnull,'GIT_CONFIG_NOSYSTEM':'1'}):
                 applied=pair.apply_closed(pair_root)
             checked.assert_called_once()
             self.assertEqual(applied['status'],'committed')
