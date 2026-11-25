@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 
+from . import paging
 from . import investigation as inv, service
 from .durable_artifact import Store
 from .producer import require
@@ -16,11 +17,10 @@ from .publication import immutable_file
 ERRORS = inv.ERRORS
 
 
-def input_page(value, input_id, generation, offset=0, limit=4096):
+def input_page(value, input_id, generation, offset=0, limit=paging.INPUT_CHARS):
     from . import review_pages
     text=inv.canonical(value).decode()
-    require(type(offset) is int and 0<=offset<=len(text) and
-            type(limit) is int and 1<=limit<=8192, 'REQUEST_SCHEMA')
+    paging.validate(offset, limit, paging.INPUT_CHARS, len(text))
     count=min(limit,len(text)-offset)
     while True:
         end=offset+count

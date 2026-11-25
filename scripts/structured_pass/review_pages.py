@@ -10,13 +10,13 @@ MAX_ITEMS = 40
 
 
 def validate_pagination(offset, limit):
-    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= MAX_ITEMS:
-        raise ValueError('invalid pagination')
+    paging.validate(offset, limit, MAX_ITEMS)
 
 
 def pack(result, groups, limit):
     """Pack legacy review slots; each slot keeps its single-page payload."""
     validate_pagination(result['offset'], limit)
+    paging.integer(result['offset'], 'offset', 0, result['total_pages'])
     if result['offset'] == 0:
         return fit(result)
     from .service import ServiceError

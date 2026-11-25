@@ -2,6 +2,7 @@
 import base64
 from collections import Counter
 
+from . import paging
 from .model import digest
 from .producer import require
 from . import review_pages
@@ -20,7 +21,7 @@ def indices(model):
 
 
 def page(rows,offset=0,limit=40):
-    require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40,'EVIDENCE_REQUEST_INVALID')
+    paging.validate(offset, limit, 40, len(rows))
     result={'records':[],'offset':offset,'total_records':len(rows),'next_offset':None}
     for row in rows[offset:offset+limit]:
         trial={**result,'records':result['records']+[row]}

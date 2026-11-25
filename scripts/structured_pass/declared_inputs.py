@@ -7,7 +7,7 @@ import subprocess
 import struct
 import zlib
 
-from . import producer, review_pages, operation_contract as contract
+from . import paging, producer, review_pages, operation_contract as contract
 
 SCHEMA = 'declared-inputs-v1'
 FILE = 'inputs.json'
@@ -273,14 +273,14 @@ def catalog_page(capture, generation, offset=0, limit=12):
             **page([metadata(i) for i in data['items']], offset, limit)}
 
 
-def read(capture, generation, input_id, offset=0, limit=4096):
-    require(type(offset) is int and offset >= 0 and type(limit) is int and 1 <= limit <= 8192)
+def read(capture, generation, input_id, offset=0, limit=paging.INPUT_CHARS):
+    paging.validate(offset, limit, paging.INPUT_CHARS)
     data = load(capture)
     item = next((i for i in data['items'] if i['id'] == input_id), None)
     require(item is not None, 'INPUT_UNKNOWN')
     require(item['kind'] != 'reference_image', 'INPUT_MEDIA_REQUIRED')
     text = (Path(capture)/item['file']).read_bytes().decode('utf-8')
-    require(offset <= len(text))
+    paging.integer(offset, 'offset', 0, len(text))
     size = min(limit, len(text)-offset)
     while True:
         end = offset+size

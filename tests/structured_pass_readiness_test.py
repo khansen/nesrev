@@ -32,7 +32,7 @@ class ReviewPackingTests(unittest.TestCase):
     def test_cap_and_types_refuse(self):
         for offset,limit in [(-1,1),(True,1),(1.0,1),(0,0),(0,41),(0,True),(0,1.0),(0,None)]:
             with self.subTest(offset=offset,limit=limit):
-                with self.assertRaisesRegex(ValueError,'^invalid pagination$'):
+                with self.assertRaisesRegex(ValueError,'^INVALID_PAGINATION$'):
                     review_pages.pack(self.envelope(offset,1),iter([[{'id':'a'}]]),limit)
         groups=[[{'id':i}] for i in range(41)]
         page=review_pages.pack(self.envelope(1,41),iter(groups),40)

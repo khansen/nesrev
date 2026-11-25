@@ -2,6 +2,7 @@
 from collections import Counter
 import json
 
+from . import paging
 from . import evidence_views, review_pages
 from .model import digest
 from .producer import require
@@ -19,8 +20,7 @@ TOOL_HELP=(" Evidence view ram_compact accepts generation and exactly one addres
 
 
 def packed(rows,metadata,offset,limit,decorate=lambda page:page):
-    require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=MAX_ROWS,
-            'EVIDENCE_REQUEST_INVALID')
+    paging.validate(offset, limit, MAX_ROWS, len(rows))
     keys=sorted({key for row in rows for key in row})
     canonical=lambda value:json.dumps(value,sort_keys=True,separators=(',',':'))
     constants={key:rows[0][key] for key in keys

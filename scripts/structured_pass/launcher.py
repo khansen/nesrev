@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 HERE=Path(__file__).resolve().parent
+from . import paging
 from .rename_service import RenameService
 from . import operation_contract as contract
 from . import service as common
@@ -303,7 +304,7 @@ class Corridor:
                 key=arguments['input_id'];require(key in inputs,'INPUT_UNKNOWN')
                 if key=='investigation-edit-targets':
                     return Workflow(gate['root'],self).editor_records(arguments.get('offset',0),arguments.get('limit',40))
-                return input_page(inputs[key],key,generation,arguments.get('offset',0),arguments.get('limit',4096))
+                return input_page(inputs[key],key,generation,arguments.get('offset',0),arguments.get('limit',paging.INPUT_CHARS))
         if operation in ('q09','navigate','evidence','search','inputs','input'):return self.generation_read(operation,arguments,role)
         if operation=='closeout':
             common.schema(arguments,*contract.CORRIDOR['closeout']);return self.closeout()

@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from . import paging
 from . import authored_documents as authored, guidance, ownership, review_pages
 from .evidence_views import identity
 from . import operation_contract as contract
@@ -385,7 +386,7 @@ def token(binding, offset):
 
 
 def page(rows, metadata, binding, continuation, limit):
-    require(type(limit) is int and 1 <= limit <= 40)
+    paging.integer(limit, 'limit', 1, 40)
     if metadata.get('detail')=='matches':
         original=rows
         def values():

@@ -54,8 +54,9 @@ Both corridor roles and restored review readers support:
 - `inputs({generation, offset?, limit?})`: paged metadata for fixed input IDs.
   The default is 12 items and the maximum is 40.
 - `input({generation, input_id, offset?, limit?})`: exact UTF-8 text, with
-  offsets measured in Unicode characters. The default is 4,096 characters and
-  the maximum is 8,192. Follow `next_offset` until null. Empty input is an
+  offsets measured in Unicode characters. The default and maximum are both
+  8,192 characters, matching the startup pages used by capacity admission.
+  Follow `next_offset` until null. Empty input is an
   explicit complete result. The corridor implementer may fetch an image ID
   with only `generation` and `input_id`; the reply contains identity metadata
   and one MCP PNG image. Reviewers and retained readers return
@@ -74,7 +75,17 @@ sealing; the service never resizes. See the [image contract](FACTS_IMAGE_ROUTE_D
 Text pages reduce their character
 count when encoding requires it. Other oversized pages are refused with the
 existing reduce-limit response. No successful response silently loses content.
-Stale generations, changed catalogs or payloads, and undeclared IDs are refused.
+Invalid paging arguments return correctable `INVALID_PAGINATION` with the
+field, integer type and accepted bounds. This includes offsets beyond the input;
+exactly the end returns an empty complete page. Nulls and booleans are not integers.
+The same diagnostics apply to the other offered paging operations, with their
+own limits. Integrity and configuration failures such as `INPUT_CHANGED`,
+`INPUT_UNKNOWN` and `INPUT_SELECTION_INVALID` are terminal. No recovery class
+permits changing the selected evidence or replacing a client invocation.
+
+Investigation assignment, contract, transition and handoff text use the same
+8,192-character default. The typed `investigation-edit-targets` input keeps its
+40-record default. Image inputs still accept no paging arguments.
 
 The service copies the catalog, originals and payloads into each candidate's
 hashed capture. Publication retains them as blobs. Restored reads therefore

@@ -203,7 +203,8 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual([hit['line'] for hit in seen],list(range(1,84)))
             self.assertEqual([hit['text'] for hit in seen],notes.splitlines())
             for bad in ({'offset':-1},{'offset':True},{'limit':0},{'limit':41},{'names':'Cell'}):
-                with self.assertRaisesRegex(ValueError,'REQUEST_SCHEMA'):
+                code='REQUEST_SCHEMA' if 'names' in bad else 'INVALID_PAGINATION'
+                with self.assertRaisesRegex(ValueError,code):
                     (c if profile=='corridor' else reader).dispatch('q09',{'generation':head,'names':['Cell'],**bad},'reviewer')
         metadata=self.bridge_request(c.root,'corridor','review',{'ticket':published['review']['artifact_id'],
             'generation':head,'base_generation':reader.config['artifacts'][0]})
@@ -479,7 +480,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(c.editor.review(published['generation'],g),c.editor.review(published['generation'],g,limit=1))
         for limit in (0,41,True,1.0):
             for read in (c.editor.review,reader.review):
-                with self.assertRaisesRegex(ValueError,'^invalid pagination$'):
+                with self.assertRaisesRegex(ValueError,'^INVALID_PAGINATION$'):
                     read(head,base,limit=limit)
 
     def test_appended_document_is_visible_and_page_ids_read_in_both_bridges(self):

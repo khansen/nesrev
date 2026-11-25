@@ -147,7 +147,7 @@ class CompactTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'RESPONSE_TOO_LARGE'):
             ram_evidence.packed([{'text':'x'*30000}],{},0,128)
         for invalid in (0,129,True):
-            with self.assertRaisesRegex(ValueError,'EVIDENCE_REQUEST_INVALID'):
+            with self.assertRaisesRegex(ValueError,'INVALID_PAGINATION'):
                 ram_evidence.packed(rows,{},0,invalid)
 
     def test_constants_preserve_json_types_and_duplicate_count(self):

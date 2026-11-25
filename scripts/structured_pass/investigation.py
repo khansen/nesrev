@@ -5,6 +5,7 @@ service-owned delivery receipts, reconciled with the finished native audit.
 """
 import json
 
+from . import paging
 from . import analogue_inputs, corridor_inventory, navigation, ram_evidence, review_pages, declared_inputs, operation_contract
 from .model import digest
 from .producer import require, sha
@@ -114,8 +115,8 @@ def record_page(value, model, record_ids, *, offset=0, limit=40, view='records_c
                if r['kind'] == 'record' and r['scope'] == 'local'}
     require(isinstance(record_ids, list) and bool(record_ids) and
             all(isinstance(r, str) and r in allowed for r in record_ids) and
-            len(record_ids) == len(set(record_ids)) and type(offset) is int and offset >= 0 and
-            type(limit) is int and 1 <= limit <= 40, 'INVESTIGATION_PLAN_INVALID')
+            len(record_ids) == len(set(record_ids)), 'INVESTIGATION_PLAN_INVALID')
+    paging.validate(offset, limit, 40, len(record_ids))
     selected = sorted(record_ids, key=lambda r: model.ranges[model.node(r)])
     from . import edit_records
     require(view in ('records_compact', 'edit'), 'INVESTIGATION_PLAN_INVALID')

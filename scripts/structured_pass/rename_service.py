@@ -12,6 +12,7 @@ import re
 import sys
 
 HERE = Path(__file__).resolve().parent
+from . import paging
 from . import operation_contract as contract
 from . import edit_contract
 from . import service as common
@@ -305,16 +306,17 @@ class RenameService(common.Service):
         return declared_inputs.catalog_page(self.model(generation).capture,generation,offset,limit)
 
     @common.state_operation()
-    def input(self,generation,input_id,offset=0,limit=4096):
+    def input(self,generation,input_id,offset=0,limit=paging.INPUT_CHARS):
         return declared_inputs.read(self.model(generation).capture,generation,input_id,offset,limit)
 
     @common.state_operation()
     def guidance(self,generation,name,offset=0,limit=200):
-        if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=400:raise ValueError('REQUEST_SCHEMA')
+        paging.validate(offset, limit, 400)
         self.model(generation)
         data=guidance.read(self,name,generation)
         if data is None:raise ValueError('SEARCH_INPUT_UNAVAILABLE')
         lines=data.decode().splitlines()
+        paging.integer(offset, 'offset', 0, len(lines))
         capture=self.model(generation).capture
         policy_commit=(declared_inputs.load(capture)['base_commit'] if (capture/declared_inputs.FILE).exists() else self.fixture['base_commit'])
         return {'generation':generation,'path':name,'sha256':digest(data),'policy_commit':policy_commit,
@@ -355,9 +357,9 @@ class RenameService(common.Service):
 
     @common.state_operation()
     def q09(self,generation,names,offset=0,limit=12):
-        if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=40:
-            raise ValueError('REQUEST_SCHEMA')
+        paging.validate(offset, limit, 40)
         report=self.q09_report(generation,names);hits=report.pop('mentions')
+        paging.integer(offset, 'offset', 0, len(hits))
         result={**report,'mentions':[],'offset':offset,'limit':limit,'total_mentions':len(hits),'next_offset':None}
         for hit in hits[offset:offset+limit]:
             trial={**result,'mentions':result['mentions']+[hit]}
@@ -594,11 +596,12 @@ class RenameService(common.Service):
 
     @common.state_operation()
     def document(self,generation,path,offset=0,limit=80):
-        if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=80:raise ValueError('REQUEST_SCHEMA')
+        paging.validate(offset, limit, 80)
         self.model(generation);record=self.state['generations'][generation]
         authored.path_allowed(path,self.project,self.source,self.ownership)
         data=authored.read(record['checkout'],record['manifest'],path)
         lines=data.decode().splitlines() if data is not None else []
+        paging.integer(offset, 'offset', 0, len(lines))
         return {'generation':generation,'path':path,'ownership':'authored','preimage':authored.sha(data),
                 'exists':data is not None,'offset':offset,'lines':lines[offset:offset+limit],
                 'total_lines':len(lines),'next_offset':offset+limit if offset+limit<len(lines) else None}
