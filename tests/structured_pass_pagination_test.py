@@ -174,7 +174,7 @@ class PaginationTests(unittest.TestCase):
                 args = {'generation':g,'input_id':key}
                 self.assertEqual(self.call(profile,'input',args),self.call(profile,'input',{**args,'limit':8192}))
             missing = self.call(profile,'input',{'generation':g,'input_id':'not-declared'})
-            self.assertEqual((missing['error'],missing['error_class']),('INPUT_UNKNOWN','terminal'))
+            self.assertEqual((missing['error'],missing['error_class']),('INPUT_UNKNOWN','correctable'))
         capture = self.c.editor.model(self.g).capture
         item = next(i for i in declared_inputs.load(capture)['items'] if i['id']=='guidance-startup')
         path = capture/item['file']; original=path.read_bytes()

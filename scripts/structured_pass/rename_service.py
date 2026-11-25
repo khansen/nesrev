@@ -88,14 +88,20 @@ def selected_renames(model, operations):
         if op.get('kind')!='rename':
             continue
         edit_contract.check(op,OPERATION_SCHEMAS['rename'],'REQUEST_SCHEMA')
+        for field in ('declaration_id','old_name','new_name','preimage'):
+            contract.value(isinstance(op[field],str),'operations[].'+field,
+                           REFERENCE_TYPES['rename_fields'][field])
+        contract.value(op['declaration_id'] in model.nodes,'operations[].declaration_id',
+                       REFERENCE_TYPES['rename_fields']['declaration_id'],'UNKNOWN_RECORD')
         n = model.node(op['declaration_id']);old = model.name(n);new = op['new_name']
-        if old!=op['old_name']:
-            raise ValueError('WRONG_DECLARATION_SCOPE')
+        contract.value(old==op['old_name'],'operations[].old_name',
+                       REFERENCE_TYPES['rename_fields']['old_name'],'WRONG_DECLARATION_SCOPE')
         contract.value(model.statement(n)['preimage_sha256']==op['preimage'],
             'operations[].preimage',REFERENCE_TYPES['rename_fields']['preimage'],'PREIMAGE_MISMATCH')
         local = model.facts[n]['kind']=='LOCAL_LABEL_NODE'
         if not isinstance(new,str) or not re.fullmatch(r'@@[A-Za-z_][A-Za-z0-9_]*' if local else r'[A-Za-z_][A-Za-z0-9_]*',new) or new==old:
-            raise ValueError('INVALID_RENAME')
+            raise contract.RequestError('INVALID_RENAME',field='operations[].new_name',
+                                        **REFERENCE_TYPES['rename_fields']['new_name'])
         if n in seen or new in new_names or (not local and new in model.declarations):
             raise ValueError('DUPLICATE_RENAME')
         name_range(model,n)
@@ -463,7 +469,9 @@ class RenameService(common.Service):
         p = self.state.get('previews',{}).get(preview_digest)
         if p is None:raise ValueError('UNKNOWN_PREVIEW')
         if digest(json.dumps(p,sort_keys=True).encode())!=preview_digest:raise ValueError('PREVIEW_DIGEST_MISMATCH')
-        if generation!=self.state['current'] or p['generation']!=generation:raise ValueError('STALE_PREVIEW')
+        contract.value(generation==self.state['current'], 'generation',
+                       {'source':'status.generation'}, 'STALE_GENERATION')
+        if p['generation']!=generation:raise ValueError('STALE_PREVIEW')
         self.model(generation)
         if p['candidate'] is None:
             result = super().propose(generation,p['operations'],role)
@@ -598,6 +606,16 @@ class RenameService(common.Service):
     def document(self,generation,path,offset=0,limit=80):
         paging.validate(offset, limit, 80)
         self.model(generation);record=self.state['generations'][generation]
+        # A spelling miss in the docs namespace grants no access to that path.
+        # Give the caller the admitted choices, while preserving boundary errors.
+        parts=path.split('/')
+        safe=(path.startswith(self.project+'docs/') and path.endswith('.md')
+              and all(p and p not in ('.','..') and not p.startswith('.') for p in parts)
+              and not any(c in path for c in '\\\x00\r\n')
+              and not any(p.casefold() in ('inventory','reviews') for p in parts))
+        if safe and self.ownership(path,self.project,self.source)=='forbidden':
+            raise contract.RequestError('DOCUMENT_NOT_FOUND',field='path',
+                source='input(operation-reference).arguments.<role>.document.values.path')
         authored.path_allowed(path,self.project,self.source,self.ownership)
         data=authored.read(record['checkout'],record['manifest'],path)
         lines=data.decode().splitlines() if data is not None else []

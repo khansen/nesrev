@@ -79,9 +79,30 @@ Invalid paging arguments return correctable `INVALID_PAGINATION` with the
 field, integer type and accepted bounds. This includes offsets beyond the input;
 exactly the end returns an empty complete page. Nulls and booleans are not integers.
 The same diagnostics apply to the other offered paging operations, with their
-own limits. Integrity and configuration failures such as `INPUT_CHANGED`,
-`INPUT_UNKNOWN` and `INPUT_SELECTION_INVALID` are terminal. No recovery class
+own limits. An unknown input ID is correctable: `INPUT_UNKNOWN` points to the
+IDs returned by `inputs`. Integrity and configuration failures such as
+`INPUT_CHANGED`, `INPUTS_UNAVAILABLE` and `INPUT_SELECTION_INVALID` remain terminal. No recovery class
 permits changing the selected evidence or replacing a client invocation.
+
+Before preparing a live packet, run the argument regression matrix through the
+real bridge for investigator, editor and reviewer. Every offered operation and
+each required or optional argument is covered for wrong types, missing required
+fields and unknown identifiers or enum values. Authored text and filters may
+legitimately have no matches; optional fields may be omitted. Caller mistakes
+must identify the field and its accepted values or delivered source, without
+echoing submitted values. A caller-induced internal error fails the matrix.
+Nested edit and checkpoint controls also verify that refusals cannot change a
+candidate or stage coverage; investigation audit receipts still record refusals.
+
+The terminal exceptions are access and integrity boundaries, not lookup misses.
+A misspelled document in the current project's documentation namespace points
+to the accepted paths in `operation-reference`, without reading the missed path.
+Absolute paths, traversal, another project, source files, generated files and
+reviewer-owned archives remain refused because they cross that route's scope or
+ownership. Unknown review tickets are correctable; corruption of a stored
+publication receipt stays terminal. Read-only investigation profiles still
+reject mutation operations. Tests exercise these boundaries alongside corrected
+requests, so argument recovery cannot silently widen access.
 
 Investigation assignment, contract, transition and handoff text use the same
 8,192-character default. The typed `investigation-edit-targets` input keeps its

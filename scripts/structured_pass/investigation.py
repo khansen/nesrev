@@ -205,32 +205,39 @@ def checkpoint(value, entry, submission, receipts, audit, *, maximum_bytes):
                  for span in receipt.get('input_spans',[])]
     for claim in submission['claims']:
         operation_contract.check(claim,CLAIM_SCHEMA,code='INVESTIGATION_CHECKPOINT_INVALID',path='claims[]')
-        require(
-            isinstance(claim['id'], str) and claim['id'] and claim['id'] not in ids and
-            isinstance(claim['subject'],str) and claim['subject'].strip() and
-            isinstance(claim['statement'], str) and claim['statement'].strip() and
-            claim['confidence'] in ('proven', 'inferred', 'unknown') and
-            claim['kind'] in ('positive', 'absence', 'unknown') and
-            isinstance(claim['citations'], list) and isinstance(claim['contrary'], list) and
-            isinstance(claim['searched_sets'], list) and isinstance(claim['unknowns'], str),
-            'INVESTIGATION_CHECKPOINT_INVALID')
+        for name in ('id','subject','statement','unknowns'):
+            operation_contract.value(isinstance(claim[name],str) and
+                (name=='unknowns' or bool(claim[name] if name=='id' else claim[name].strip())), 'claims[].'+name,
+                {'type':'string' if name=='unknowns' else 'nonempty string'}, 'INVESTIGATION_CHECKPOINT_INVALID')
+        operation_contract.value(claim['id'] not in ids,'claims[].id',
+            {'expected':'unique claim ID'},'INVESTIGATION_CHECKPOINT_INVALID')
+        for name,allowed in (('confidence',('proven','inferred','unknown')),('kind',('positive','absence','unknown'))):
+            operation_contract.value(claim[name] in allowed,'claims[].'+name,
+                {'enum':list(allowed)},'INVESTIGATION_CHECKPOINT_INVALID')
+        for name in ('citations','contrary','searched_sets'):
+            operation_contract.value(isinstance(claim[name],list),'claims[].'+name,
+                {'type':'array'},'INVESTIGATION_CHECKPOINT_INVALID')
         for name in ('dependencies','conflicts'):
-            require(isinstance(claim.get(name,[]),list) and all(isinstance(ref,dict) and
+            operation_contract.value(isinstance(claim.get(name,[]),list) and all(isinstance(ref,dict) and
                 set(ref)=={'partition_id','claim_id'} and all(isinstance(v,str) and v for v in ref.values())
-                for ref in claim.get(name,[])), 'INVESTIGATION_CHECKPOINT_INVALID')
+                for ref in claim.get(name,[])), 'claims[].'+name,
+                {'type':'array of partition_id/claim_id string pairs'},'INVESTIGATION_CHECKPOINT_INVALID')
         ids.add(claim['id'])
         require(bool(claim['citations']) or claim['confidence'] == 'unknown' and claim['unknowns'].strip(),
                 'INVESTIGATION_CITATION_INVALID')
         require(claim['kind'] != 'absence' or bool(claim['searched_sets']),
                 'INVESTIGATION_COVERAGE_INCOMPLETE')
-        for citation in claim['citations'] + claim['contrary']:
+        for name,citation in [(name,c) for name in ('citations','contrary') for c in claim[name]]:
+            field='claims[].'+name
             if isinstance(citation,dict) and 'input_id' in citation:
-                require(set(citation)=={'input_id','sha256','start','end'} and
-                        citation['input_id'] in value['inputs'], 'INVESTIGATION_CITATION_INVALID')
+                operation_contract.value(set(citation)=={'input_id','sha256','start','end'} and
+                        isinstance(citation['input_id'],str) and citation['input_id'] in value['inputs'],
+                        field+'.input_id',{'source':'delivered input.id'},'INVESTIGATION_CITATION_INVALID')
                 source=value['inputs'][citation['input_id']]
-                require(citation['sha256']==source['sha256'] and
+                operation_contract.value(citation['sha256']==source['sha256'] and
                         type(citation['start']) is int and type(citation['end']) is int and
-                        0<=citation['start']<citation['end']<=source['characters'], 'INVESTIGATION_CITATION_INVALID')
+                        0<=citation['start']<citation['end']<=source['characters'],field,
+                        {'source':'input.sha256 and delivered character span'},'INVESTIGATION_CITATION_INVALID')
                 spans=sorted((row['start'],row['end']) for row in input_spans
                     if row['id']==citation['input_id'] and row['sha256']==source['sha256'])
                 end=citation['start']
@@ -238,19 +245,22 @@ def checkpoint(value, entry, submission, receipts, audit, *, maximum_bytes):
                     if lo<=end:end=max(end,hi)
                 require(end>=citation['end'],'INVESTIGATION_CITATION_INVALID')
                 continue
-            require(isinstance(citation, dict) and set(citation) == {'id', 'sha256'} and
-                    citation['id'] in reached and
+            operation_contract.value(isinstance(citation, dict) and set(citation) == {'id', 'sha256'} and
+                    isinstance(citation['id'],str) and citation['id'] in reached and
                     citation['sha256'] == value['evidence'][citation['id']]['content_sha256'],
-                    'INVESTIGATION_CITATION_INVALID')
+                    field,{'source':'citation.records[] for delivered evidence'},'INVESTIGATION_CITATION_INVALID')
         for name in claim['searched_sets']:
-            require(name in value['sets'] and set(value['sets'][name]) <= completed,
-                    'INVESTIGATION_COVERAGE_INCOMPLETE')
+            operation_contract.value(isinstance(name,str) and name in value['sets'] and set(value['sets'][name]) <= completed,
+                    'claims[].searched_sets',{'source':'fully delivered investigation-assignment sets'},'INVESTIGATION_COVERAGE_INCOMPLETE')
     for decision in submission['decisions']:
         operation_contract.check(decision,DECISION_SCHEMA,code='INVESTIGATION_CHECKPOINT_INVALID',path='decisions[]')
-        require(
-                isinstance(decision['statement'], str) and decision['statement'].strip() and
+        operation_contract.value(isinstance(decision['statement'],str) and decision['statement'].strip(),
+                'decisions[].statement',{'type':'nonempty string'},'INVESTIGATION_CHECKPOINT_INVALID')
+        operation_contract.value(
                 isinstance(decision['claims'], list) and bool(decision['claims']) and
-                set(decision['claims']) <= ids, 'INVESTIGATION_CHECKPOINT_INVALID')
+                all(isinstance(key,str) for key in decision['claims']) and
+                set(decision['claims']) <= ids, 'decisions[].claims',
+                {'source':'IDs in this checkpoint claims'}, 'INVESTIGATION_CHECKPOINT_INVALID')
     result = {'schema': 'investigation-checkpoint-v1', 'catalog_sha256': value['sha256'],
               'binding': value['binding'], 'partition_id': entry['id'], 'session_id': audit['session_id'],
               'coverage': cov, 'completion': 'partial' if cov['remaining'] else 'complete', **submission}

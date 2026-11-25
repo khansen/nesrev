@@ -135,6 +135,8 @@ class Corridor:
         common.schema(args,*contract.CORRIDOR['review'])
         status=self.status('reviewer');require(status['handoff'] is not None,'CORRIDOR_NOT_PUBLISHED')
         known=status['handoff']['coverage']['required_edges']
+        contract.value(any(args['ticket']==edge[1] for edge in known), 'ticket',
+            {'source':'status.handoff.coverage.required_edges[].1'})
         window=windows.window(self.config['store'],args['ticket'])
         require(all(edge in known for edge in window['edges']),'CORRIDOR_OUTSIDE_PASS')
         session=self.review_sessions.get(args['ticket'])

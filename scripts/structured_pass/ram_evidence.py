@@ -98,7 +98,7 @@ def set_rows(model,addresses):
 
 
 def query(model,generation,view,offset=0,limit=40,**arguments):
-    from .operation_contract import check
+    from .operation_contract import check, value
     if view in VIEW_ARGUMENTS:check(arguments,VIEW_ARGUMENTS[view],code='EVIDENCE_REQUEST_INVALID',path='evidence.'+view)
     if view=='ram_set':
         rows,counts=set_rows(model,arguments['address'])
@@ -109,7 +109,7 @@ def query(model,generation,view,offset=0,limit=40,**arguments):
             'total_evidence_records':sum(sum(c.values()) for c in counts.values()),
             'coverage':'Every original RAM evidence fact. Expand constants/columns and page-local dictionaries, then for each address in addresses copy the row without addresses and add requested_address=address and requested_declaration_id=null. Equal facts are stored once with their exact byte membership. Different categories or alias proofs remain separate. Possible indexed and unresolved indirect destinations are not proven accesses. All pages are required; no separate shared-set fetch.'},offset,limit,dictionary)
     if view=='ram_summary':
-        require(set(arguments) in ({'address'},{'record_id'}),'EVIDENCE_REQUEST_INVALID')
+        value(set(arguments) in ({'address'},{'record_id'}),'address/record_id','exactly one RAM selector','EVIDENCE_REQUEST_INVALID')
         rows=evidence_views.memory(model,**arguments)
         values={k:[] for k in SUMMARY_DICTIONARIES}
         identities={k:{} for k in SUMMARY_DICTIONARIES};selected=[]
@@ -138,9 +138,11 @@ def query(model,generation,view,offset=0,limit=40,**arguments):
     shared=shared_rows(model);ident=shared_id(model,generation,shared)
     metadata={'generation':generation,'encoding':'ram-columnar-v2'}
     if view=='ram_shared':
-        require(set(arguments)=={'set_id'} and arguments['set_id']==ident,'EVIDENCE_REQUEST_INVALID')
+        value(set(arguments)=={'set_id'} and arguments['set_id']==ident,'set_id',
+              {'source':'evidence(view=ram_compact).shared.set_id'},'EVIDENCE_REQUEST_INVALID')
         return packed(shared,{**metadata,'set_id':ident},offset,limit)
-    require(view=='ram_compact' and set(arguments) in ({'address'},{'record_id'}),'EVIDENCE_REQUEST_INVALID')
+    value(view=='ram_compact' and set(arguments) in ({'address'},{'record_id'}),
+          'address/record_id','exactly one RAM selector','EVIDENCE_REQUEST_INVALID')
     rows=evidence_views.memory(model,**arguments)
     if rows:selection={k:rows[0][k] for k in CONTEXT}
     else:

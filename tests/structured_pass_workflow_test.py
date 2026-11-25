@@ -359,9 +359,16 @@ class WorkflowTests(unittest.TestCase):
     def test_every_bridge_operation_has_a_wire_size_guard(self):
         from structured_pass.launcher import Corridor
         requests=[]
+        arguments={
+            'review':{'generation':'E-head','base_generation':'E-base','ticket':'E-head'},
+            'inspect':{'generation':'G-fixture','symbol':'Cell'},
+            'q09':{'generation':'G-fixture','names':['Cell']},
+            'query':{'generation':'G-fixture','symbol':'Cell'},
+            'navigate':{'generation':'G-fixture','view':'symbols'},
+            'document':{'generation':'G-fixture','path':'projects/sample/docs/reverse_engineering/WORKING_NOTES.md'}}
         for i,op in enumerate(('review','inspect','q09','query','navigate','document')):
             requests.append({'jsonrpc':'2.0','id':i,'method':'tools/call','params':{'name':'operation',
-                'arguments':{'operation':op,'arguments':{}}}})
+                'arguments':{'operation':op,'arguments':arguments[op]}}})
         output=io.StringIO()
         # Quotes exercise the second encoding layer: the inner object fits, its wire representation does not.
         with patch.object(Corridor,'dispatch',return_value={'text':'"'*8000,'offset':3,'total_changes':7,'next_offset':4}):
@@ -524,7 +531,7 @@ class WorkflowTests(unittest.TestCase):
         from structured_pass.launcher import Corridor
         details={'offset':3,'total_changes':7,'total_pages':8,'next_offset':4}
         request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation',
-            'arguments':{'operation':'review','arguments':{}}}}
+            'arguments':{'operation':'review','arguments':{'generation':'E-head','base_generation':'E-base','ticket':'E-head'}}}}
         output=io.StringIO()
         with patch.object(Corridor,'dispatch',side_effect=service.ServiceError('RESPONSE_TOO_LARGE',**details)):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
@@ -534,6 +541,7 @@ class WorkflowTests(unittest.TestCase):
         for key,val in details.items():self.assertEqual(value[key],val)
         self.assertEqual(value['error_class'],'terminal')
         request['params']['arguments']['operation']='navigate';output=io.StringIO()
+        request['params']['arguments']['arguments']={'generation':'G-fixture','view':'symbols'}
         with patch.object(Corridor,'dispatch',side_effect=service.ServiceError('RESPONSE_TOO_LARGE',**details)):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)
         value=json.loads(json.loads(output.getvalue())['result']['content'][0]['text'])
@@ -542,7 +550,7 @@ class WorkflowTests(unittest.TestCase):
     def test_unpaged_overflow_does_not_suggest_nonexistent_limit(self):
         from structured_pass.launcher import Corridor
         request={'jsonrpc':'2.0','id':1,'method':'tools/call','params':{'name':'operation',
-            'arguments':{'operation':'q09','arguments':{}}}}
+            'arguments':{'operation':'q09','arguments':{'generation':'G-fixture','names':['Cell']}}}}
         output=io.StringIO()
         with patch.object(Corridor,'dispatch',return_value={'mentions':['"'*8000]}):
             mcp(self.controller.root,'reviewer',input_stream=io.StringIO(json.dumps(request)+'\n'),output_stream=output)

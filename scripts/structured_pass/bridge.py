@@ -75,6 +75,7 @@ def mcp(root,role,profile='corridor',input_stream=None,output_stream=None):
                         operation=args['operation']
                         request_arguments=args['arguments']
                         candidate=args['arguments'].get('cid')
+                        contract.request_arguments(operation,request_arguments,role,profile)
                         answer=instance.dispatch(args['operation'],args['arguments'],role)
                         if isinstance(answer,declared_inputs.ImageResult):
                             if (role,profile,operation)!=('implementer','corridor','input'):raise ValueError('REQUEST_SCHEMA')

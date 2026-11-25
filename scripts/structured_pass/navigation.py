@@ -84,6 +84,9 @@ class Navigation:
         if view not in VIEWS:
             from .operation_contract import RequestError
             raise RequestError(field='view',accepted_values=list(VIEWS))
+        if view in ('symbols','comments') and (symbol is not None or record_id is not None):
+            from .operation_contract import RequestError
+            raise RequestError(field='symbol/record_id',expected='omit selectors for symbols/comments; use contains')
         if view=='source':
             require(contains is None)
             return self.source(symbol,record_id,offset,limit,span)

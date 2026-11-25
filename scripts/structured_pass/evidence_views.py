@@ -66,7 +66,9 @@ def outgoing(model,record_id):
 
 
 def memory(model,address=None,record_id=None):
-    require((address is None)!=(record_id is None),'EVIDENCE_REQUEST_INVALID')
+    from .operation_contract import value
+    value((address is None)!=(record_id is None),'address/record_id',
+          'exactly one RAM selector','EVIDENCE_REQUEST_INVALID')
     if record_id is not None:
         n=model.node(record_id);require(n in model.declaration_records,'EVIDENCE_REQUEST_INVALID')
         address=model.values.get(model.name(n),model.locations.get(n,{}).get('cpu_address'))

@@ -29,6 +29,8 @@ class Bridge:
             capture_output=True, text=True, env=env, timeout=60)
         if completed.returncode:
             message = completed.stderr.strip().removeprefix('error: ')
+            if args[0] == 'structured-report' and message == 'REQUEST_SCHEMA':
+                raise contract.RequestError(field='sequence',source='status.handoff.latest_review.sequence')
             if args[0] == 'structured-report' and message == 'INVALID_PAGINATION':
                 # Types and lower bounds were checked before the CLI boundary;
                 # only the report owner can check its retained text length.
