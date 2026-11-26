@@ -9,7 +9,7 @@ from unittest.mock import patch
 from types import SimpleNamespace
 
 from structured_pass import editor_admission as admission, corridor_capacity as capacity
-from structured_pass import startup_inputs
+from structured_pass import startup_inputs, read_recipe
 
 
 class EditorAdmissionTests(unittest.TestCase):
@@ -78,28 +78,45 @@ class EditorAdmissionTests(unittest.TestCase):
         self.assertEqual(result['lifecycle_tokens'],48000)
 
     def test_launch_rechecks_artifacts_envelope_price_and_native_pin(self):
+        for call in self.actual:
+            if call['job']=='editor-lean-records':call['arguments']['input_id']='investigation-edit-targets'
+            call['arguments'].update(generation='G-test',offset=0,
+                limit=40 if call['job']=='editor-lean-records' else 8192)
+            call['result']={'generation':'G-test','next_offset':None,'records':[{}]}
+        self.actual.insert(0,{'job':'startup-status','operation':'status','arguments':{},'wire_bytes':100,
+                             'result':{'generation':'G-test'}})
+        self.baseline['calls']=copy.deepcopy(self.actual)+[c for c in self.baseline['calls'] if c.get('reservation')]
+        self.baseline['price']=capacity.price(self.baseline['calls'],self.budget,**self.pricing)
+        recipe={'reads':[{'operation':'input','arguments':{'input_id':'investigation-edit-targets','limit':40}}]}
+        ids=['operation-reference','guidance-startup']
         with tempfile.TemporaryDirectory() as folder:
             root=Path(folder); (root/'plan.json').write_text('{}')
             profile=root/'profile';profile.mkdir()
-            captured={**self.current,'budget':self.budget,'native_declaration_sha256':'new'}
+            captured={**self.current,'budget':self.budget,'native_declaration_sha256':'new','startup_inputs':ids}
             totals=self.price()
             report={'schema':'editor-admission-v1','session':str(root),'profile':str(profile),
                 'plan_sha256':admission.sha(root/'plan.json'),'generation':'G-test','edit_targets':['s1'],
                 'artifacts':captured,'baseline':self.baseline,'initial_basis':self.basis,
-                'previous_artifacts':self.previous,'actual_calls':self.actual,'native_envelope':[],**totals}
+                'previous_artifacts':self.previous,'actual_calls':self.actual,'native_envelope':[],
+                'read_recipe':recipe,'argument_check':read_recipe.verify(self.actual,recipe,ids),
+                'transition_wire_bytes':2000,**totals}
             config={'input_assembly':str(profile/'inputs/assembly.json'),'tool_declaration_sha256':'new'}
             controller=SimpleNamespace(root=root,checked_editor=lambda:{'investigation_gate':{'root':str(root)}},
                                        editor=SimpleNamespace(state={'pass_start_generation':'G-test'}))
-            flow=SimpleNamespace(root=root,config={'edit_targets':['s1']})
+            flow=SimpleNamespace(root=root,config={'edit_targets':['s1']},editor_recipe=lambda:recipe,
+                                 prepared_transition_wire_bytes=lambda:2000)
             def save(value): (root/'editor-admission.json').write_text(json.dumps(value))
             save(report)
-            with patch('structured_pass.investigation_workflow.Workflow',return_value=flow),\
+            with patch('structured_pass.investigation_workflow.Workflow',autospec=True,return_value=flow),\
                     patch.object(admission,'artifacts',return_value=captured):
                 admission.verify(controller,config)
-                for field in ('instructions','message','native_declaration','budget','edit_targets','price'):
+                for field in ('instructions','message','native_declaration','budget','edit_targets','price','argument_check','read_recipe','transition_wire_bytes'):
                     changed=copy.deepcopy(report)
                     if field=='edit_targets':changed[field]=['s2']
                     elif field=='price':changed[field]['passed']=False
+                    elif field=='argument_check':changed[field]['passed']=False
+                    elif field=='read_recipe':changed[field]['reads']=[]
+                    elif field=='transition_wire_bytes':changed[field]+=1
                     elif field=='budget':changed['artifacts'][field]['response_bytes']+=1
                     else:changed['artifacts'][field]['sha256']='changed'
                     save(changed)

@@ -11,7 +11,7 @@ import math
 from pathlib import Path
 
 from . import bridge, corridor_capacity as capacity, declared_inputs, investigation as inv
-from . import input_delivery
+from . import input_delivery, read_recipe
 from .producer import require, sha
 
 CAPS = {'handoff-wire-cap':65536, 'transition-index-and-receipt-wire-cap':8192,
@@ -86,22 +86,22 @@ def measure(flow, startup_ids):
             args={'generation':generation,'input_id':ident,'limit':8192,'offset':offset}
             page=controller.dispatch('input',args,'implementer')
             emit(calls,'startup-'+ident,'input',args,page); offset=page['next_offset']
-    for job in capacity.plan(flow.config['inventory']):
-        if job['name'].startswith('owners-') or job['name']=='ram-set':continue
-        args=dict(job['arguments'])
-        source=analogue_inputs.project(model,args.pop('analogue_index')) if 'analogue_index' in args else model
-        offset=0; seen=set()
-        while not set(job['records'])<=seen:
-            page={'generation':generation,**navigation.Navigation(source).query(**args,offset=offset)}
-            request={'generation':generation,**job['arguments'],'offset':offset}
-            emit(calls,'editor-reread-'+job['name'],'navigate',request,page)
-            seen.update(row['record_id'] for row in capacity.expand(page)); offset=page.get('next_offset')
-            require(offset is not None or set(job['records'])<=seen,'EVIDENCE_UNAVAILABLE')
-    offset=0
-    while offset is not None:
-        page=inv.record_page(flow.config['catalog'],model,flow.config['edit_targets'],offset=offset,limit=40,view='edit')
-        args={'generation':generation,'input_id':'investigation-edit-targets','offset':offset,'limit':40}
-        emit(calls,'editor-lean-records','input',args,page); offset=page['next_offset']
+    for job in flow.editor_recipe()['reads']:
+        offset=0;seen=0
+        while offset is not None:
+            request=read_recipe.arguments(job,generation,offset,seen)
+            args={k:v for k,v in request.items() if k!='generation'}
+            if job['operation']=='input':
+                page=inv.record_page(flow.config['catalog'],model,flow.config['edit_targets'],
+                    offset=offset,limit=args['limit'],view='edit')
+            else:
+                source=analogue_inputs.project(model,args.pop('analogue_index')) if 'analogue_index' in args else model
+                page={'generation':generation,**navigation.Navigation(source).query(**args)}
+            emit(calls,job['name'],job['operation'],request,page)
+            seen+=len(page.get('records',[]));offset=page.get('next_offset')
+            if 'record_count' in job:
+                require(offset is not None or seen>=job['record_count'],'EVIDENCE_UNAVAILABLE')
+                if seen>=job['record_count']:break
     return calls
 
 
@@ -157,6 +157,10 @@ def bound_price(baseline, actual, budget, initial_basis, current, previous):
 def bind(flow, profile, baseline, initial_basis, previous, startup_ids, native_envelope):
     captured=artifacts(flow.controller,profile,native_envelope)
     actual=measure(flow,startup_ids)
+    recipe=flow.editor_recipe()
+    argument_check=read_recipe.verify(actual,recipe,captured['startup_inputs'])
+    transition_bytes=flow.prepared_transition_wire_bytes()
+    require(transition_bytes<=CAPS['transition-index-and-receipt-wire-cap'],'PAIR_INPUTS_CHANGED')
     totals=bound_price(baseline,actual,captured['budget'],initial_basis,
                        {k:captured[k] for k in previous},previous)
     return {'schema':'editor-admission-v1','session':str(flow.controller.root),
@@ -164,7 +168,8 @@ def bind(flow, profile, baseline, initial_basis, previous, startup_ids, native_e
         'generation':flow.config['catalog']['binding']['generation'],
         'edit_targets':flow.config['edit_targets'],'artifacts':captured,
         'baseline':baseline,'initial_basis':initial_basis,'previous_artifacts':previous,
-        'startup_ids':startup_ids,'actual_calls':actual,**totals,
+        'startup_ids':startup_ids,'actual_calls':actual,'read_recipe':recipe,
+        'argument_check':argument_check,'transition_wire_bytes':transition_bytes,**totals,
         'native_envelope':native_envelope,'native_capture_pending':True}
 
 
@@ -179,6 +184,11 @@ def verify(controller, config, *, require_capture=True):
         report['edit_targets']==flow.config['edit_targets'],'PAIR_INPUTS_CHANGED')
     captured=artifacts(controller,profile,report['native_envelope'])
     require(captured==report['artifacts'],'PAIR_INPUTS_CHANGED')
+    recipe=flow.editor_recipe()
+    require(report.get('read_recipe')==recipe and report.get('argument_check')==
+        read_recipe.verify(report['actual_calls'],recipe,captured['startup_inputs']),'PAIR_INPUTS_CHANGED')
+    require(report.get('transition_wire_bytes')==flow.prepared_transition_wire_bytes()<=
+        CAPS['transition-index-and-receipt-wire-cap'],'PAIR_INPUTS_CHANGED')
     totals=bound_price(report['baseline'],report['actual_calls'],captured['budget'],report['initial_basis'],
         {k:captured[k] for k in report['previous_artifacts']},report['previous_artifacts'])
     require(all(report[k]==v for k,v in totals.items()) and totals['price']['passed'],'PAIR_INPUTS_CHANGED')

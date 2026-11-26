@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from . import paging
+from . import paging, read_recipe
 from . import investigation as inv, operation_contract as contract, declared_inputs, evidence_views, review_pages
 from .investigation_workflow import Workflow, read, input_page
 from .producer import require
@@ -46,7 +46,7 @@ class Session:
                 for offset in range(0,len(ids),128):
                     selected=ids[offset:offset+128]
                     reads.append({'sets':[name],'operation':'navigate',
-                        'arguments':{'view':'edit','record_id':selected},'record_count':len(selected)})
+                        'arguments':{'view':'edit','record_id':selected,'limit':min(40,len(selected))},'record_count':len(selected)})
                 continue
             if name == 'vector':
                 records = inventory['vector_records']; span = 'label'; analogue = {}
@@ -56,7 +56,7 @@ class Session:
                 analogue = {'analogue_index':row['choice']['index']} if kind == 'analogues' else {}
             if records:
                 reads.append({'sets':[name],'operation':'navigate',
-                    'arguments':{'view':'source','record_id':records[0],'span':span,**analogue},
+                    'arguments':{'view':'source','record_id':records[0],'span':span,'limit':min(128,len(records)),**analogue},
                     'record_count':len(records),'stop_after_record_id':records[-1]})
         # Use the same bounded multi-owner read as corridor_capacity.plan. A
         # list of IDs describes this selection without repeating a read recipe
@@ -64,19 +64,19 @@ class Session:
         for first in range(0,len(owners),128):
             part=owners[first:first+128]
             reads.append({'sets':[name for name,row in part],'operation':'navigate',
-                'arguments':{'view':'source','record_id':[row['owner_id'] for name,row in part],'span':'label'},
+                'arguments':{'view':'source','record_id':[row['owner_id'] for name,row in part],'span':'label',
+                    'limit':min(128,len({r for name,row in part for r in row['records']}))},
                 'record_count':len({r for name,row in part for r in row['records']})})
         if addresses:
             reads.append({'sets':['ram:'+str(a) for a in sorted(addresses)],'operation':'evidence',
-                'arguments':{'view':'ram_set','address':sorted(addresses)}})
+                'arguments':{'view':'ram_set','address':sorted(addresses),'limit':128}})
         return {'entry_id':self.entry['id'],'generation':catalog['binding']['generation'],
             'catalog_sha256':catalog['sha256'],
             'checkpoint_wire_cap':self.workflow.config['checkpoint_caps'][self.entry['id']],
             'sets':{name:{'coverage_units':len(catalog['sets'][name])} for name in self.entry['sets']},
             'reads':reads,'handoff_inputs':['investigation-handoff-'+p for p in
                 self.workflow.config.get('handoff_dependencies',{}).get(self.entry['id'],[])],
-            'reading_rule':'Add generation and paging arguments. Source reads stop at the named last record; '
-                'reduce the final limit to the remaining record count. These lexical boundaries are not proof of semantics.',
+            'reading_rule':read_recipe.READING_RULE,
             'completion_rule':'Only delivered pages in the final context count. A staged checkpoint is not accepted coverage.'}
 
     def inputs(self,state):

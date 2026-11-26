@@ -94,6 +94,29 @@ echoing submitted values. A caller-induced internal error fails the matrix.
 Nested edit and checkpoint controls also verify that refusals cannot change a
 candidate or stage coverage; investigation audit receipts still record refusals.
 
+Capacity preparation also checks the arguments of every ordered read in each
+session's actual priced workload. An argument must be a route default, a literal
+in the read recipe identified to that role before evidence reading, or a value
+from an earlier response. Generation comes from status; continuation offsets
+come from the previous page of the same query. The delivered recipe permits
+only the stated final-page reduction from its record count. A maximum mentioned
+in general help is not a recipe. Missing or changed argument provenance refuses
+admission, and launch verification repeats the check.
+
+Investigators receive explicit limits in `investigation-assignment`. After the
+checked transition, the editor is directed to read `investigation-read-recipe`
+before its evidence reads. That fixed input lists its re-reads and edit-target
+paging; the pricers consume the same service recipes. Its wire bytes and index
+entry must fit the existing transition reservation. The operation reference
+also names this input. None of these recipes establishes semantic conclusions.
+
+Admission records keep the executable `actual_calls` separate from historical
+`priced_calls` used as conservative charge floors. Those historical rows may
+contain earlier generations or internal measurement selectors; they are not
+requests for the model to execute. The argument check covers every actual call,
+and the existing price calculation separately verifies that none of the prior
+charges, reserves or margins was reduced.
+
 The terminal exceptions are access and integrity boundaries, not lookup misses.
 A misspelled document in the current project's documentation namespace points
 to the accepted paths in `operation-reference`, without reading the missed path.
