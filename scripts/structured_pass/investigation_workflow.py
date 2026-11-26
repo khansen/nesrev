@@ -351,12 +351,7 @@ class Workflow:
             self.check_handoff_cap(state)
             from .editor_admission import CAPS
             generation = self.config['catalog']['binding']['generation']
-            index = [{'id':key,'kind':'investigation','generation':generation,
-                      'sha256':inv.identity(value)} for key,value in
-                     {'investigation-transition':receipt,**self.handoffs(state),
-                      'investigation-edit-targets':self.edit_target_index()}.items()]
-            transition_bytes = input_wire_bytes(receipt,'investigation-transition',generation)
-            require(transition_bytes + input_wire_bytes(index,'investigation-index',generation) <=
+            require(self.transition_wire_bytes(receipt,self.handoffs(state)) <=
                     CAPS['transition-index-and-receipt-wire-cap'],
                     'INVESTIGATION_CHECKPOINT_TOO_LARGE')
             require(not state['editing'] or state['editing'] == receipt, 'INVESTIGATION_CHANGED')
@@ -372,7 +367,30 @@ class Workflow:
         require(state['editing'] and gate['editing_admitted']==inv.identity(state['editing']),
                 'INVESTIGATION_READ_ONLY')
         return {'investigation-transition':state['editing'],**self.handoffs(state),
-                'investigation-edit-targets':self.edit_target_index()}
+                'investigation-edit-targets':self.edit_target_index(),
+                'investigation-read-recipe':self.editor_recipe()}
+
+    def editor_recipe(self):
+        from . import read_recipe
+        return read_recipe.editor_recipe(self.config['inventory'],self.config['edit_targets'])
+
+    def transition_wire_bytes(self, receipt, handoffs):
+        generation=self.config['catalog']['binding']['generation']
+        values={'investigation-transition':receipt,**handoffs,
+                'investigation-edit-targets':self.edit_target_index(),
+                'investigation-read-recipe':self.editor_recipe()}
+        index=[{'id':key,'kind':'investigation','generation':generation,'sha256':inv.identity(value)}
+               for key,value in values.items()]
+        return (input_wire_bytes(receipt,'investigation-transition',generation)+
+                input_wire_bytes(index,'investigation-index',generation)+
+                input_wire_bytes(self.editor_recipe(),'investigation-read-recipe',generation))
+
+    def prepared_transition_wire_bytes(self):
+        # Digest lengths and index entries are fixed before investigators run;
+        # handoff bodies have their own separately charged aggregate cap.
+        entries=self.config['partitions']['entries']
+        receipt={'plan_sha256':'0'*64,'checkpoints':['0'*64 for _ in entries],'coverage_sha256':'0'*64}
+        return self.transition_wire_bytes(receipt,{'investigation-handoff-'+e['id']:{} for e in entries})
 
     def edit_target_index(self):
         return {'encoding':'source-edit-v1','records':len(self.config['edit_targets']),

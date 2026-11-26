@@ -21,12 +21,13 @@ from structured_pass import corridor_capacity as capacity, corridor_inventory, e
 from structured_pass import investigation as inv, investigation_admission as admission
 from structured_pass.investigation_workflow import Workflow, input_wire_bytes
 from structured_pass.investigation_service import Session
-from structured_pass import application, bridge, edit_contract, session_plan, subscription_client
+from structured_pass import application, bridge, edit_contract, session_plan, subscription_client, read_recipe
 
 
 class InvestigationAdmissionTests(unittest.TestCase):
     def setUp(self):
         if not os.environ.get('STRUCTURED_PASS_XASM'):self.skipTest('Pinned assembler required')
+        (ROOT/'tmp').mkdir(exist_ok=True)
         temporary=tempfile.TemporaryDirectory(dir=ROOT/'tmp');self.addCleanup(temporary.cleanup)
         self.root=Path(temporary.name).resolve()
         self.c=fixture.prepare(self.root/'fixture',declared_setup=lambda r,p:setup_inputs(r,p,False,True))
@@ -74,16 +75,34 @@ class InvestigationAdmissionTests(unittest.TestCase):
         self.assertEqual(self.report['price']['margin_tokens'],25840)
 
     def test_missing_coverage_changed_assignment_or_false_price_refuse(self):
-        for fault in ('coverage','assignment','price','cap','prompt'):
+        for fault in ('coverage','assignment','price','cap','prompt','argument_check'):
             value=copy.deepcopy(self.report)
             if fault=='coverage':value['actual_calls']=[c for c in value['actual_calls'] if c['job']!='assigned-evidence']
             elif fault=='assignment':value['assignment']['reads']=[]
             elif fault=='price':value['price']['estimated_tokens']-=1
             elif fault=='cap':value['caps']['checkpoint-output-cap']-=1
+            elif fault=='argument_check':value['argument_check']['passed']=False
             else:value['artifacts']['instructions']['sha256']='changed'
             self.save(value)
             with self.subTest(fault=fault),self.assertRaises(ValueError):
                 admission.verify(self.flow,self.profile,self.path)
+
+    def test_delivered_assignment_is_the_priced_recipe(self):
+        self.flow.begin('first','recipe-reader',{})
+        offset=0;text=''
+        while offset is not None:
+            page=self.session.dispatch('input',{'generation':self.g,'input_id':'investigation-assignment',
+                                               'offset':offset},'implementer')
+            text+=page['text'];offset=page['next_offset']
+        recipe=json.loads(text)
+        self.assertEqual(recipe,self.report['assignment'])
+        self.assertEqual(recipe['reading_rule'],read_recipe.READING_RULE)
+        self.assertTrue(all('limit' in r['arguments'] for r in recipe['reads']))
+        self.assertEqual(read_recipe.verify(self.report['actual_calls'],recipe,self.captured['startup_inputs']),
+                         self.report['argument_check'])
+        old=copy.deepcopy(recipe)
+        for r in old['reads']:r['arguments'].pop('limit')
+        self.assertFalse(read_recipe.check(self.report['actual_calls'],old,self.captured['startup_inputs'])['passed'])
 
     def test_final_prompt_growth_can_refuse_without_borrowing_caps(self):
         changed={**self.previous,'message':editor.stamp(b'x'*400000)}
@@ -160,6 +179,19 @@ class InvestigationAdmissionTests(unittest.TestCase):
                 'decisions':[]})
             self.assertEqual(self.flow.finalize('first',audit)['completion'],'complete')
             self.flow.admit_editor({'first':audit})
+            status=self.c.dispatch('status',{},'implementer')
+            self.assertIn(read_recipe.EDITOR_INPUT,status['investigation']['reading_rule'])
+            text='';offset=0
+            while offset is not None:
+                page=self.c.dispatch('input',{'generation':self.g,'input_id':read_recipe.EDITOR_INPUT,
+                                             'offset':offset},'implementer')
+                text+=page['text'];offset=page['next_offset']
+            recipe=json.loads(text)
+            self.assertEqual(recipe,report['read_recipe'])
+            self.assertEqual(read_recipe.verify(report['actual_calls'],recipe,captured['startup_inputs']),
+                             report['argument_check'])
+            self.assertLessEqual(report['transition_wire_bytes'],editor.CAPS['transition-index-and-receipt-wire-cap'])
+            self.assertIn(read_recipe.EDITOR_INPUT,edit_contract.reference()['phase_references']['editor'])
             preview=self.c.dispatch('preview',{'generation':self.g,
                 'operations':fixture.rename_ops(self.c,self.g)},'implementer')
             cid=self.c.dispatch('confirm',{'generation':self.g,'preview_digest':preview['preview_digest']},'implementer')['candidate']

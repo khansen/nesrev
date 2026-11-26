@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 
 from . import analogue_inputs, corridor_capacity as capacity, edit_contract, editor_admission as editor
-from . import investigation as inv, navigation, ram_evidence
+from . import investigation as inv, navigation, ram_evidence, read_recipe
 from .investigation_service import Session
 from .investigation_workflow import input_wire_bytes, read
 from .producer import require, sha
@@ -45,9 +45,7 @@ def measure(session, startup_ids):
     for job in session.assignment()['reads']:
         offset=0;seen=0
         while offset is not None:
-            count=min(128,job['record_count']-seen) if 'record_count' in job else 128
-            if job['arguments'].get('view')=='edit':count=min(40,count)
-            args={'generation':generation,**job['arguments'],'offset':offset,'limit':count}
+            args=read_recipe.arguments(job,generation,offset,seen)
             if job['operation']=='evidence':page=ram_evidence.query(model,**args)
             else:
                 source=analogue_inputs.project(model,args['analogue_index']) if 'analogue_index' in args else model
@@ -107,10 +105,12 @@ def bind(flow, profile, baseline, pricing, basis, previous, startup_ids, native_
     result=totals(baseline,actual,captured['budget'],pricing,
         {k:captured[k] for k in previous},previous,basis,assignment,generation,flow.config['checkpoint_caps'][entry],
         {p:flow.config['checkpoint_caps'][p] for p in flow.config.get('handoff_dependencies',{}).get(entry,[])})
+    argument_check=read_recipe.verify(actual,assignment,captured['startup_inputs'])
     return {'schema':'investigation-admission-v1','profile':str(Path(profile).resolve()),'entry_id':entry,
         'plan_sha256':sha(flow.root/'plan.json'),'artifacts':captured,'baseline':baseline,'pricing':pricing,
         'initial_basis':basis,'previous_artifacts':previous,'startup_ids':startup_ids,
-        'actual_calls':actual,'assignment':assignment,'native_envelope':native_envelope,**result}
+        'actual_calls':actual,'assignment':assignment,'native_envelope':native_envelope,
+        'argument_check':argument_check,**result}
 
 
 def verify(flow, profile, report_path, *, require_capture=True):
@@ -120,6 +120,8 @@ def verify(flow, profile, report_path, *, require_capture=True):
             report['plan_sha256']==sha(flow.root/'plan.json'),'PAIR_INPUTS_CHANGED')
     captured=editor.artifacts(flow.controller,profile,report['native_envelope'],'investigation')
     require(captured==report['artifacts'] and session.assignment()==report['assignment'],'PAIR_INPUTS_CHANGED')
+    require(report.get('argument_check')==read_recipe.verify(report['actual_calls'],session.assignment(),
+        captured['startup_inputs']),'PAIR_INPUTS_CHANGED')
     coverage=set()
     for call in report['actual_calls']:
         coverage.update(flow.units(call['operation'],call['arguments'],call['result']))

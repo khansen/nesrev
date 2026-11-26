@@ -282,7 +282,9 @@ class Corridor:
                 from .investigation_workflow import Workflow
                 inputs=Workflow(gate['root'],self).editor_inputs()
                 answer['investigation']={'verification':inputs['investigation-transition'],
-                    'input_ids':list(inputs),'binding':'Frozen pre-edit evidence; proposed names still require local revalidation.'}
+                    'input_ids':list(inputs),
+                    'reading_rule':'Read investigation-read-recipe completely before evidence reads; follow its arguments and paging rule.',
+                    'binding':'Frozen pre-edit evidence; proposed names still require local revalidation.'}
             return answer
         if operation=='review_report':
             require(self.ensure_handoff() is not None,'CORRIDOR_NOT_PUBLISHED')
