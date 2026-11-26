@@ -478,7 +478,8 @@ emit({'type':'result','subtype':'success','is_error':False,'result':'Review deli
         output=io.StringIO()
         with patch.object(pair.Corridor,'dispatch',side_effect=ValueError('REVIEW_NOT_READY')):
             bridge.mcp(self.c.root,'reviewer',input_stream=io.StringIO(json.dumps({'id':1,'method':'tools/call',
-                'params':{'name':'operation','arguments':{'operation':'approve','arguments':{}}}})+'\n'),output_stream=output)
+                'params':{'name':'operation','arguments':{'operation':'approve',
+                    'arguments':{'ticket':'E-fixture','report':'Synthetic review.'}}}})+'\n'),output_stream=output)
         value=json.loads(json.loads(output.getvalue())['result']['content'][0]['text'])
         self.assertEqual(value['error'],'REVIEW_NOT_READY');self.assertFalse(value['retryable'])
 

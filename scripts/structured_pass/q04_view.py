@@ -6,10 +6,11 @@ This exposes evidence for judgment and does not declare semantic misuse.
 """
 from collections import Counter
 
+from . import paging
+
 
 def constant_uses(model, symbol, offset=0, limit=20):
-    if type(offset) is not int or type(limit) is not int or offset<0 or not 1<=limit<=64:
-        raise ValueError('invalid pagination')
+    paging.validate(offset, limit, 64)
     declaration = model.declarations.get(symbol)
     if declaration is None or model.facts[declaration]['kind']!='EQU_NODE':
         raise ValueError('unknown constant')
@@ -44,6 +45,7 @@ def constant_uses(model, symbol, offset=0, limit=20):
     def owner(row):
         return row['statement'].get('lexical_owner') or row['statement'].get('name') or row['statement']['kind']
     owners = Counter(owner(row) for row in rows)
+    paging.integer(offset, 'offset', 0, len(rows))
     page = rows[offset:offset+limit]
     return {'constant':model.statement(declaration),'direct_use_count':sum(r['direct'] for r in rows),
             'via_equ_use_count':sum(not r['direct'] for r in rows),'total':len(rows),

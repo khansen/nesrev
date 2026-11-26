@@ -3,6 +3,22 @@
 The bridge also checks serialized MCP bytes so escaping cannot cause a spill.
 """
 MAX_BYTES = 24576
+INPUT_CHARS = 8192
+
+
+def integer(value, field, minimum, maximum=None):
+    """Reject caller paging values without echoing them into diagnostics."""
+    from .operation_contract import RequestError
+    expected = {'type': 'integer', 'minimum': minimum}
+    if maximum is not None:
+        expected['maximum'] = maximum
+    if type(value) is not int or value < minimum or (maximum is not None and value > maximum):
+        raise RequestError('INVALID_PAGINATION', field=field, expected=expected)
+
+
+def validate(offset, limit, maximum, total=None):
+    integer(offset, 'offset', 0, total)
+    integer(limit, 'limit', 1, maximum)
 
 
 def preview_records(details):
@@ -33,8 +49,7 @@ def preview_records(details):
 
 def page(records,offset=0,limit=12):
     from .review_pages import wire_size
-    if type(offset) is not int or offset<0 or type(limit) is not int or not 1<=limit<=40:
-        raise ValueError('REQUEST_SCHEMA')
+    validate(offset, limit, 40, len(records))
     result=[]
     for record in records[offset:offset+limit]:
         # An exceptionally long comment/doc cell must be reduced by the caller;

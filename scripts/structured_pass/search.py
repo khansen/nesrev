@@ -11,6 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from . import paging
 from . import authored_documents as authored, guidance, ownership, review_pages
 from .evidence_views import identity
 from . import operation_contract as contract
@@ -385,7 +386,7 @@ def token(binding, offset):
 
 
 def page(rows, metadata, binding, continuation, limit):
-    require(type(limit) is int and 1 <= limit <= 40)
+    paging.integer(limit, 'limit', 1, 40)
     if metadata.get('detail')=='matches':
         original=rows
         def values():
@@ -404,7 +405,9 @@ def page(rows, metadata, binding, continuation, limit):
             valid = type(offset) is int and 0 < offset < len(rows) and continuation == token(binding, offset)
         except (ValueError, KeyError, TypeError):
             valid = False
-        require(valid, 'SEARCH_CONTINUATION_INVALID')
+        if not valid:
+            raise contract.RequestError('SEARCH_CONTINUATION_INVALID',field='continuation',
+                source='search.continuation from the same generation and query; omit to restart paging')
     # Every row must occur once on the wire. Exclude envelopes and delimiters,
     # making this a lower bound even when size-limited pages add more overhead.
     minimum_bytes = sum(len(json.dumps(json.dumps(row)).encode())-2 for row in rows)

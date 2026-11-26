@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import sys
 
+from . import paging
 from .durable_artifact import canonical, digest
 from . import window_coverage as windows, learning
 REPORT_PAGE_CHARS = 1024
@@ -161,12 +162,11 @@ def result(api, root, state):
 def report_page(api, root, state, sequence, offset, limit):
     checked_coverage(api, root, state)
     history=state['structured_review']['verdict_history']
-    require(type(sequence) is int and 1<=sequence<=len(history)
-            and type(offset) is int and offset>=0
-            and type(limit) is int and 1<=limit<=REPORT_PAGE_CHARS, 'REQUEST_SCHEMA')
+    require(type(sequence) is int and 1<=sequence<=len(history), 'REQUEST_SCHEMA')
+    paging.validate(offset, limit, REPORT_PAGE_CHARS)
     event=history[sequence-1]
     text=(root/event['review_file']).read_bytes().decode('utf-8')
-    require(offset<=len(text), 'REQUEST_SCHEMA')
+    paging.integer(offset, 'offset', 0, len(text))
     return {'run_id':state['run_id'], 'sequence':sequence, 'verdict':event['verdict'],
             'sha256':event['review_sha256'], 'offset':offset, 'limit':limit,
             'offset_unit':'Unicode characters', 'total_characters':len(text),

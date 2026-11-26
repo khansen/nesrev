@@ -8,6 +8,7 @@ import sys
 import tempfile
 
 HERE = Path(__file__).resolve().parent
+from . import paging
 from .structured_handoff import windows, require
 from . import operation_contract as contract
 from . import learning, service as common
@@ -28,6 +29,14 @@ class Bridge:
             capture_output=True, text=True, env=env, timeout=60)
         if completed.returncode:
             message = completed.stderr.strip().removeprefix('error: ')
+            if args[0] == 'structured-report' and message == 'REQUEST_SCHEMA':
+                raise contract.RequestError(field='sequence',source='status.handoff.latest_review.sequence')
+            if args[0] == 'structured-report' and message == 'INVALID_PAGINATION':
+                # Types and lower bounds were checked before the CLI boundary;
+                # only the report owner can check its retained text length.
+                raise contract.RequestError('INVALID_PAGINATION', field='offset',
+                    expected={'type':'integer','minimum':0,
+                              'maximum_source':'review_report.total_characters'})
             raise ValueError(message if re.fullmatch('[A-Z][A-Z0-9_]+', message) else 'REVIEW_COMMAND_FAILED')
         return json.loads(completed.stdout)
 
@@ -42,7 +51,8 @@ class Bridge:
             raise ValueError('OPERATION_NOT_AVAILABLE')
         common.schema(args,*contract.VERDICT[op])
         if op=='review_report':
-            require(all(type(v) is int for v in args.values()), 'REQUEST_SCHEMA')
+            require(type(args['sequence']) is int, 'REQUEST_SCHEMA')
+            paging.validate(args.get('offset',0), args.get('limit',1024), 1024)
             return self.command('structured-report','--sequence',str(args['sequence']),
                                 '--offset',str(args.get('offset',0)),
                                 '--limit',str(args.get('limit',1024)))

@@ -2,6 +2,7 @@
 from bisect import bisect_right
 import json
 
+from . import paging
 from .model import producer
 
 ERRORS=frozenset(('NAVIGATION_SELECTION_REQUIRED','NAVIGATION_UNKNOWN_SYMBOL',
@@ -83,6 +84,9 @@ class Navigation:
         if view not in VIEWS:
             from .operation_contract import RequestError
             raise RequestError(field='view',accepted_values=list(VIEWS))
+        if view in ('symbols','comments') and (symbol is not None or record_id is not None):
+            from .operation_contract import RequestError
+            raise RequestError(field='symbol/record_id',expected='omit selectors for symbols/comments; use contains')
         if view=='source':
             require(contains is None)
             return self.source(symbol,record_id,offset,limit,span)
@@ -91,7 +95,7 @@ class Navigation:
             return self.edit(symbol,record_id,offset,limit)
         compact=view=='records_compact'
         if compact:view='records'
-        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
+        paging.validate(offset, limit, 40)
         require(contains is None or isinstance(contains,str) and 0<len(contains)<=256)
         if span not in SPANS or (view!='records' and span!='label'):
             from .operation_contract import RequestError
@@ -147,6 +151,7 @@ class Navigation:
                     comment_records=[c for c in all_comments if first<=c['line']<=last]
                 scope={'start_record_id':m.ids[n],'next_record_id':m.ids[self.statements[end]] if end<len(self.statements) else None,
                        'coverage':'Lexical statements through the next global label or segment boundary; follow bound references or next_record_id to continue.'}
+        paging.integer(offset, 'offset', 0, total)
         answer={'view':view,'offset':offset,'limit':limit,'total':total,'records':items,
                 'next_offset':offset+limit if offset+limit<total else None,'scope':scope,
                 'comments':comment_records}
@@ -163,7 +168,7 @@ class Navigation:
 
     def edit(self,symbol,record_id,offset,limit):
         from . import edit_records, review_pages
-        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40)
+        paging.validate(offset, limit, 40)
         if isinstance(record_id,list):
             require(symbol is None and 0<len(record_id)<=128 and
                     all(isinstance(r,str) for r in record_id) and len(set(record_id))==len(record_id))
@@ -171,6 +176,7 @@ class Navigation:
         else:nodes=[self.select(symbol,record_id)]
         require(all(n in self.position for n in nodes),'NAVIGATION_RECORD_REQUIRED')
         selected=sorted(nodes,key=lambda n:self.m.ranges[n])
+        paging.integer(offset, 'offset', 0, len(selected))
         rows=[edit_records.project(self.m,n) for n in selected[offset:offset+limit]]
         while True:
             end=offset+len(rows)
@@ -196,6 +202,7 @@ class Navigation:
                 (self.statements[i] in self.layout and
                  self.layout[self.statements[i]]['segment_id']!=segment)),len(self.statements))
         selected=self.statements[start:end]
+        paging.integer(offset, 'offset', 0, len(selected))
         page=selected[offset:offset+limit]
         all_comments=comments(m)
         first=m.facts[page[0]]['span'][0] if page else 0
@@ -240,7 +247,7 @@ class Navigation:
         """Exact producer source spans, without an editing record's metadata."""
         from . import review_pages
         from .rename_service import comments
-        require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=SOURCE_LIMIT)
+        paging.validate(offset, limit, SOURCE_LIMIT)
         require(span in SPANS)
         if isinstance(record_id,list):
             require(symbol is None and span=='label' and 0<len(record_id)<=128)
@@ -265,6 +272,7 @@ class Navigation:
                     if i not in seen and first<=c['line']<=last:
                         attached[n].append(c);seen.add(i)
                 first=last+1
+        paging.integer(offset, 'offset', 0, len(selected))
         page=selected[offset:offset+limit]
         while True:
             end=offset+len(page);following=selected[end] if end<len(selected) else None

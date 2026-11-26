@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 
+from . import paging
 from . import investigation as inv, operation_contract as contract, declared_inputs, evidence_views, review_pages
 from .investigation_workflow import Workflow, read, input_page
 from .producer import require
@@ -123,7 +124,7 @@ class Session:
             if operation=='input' and arguments['input_id'].startswith('investigation-'):
                 inputs=self.inputs(state);key=arguments['input_id']
                 require(key in inputs,'INPUT_UNKNOWN')
-                return input_page(inputs[key],key,generation,arguments.get('offset',0),arguments.get('limit',4096))
+                return input_page(inputs[key],key,generation,arguments.get('offset',0),arguments.get('limit',paging.INPUT_CHARS))
             if operation=='inputs':
                 capture=flow.controller.editor.model(generation).capture
                 items=[declared_inputs.metadata(i) for i in declared_inputs.load(capture)['items']]

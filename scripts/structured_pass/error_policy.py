@@ -85,8 +85,22 @@ def classify(code):
 
 
 def diagnostics(code, operation, role, profile):
+    if code=='UNSUPPORTED_OPERATION':
+        return {'field':'operations[].kind','source':'input(operation-reference).operations keys'}
     from . import operation_contract as contract
     sources = {
+        'INPUT_UNKNOWN': ('input_id', 'inputs.records[].id'),
+        'UNKNOWN_CANDIDATE': ('cid', 'confirm.candidate or status.handoff.published_candidate.cid'),
+        'UNKNOWN_CONSTANT': ('symbol', 'navigate(view=symbols)'),
+        'NAVIGATION_UNKNOWN_SYMBOL': ('symbol', 'navigate(view=symbols)'),
+        'NAVIGATION_RECORD_REQUIRED': ('record_id', 'navigate record_id'),
+        'NAVIGATION_SELECTION_REQUIRED': ('symbol/record_id', 'exactly one selector'),
+        'UNKNOWN_RECORD': ('record_id', 'navigate record_id'),
+        'MIXED_GENERATION_COMPARISON': ('base_generation', 'status.handoff.coverage.required_edges'),
+        'CORRIDOR_WRAPPER_REQUIRED': ('operations', 'operation-reference: preview needs scorecard_update and closeout'),
+        'REVIEW_NOT_READY': ('ticket', 'status.ticket'),
+        'INVESTIGATION_CITATION_INVALID': ('claims/record_id/analogue_index', 'citation from delivered evidence'),
+        'EVIDENCE_RANGE_INVALID': ('record_id/byte_offset/byte_count', 'evidence data range'),
         'STALE_GENERATION': ('generation', 'status.generation'),
         'UNKNOWN_GENERATION': ('generation', 'status.generation'),
         'STALE_PREVIEW': ('preview_digest', 'fresh preview.preview_digest at status.generation'),

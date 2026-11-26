@@ -142,8 +142,68 @@ def check(value, spec, *, code='REQUEST_SCHEMA', path='arguments'):
         raise RequestError(code, field=path, expected_type='object', **expected)
     missing = sorted(set(required) - set(value))
     if missing or not set(value) <= set(required) | set(optional):
-        raise RequestError(code, field=path, missing=missing,
-                           unexpected_keys=not set(value) <= set(required) | set(optional), **expected)
+        unexpected = set(value) - set(required) - set(optional)
+        known = {key for table in (BASE, RENAME, VERDICT, CORRIDOR, RETAINED, INVESTIGATION)
+                 for required_keys, optional_keys in table.values() for key in required_keys + optional_keys}
+        named = missing[:1] or sorted(unexpected & known)[:1]
+        field = ((path + '.') if path != 'arguments' else '') + named[0] if named else path
+        raise RequestError(code, field=field, missing=missing,
+                           unexpected_keys=bool(unexpected), **expected)
+
+
+
+def request_arguments(operation, arguments, role, profile):
+    """Validate JSON types at the public boundary, before owner lookups.
+
+    Keys come from dispatch's tables. Value selection and integrity remain with
+    the owners; this does not translate arbitrary exceptions into caller errors.
+    """
+    if operation not in offered(role, profile):return
+    spec = entry(operation, role, profile)
+    check(arguments, (spec['required'], spec['optional']))
+    strings = {'generation','base_generation','cid','preview_digest','input_id','symbol',
+               'path','name','view','kind','decoder','artifact','key','set_id','span',
+               'contains','continuation','report','response','ticket'}
+    integers = {'revision':(0,None),'attempt':(1,None),'sequence':(1,None),
+                'analogue_index':(0,1),'byte_offset':(0,None),'byte_count':(1,4096)}
+    for field, argument in arguments.items():
+        if argument is None and field in ('cid','record_id','symbol','contains','continuation','analogue_index') and field in spec['optional']:
+            continue
+        if field in strings:
+            value(isinstance(argument,str),field,{'type':'string'})
+            if field=='view' and operation in ('evidence','navigate'):
+                from . import navigation, rename_service
+                allowed=navigation.VIEWS if operation=='navigate' else rename_service.EVIDENCE_ARGUMENTS
+                value(argument in allowed,field,{'enum':list(allowed)})
+            if field=='span':
+                from .navigation import SPANS
+                value(argument in SPANS,field,{'enum':list(SPANS)})
+        elif field in integers:
+            lo,hi=integers[field]
+            value(type(argument) is int and argument>=lo and (hi is None or argument<=hi),
+                  field,{'type':'integer','minimum':lo,**({'maximum':hi} if hi is not None else {})})
+        elif field=='record_id':
+            valid=isinstance(argument,str) and bool(argument)
+            if operation=='navigate':
+                valid |= isinstance(argument,list) and 0<len(argument)<=128 and all(isinstance(v,str) and v for v in argument) and len(set(argument))==len(argument)
+            value(valid,field,{'source':'navigate record IDs; navigate also accepts a unique list of 1..128 IDs'})
+        elif field=='address':
+            valid=lambda v:type(v) is int and 0<=v<=65535
+            ok=(isinstance(argument,list) and 0<len(argument)<=128 and all(valid(v) for v in argument) and len(set(argument))==len(argument)
+                if arguments.get('view')=='ram_set' else valid(argument))
+            value(ok,field,{'type':'unique array of 1..128 integers' if arguments.get('view')=='ram_set' else 'integer','minimum':0,'maximum':65535})
+        elif field=='query':value(isinstance(argument,dict),field,{'type':'search_query object'})
+        elif field=='names':value(isinstance(argument,list) and all(isinstance(v,str) and v for v in argument),field,{'type':'array of nonempty strings'})
+        elif field in ('operations','claims','decisions'):
+            value(isinstance(argument,list) and all(isinstance(v,dict) for v in argument),field,{'type':'array of objects'})
+    if operation=='preview':
+        from . import edit_contract
+        shapes={kind:shape for owner in edit_contract.owners() for kind,shape in owner.OPERATION_SCHEMAS.items()}
+        for op in arguments['operations']:
+            value(isinstance(op.get('kind'),str),'operations[].kind',{'enum':list(shapes)})
+            if op['kind'] in shapes:
+                edit_contract.check(op,shapes[op['kind']],'REQUEST_SCHEMA')
+            # Unknown/forbidden kinds retain their owner's access check.
 
 
 def entry(operation, role, profile='corridor'):

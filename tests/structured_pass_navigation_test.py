@@ -137,7 +137,7 @@ class NavigationSpanTests(unittest.TestCase):
         for extra,code in [({'generation':'G-unknown'},'UNKNOWN_GENERATION'),
                 ({'symbol':None,'record_id':'unknown'},'NAVIGATION_RECORD_REQUIRED'),
                 ({'span':'routine'},'REQUEST_SCHEMA'),({'view':'uses'},'REQUEST_SCHEMA'),
-                ({'limit':41},'REQUEST_SCHEMA')]:
+                ({'limit':41},'INVALID_PAGINATION')]:
             with self.subTest(extra=extra):
                 error,page=self.read(**({'view':'records','symbol':'L9000','span':'segment'}|extra))
                 self.assertTrue(error);self.assertEqual(page['error'],code)

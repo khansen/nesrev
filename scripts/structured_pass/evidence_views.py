@@ -2,6 +2,7 @@
 import base64
 from collections import Counter
 
+from . import paging
 from .model import digest
 from .producer import require
 from . import review_pages
@@ -20,7 +21,7 @@ def indices(model):
 
 
 def page(rows,offset=0,limit=40):
-    require(type(offset) is int and offset>=0 and type(limit) is int and 1<=limit<=40,'EVIDENCE_REQUEST_INVALID')
+    paging.validate(offset, limit, 40, len(rows))
     result={'records':[],'offset':offset,'total_records':len(rows),'next_offset':None}
     for row in rows[offset:offset+limit]:
         trial={**result,'records':result['records']+[row]}
@@ -65,7 +66,9 @@ def outgoing(model,record_id):
 
 
 def memory(model,address=None,record_id=None):
-    require((address is None)!=(record_id is None),'EVIDENCE_REQUEST_INVALID')
+    from .operation_contract import value
+    value((address is None)!=(record_id is None),'address/record_id',
+          'exactly one RAM selector','EVIDENCE_REQUEST_INVALID')
     if record_id is not None:
         n=model.node(record_id);require(n in model.declaration_records,'EVIDENCE_REQUEST_INVALID')
         address=model.values.get(model.name(n),model.locations.get(n,{}).get('cpu_address'))
